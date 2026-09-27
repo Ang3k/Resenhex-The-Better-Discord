@@ -412,11 +412,43 @@ blockquote { margin: 2px 0; padding: 0 8px 0 12px; border-left: 4px solid #4e505
   padding: 2px 8px; border-radius: 4px; font-size: 14px; font-weight: 500; color: #fff; max-width: calc(100% - 16px);
 }
 .tile .label .ico { color: var(--red); }
-.tile.screen { grid-column: 1 / -1; background: #000; }
-#stage:has(.tile.screen) { grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); align-content: start; }
-#stage:has(.tile.screen) .tile.screen { aspect-ratio: auto; height: calc(100vh - 48px - 32px - 96px - 120px); min-height: 240px; }
-#stage:has(.tile.screen) .tile:not(.screen) { aspect-ratio: auto; height: 110px; }
-#stage:has(.tile.screen) .tile:not(.screen) .avatar { width: 52px; height: 52px; font-size: 20px; }
+.tile { cursor: pointer; }
+.tile.screen { background: #000; }
+/* Bloco em destaque (fixado, ou a tela compartilhada); os outros viram uma faixa embaixo. */
+.tile.focus { grid-column: 1 / -1; }
+#stage:has(.tile.focus) { grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); align-content: start; }
+#stage:has(.tile.focus) .tile.focus { aspect-ratio: auto; height: calc(100vh - 48px - 32px - 96px - 120px); min-height: 240px; }
+#stage:has(.tile.focus) .tile:not(.focus) { aspect-ratio: auto; height: 110px; }
+#stage:has(.tile.focus) .tile:not(.focus) .avatar { width: 52px; height: 52px; font-size: 20px; }
+#stage:has(.tile.focus) .tile:not(.focus) .stats,
+#stage:has(.tile.focus) .tile:not(.focus) .tc-btn:not(.tc-pin),
+#stage:has(.tile.focus) .tile:not(.focus) .tc-volume,
+#stage:has(.tile.focus) .tile:not(.focus) .paused-overlay > :not(.paused-title) { display: none; }
+#stage:has(.tile.focus) .tile.screen:not(.focus) video { object-fit: cover; }
+.tile:fullscreen { border-radius: 0; box-shadow: none; cursor: default; }
+.tile:fullscreen .tile-controls { opacity: 1; }
+
+/* Controles ao passar o mouse */
+.tile-controls { position: absolute; right: 8px; bottom: 8px; display: flex; gap: 6px; opacity: 0; transition: opacity .15s; }
+.tile:hover .tile-controls, .tile:focus-within .tile-controls { opacity: 1; }
+.tc-btn {
+  width: 34px; height: 34px; border: 0; border-radius: 8px; display: grid; place-items: center;
+  background: rgba(0, 0, 0, .65); color: #fff; transition: background .1s;
+}
+.tc-btn:hover { background: rgba(0, 0, 0, .9); }
+.tc-btn.active { background: var(--brand); }
+.tc-btn.off { color: var(--red); }
+.tc-btn .slash { stroke: currentColor; }
+.tc-volume { display: flex; align-items: center; border-radius: 8px; background: rgba(0, 0, 0, .65); }
+.tc-volume .tc-btn { background: transparent; }
+.tc-slider { width: 0; opacity: 0; margin: 0; accent-color: #fff; transition: width .15s, opacity .15s, margin .15s; cursor: pointer; }
+.tc-volume:hover .tc-slider, .tc-slider:focus { width: 96px; opacity: 1; margin-right: 10px; }
+.watch-overlay {
+  position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px;
+  background: #111214; text-align: center; padding: 16px; color: var(--interactive);
+}
+.watch-btn { background: var(--brand); color: #fff; border: 0; border-radius: 4px; padding: 8px 16px; font-weight: 500; font-size: 14px; }
+.watch-btn:hover { background: var(--brand-hover); }
 .tile .stats {
   position: absolute; right: 8px; top: 8px; background: rgba(0, 0, 0, .6); color: #dbdee1;
   padding: 2px 8px; border-radius: 4px; font-size: 11px; font-variant-numeric: tabular-nums; pointer-events: none; max-width: calc(100% - 16px);

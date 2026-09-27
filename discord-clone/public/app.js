@@ -50,6 +50,10 @@
     voiceSnapshot: null, // para tocar sons quando alguém entra/sai da sala
     removed: false,
     showMembers: localStorage.getItem('showMembers') !== 'false',
+    pinned: null, // bloco fixado no palco da chamada ('screen-<sid>' ou 'user-<sid>')
+    streamVolume: JSON.parse(localStorage.getItem('streamVolume') || '{}'), // accountId -> 0..1 (áudio da transmissão)
+    streamMuted: new Set(JSON.parse(localStorage.getItem('streamMuted') || '[]')),
+    hiddenStreams: new Set(), // sids das transmissões que parei de assistir
     collapsed: new Set(JSON.parse(localStorage.getItem('collapsed') || '[]')), // categorias recolhidas
   };
 
@@ -1113,27 +1117,39 @@
       if (!m) continue;
       const self = v.sid === state.me.sid;
       const remote = self ? state.local : state.peers.get(v.sid)?.remote || {};
+      if (!v.sharing) state.hiddenStreams.delete(v.sid);
       if (v.sharing && remote.screen) {
         const key = 'screen-' + v.sid;
         wanted.add(key);
         let tile = stage.querySelector(`[data-key="${key}"]`);
         if (!tile) {
-          const video = el('video', { autoplay: true, playsInline: true });
-          video.onclick = () => (document.fullscreenElement ? document.exitFullscreen() : video.requestFullscreen());
-          tile = el('div', { class: 'tile screen', data: { key } }, video,
+          tile = el('div', { class: 'tile screen', data: { key, sid: v.sid } }, el('video', { autoplay: true, playsInline: true }),
             el('div', { class: 'paused-overlay hidden' }, Icon('pause', 44), el('div', { class: 'paused-title', textContent: 'Transmissão pausada' }),
               el('div', { class: 'muted-text', textContent: 'A janela compartilhada foi minimizada. Ela volta sozinha quando a janela for restaurada.' })),
-            el('div', { class: 'stats' }), el('div', { class: 'label' }));
+            el('div', { class: 'watch-overlay hidden' }),
+            el('div', { class: 'stats' }), el('div', { class: 'label' }), el('div', { class: 'tile-controls' }));
+          setupTile(tile);
+          tile.oncontextmenu = (e) => openStreamMenu(tile, e);
           stage.prepend(tile);
         }
-        tile.querySelector('.paused-overlay').classList.toggle('hidden', !v.paused);
+        const hidden = state.hiddenStreams.has(v.sid);
+        tile.querySelector('.paused-overlay').classList.toggle('hidden', !v.paused || hidden);
+        const watch = tile.querySelector('.watch-overlay');
+        watch.classList.toggle('hidden', !hidden);
+        if (hidden && !watch.childElementCount) {
+          watch.append(Icon('screen', 40), el('div', { class: 'paused-title', textContent: 'Tela de ' + m.name }),
+            el('button', { class: 'watch-btn', textContent: 'Assistir transmissão', onclick: (e) => { e.stopPropagation(); state.hiddenStreams.delete(v.sid); renderStage(); } }));
+        } else if (!hidden) watch.replaceChildren();
+        // Parar de assistir desliga o vídeo aqui (economiza processamento); a pessoa continua transmitindo.
         const video = tile.querySelector('video');
-        if (video.srcObject !== remote.screen) {
-          video.srcObject = remote.screen;
+        const src = hidden ? null : remote.screen;
+        if (video.srcObject !== src) {
+          video.srcObject = src;
           setSinkId(video);
         }
-        tile.querySelector('.label').replaceChildren(Icon('screen', 16), 'Tela de ' + m.name);
+        tile.querySelector('.label').replaceChildren(Icon('screen', 16), self ? 'Sua transmissão' : 'Tela de ' + m.name);
         tile.querySelector('.label .ico').style.color = '#fff';
+        renderTileControls(tile, { kind: 'screen', self, sid: v.sid, accountId: m.id, hidden });
       }
 
       const key = 'user-' + v.sid;
@@ -1142,10 +1158,12 @@
       if (!tile) {
         tile = el('div', {
           class: 'tile',
-          data: { key },
+          data: { key, sid: v.sid },
           style: { '--tile': m.color },
           oncontextmenu: (e) => openMemberMenu(m.id, e),
-        }, avatar(m, '', v.sid), el('video', { class: 'cam hidden' + (self ? ' mirror' : ''), autoplay: true, playsInline: true, muted: true }), el('div', { class: 'label' }));
+        }, avatar(m, '', v.sid), el('video', { class: 'cam hidden' + (self ? ' mirror' : ''), autoplay: true, playsInline: true, muted: true }),
+        el('div', { class: 'label' }), el('div', { class: 'tile-controls' }));
+        setupTile(tile);
         stage.append(tile);
       }
       const cam = tile.querySelector('video.cam');
@@ -1159,12 +1177,141 @@
       tile.querySelector('.label').replaceChildren(m.name,
         silenced || v.muted ? Icon('micOff', 16) : '',
         m.serverDeafened || v.deafened ? Icon('headphonesOff', 16) : '');
+      renderTileControls(tile, { kind: 'user', self, sid: v.sid, accountId: m.id, camera: !!camStream });
     }
 
     for (const tile of [...stage.children]) {
       if (!wanted.has(tile.dataset.key)) tile.remove();
     }
+
+    // Destaque: o bloco fixado; sem fixar, as telas compartilhadas ficam em destaque.
+    if (state.pinned && !wanted.has(state.pinned)) state.pinned = null;
+    const tiles = [...stage.children];
+    for (const t of tiles) {
+      t.classList.toggle('pinned', t.dataset.key === state.pinned);
+      t.classList.toggle('focus', state.pinned ? t.dataset.key === state.pinned : t.classList.contains('screen'));
+    }
+    const order = [...tiles.filter((t) => t.classList.contains('focus')), ...tiles.filter((t) => !t.classList.contains('focus'))];
+    order.forEach((t, i) => { if (stage.children[i] !== t) stage.insertBefore(t, stage.children[i] || null); });
     applyAudio();
+  }
+
+  // ---------------- controles dos blocos da chamada (estilo Discord) ----------------
+  function setupTile(tile) {
+    // Clique fixa/solta; clique duplo abre em tela cheia.
+    tile.addEventListener('click', (e) => {
+      if (e.target.closest('.tile-controls, .watch-btn')) return;
+      togglePin(tile.dataset.key);
+    });
+    tile.addEventListener('dblclick', (e) => {
+      if (e.target.closest('.tile-controls, .watch-btn')) return;
+      togglePin(tile.dataset.key, true);
+      toggleFullscreen(tile);
+    });
+  }
+
+  function togglePin(key, forcePin = false) {
+    state.pinned = forcePin || state.pinned !== key ? key : null;
+    renderStage();
+  }
+
+  function toggleFullscreen(tile) {
+    if (document.fullscreenElement) document.exitFullscreen().catch(() => {});
+    else tile.requestFullscreen?.().catch(() => {});
+  }
+
+  async function togglePip(video) {
+    try {
+      if (document.pictureInPictureElement === video) await document.exitPictureInPicture();
+      else await video.requestPictureInPicture();
+    } catch {
+      toast('Seu navegador não permitiu abrir em janela flutuante.');
+    }
+  }
+
+  function setStreamVolume(accountId, value) {
+    state.streamVolume[accountId] = value;
+    if (value > 0) state.streamMuted.delete(accountId);
+    localStorage.setItem('streamVolume', JSON.stringify(state.streamVolume));
+    localStorage.setItem('streamMuted', JSON.stringify([...state.streamMuted]));
+    applyAudio();
+  }
+
+  function toggleStreamMute(accountId) {
+    state.streamMuted.has(accountId) ? state.streamMuted.delete(accountId) : state.streamMuted.add(accountId);
+    localStorage.setItem('streamMuted', JSON.stringify([...state.streamMuted]));
+    applyAudio();
+    renderStage();
+  }
+
+  // Botões que aparecem ao passar o mouse sobre um bloco.
+  function renderTileControls(tile, o) {
+    const pinned = state.pinned === tile.dataset.key;
+    const muted = state.streamMuted.has(o.accountId);
+    const vol = state.streamVolume[o.accountId] ?? 1;
+    const sig = JSON.stringify([o, pinned, muted, !!document.fullscreenElement]);
+    if (tile.dataset.ctl === sig) return;
+    tile.dataset.ctl = sig;
+    const box = tile.querySelector('.tile-controls');
+    const btn = (label, icon, onclick, cls = '') => el('button', { class: 'tc-btn ' + cls, tip: label, ariaLabel: label, onclick: (e) => { e.stopPropagation(); onclick(e); } }, Icon(icon, 18));
+    const video = o.kind === 'screen' ? tile.querySelector('video') : tile.querySelector('video.cam');
+    const items = [];
+    if (o.kind === 'screen' && !o.self && !o.hidden) {
+      const slider = el('input', { type: 'range', class: 'tc-slider', min: 0, max: 100, value: Math.round((muted ? 0 : vol) * 100), ariaLabel: 'Volume da transmissão' });
+      slider.oninput = (e) => { e.stopPropagation(); setStreamVolume(o.accountId, slider.value / 100); };
+      slider.onclick = (e) => e.stopPropagation();
+      items.push(el('div', { class: 'tc-volume' },
+        btn(muted ? 'Ativar som da transmissão' : 'Silenciar transmissão', muted ? 'volumeX' : 'volume', () => toggleStreamMute(o.accountId), 'tc-mute' + (muted ? ' off' : '')), slider));
+    }
+    items.push(btn(pinned ? 'Desafixar' : 'Fixar', pinned ? 'pinOff' : 'pin', () => togglePin(tile.dataset.key), 'tc-pin' + (pinned ? ' active' : '')));
+    if ((o.kind === 'screen' && !o.hidden) || o.camera) {
+      if (document.pictureInPictureEnabled) items.push(btn('Abrir em janela flutuante', 'pip', () => togglePip(video), 'tc-pip'));
+      items.push(btn(document.fullscreenElement ? 'Sair da tela cheia' : 'Tela cheia', document.fullscreenElement ? 'minimize' : 'maximize', () => toggleFullscreen(tile), 'tc-full'));
+    }
+    if (o.kind === 'screen' && !o.self && !o.hidden) {
+      items.push(btn('Parar de assistir', 'eyeOff', () => { state.hiddenStreams.add(o.sid); if (state.pinned === tile.dataset.key) state.pinned = null; renderStage(); }, 'tc-stop'));
+    }
+    box.replaceChildren(...items);
+  }
+  document.addEventListener('fullscreenchange', () => { if (state.view === 'voice') renderStage(); });
+
+  // Clique direito numa transmissão: as mesmas opções num menu.
+  function openStreamMenu(tile, e) {
+    e.preventDefault();
+    e.stopPropagation();
+    const v = voiceEntry(tile.dataset.sid);
+    const m = v && member(v.accountId);
+    if (!m) return;
+    const self = v.sid === state.me.sid;
+    const hidden = state.hiddenStreams.has(v.sid);
+    const pinned = state.pinned === tile.dataset.key;
+    const menu = $('#context-menu');
+    const items = [el('div', { class: 'menu-section', textContent: self ? 'SUA TRANSMISSÃO' : 'TRANSMISSÃO DE ' + m.name.toUpperCase() })];
+    if (!self && !hidden) {
+      const vol = Math.round((state.streamMuted.has(m.id) ? 0 : state.streamVolume[m.id] ?? 1) * 100);
+      const label = el('span', { textContent: `Volume da transmissão: ${vol}%` });
+      const range = el('input', { type: 'range', min: 0, max: 100, value: vol });
+      range.oninput = () => {
+        label.textContent = `Volume da transmissão: ${range.value}%`;
+        setStreamVolume(m.id, range.value / 100);
+        tile.dataset.ctl = '';
+        renderStage();
+      };
+      items.push(el('div', { class: 'menu-range' }, label, range),
+        menuItem(state.streamMuted.has(m.id) ? 'Ativar som da transmissão' : 'Silenciar transmissão', state.streamMuted.has(m.id) ? 'volume' : 'volumeX', () => toggleStreamMute(m.id)));
+    }
+    items.push(menuItem(pinned ? 'Desafixar' : 'Fixar', pinned ? 'pinOff' : 'pin', () => togglePin(tile.dataset.key)));
+    if (!hidden) {
+      if (document.pictureInPictureEnabled) items.push(menuItem('Abrir em janela flutuante', 'pip', () => togglePip(tile.querySelector('video'))));
+      items.push(menuItem('Tela cheia', 'maximize', () => toggleFullscreen(tile)));
+    }
+    if (!self) {
+      items.push(el('div', { class: 'menu-sep' }), hidden
+        ? menuItem('Assistir transmissão', 'eye', () => { state.hiddenStreams.delete(v.sid); renderStage(); })
+        : menuItem('Parar de assistir', 'eyeOff', () => { state.hiddenStreams.add(v.sid); if (pinned) state.pinned = null; renderStage(); }, 'danger'));
+    }
+    menu.replaceChildren(...items);
+    showMenuAt(e.clientX, e.clientY);
   }
 
   function renderControls() {
@@ -1639,10 +1786,11 @@
         p.audioEl.muted = silent;
         p.audioEl.volume = volume;
       }
+      // Áudio da transmissão tem volume próprio, separado da voz (como no Discord).
       const video = document.querySelector(`[data-key="screen-${sid}"] video`);
       if (video) {
-        video.muted = iCantHear || (v && state.localMuted.has(v.accountId));
-        video.volume = volume;
+        video.muted = iCantHear || !v || state.localMuted.has(v.accountId) || state.streamMuted.has(v.accountId) || state.hiddenStreams.has(sid);
+        video.volume = v ? state.streamVolume[v.accountId] ?? 1 : 1;
       }
     }
     // O próprio áudio da tela não deve voltar para quem está compartilhando.

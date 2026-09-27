@@ -79,6 +79,16 @@ Ao clicar em 🖥️, você escolhe um perfil. Dá para trocar no meio da transm
 | 1080p · 30 fps | Nítido, uso geral (padrão) |
 | 1080p · 60 fps | Fluido, para jogos (usa mais internet; H.264) |
 
+**Controles da transmissão** (como no Discord). Passe o mouse sobre uma transmissão para ver:
+
+- 🔊 **volume próprio da transmissão**, separado da voz da pessoa, e botão para silenciá-la;
+- 📌 **fixar**, que deixa o bloco em destaque e os outros em miniatura (funciona também com a câmera ou o avatar de qualquer pessoa);
+- **janela flutuante** (picture-in-picture), para continuar vendo enquanto usa outro programa;
+- **tela cheia**;
+- **parar de assistir**, que desliga o vídeo só para você e economiza processamento. Para voltar, use "Assistir transmissão".
+
+Atalhos: **clique** fixa ou solta, **clique duplo** abre em tela cheia e o **clique direito** mostra todas as opções num menu.
+
 No canto da transmissão aparecem **resolução, fps, taxa e codec**. Para quem transmite aparece também quantas pessoas estão assistindo. Se o problema durar alguns segundos, aparece ⚠️ *limitado pela internet* ou ⚠️ *limitado pelo processador*.
 
 **A transmissão trava ou congela quando troco de programa.**
