@@ -10,6 +10,11 @@ Ideias anotadas para as próximas versões do Resenhex.
   - Permissão própria para cargos ("Usar efeitos sonoros") e um limite para evitar spam.
   - Depois: deixar enviar sons próprios (arquivos curtos).
 
+## Microfone
+
+- [ ] **Mutar automaticamente durante o "Testar microfone"**: enquanto você se escuta no teste, seu microfone fica mudo na chamada, e o som volta sozinho ao parar o teste.
+- [ ] **Ajuste de sensibilidade do microfone** (como a "Sensibilidade de entrada" do Discord): uma barra que define a partir de que volume o microfone abre, com o nível ao vivo mostrando onde está o corte. Deixar também uma opção "Ajustar automaticamente".
+
 ## Transmissão de tela
 
 - [x] Trocar a qualidade (720p/1080p, 30/60 fps) depois de começar. Já existe: clique de novo no 🖥️.
