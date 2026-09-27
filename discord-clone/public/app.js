@@ -12,9 +12,9 @@
   // Perfis de transmissão de tela. "hint" diz ao codificador o tipo de conteúdo e
   // "degradation" decide o que sacrificar quando falta internet: nitidez ou fluidez.
   const SHARE_PRESETS = {
-    text: { label: '📄 Texto e código', desc: 'Máxima nitidez · 1080p 15 fps', width: 1920, height: 1080, fps: 15, hint: 'text', degradation: 'maintain-resolution', bitrate: 2_500_000, codecs: ['video/VP9', 'video/VP8'] },
-    balanced: { label: '⚖️ Equilibrado', desc: 'Uso geral · 1080p 30 fps', width: 1920, height: 1080, fps: 30, hint: 'detail', degradation: 'balanced', bitrate: 4_000_000, codecs: ['video/VP9', 'video/VP8'] },
-    motion: { label: '🎮 Jogos e vídeos', desc: 'Mais fluido · 720p 60 fps', width: 1280, height: 720, fps: 60, hint: 'motion', degradation: 'maintain-framerate', bitrate: 5_000_000, codecs: ['video/H264', 'video/VP8'] },
+    p720: { label: '720p · 30 fps', desc: 'Leve, bom para internet fraca', width: 1280, height: 720, fps: 30, hint: 'detail', degradation: 'balanced', bitrate: 2_500_000, codecs: ['video/VP9', 'video/VP8'] },
+    p1080: { label: '1080p · 30 fps', desc: 'Nítido, uso geral', width: 1920, height: 1080, fps: 30, hint: 'detail', degradation: 'balanced', bitrate: 4_000_000, codecs: ['video/VP9', 'video/VP8'] },
+    p1080_60: { label: '1080p · 60 fps', desc: 'Fluido, para jogos (usa mais internet)', width: 1920, height: 1080, fps: 60, hint: 'motion', degradation: 'maintain-framerate', bitrate: 6_000_000, codecs: ['video/H264', 'video/VP8'] },
   };
 
   const state = {
@@ -31,7 +31,7 @@
     deafened: false,
     micStream: null,
     local: { screen: null, camera: null }, // meus streams de vídeo
-    sharePreset: SHARE_PRESETS[localStorage.getItem('sharePreset')] ? localStorage.getItem('sharePreset') : 'balanced',
+    sharePreset: SHARE_PRESETS[localStorage.getItem('sharePreset')] ? localStorage.getItem('sharePreset') : 'p1080',
     sharePaused: false,
     uploadMbps: Number(localStorage.getItem('uploadMbps')) || 10,
     peers: new Map(), // sid -> conexão WebRTC com cada participante da sala

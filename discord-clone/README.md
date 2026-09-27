@@ -73,11 +73,11 @@ Abra <http://localhost:3000> em duas abas (ou dois navegadores) para testar.
 
 Ao clicar em 🖥️, você escolhe um perfil. Dá para trocar no meio da transmissão, clicando em 🖥️ de novo.
 
-| Perfil | Para quê | O que acontece quando falta internet |
-|---|---|---|
-| 📄 Texto e código | Documentos, código, planilhas | Mantém a nitidez e reduz o FPS (1080p, até 15 fps, VP9) |
-| ⚖️ Equilibrado | Uso geral | Equilibra nitidez e fluidez (1080p, até 30 fps, VP9) |
-| 🎮 Jogos e vídeos | Jogos, filmes, YouTube | Mantém a fluidez e reduz a resolução (720p, até 60 fps, H.264) |
+| Perfil | Para quê |
+|---|---|
+| 720p · 30 fps | Leve, bom para internet fraca |
+| 1080p · 30 fps | Nítido, uso geral (padrão) |
+| 1080p · 60 fps | Fluido, para jogos (usa mais internet; H.264) |
 
 No canto da transmissão aparecem **resolução, fps, taxa e codec**. Para quem transmite aparece também quantas pessoas estão assistindo. Se o problema durar alguns segundos, aparece ⚠️ *limitado pela internet* ou ⚠️ *limitado pelo processador*.
 
@@ -88,10 +88,10 @@ Você está compartilhando **uma janela** e ela foi minimizada: o navegador para
 Jogos em *tela cheia exclusiva* não podem ser capturados como janela. Coloque o jogo em **"janela sem bordas"** (borderless) e compartilhe a **Tela inteira**.
 
 **Trava quando mais gente assiste.**
-Como a chamada é direta entre os navegadores, quem transmite envia **uma cópia para cada pessoa**. Em ⚙️ Configurações, escolha em **"Upload da sua internet"** o valor do seu teste de velocidade. O app divide a qualidade entre quem assiste para não estourar sua internet. Se ainda travar, use o perfil **Texto** ou **Jogos**, que gastam menos.
+Como a chamada é direta entre os navegadores, quem transmite envia **uma cópia para cada pessoa**. Em ⚙️ Configurações, escolha em **"Upload da sua internet"** o valor do seu teste de velocidade. O app divide a qualidade entre quem assiste para não estourar sua internet. Se ainda travar, use o perfil **720p · 30 fps**, que gasta menos.
 
 **Aparece "limitado pelo processador".**
-Use o perfil **Jogos e vídeos**: ele usa H.264, que normalmente tem codificação por hardware, e 720p. Fechar outros programas pesados também ajuda.
+Use o perfil **720p · 30 fps**, que exige menos do processador. Fechar outros programas pesados também ajuda.
 
 ## Colocando online para os amigos
 
