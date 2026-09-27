@@ -63,7 +63,9 @@ ul { list-style: none; margin: 0; padding: 0; }
 }
 
 #sidebar { background: var(--bg-sidebar); display: flex; flex-direction: column; min-width: 0; }
-.server-name { padding: 0 16px; height: 48px; display: flex; align-items: center; font-weight: 700; border-bottom: 1px solid #1f2023; }
+.server-name { padding: 0 8px 0 16px; height: 48px; display: flex; align-items: center; justify-content: space-between; font-weight: 700; border-bottom: 1px solid #1f2023; }
+.server-name button { background: transparent; border: 0; border-radius: 4px; width: 32px; height: 32px; }
+.server-name button:hover { background: var(--bg-active); }
 .channels { flex: 1; overflow-y: auto; padding: 8px; }
 .category { font-size: 12px; font-weight: 700; color: var(--text-muted); padding: 16px 8px 4px; }
 
@@ -103,6 +105,8 @@ ul { list-style: none; margin: 0; padding: 0; }
 }
 #user-panel button:hover, #voice-panel button:hover { background: var(--bg-active); }
 #user-panel button.off { background: rgba(218, 55, 60, .3); }
+#user-panel button.locked { background: var(--red); cursor: not-allowed; }
+#voice-panel button:disabled { opacity: .4; cursor: not-allowed; }
 #voice-panel button.on { background: var(--green); }
 #voice-panel button.danger:hover { background: var(--red); }
 
@@ -144,19 +148,114 @@ ul { list-style: none; margin: 0; padding: 0; }
 .tile.screen { grid-column: 1 / -1; }
 
 #members { background: var(--bg-sidebar); padding: 8px; overflow-y: auto; }
-.member { display: flex; align-items: center; gap: 10px; padding: 6px 8px; border-radius: 4px; }
+.member { display: flex; align-items: center; gap: 10px; padding: 6px 8px; border-radius: 4px; cursor: pointer; }
+.member.offline { opacity: .4; }
+.member-info { min-width: 0; }
+.member-name { font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .member:hover { background: var(--bg-hover); }
 .member .sub { font-size: 12px; color: var(--text-muted); }
 
 #toast {
-  position: fixed; left: 50%; bottom: 24px; transform: translateX(-50%); z-index: 20;
+  position: fixed; left: 50%; bottom: 24px; transform: translateX(-50%); z-index: 30;
   background: var(--red); color: #fff; padding: 10px 16px; border-radius: 6px; max-width: calc(100vw - 32px);
 }
+#toast.info { background: var(--blurple); }
+
+/* ---------- Login ---------- */
+.card .switch { text-align: left; font-size: 14px; }
+.card .switch a { color: #00a8fc; text-decoration: none; }
+.notice { background: rgba(250, 166, 26, .15); border: 1px solid #faa61a; color: #faa61a; border-radius: 4px; padding: 8px 12px; font-size: 14px; }
+
+.channel .lock { margin-left: auto; font-size: 11px; opacity: .7; }
+.voice-user { cursor: pointer; border-radius: 4px; }
+.voice-user:hover { background: var(--bg-hover); }
+.voice-user .name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.server-flag { filter: drop-shadow(0 0 1px var(--red)); }
+
+/* ---------- Mensagens ---------- */
+.msg { position: relative; }
+.msg-body { min-width: 0; flex: 1; }
+.msg-author { cursor: pointer; }
+.msg-author:hover { text-decoration: underline; }
+.edited { color: var(--text-muted); font-size: 11px; }
+.msg-actions {
+  position: absolute; right: 16px; top: -12px; display: none;
+  background: var(--bg-sidebar); border: 1px solid #1f2023; border-radius: 6px;
+}
+.msg:hover .msg-actions { display: flex; }
+.msg-actions button { background: transparent; border: 0; padding: 4px 8px; border-radius: 4px; }
+.msg-actions button:hover { background: var(--bg-active); }
+.msg-edit { width: 100%; background: var(--bg-input); border: 0; border-radius: 8px; padding: 10px 12px; color: var(--text); font-size: 15px; outline: none; margin: 4px 0; }
+#chat-input:disabled { opacity: .6; cursor: not-allowed; }
+
+/* ---------- Menu de contexto ---------- */
+#context-menu {
+  position: fixed; z-index: 25; width: 260px; max-height: calc(100vh - 16px); overflow-y: auto;
+  background: #111214; border-radius: 6px; padding: 6px; box-shadow: 0 8px 16px rgba(0, 0, 0, .4);
+}
+.menu-head { display: flex; gap: 10px; padding: 6px; align-items: flex-start; }
+.menu-head .sub { font-size: 12px; color: #faa61a; }
+.menu-item {
+  display: block; width: 100%; text-align: left; background: transparent; border: 0; color: var(--text);
+  padding: 7px 8px; border-radius: 3px; font-size: 14px;
+}
+.menu-item:hover { background: var(--blurple); color: #fff; }
+.menu-item.indent { padding-left: 20px; }
+.menu-item.danger { color: #f23f43; }
+.menu-item.danger:hover { background: var(--red); color: #fff; }
+.menu-section { font-size: 11px; font-weight: 700; color: var(--text-muted); padding: 8px 8px 2px; }
+.menu-sep { height: 1px; background: #2b2d31; margin: 4px; }
+.menu-range { display: flex; flex-direction: column; gap: 4px; padding: 6px 8px; font-size: 13px; }
+.menu-check { display: flex; align-items: center; gap: 8px; padding: 5px 8px; font-size: 14px; border-radius: 3px; cursor: pointer; }
+.menu-check:hover { background: var(--bg-hover); }
+.menu-check.disabled { opacity: .45; cursor: not-allowed; }
+
+.chips { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 4px; }
+.chip { display: inline-flex; align-items: center; gap: 4px; background: #2b2d31; border-radius: 4px; padding: 2px 6px; font-size: 12px; }
+.chip.selectable { cursor: pointer; font-weight: 400; color: var(--text); flex-direction: row; gap: 4px; font-size: 12px; }
+.dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; display: inline-block; }
+
+/* ---------- Configurações do servidor ---------- */
+.card.wide { width: min(820px, calc(100vw - 32px)); max-height: calc(100vh - 32px); overflow: hidden; padding: 24px; }
+.settings-head { display: flex; align-items: center; justify-content: space-between; }
+.settings-head h2 { text-align: left; }
+.card button.close { background: transparent; color: var(--text-muted); font-size: 18px; padding: 4px 8px; }
+.tabs { display: flex; gap: 4px; border-bottom: 1px solid #1f2023; }
+.card .tabs button { background: transparent; color: var(--text-muted); border-radius: 4px 4px 0 0; padding: 8px 14px; }
+.card .tabs button.active { background: var(--bg-active); color: #fff; }
+#settings-body { overflow-y: auto; min-height: 0; flex: 1; }
+.split { display: grid; grid-template-columns: 220px 1fr; gap: 16px; }
+.role-list { display: flex; flex-direction: column; gap: 2px; }
+.card .role-row { display: flex; align-items: center; gap: 8px; background: transparent; color: var(--text); padding: 8px; font-weight: 500; text-align: left; }
+.card .role-row:hover { background: var(--bg-hover); }
+.card .role-row.active { background: var(--bg-active); }
+.grow { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.role-editor { display: flex; flex-direction: column; gap: 12px; }
+.perm-list { display: grid; grid-template-columns: 1fr 1fr; gap: 6px 16px; }
+.card .row { flex-direction: row; align-items: center; gap: 8px; font-weight: 400; font-size: 14px; color: var(--text); }
+.row.gap { display: flex; gap: 8px; align-items: center; }
+.row.gap input:not([type]) { flex: 1; min-width: 0; }
+.card label.inline { flex-direction: row; align-items: center; }
+.buttons { display: flex; gap: 8px; justify-content: flex-end; flex-wrap: wrap; }
+.card button.secondary { background: #4e5058; }
+.card .danger-text { color: #fff; }
+.card button.danger-text { background: var(--red); }
+.card button:disabled { opacity: .5; cursor: not-allowed; }
+.channel-row { background: var(--bg-sidebar); border-radius: 6px; padding: 12px; margin-bottom: 8px; display: flex; flex-direction: column; gap: 6px; }
+.channel-row.new { border: 1px dashed #4e5058; }
+.channel-row .icon { width: 20px; text-align: center; color: var(--text-muted); }
+.card .channel-row button, .card .ban-row button { padding: 8px 12px; }
+.ban-row { padding: 8px 0; border-bottom: 1px solid #2b2d31; }
+.card select { font-size: 14px; }
 
 /* Telas menores: esconde a lista de membros e depois a barra de servidores */
 @media (max-width: 1000px) {
   #app { grid-template-columns: 72px 220px 1fr; }
   #members { display: none; }
+}
+@media (max-width: 700px) {
+  .split { grid-template-columns: 1fr; }
+  .perm-list { grid-template-columns: 1fr; }
 }
 @media (max-width: 640px) {
   #app { grid-template-columns: 180px 1fr; }

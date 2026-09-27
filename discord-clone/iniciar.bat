@@ -43,7 +43,7 @@ if errorlevel 1 (
 )
 
 echo.
-set /p ACCESS_PASSWORD=Escolha a senha para seus amigos entrarem:
+set /p ACCESS_PASSWORD=Escolha a senha do servidor (seus amigos usam para criar conta): 
 if "%ACCESS_PASSWORD%"=="" (
   echo [ERRO] A senha nao pode ser vazia.
   pause
@@ -59,7 +59,9 @@ echo.
 echo ============================================
 echo  Procure abaixo um link terminado em
 echo  .trycloudflare.com e mande para os amigos
-echo  junto com a senha: %ACCESS_PASSWORD%
+echo  junto com a senha do servidor: %ACCESS_PASSWORD%
+echo.
+echo  Crie SUA conta primeiro: a primeira conta vira dona do servidor.
 echo.
 echo  Voce mesmo pode entrar por http://localhost:3000
 echo  NAO feche esta janela nem a do servidor.

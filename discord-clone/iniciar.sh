@@ -11,7 +11,7 @@ command -v cloudflared >/dev/null || {
 }
 [ -d node_modules ] || npm install
 
-read -rp "Escolha a senha para seus amigos entrarem: " ACCESS_PASSWORD
+read -rp "Escolha a senha do servidor (seus amigos usam para criar conta): " ACCESS_PASSWORD
 [ -n "$ACCESS_PASSWORD" ] || { echo "A senha não pode ser vazia."; exit 1; }
 export ACCESS_PASSWORD
 
@@ -22,7 +22,8 @@ sleep 2
 
 echo
 echo "Procure abaixo o link terminado em .trycloudflare.com e mande para os amigos."
-echo "Senha: $ACCESS_PASSWORD  |  Você entra por http://localhost:3000"
+echo "Senha do servidor: $ACCESS_PASSWORD  |  Você entra por http://localhost:3000"
+echo "Crie SUA conta primeiro: a primeira conta vira dona do servidor."
 echo "Ctrl+C para desligar."
 echo
 cloudflared tunnel --url http://localhost:3000

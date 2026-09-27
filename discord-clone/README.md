@@ -2,13 +2,43 @@
 
 Servidor próprio para você e seus amigos, com:
 
-- **Chat de texto** em canais (`#geral`, `#jogos`, `#links`), histórico salvo, links clicáveis e aviso de "fulano está digitando…"
-- **Chamadas de voz** em salas (`Sala 1`, `Sala 2`, `AFK`), com indicador verde de quem está falando
+- **Contas** com usuário e senha (login automático depois da primeira vez)
+- **Chat de texto** em canais, com histórico salvo, links clicáveis, "fulano está digitando…", **editar** (✏️ ou seta ↑) e **apagar** mensagens
+- **Chamadas de voz** em salas, com indicador verde de quem está falando
 - **Compartilhamento de tela** (até 1080p/30fps, com áudio da aba/sistema quando o navegador permite); clique na tela para abrir em tela cheia
 - **Mutar / ensurdecer** (também pelos atalhos `Ctrl+Shift+M` / `Ctrl+Shift+D`)
+- **Volume individual** e **mutar para mim** (só afeta o que você ouve)
+- **Cargos e permissões** estilo Discord, com hierarquia
+- **Moderação**: silenciar e ensurdecer no servidor, mover e desconectar da voz, castigo (timeout), expulsar e banir
+- **Canais privados** (visíveis só para certos cargos), além de criar, renomear e apagar canais
 - Escolha de **microfone e saída de áudio**, com supressão de ruído
-- Lista de quem está online e em qual sala
-- **Senha de acesso** opcional
+- Lista de membros agrupada por cargo, com online e offline
+
+## Cargos e moderação
+
+- **A primeira conta criada vira a dona do servidor 👑.** A dona tem todas as permissões e ninguém pode agir contra ela. Por isso, crie a sua conta antes de mandar o link para os amigos.
+- Clique (ou clique com o botão direito) em qualquer membro, na lista da direita, nos canais de voz ou no nome numa mensagem, para abrir o menu com as ações que você tem permissão de usar.
+- A **⚙️ ao lado do nome do servidor** abre as configurações do servidor. Ela só aparece para quem pode gerenciar cargos, canais ou banimentos:
+  - **Cargos:** criar, renomear, escolher cor, "mostrar separado na lista", marcar permissões e subir ou descer na hierarquia
+  - **Canais:** criar canais de texto ou voz, renomear, apagar e tornar privado para certos cargos
+  - **Banidos:** desbanir
+
+Cargos que já vêm criados:
+
+| Cargo | Permissões |
+|---|---|
+| Admin | Todas |
+| Moderador | Expulsar, castigar, silenciar e ensurdecer, mover e desconectar da voz, apagar mensagens |
+| @everyone (todos) | Enviar mensagens, entrar na voz, falar, compartilhar tela |
+
+Regras da hierarquia (iguais às do Discord):
+- Você só pode moderar quem tem o cargo mais alto **abaixo** do seu.
+- Você só pode dar, tirar ou editar cargos **abaixo** do seu, e não pode dar a um cargo uma permissão que você não tem.
+- Tirar uma permissão do **@everyone** restringe todo mundo que não tem outro cargo com ela. Por exemplo, tire "Enviar mensagens" e dê essa permissão só a um cargo "Membro".
+- **Castigo:** a pessoa não escreve, não fala e não compartilha tela até o tempo acabar.
+- **Expulsar:** a pessoa é desconectada e precisa entrar de novo. **Banir:** ela não consegue mais entrar até ser desbanida.
+
+Tudo isso é verificado **no servidor**, então ninguém burla mexendo no navegador. A única exceção é o silêncio na voz: como o áudio vai direto entre os navegadores, quem foi silenciado ainda envia áudio se modificar o próprio navegador, mas os navegadores dos outros deixam de tocar esse áudio.
 
 ## Como funciona
 
@@ -44,7 +74,7 @@ Navegadores **só liberam microfone e captura de tela em HTTPS** (ou em `localho
 
 2. **Sempre online:** hospede em um serviço que roda Node.js e já dá HTTPS (Render, Railway, Fly.io) ou numa VPS com Caddy/Nginx na frente. Comando de start: `npm start`. A porta vem da variável `PORT`.
 
-Em qualquer caso, **defina uma senha** para ninguém de fora entrar:
+Em qualquer caso, **defina uma senha do servidor**. Ela é pedida na hora de criar conta, para ninguém de fora entrar:
 
 ```bash
 ACCESS_PASSWORD=minhasenha npm start
@@ -55,8 +85,8 @@ ACCESS_PASSWORD=minhasenha npm start
 | Variável | Para quê |
 |---|---|
 | `PORT` | Porta HTTP (padrão `3000`) |
-| `ACCESS_PASSWORD` | Senha exigida na entrada (padrão: sem senha) |
-| `DATA_FILE` | Onde salvar o histórico do chat (padrão `data.json`) |
+| `ACCESS_PASSWORD` | Senha exigida para criar conta (padrão: sem senha) |
+| `DATA_FILE` | Onde salvar contas, cargos, canais e mensagens (padrão `data.json`) |
 | `TURN_URL` | Servidor(es) TURN, separados por vírgula, ex.: `turn:meu-turn.com:3478` |
 | `TURN_USERNAME` / `TURN_CREDENTIAL` | Credenciais do TURN |
 
@@ -71,23 +101,24 @@ Depois é só preencher `TURN_URL`, `TURN_USERNAME` e `TURN_CREDENTIAL`.
 
 ## Personalizando
 
-- Nomes dos canais: `TEXT_CHANNELS` e `VOICE_CHANNELS` no topo de `server.js`
-- Nome do servidor ("Resenha") e cores: `public/index.html` e `public/style.css`
+- Canais e cargos: pela ⚙️ de configurações do servidor, direto no app
+- Nome do servidor ("Resenha") e cores do tema: `public/index.html` e `public/style.css`
+- **Backup:** tudo fica em `data.json`. Copie esse arquivo para guardar. Se você apagar esse arquivo, o servidor começa do zero e a próxima conta criada vira a dona.
 
 ## Estrutura
 
 ```
 discord-clone/
-├── server.js          # Express + Socket.IO: chat, presença e sinalização WebRTC
+├── server.js          # Express + Socket.IO: contas, cargos/permissões, moderação, chat e sinalização WebRTC
 └── public/
     ├── index.html     # layout (servidores, canais, chat, palco de voz, membros)
     ├── style.css      # tema escuro estilo Discord
-    └── app.js         # lógica do cliente: chat, WebRTC (voz/tela), dispositivos
+    └── app.js         # lógica do cliente: chat, menus de moderação, configurações, WebRTC (voz/tela)
 ```
 
 ## Limitações conhecidas
 
-- Não há contas: cada pessoa escolhe um nome ao entrar (a senha do servidor é compartilhada)
-- Um único servidor com canais fixos (não dá para criar canais pela interface)
-- Sem envio de arquivos/imagens, reações ou mensagens diretas
+- Um único servidor (dá para ter vários canais, mas não vários "servidores")
+- Sem envio de arquivos/imagens, reações, menções (@) ou mensagens diretas
+- Não dá para trocar senha nem nome pela interface
 - Chamada em malha P2P: boa para grupos pequenos (até ~6 a 8 pessoas por sala)

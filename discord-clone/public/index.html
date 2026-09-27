@@ -8,21 +8,26 @@
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
-  <!-- Tela de entrada -->
+  <!-- Tela de entrada / cadastro -->
   <div id="login" class="modal">
     <form id="login-form" class="card">
-      <h1>Bem-vindo de volta!</h1>
-      <p>Escolha um nome para entrar no servidor.</p>
+      <h1 id="login-title">Bem-vindo de volta!</h1>
+      <p id="login-subtitle">Entre com sua conta.</p>
+      <div id="login-notice" class="notice hidden"></div>
       <label>NOME DE USUÁRIO
-        <input id="login-name" maxlength="32" required autocomplete="off">
+        <input id="login-name" maxlength="32" required autocomplete="username">
       </label>
-      <label id="login-password-label" class="hidden">SENHA DO SERVIDOR
-        <input id="login-password" type="password" autocomplete="current-password">
+      <label>SENHA
+        <input id="login-password" type="password" required autocomplete="current-password">
       </label>
-      <label>COR
+      <label id="server-password-label" class="hidden">SENHA DO SERVIDOR
+        <input id="server-password" type="password" autocomplete="off">
+      </label>
+      <label id="login-color-label" class="hidden">COR DO AVATAR
         <input id="login-color" type="color" value="#5865f2">
       </label>
-      <button type="submit">Entrar</button>
+      <button type="submit" id="login-submit">Entrar</button>
+      <p class="switch"><span id="login-switch-text">Precisa de uma conta?</span> <a href="#" id="login-switch">Registre-se</a></p>
     </form>
   </div>
 
@@ -32,7 +37,10 @@
     </nav>
 
     <aside id="sidebar">
-      <header class="server-name">Resenha</header>
+      <header class="server-name" id="server-header">
+        <span>Resenha</span>
+        <button id="btn-server-settings" class="hidden" title="Configurações do servidor">⚙️</button>
+      </header>
       <div class="channels">
         <div class="category">CANAIS DE TEXTO</div>
         <ul id="text-channels"></ul>
@@ -56,7 +64,7 @@
         <div class="me-name" id="me-name"></div>
         <button id="btn-mute" title="Microfone">🎤</button>
         <button id="btn-deafen" title="Fone de ouvido">🎧</button>
-        <button id="btn-settings" title="Dispositivos">⚙️</button>
+        <button id="btn-settings" title="Configurações do usuário">⚙️</button>
       </div>
     </aside>
 
@@ -77,15 +85,17 @@
     </main>
 
     <aside id="members">
-      <div class="category">ONLINE — <span id="online-count">0</span></div>
-      <ul id="member-list"></ul>
+      <div id="member-list"></div>
     </aside>
   </div>
 
-  <!-- Configurações de dispositivos -->
+  <!-- Configurações do usuário -->
   <div id="settings" class="modal hidden">
     <div class="card">
-      <h2>Voz e vídeo</h2>
+      <h2>Configurações</h2>
+      <label>COR DO AVATAR
+        <input id="profile-color" type="color">
+      </label>
       <label>MICROFONE
         <select id="mic-select"></select>
       </label>
@@ -93,10 +103,30 @@
         <select id="speaker-select"></select>
       </label>
       <label class="row"><input type="checkbox" id="noise-toggle" checked> Supressão de ruído / cancelamento de eco</label>
-      <button id="settings-close" type="button">Fechar</button>
+      <div class="buttons">
+        <button id="btn-logout" type="button" class="secondary danger-text">Sair da conta</button>
+        <button id="settings-close" type="button">Salvar</button>
+      </div>
     </div>
   </div>
 
+  <!-- Configurações do servidor -->
+  <div id="server-settings" class="modal hidden">
+    <div class="card wide">
+      <div class="settings-head">
+        <h2>Configurações do servidor</h2>
+        <button type="button" class="close" id="server-settings-close" title="Fechar">✕</button>
+      </div>
+      <div class="tabs" id="settings-tabs">
+        <button type="button" data-tab="roles">Cargos</button>
+        <button type="button" data-tab="channels">Canais</button>
+        <button type="button" data-tab="bans">Banidos</button>
+      </div>
+      <div id="settings-body"></div>
+    </div>
+  </div>
+
+  <div id="context-menu" class="hidden"></div>
   <div id="toast" class="hidden"></div>
 
   <script src="/socket.io/socket.io.js"></script>
