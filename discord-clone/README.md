@@ -162,6 +162,16 @@ Se você rodou `npm start` diretamente, copie o `data.json` e a pasta `uploads` 
 
 **Se não abrir:** alguns provedores (Hetzner Cloud Firewall, Oracle, AWS) têm um firewall próprio no painel. Libere nele: TCP 80 e 443, TCP/UDP 3478 e UDP 49160–49200.
 
+### Oracle Cloud Free Tier (Ubuntu)
+
+Crie uma instância **Always Free Eligible** com Ubuntu 24.04, IPv4 público e sua chave SSH pública. A imagem Ubuntu da Oracle usa o usuário `ubuntu` e não permite SSH direto como `root`. Envie a pasta para `/home/ubuntu/resenhex` e execute:
+
+```bash
+sudo bash /home/ubuntu/resenhex/deploy/instalar-vps.sh --oracle
+```
+
+O modo `--oracle` mantém as regras `iptables` da imagem, necessárias para os volumes de disco. **Não ative UFW nessa imagem**: a Oracle alerta que isso pode impedir o reinício da máquina. Além do firewall do sistema, libere no painel da Oracle as regras de entrada TCP 80/443, TCP/UDP 3478 e UDP 49160–49200 (e mantenha TCP 22 para SSH). Ao copiar contas e mensagens, use `ubuntu@SEU_IP` e depois `sudo chown -R resenhex:resenhex /var/lib/resenhex && sudo systemctl restart resenhex` via SSH.
+
 ## Colocando online a partir do seu PC
 
 Navegadores **só liberam microfone e captura de tela em HTTPS** (ou em `localhost`). Então, para os amigos acessarem, o servidor precisa estar em HTTPS. Algumas opções:

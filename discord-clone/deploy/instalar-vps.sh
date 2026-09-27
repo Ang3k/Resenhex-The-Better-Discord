@@ -4,6 +4,8 @@
 #
 # Uso, dentro da pasta do Resenhex no servidor:
 #   sudo bash deploy/instalar-vps.sh
+# Em uma instância Ubuntu da Oracle Cloud:
+#   sudo bash deploy/instalar-vps.sh --oracle
 #
 # O que ele faz:
 #   - instala Node.js, Caddy (HTTPS automático) e coturn (servidor TURN para a voz)
@@ -12,6 +14,10 @@
 #   - libera no firewall só o necessário
 # Rodar de novo atualiza o app e mantém contas, mensagens e a senha do servidor.
 set -euo pipefail
+case "${1:-}" in
+  ''|--oracle) ;;
+  *) echo "Opção desconhecida: $1"; exit 1 ;;
+esac
 
 APP_SRC="$(cd "$(dirname "$0")/.." && pwd)"
 APP_DIR=/opt/resenhex
@@ -100,7 +106,7 @@ umask 022
 # ---------- pacotes ----------
 say "Instalando pacotes (Node.js, Caddy, coturn)"
 apt-get update -q
-apt-get install -y -q curl ca-certificates gnupg debian-keyring debian-archive-keyring apt-transport-https ufw coturn rsync >/dev/null
+apt-get install -y -q curl ca-certificates gnupg debian-keyring debian-archive-keyring apt-transport-https coturn rsync >/dev/null
 
 NODE_MAJOR="$(node -v 2>/dev/null | sed 's/^v\([0-9]*\).*/\1/' || echo 0)"
 if [ "${NODE_MAJOR:-0}" -lt 20 ]; then
@@ -196,13 +202,41 @@ if command -v sshd >/dev/null; then
     fi
   done < <(sshd -T 2>/dev/null | awk '$1 == "port" { print $2 }')
 fi
-for ssh_port in "${ssh_ports[@]}"; do ufw allow "$ssh_port/tcp" >/dev/null; done
-ufw allow 80/tcp >/dev/null
-ufw allow 443/tcp >/dev/null
-ufw allow 443/udp >/dev/null
-ufw allow 3478 >/dev/null
-ufw allow "$TURN_MIN_PORT:$TURN_MAX_PORT/udp" >/dev/null
-ufw --force enable >/dev/null
+if [ "${1:-}" = '--oracle' ] || [ "${RESENHEX_CLOUD:-}" = 'oracle' ] || \
+   { [ -f /etc/iptables/rules.v4 ] && grep -q '169\.254\.0\.2' /etc/iptables/rules.v4; } || \
+   curl -fsS --noproxy '*' --max-time 2 -H 'Authorization: Bearer Oracle' \
+     http://169.254.169.254/opc/v2/instance/ -o /dev/null 2>/dev/null; then
+  # Oracle Ubuntu precisa manter as regras iSCSI da imagem. Ativar UFW pode impedir o boot.
+  command -v iptables >/dev/null && command -v iptables-save >/dev/null && \
+    command -v netfilter-persistent >/dev/null && \
+    [ -f /etc/iptables/rules.v4 ] || { echo 'Regras iptables da Oracle não encontradas; firewall não alterado.'; exit 1; }
+  if [ ! -e /etc/iptables/rules.v4.resenhex-backup ]; then
+    cp -a /etc/iptables/rules.v4 /etc/iptables/rules.v4.resenhex-backup
+  fi
+  allow_oci_port() {
+    if ! iptables -C INPUT -p "$1" --dport "$2" -j ACCEPT 2>/dev/null; then
+      iptables -I INPUT 1 -p "$1" --dport "$2" -j ACCEPT
+    fi
+  }
+  for ssh_port in "${ssh_ports[@]}"; do allow_oci_port tcp "$ssh_port"; done
+  allow_oci_port tcp 80
+  allow_oci_port tcp 443
+  allow_oci_port udp 443
+  allow_oci_port tcp 3478
+  allow_oci_port udp 3478
+  allow_oci_port udp "$TURN_MIN_PORT:$TURN_MAX_PORT"
+  netfilter-persistent save >/dev/null
+  systemctl enable netfilter-persistent >/dev/null
+else
+  apt-get install -y -q ufw >/dev/null
+  for ssh_port in "${ssh_ports[@]}"; do ufw allow "$ssh_port/tcp" >/dev/null; done
+  ufw allow 80/tcp >/dev/null
+  ufw allow 443/tcp >/dev/null
+  ufw allow 443/udp >/dev/null
+  ufw allow 3478 >/dev/null
+  ufw allow "$TURN_MIN_PORT:$TURN_MAX_PORT/udp" >/dev/null
+  ufw --force enable >/dev/null
+fi
 
 # ---------- liga tudo ----------
 say "Iniciando os serviços"
