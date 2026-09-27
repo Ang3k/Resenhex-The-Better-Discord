@@ -205,7 +205,7 @@ setInterval(() => {
 }, 10 * 60 * 1000).unref();
 
 // ---------------- sessões conectadas ----------------
-// socket.id -> { accountId, voice: idDoCanal|null, muted, deafened, sharing, camera }
+// socket.id -> { accountId, voice: idDoCanal|null, muted, deafened, sharing, paused, camera }
 const online = new Map();
 
 const app = express();
@@ -297,6 +297,7 @@ function stateFor(acc) {
         muted: s.muted,
         deafened: s.deafened,
         sharing: s.sharing,
+        paused: s.paused,
         camera: s.camera,
         // "silenced": ninguém deve ouvir essa pessoa (mutada pelo servidor, de castigo ou sem permissão de falar).
         silenced: !!a.serverMuted || timedOut(a) || !can(a, 'SPEAK'),
@@ -561,12 +562,14 @@ io.on('connection', (socket) => {
     broadcastState();
   });
 
-  on('voice:state', (acc, { muted, deafened, sharing, camera }) => {
+  on('voice:state', (acc, { muted, deafened, sharing, paused, camera }) => {
     const s = online.get(socket.id);
     const video = !!s.voice && can(acc, 'STREAM') && !timedOut(acc);
     s.muted = !!muted;
     s.deafened = !!deafened;
     s.sharing = !!sharing && video;
+    // Transmissão pausada: a janela compartilhada foi minimizada (o navegador para de capturar).
+    s.paused = s.sharing && !!paused;
     s.camera = !!camera && video;
     broadcastState();
   });

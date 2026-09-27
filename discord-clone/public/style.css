@@ -206,6 +206,24 @@ blockquote { margin: 2px 0; padding-left: 12px; border-left: 4px solid #4e5058; 
 .reaction.add { color: var(--text-muted); opacity: 0; }
 .msg:hover .reaction.add { opacity: 1; }
 
+.menu-item.preset div:first-child { font-weight: 500; }
+.menu-item.preset .muted-text { font-size: 12px; }
+.menu-item.preset.selected { background: rgba(88, 101, 242, .25); }
+.menu-item.preset:hover .muted-text { color: #e0e3ff; }
+.menu-tip { font-size: 12px; color: var(--text-muted); padding: 8px; line-height: 1.4; }
+.card .hint { font-weight: 400; font-size: 12px; line-height: 1.4; }
+.tile .stats {
+  position: absolute; right: 8px; top: 8px; background: rgba(0, 0, 0, .6); color: #dbdee1;
+  padding: 2px 8px; border-radius: 4px; font-size: 11px; font-variant-numeric: tabular-nums; pointer-events: none; max-width: calc(100% - 16px);
+}
+.tile .stats:empty { display: none; }
+.paused-overlay {
+  position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px;
+  background: rgba(0, 0, 0, .75); text-align: center; padding: 16px;
+}
+.paused-overlay.hidden { display: none; }
+.paused-title { font-size: 20px; font-weight: 700; }
+
 #emoji-picker {
   position: fixed; z-index: 26; display: grid; grid-template-columns: repeat(8, 36px); gap: 2px;
   background: #2b2d31; border-radius: 8px; padding: 8px; box-shadow: 0 8px 16px rgba(0, 0, 0, .4);
@@ -239,6 +257,11 @@ blockquote { margin: 2px 0; padding-left: 12px; border-left: 4px solid #4e5058; 
   padding: 2px 8px; border-radius: 4px; font-size: 13px;
 }
 .tile.screen { grid-column: 1 / -1; }
+/* Com tela compartilhada, a transmissão ocupa o espaço e os participantes viram uma faixa compacta. */
+#stage:has(.tile.screen) { grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); align-content: start; }
+#stage:has(.tile.screen) .tile.screen { aspect-ratio: auto; height: calc(100vh - 48px - 16px - 130px); min-height: 240px; }
+#stage:has(.tile.screen) .tile:not(.screen) { aspect-ratio: auto; height: 110px; }
+#stage:has(.tile.screen) .tile:not(.screen) .avatar { width: 56px; height: 56px; font-size: 22px; }
 
 #members { background: var(--bg-sidebar); padding: 8px; overflow-y: auto; }
 .member { display: flex; align-items: center; gap: 10px; padding: 6px 8px; border-radius: 4px; cursor: pointer; }

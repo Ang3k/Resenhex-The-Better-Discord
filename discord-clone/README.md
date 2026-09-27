@@ -10,7 +10,7 @@ Servidor próprio para você e seus amigos, com:
 - **Responder** mensagens (↩️) e **reagir** com emoji (😀)
 - **Formatação**: `**negrito**`, `*itálico*`, `__sublinhado__`, `~~riscado~~`, `` `código` ``, blocos ```` ``` ````, `> citação` e `||spoiler||`
 - **Chamadas de voz** em salas, com indicador verde de quem está falando e **sons** de entrar e sair
-- **Câmera** e **compartilhamento de tela** (até 1080p/30fps, com áudio da aba/sistema quando o navegador permite), dá para usar os dois ao mesmo tempo; clique na tela para abrir em tela cheia
+- **Câmera** e **compartilhamento de tela** com perfis de qualidade (Texto, Equilibrado, Jogos a 60 fps), áudio do sistema e estatísticas ao vivo; dá para usar câmera e tela ao mesmo tempo; clique na tela para abrir em tela cheia
 - **Mutar / ensurdecer** (também pelos atalhos `Ctrl+Shift+M` / `Ctrl+Shift+D`) e **push-to-talk** (apertar uma tecla para falar)
 - **Volume individual** e **mutar para mim** (só afeta o que você ouve)
 - **Cargos e permissões** estilo Discord, com hierarquia
@@ -66,6 +66,30 @@ npm start
 ```
 
 Abra <http://localhost:3000> em duas abas (ou dois navegadores) para testar.
+
+## Compartilhamento de tela: qualidade e problemas comuns
+
+Ao clicar em 🖥️, você escolhe um perfil. Dá para trocar no meio da transmissão, clicando em 🖥️ de novo.
+
+| Perfil | Para quê | O que acontece quando falta internet |
+|---|---|---|
+| 📄 Texto e código | Documentos, código, planilhas | Mantém a nitidez e reduz o FPS (1080p, até 15 fps, VP9) |
+| ⚖️ Equilibrado | Uso geral | Equilibra nitidez e fluidez (1080p, até 30 fps, VP9) |
+| 🎮 Jogos e vídeos | Jogos, filmes, YouTube | Mantém a fluidez e reduz a resolução (720p, até 60 fps, H.264) |
+
+No canto da transmissão aparecem **resolução, fps, taxa e codec**. Para quem transmite aparece também quantas pessoas estão assistindo. Se o problema durar alguns segundos, aparece ⚠️ *limitado pela internet* ou ⚠️ *limitado pelo processador*.
+
+**A transmissão trava ou congela quando troco de programa.**
+Você está compartilhando **uma janela** e ela foi minimizada: o navegador para de capturar janelas minimizadas. Quando isso acontece, quem assiste vê "⏸ Transmissão pausada", e a imagem volta sozinha quando a janela é restaurada. Para poder trocar de programa à vontade, escolha **"Tela inteira"** na janela do navegador que pede o que compartilhar.
+
+**Jogo aparece preto ou travado.**
+Jogos em *tela cheia exclusiva* não podem ser capturados como janela. Coloque o jogo em **"janela sem bordas"** (borderless) e compartilhe a **Tela inteira**.
+
+**Trava quando mais gente assiste.**
+Como a chamada é direta entre os navegadores, quem transmite envia **uma cópia para cada pessoa**. Em ⚙️ Configurações, escolha em **"Upload da sua internet"** o valor do seu teste de velocidade. O app divide a qualidade entre quem assiste para não estourar sua internet. Se ainda travar, use o perfil **Texto** ou **Jogos**, que gastam menos.
+
+**Aparece "limitado pelo processador".**
+Use o perfil **Jogos e vídeos**: ele usa H.264, que normalmente tem codificação por hardware, e 720p. Fechar outros programas pesados também ajuda.
 
 ## Colocando online para os amigos
 

@@ -9,6 +9,14 @@
   const EMOJIS = ['👍', '👎', '😂', '🤣', '❤️', '🔥', '😮', '😢', '😭', '😡', '🎉', '👀', '💀', '🙏', '😎', '🤔',
     '🥳', '👏', '💯', '✅', '❌', '😅', '😍', '🥺', '😤', '🤡', '🗿', '👑', '⚡', '🎮', '🍕', '🍺'];
 
+  // Perfis de transmissão de tela. "hint" diz ao codificador o tipo de conteúdo e
+  // "degradation" decide o que sacrificar quando falta internet: nitidez ou fluidez.
+  const SHARE_PRESETS = {
+    text: { label: '📄 Texto e código', desc: 'Máxima nitidez · 1080p 15 fps', width: 1920, height: 1080, fps: 15, hint: 'text', degradation: 'maintain-resolution', bitrate: 2_500_000, codecs: ['video/VP9', 'video/VP8'] },
+    balanced: { label: '⚖️ Equilibrado', desc: 'Uso geral · 1080p 30 fps', width: 1920, height: 1080, fps: 30, hint: 'detail', degradation: 'balanced', bitrate: 4_000_000, codecs: ['video/VP9', 'video/VP8'] },
+    motion: { label: '🎮 Jogos e vídeos', desc: 'Mais fluido · 720p 60 fps', width: 1280, height: 720, fps: 60, hint: 'motion', degradation: 'maintain-framerate', bitrate: 5_000_000, codecs: ['video/H264', 'video/VP8'] },
+  };
+
   const state = {
     me: null, // { accountId, sid }
     server: null, // último 'state' do servidor: roles, channels, members, voice, myPerms, bans, ownerId
@@ -23,6 +31,9 @@
     deafened: false,
     micStream: null,
     local: { screen: null, camera: null }, // meus streams de vídeo
+    sharePreset: SHARE_PRESETS[localStorage.getItem('sharePreset')] ? localStorage.getItem('sharePreset') : 'balanced',
+    sharePaused: false,
+    uploadMbps: Number(localStorage.getItem('uploadMbps')) || 10,
     peers: new Map(), // sid -> conexão WebRTC com cada participante da sala
     micDeviceId: localStorage.getItem('micDeviceId') || '',
     speakerDeviceId: localStorage.getItem('speakerDeviceId') || '',
@@ -263,6 +274,7 @@
     }
     playVoiceSounds();
     applyAudio();
+    tuneSenders();
     render();
   });
 
@@ -958,9 +970,13 @@
         if (!tile) {
           const video = el('video', { autoplay: true, playsInline: true });
           video.onclick = () => (document.fullscreenElement ? document.exitFullscreen() : video.requestFullscreen());
-          tile = el('div', { class: 'tile screen', data: { key } }, video, el('div', { class: 'label' }));
+          tile = el('div', { class: 'tile screen', data: { key } }, video,
+            el('div', { class: 'paused-overlay hidden' }, el('div', { class: 'paused-title', textContent: '⏸ Transmissão pausada' }),
+              el('div', { class: 'muted-text', textContent: 'A janela compartilhada foi minimizada. Ela volta sozinha quando a janela for restaurada.' })),
+            el('div', { class: 'stats' }), el('div', { class: 'label' }));
           stage.prepend(tile);
         }
+        tile.querySelector('.paused-overlay').classList.toggle('hidden', !v.paused);
         const video = tile.querySelector('video');
         if (video.srcObject !== remote.screen) {
           video.srcObject = remote.screen;
@@ -1012,7 +1028,7 @@
     deafen.classList.toggle('locked', !!me.serverDeafened);
     deafen.textContent = state.deafened || me.serverDeafened ? '🙉' : '🎧';
     deafen.title = me.serverDeafened ? 'Ensurdecido pelo servidor' : 'Fone de ouvido (Ctrl+Shift+D)';
-    for (const [id, kind, on, off] of [['#btn-share', 'screen', 'Parar de compartilhar', 'Compartilhar tela'], ['#btn-camera', 'camera', 'Desligar câmera', 'Ligar câmera']]) {
+    for (const [id, kind, on, off] of [['#btn-share', 'screen', 'Qualidade / parar transmissão', 'Compartilhar tela'], ['#btn-camera', 'camera', 'Desligar câmera', 'Ligar câmera']]) {
       const btn = $(id);
       btn.classList.toggle('on', !!state.local[kind]);
       btn.disabled = !state.local[kind] && !canVideo();
@@ -1140,10 +1156,15 @@
     }
     if (danger.length) menu.append(sep(), ...danger);
 
+    showMenuAt(e.clientX, e.clientY);
+  }
+
+  function showMenuAt(x, y) {
+    const menu = $('#context-menu');
     menu.classList.remove('hidden');
     const rect = menu.getBoundingClientRect();
-    menu.style.left = Math.max(8, Math.min(e.clientX, innerWidth - rect.width - 8)) + 'px';
-    menu.style.top = Math.max(8, Math.min(e.clientY, innerHeight - rect.height - 8)) + 'px';
+    menu.style.left = Math.max(8, Math.min(x, innerWidth - rect.width - 8)) + 'px';
+    menu.style.top = Math.max(8, Math.min(y, innerHeight - rect.height - 8)) + 'px';
   }
 
   // ---------------- configurações do servidor ----------------
@@ -1357,6 +1378,7 @@
       muted: state.muted || state.deafened,
       deafened: state.deafened || !!me?.serverDeafened,
       sharing: !!state.local.screen,
+      paused: !!state.local.screen && state.sharePaused,
       camera: !!state.local.camera,
     });
   }
@@ -1504,6 +1526,7 @@
 
     pc.onconnectionstatechange = () => {
       if (pc.connectionState === 'failed') pc.restartIce();
+      if (pc.connectionState === 'connected') tuneSenders();
     };
 
     pc.ontrack = ({ track, streams }) => {
@@ -1569,6 +1592,7 @@
           await pc.setLocalDescription();
           socket.emit('signal', { to: from, data: { description: pc.localDescription, video: videoIds() } });
         }
+        tuneSenders();
       } else if (data.candidate) {
         try {
           await pc.addIceCandidate(data.candidate);
@@ -1587,29 +1611,146 @@
   });
 
   // ---------------- câmera e compartilhamento de tela ----------------
+  // Codec preferido para cada tipo: VP9 tem ferramentas para conteúdo de tela (texto nítido
+  // com pouca banda); H.264 costuma ter codificação por hardware (leve para quem está jogando).
+  // Usa o primeiro codec da lista que o navegador suportar (nem todo Chromium tem H.264).
+  function preferCodec(pc, sender, mimes) {
+    const transceiver = pc.getTransceivers().find((t) => t.sender === sender);
+    const caps = window.RTCRtpReceiver?.getCapabilities?.('video');
+    if (!transceiver?.setCodecPreferences || !caps) return;
+    for (const mime of mimes) {
+      const first = caps.codecs.filter((c) => c.mimeType.toLowerCase() === mime.toLowerCase()
+        // VP9 perfil 0 é o compatível com todo mundo; os outros são de 10/12 bits.
+        && (mime !== 'video/VP9' || !c.sdpFmtpLine || c.sdpFmtpLine.includes('profile-id=0')));
+      if (!first.length) continue;
+      try {
+        transceiver.setCodecPreferences([...first, ...caps.codecs.filter((c) => !first.includes(c))]);
+      } catch {}
+      return;
+    }
+  }
+
   function addVideoTracks(peer, kind) {
     const stream = state.local[kind];
-    for (const track of stream.getTracks()) peer.senders[kind].push(peer.pc.addTrack(track, stream));
+    for (const track of stream.getTracks()) {
+      const sender = peer.pc.addTrack(track, stream);
+      peer.senders[kind].push(sender);
+      if (track.kind === 'video') preferCodec(peer.pc, sender, kind === 'screen' ? SHARE_PRESETS[state.sharePreset].codecs : ['video/VP8']);
+    }
+  }
+
+  // Na malha, quem transmite envia uma cópia para cada pessoa: divide o upload entre
+  // elas, para a transmissão não travar quando tem muita gente assistindo.
+  function videoBitrates() {
+    const viewers = Math.max(1, state.peers.size);
+    const budget = state.uploadMbps * 1e6 * 0.85; // o resto fica para o áudio
+    const both = state.local.screen && state.local.camera;
+    return {
+      screen: Math.round(Math.max(300_000, Math.min(SHARE_PRESETS[state.sharePreset].bitrate, (budget * (both ? 0.8 : 1)) / viewers))),
+      camera: Math.round(Math.max(150_000, Math.min(1_200_000, (budget * (both ? 0.2 : 1)) / viewers))),
+    };
+  }
+
+  function tuneSenders() {
+    if (!state.local.screen && !state.local.camera) return;
+    const rates = videoBitrates();
+    const preset = SHARE_PRESETS[state.sharePreset];
+    for (const peer of state.peers.values()) {
+      for (const kind of ['screen', 'camera']) {
+        for (const sender of peer.senders[kind]) {
+          if (sender.track?.kind !== 'video') continue;
+          const params = sender.getParameters();
+          if (!params.encodings?.length) continue; // ainda negociando; tenta de novo depois
+          params.encodings[0].maxBitrate = rates[kind];
+          if (kind === 'screen') {
+            params.encodings[0].maxFramerate = preset.fps;
+            params.degradationPreference = preset.degradation;
+          } else {
+            params.degradationPreference = 'balanced';
+          }
+          sender.setParameters(params).catch(() => {});
+        }
+      }
+    }
+  }
+
+  function applySharePreset() {
+    const track = state.local.screen?.getVideoTracks()[0];
+    if (!track) return;
+    const p = SHARE_PRESETS[state.sharePreset];
+    track.contentHint = p.hint;
+    track.applyConstraints({ width: { ideal: p.width }, height: { ideal: p.height }, frameRate: { ideal: p.fps, max: p.fps } }).catch(() => {});
+    tuneSenders();
+  }
+
+  function setSharePreset(key) {
+    state.sharePreset = key;
+    localStorage.setItem('sharePreset', key);
+    applySharePreset();
+  }
+
+  function openShareMenu(anchor) {
+    const menu = $('#context-menu');
+    const live = !!state.local.screen;
+    menu.replaceChildren(
+      el('div', { class: 'menu-section', textContent: live ? 'QUALIDADE DA TRANSMISSÃO' : 'COMPARTILHAR TELA' }),
+      ...Object.entries(SHARE_PRESETS).map(([key, p]) => el('button', {
+        class: 'menu-item preset' + (key === state.sharePreset ? ' selected' : ''),
+        onclick: () => {
+          closeMenu();
+          setSharePreset(key);
+          if (!live) startVideo('screen');
+        },
+      }, el('div', { textContent: p.label }), el('div', { class: 'muted-text', textContent: p.desc }))),
+      ...(live
+        ? [el('div', { class: 'menu-sep' }), el('button', { class: 'menu-item danger', textContent: '⏹ Parar transmissão', onclick: () => { closeMenu(); stopVideo('screen'); } })]
+        : [el('div', { class: 'menu-tip', textContent: 'Dica: para jogos, escolha "Tela inteira" e use o jogo em modo janela sem bordas. Se você compartilhar só uma janela e minimizá-la, a transmissão pausa.' })]));
+    const rect = anchor.getBoundingClientRect();
+    menu.classList.remove('hidden');
+    showMenuAt(rect.left, rect.top - menu.getBoundingClientRect().height - 8);
   }
 
   async function startVideo(kind) {
+    const preset = SHARE_PRESETS[state.sharePreset];
     try {
       if (kind === 'screen') {
         if (!navigator.mediaDevices.getDisplayMedia) return toast('Seu navegador não suporta compartilhamento de tela.');
         state.local.screen = await navigator.mediaDevices.getDisplayMedia({
-          video: { frameRate: 30, width: { ideal: 1920 }, height: { ideal: 1080 } },
-          audio: true, // áudio da aba/sistema quando o navegador permitir
+          video: { width: { ideal: preset.width }, height: { ideal: preset.height }, frameRate: { ideal: preset.fps, max: preset.fps } },
+          // Áudio da aba/sistema sem os filtros de voz, que estragam música e som de jogo.
+          audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false },
+          selfBrowserSurface: 'exclude', // não mostra a própria aba do Resenha (efeito "espelho infinito")
+          surfaceSwitching: 'include', // botão "compartilhar esta guia em vez disso"
+          systemAudio: 'include',
+          monitorTypeSurfaces: 'include',
         });
-        state.local.screen.getVideoTracks()[0].contentHint = 'detail';
       } else {
-        state.local.camera = await navigator.mediaDevices.getUserMedia({ video: { width: { ideal: 1280 }, height: { ideal: 720 }, frameRate: 30 } });
+        state.local.camera = await navigator.mediaDevices.getUserMedia({ video: { width: { ideal: 1280 }, height: { ideal: 720 }, frameRate: { ideal: 30 } } });
       }
     } catch (err) {
       if (kind === 'camera') toast('Não consegui acessar a câmera.');
       return; // usuário cancelou ou sem permissão
     }
+    const video = state.local[kind].getVideoTracks()[0];
     // Botão "Parar compartilhamento" do navegador, ou câmera desconectada.
-    state.local[kind].getVideoTracks()[0].onended = () => stopVideo(kind);
+    video.onended = () => stopVideo(kind);
+    if (kind === 'screen') {
+      video.contentHint = preset.hint;
+      state.sharePaused = false;
+      // O navegador "muta" a captura quando a janela compartilhada é minimizada.
+      video.onmute = () => {
+        state.sharePaused = true;
+        sendVoiceState();
+        toast('A janela que você compartilha foi minimizada, então a transmissão pausou. Restaure a janela ou compartilhe a "Tela inteira".', 'info');
+      };
+      video.onunmute = () => {
+        state.sharePaused = false;
+        sendVoiceState();
+      };
+      if (video.getSettings().displaySurface === 'window') {
+        toast('Você está compartilhando uma janela: se minimizá-la, a transmissão pausa. Para jogos, prefira "Tela inteira".', 'info');
+      }
+    }
     for (const peer of state.peers.values()) addVideoTracks(peer, kind);
     if (kind === 'screen') Sounds.play('stream');
     sendVoiceState();
@@ -1621,6 +1762,7 @@
     if (!state.local[kind]) return;
     state.local[kind].getTracks().forEach((t) => t.stop());
     state.local[kind] = null;
+    if (kind === 'screen') state.sharePaused = false;
     for (const peer of state.peers.values()) {
       for (const sender of peer.senders[kind]) {
         try { peer.pc.removeTrack(sender); } catch {}
@@ -1630,6 +1772,53 @@
     if (notify) sendVoiceState();
     render();
   }
+
+  // Estatísticas no canto da transmissão: resolução, fps, taxa e o que está limitando.
+  const statsPrev = new Map(); // id do relatório -> { bytes, ts }
+  function rate(key, bytes, ts) {
+    const prev = statsPrev.get(key);
+    statsPrev.set(key, { bytes, ts });
+    if (!prev || ts <= prev.ts || bytes < prev.bytes) return null;
+    return ((bytes - prev.bytes) * 8) / ((ts - prev.ts) / 1000);
+  }
+  // Só avisa de limitação se ela durar alguns segundos: no começo de toda transmissão
+  // o WebRTC ainda está medindo a internet e sempre aparece "limitado".
+  let limitedFor = 0;
+  const mbps = (bps) => (bps == null ? '' : ` · ${(bps / 1e6).toFixed(1).replace('.', ',')} Mbps`);
+
+  async function updateStreamStats() {
+    if (state.view !== 'voice' || !state.voiceChannel) return;
+    for (const tile of document.querySelectorAll('#stage .tile.screen')) {
+      const sid = tile.dataset.key.slice('screen-'.length);
+      const box = tile.querySelector('.stats');
+      try {
+        if (sid === state.me.sid) {
+          const peer = [...state.peers.values()].find((p) => p.senders.screen.some((s) => s.track?.kind === 'video'));
+          if (!peer) { box.textContent = 'Ninguém assistindo ainda'; continue; }
+          const report = await peer.senders.screen.find((s) => s.track?.kind === 'video').getStats();
+          report.forEach((r) => {
+            if (r.type !== 'outbound-rtp' || r.kind !== 'video') return;
+            const codec = report.get(r.codecId)?.mimeType?.split('/')[1] || '';
+            limitedFor = r.qualityLimitationReason && r.qualityLimitationReason !== 'none' ? limitedFor + 1 : 0;
+            const limit = limitedFor >= 5 ? { bandwidth: ' · ⚠️ limitado pela internet', cpu: ' · ⚠️ limitado pelo processador' }[r.qualityLimitationReason] || '' : '';
+            box.textContent = `${r.frameWidth || '?'}×${r.frameHeight || '?'} · ${Math.round(r.framesPerSecond || 0)} fps${mbps(rate(r.id, r.bytesSent, r.timestamp))} por pessoa · ${codec} · ${state.peers.size} assistindo${limit}`;
+          });
+        } else {
+          const peer = state.peers.get(sid);
+          const track = peer?.remote.screen?.getVideoTracks()[0];
+          const receiver = track && peer.pc.getReceivers().find((r) => r.track === track);
+          if (!receiver) continue;
+          const report = await receiver.getStats();
+          report.forEach((r) => {
+            if (r.type !== 'inbound-rtp' || r.kind !== 'video') return;
+            const codec = report.get(r.codecId)?.mimeType?.split('/')[1] || '';
+            box.textContent = `${r.frameWidth || '?'}×${r.frameHeight || '?'} · ${Math.round(r.framesPerSecond || 0)} fps${mbps(rate(sid + r.id, r.bytesReceived, r.timestamp))} · ${codec}`;
+          });
+        }
+      } catch {}
+    }
+  }
+  setInterval(updateStreamStats, 1000);
 
   // ---------------- botões ----------------
   $('#btn-mute').onclick = () => {
@@ -1653,7 +1842,10 @@
     renderControls();
   };
 
-  $('#btn-share').onclick = () => (state.local.screen ? stopVideo('screen') : startVideo('screen'));
+  $('#btn-share').onclick = (e) => {
+    if (!canVideo() && !state.local.screen) return;
+    openShareMenu(e.currentTarget);
+  };
   $('#btn-camera').onclick = () => (state.local.camera ? stopVideo('camera') : startVideo('camera'));
   $('#btn-leave').onclick = () => leaveVoice();
 
@@ -1734,7 +1926,14 @@
     fill($('#speaker-select'), 'audiooutput', state.speakerDeviceId);
     $('#speaker-select').disabled = !('setSinkId' in HTMLMediaElement.prototype);
     $('#noise-toggle').checked = state.noiseSuppression;
+    $('#upload-select').value = String(state.uploadMbps);
     $('#settings').classList.remove('hidden');
+  };
+
+  $('#upload-select').onchange = () => {
+    state.uploadMbps = Number($('#upload-select').value);
+    localStorage.setItem('uploadMbps', state.uploadMbps);
+    tuneSenders();
   };
 
   $('#sounds-toggle').onchange = () => {
