@@ -69,6 +69,23 @@ npm start
 
 Abra <http://localhost:3000> em duas abas (ou dois navegadores) para testar.
 
+## Supressão de ruído por IA (estilo Krisp)
+
+Seu microfone passa por uma rede neural **antes** de ir para a chamada: barulho de teclado, ventilador, obra, cachorro e trânsito somem, e fica só a sua voz. Tudo roda no seu computador; nenhum áudio sai para outro servidor.
+
+- Ligue ou desligue pelo **botão de ondas** no painel "Voz conectada" (verde = ligado).
+- Em ⚙️ Configurações → **Supressão de ruído** você escolhe o modo:
+  - **IA avançada** (padrão): usa o modelo [GTCRN](https://github.com/Xiaobin-Rong/gtcrn);
+  - **IA leve**: usa o [RNNoise](https://github.com/xiph/rnnoise), para computadores mais fracos;
+  - **Padrão do navegador**;
+  - **Desligada**.
+- **Testar microfone** (nas configurações): você se ouve já com a supressão e vê o nível do som. Use fone.
+- O cancelamento de eco é uma opção separada. Deixe ligado se você não usa fone.
+
+Medido nos testes, com um áudio de chiado mais zumbido de ventilador: a IA avançada reduziu o ruído em cerca de **46 dB** (vira silêncio) e manteve o volume da voz igual. A IA leve ajuda bem menos com ruído forte.
+
+Modelos: pacote [`@sapphi-red/web-noise-suppressor`](https://github.com/sapphi-red/web-noise-suppressor) (licença MIT).
+
 ## Compartilhamento de tela: qualidade e problemas comuns
 
 Ao clicar em 🖥️, você escolhe um perfil. Dá para trocar no meio da transmissão, clicando em 🖥️ de novo.

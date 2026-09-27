@@ -17,6 +17,13 @@
     p1080_60: { label: '1080p · 60 fps', desc: 'Fluido, para jogos (usa mais internet)', width: 1920, height: 1080, fps: 60, hint: 'motion', degradation: 'maintain-framerate', bitrate: 6_000_000, codecs: ['video/H264', 'video/VP8'] },
   };
 
+  const NOISE_MODES = {
+    ai: 'IA avançada (recomendado)',
+    'ai-lite': 'IA leve (para computadores mais fracos)',
+    browser: 'Padrão do navegador',
+    off: 'Desligada',
+  };
+
   const state = {
     me: null, // { accountId, sid }
     server: null, // último 'state' do servidor: roles, channels, members, voice, myPerms, bans, ownerId
@@ -37,7 +44,10 @@
     peers: new Map(), // sid -> conexão WebRTC com cada participante da sala
     micDeviceId: localStorage.getItem('micDeviceId') || '',
     speakerDeviceId: localStorage.getItem('speakerDeviceId') || '',
-    noiseSuppression: localStorage.getItem('noiseSuppression') !== 'false',
+    // Supressão de ruído: 'ai' (GTCRN), 'ai-lite' (RNNoise), 'browser' (do navegador) ou 'off'.
+    noiseMode: NOISE_MODES[localStorage.getItem('noiseMode')] ? localStorage.getItem('noiseMode') : localStorage.getItem('noiseSuppression') === 'false' ? 'off' : 'ai',
+    lastAiMode: localStorage.getItem('lastAiMode') === 'ai-lite' ? 'ai-lite' : 'ai',
+    echoCancellation: localStorage.getItem('echoCancellation') !== 'false',
     ptt: JSON.parse(localStorage.getItem('ptt') || '{"enabled":false,"code":"Backquote","label":"`"}'),
     pttHeld: false,
     notify: localStorage.getItem('notify') !== 'false',
@@ -1353,6 +1363,12 @@
         refreshTip(b);
       }
     }
+    const aiOn = state.noiseMode === 'ai' || state.noiseMode === 'ai-lite';
+    const nb = $('#btn-noise');
+    nb.replaceChildren(Icon('waves', 20));
+    nb.classList.toggle('active', aiOn);
+    nb.dataset.tip = aiOn ? 'Supressão de ruído por IA: ligada' : 'Supressão de ruído por IA: desligada';
+    refreshTip(nb);
     const scMic = $('#sc-mic');
     scMic.replaceChildren(Icon(micOff ? 'micOff' : 'mic', 24));
     scMic.classList.toggle('off', micOff);
@@ -1740,22 +1756,111 @@
 
   // ---------------- áudio local ----------------
   async function getMicStream() {
+    const ai = state.noiseMode === 'ai' || state.noiseMode === 'ai-lite';
     const constraints = {
       audio: {
         deviceId: state.micDeviceId ? { exact: state.micDeviceId } : undefined,
-        echoCancellation: state.noiseSuppression,
-        noiseSuppression: state.noiseSuppression,
+        channelCount: 1,
+        echoCancellation: state.echoCancellation,
+        // Com a IA ligada, o filtro do navegador fica desligado: processar duas vezes piora a voz.
+        noiseSuppression: state.noiseMode === 'browser',
         autoGainControl: true,
       },
     };
+    let raw;
     try {
-      return await navigator.mediaDevices.getUserMedia(constraints);
+      raw = await navigator.mediaDevices.getUserMedia(constraints);
     } catch (err) {
       console.warn('Microfone indisponível:', err);
       toast('Microfone indisponível — você entrou só para ouvir.');
       // Trilha silenciosa para manter a negociação WebRTC igual para todos.
       return getAudioCtx().createMediaStreamDestination().stream;
     }
+    return ai ? suppressNoise(raw, state.noiseMode) : raw;
+  }
+
+  // ---------------- supressão de ruído por IA (estilo Krisp) ----------------
+  // O microfone passa por uma rede neural numa thread de áudio separada (AudioWorklet)
+  // antes de ir para a chamada: fica só a voz. Tudo roda no seu computador.
+  const noise = { ctx: null, lib: null, wasm: {}, modules: new Set(), pipes: new Map() };
+  const NOISE_FILES = {
+    ai: { worklet: 'gtcrn/workletProcessor.js', load: (lib) => lib.loadGtcrn({ url: '/vendor/noise/gtcrn.wasm' }), Node: 'GtcrnWorkletNode' },
+    'ai-lite': { worklet: 'rnnoise/workletProcessor.js', load: (lib) => lib.loadRnnoise({ url: '/vendor/noise/rnnoise.wasm', simdUrl: '/vendor/noise/rnnoise_simd.wasm' }), Node: 'RnnoiseWorkletNode' },
+  };
+
+  async function suppressNoise(raw, mode) {
+    try {
+      const f = NOISE_FILES[mode];
+      // Os modelos trabalham a 48 kHz (a taxa do Opus), então o contexto é criado nessa taxa.
+      noise.ctx ||= new AudioContext({ sampleRate: 48000, latencyHint: 'interactive' });
+      if (noise.ctx.state === 'suspended') noise.ctx.resume();
+      noise.lib ||= await import('/vendor/noise/index.js');
+      if (!noise.modules.has(mode)) {
+        await noise.ctx.audioWorklet.addModule('/vendor/noise/' + f.worklet);
+        noise.modules.add(mode);
+      }
+      noise.wasm[mode] ||= await f.load(noise.lib);
+      const source = noise.ctx.createMediaStreamSource(raw);
+      // Converte para mono antes da IA: o modelo processa um canal só e, se o microfone
+      // chegasse em estéreo, o canal vazio na saída cortaria o volume da voz pela metade (-6 dB).
+      const mono = noise.ctx.createGain();
+      mono.channelCount = 1;
+      mono.channelCountMode = 'explicit';
+      const node = new noise.lib[f.Node](noise.ctx, { maxChannels: 1, wasmBinary: noise.wasm[mode] });
+      const dest = noise.ctx.createMediaStreamDestination();
+      dest.channelCount = 1;
+      source.connect(mono).connect(node).connect(dest);
+      const out = dest.stream;
+      noise.pipes.set(out, { raw, source, mono, node, dest });
+      return out;
+    } catch (err) {
+      console.warn('Supressão de ruído por IA indisponível:', err);
+      toast('Não consegui ligar a supressão de ruído por IA neste navegador; usando o microfone normal.');
+      return raw;
+    }
+  }
+
+  // Para o microfone e desmonta a supressão de ruído ligada a ele.
+  function releaseMic(stream) {
+    if (!stream) return;
+    stream.getTracks().forEach((t) => t.stop());
+    const pipe = noise.pipes.get(stream);
+    if (!pipe) return;
+    pipe.raw.getTracks().forEach((t) => t.stop());
+    pipe.source.disconnect();
+    pipe.mono.disconnect();
+    pipe.node.disconnect();
+    pipe.node.destroy?.();
+    noise.pipes.delete(stream);
+  }
+
+  // Troca o microfone (outro dispositivo ou outra supressão) sem derrubar a chamada.
+  async function restartMic() {
+    if (!state.voiceChannel) return;
+    const old = state.micStream;
+    const next = await getMicStream();
+    const [track] = next.getAudioTracks();
+    state.micStream = next;
+    for (const p of state.peers.values()) {
+      const sender = p.pc.getSenders().find((s) => s.track && old.getTracks().includes(s.track));
+      if (sender) await sender.replaceTrack(track);
+    }
+    releaseMic(old);
+    applyAudio();
+    unwatchSpeaking(state.me.sid);
+    watchSpeaking(state.me.sid, state.micStream);
+  }
+
+  function setNoiseMode(mode) {
+    if (!NOISE_MODES[mode] || mode === state.noiseMode) return;
+    state.noiseMode = mode;
+    if (mode === 'ai' || mode === 'ai-lite') {
+      state.lastAiMode = mode;
+      localStorage.setItem('lastAiMode', mode);
+    }
+    localStorage.setItem('noiseMode', mode);
+    renderControls();
+    return restartMic();
   }
 
   function getAudioCtx() {
@@ -1870,7 +1975,7 @@
       state.micStream = await getMicStream();
       const res = await call('voice:join', { channel });
       if (!res) {
-        state.micStream.getTracks().forEach((t) => t.stop());
+        releaseMic(state.micStream);
         state.micStream = null;
         return;
       }
@@ -1898,7 +2003,7 @@
     stopVideo('screen', false);
     stopVideo('camera', false);
     for (const sid of [...state.peers.keys()]) closePeer(sid);
-    state.micStream?.getTracks().forEach((t) => t.stop());
+    releaseMic(state.micStream);
     state.micStream = null;
     unwatchSpeaking(state.me.sid);
     state.voiceChannel = null;
@@ -2407,7 +2512,8 @@
     $('#notify-toggle').disabled = !('Notification' in window) || Notification.permission === 'denied';
     renderPttSettings();
     $('#upload-select').value = String(state.uploadMbps);
-    $('#noise-toggle').checked = state.noiseSuppression;
+    $('#noise-mode').value = state.noiseMode;
+    $('#echo-toggle').checked = state.echoCancellation;
     // Abre na hora; a lista de dispositivos é preenchida logo em seguida.
     $('#settings').classList.remove('hidden');
     const devices = await navigator.mediaDevices.enumerateDevices().catch(() => []);
@@ -2452,33 +2558,81 @@
     if ($('#profile-color').value !== meMember().color) call('profile', { color: $('#profile-color').value });
     const mic = $('#mic-select').value;
     const speaker = $('#speaker-select').value;
-    const noise = $('#noise-toggle').checked;
-    const micChanged = mic !== state.micDeviceId || noise !== state.noiseSuppression;
+    const mode = $('#noise-mode').value;
+    const echo = $('#echo-toggle').checked;
+    stopMicTest();
+    const micChanged = mic !== state.micDeviceId || mode !== state.noiseMode || echo !== state.echoCancellation;
     state.micDeviceId = mic;
     state.speakerDeviceId = speaker;
-    state.noiseSuppression = noise;
+    state.echoCancellation = echo;
     localStorage.setItem('micDeviceId', mic);
     localStorage.setItem('speakerDeviceId', speaker);
-    localStorage.setItem('noiseSuppression', noise);
+    localStorage.setItem('echoCancellation', echo);
+    if (mode !== state.noiseMode) {
+      state.noiseMode = mode;
+      if (mode === 'ai' || mode === 'ai-lite') localStorage.setItem('lastAiMode', (state.lastAiMode = mode));
+      localStorage.setItem('noiseMode', mode);
+      renderControls();
+    }
 
     for (const p of state.peers.values()) if (p.audioEl) setSinkId(p.audioEl);
     document.querySelectorAll('#stage video').forEach(setSinkId);
 
     // Troca o microfone sem derrubar a chamada.
-    if (micChanged && state.voiceChannel) {
-      const old = state.micStream;
-      state.micStream = await getMicStream();
-      const [track] = state.micStream.getAudioTracks();
-      for (const p of state.peers.values()) {
-        const sender = p.pc.getSenders().find((s) => s.track && old.getTracks().includes(s.track));
-        if (sender) await sender.replaceTrack(track);
-      }
-      old.getTracks().forEach((t) => t.stop());
-      applyAudio();
-      unwatchSpeaking(state.me.sid);
-      watchSpeaking(state.me.sid, state.micStream);
-    }
+    if (micChanged) await restartMic();
+  };
+
+  // Botão rápido (painel de voz): liga/desliga a supressão por IA, como o do Krisp.
+  $('#btn-noise').onclick = () => {
+    const on = state.noiseMode === 'ai' || state.noiseMode === 'ai-lite';
+    setNoiseMode(on ? 'off' : state.lastAiMode);
+    toast(on ? 'Supressão de ruído desligada' : 'Supressão de ruído por IA ligada', 'info');
+  };
+
+  // "Testar microfone": você se ouve (com a supressão escolhida) e vê o nível do som.
+  let micTest = null;
+  function stopMicTest() {
+    if (!micTest) return;
+    cancelAnimationFrame(micTest.raf);
+    micTest.audio.srcObject = null;
+    micTest.analyserSource.disconnect();
+    releaseMic(micTest.stream);
+    micTest = null;
+    $('#mic-test').textContent = 'Testar microfone';
+    $('#mic-meter-fill').style.width = '0%';
+  }
+  $('#mic-test').onclick = async () => {
+    if (micTest) return stopMicTest();
+    const prev = { mode: state.noiseMode, echo: state.echoCancellation, mic: state.micDeviceId };
+    // Testa com o que está escolhido na tela (mesmo antes de salvar).
+    state.noiseMode = $('#noise-mode').value;
+    state.echoCancellation = $('#echo-toggle').checked;
+    state.micDeviceId = $('#mic-select').value;
+    const stream = await getMicStream();
+    Object.assign(state, { noiseMode: prev.mode, echoCancellation: prev.echo, micDeviceId: prev.mic });
+    const audio = new Audio();
+    audio.srcObject = stream;
+    setSinkId(audio);
+    audio.play().catch(() => {});
+    const ctx = getAudioCtx();
+    const analyserSource = ctx.createMediaStreamSource(stream);
+    const analyser = ctx.createAnalyser();
+    analyser.fftSize = 1024;
+    analyserSource.connect(analyser);
+    const data = new Uint8Array(analyser.fftSize);
+    micTest = { stream, audio, analyserSource, raf: 0 };
+    $('#mic-test').textContent = 'Parar teste';
+    const tick = () => {
+      if (!micTest) return;
+      analyser.getByteTimeDomainData(data);
+      let sum = 0;
+      for (const x of data) sum += (x - 128) ** 2;
+      $('#mic-meter-fill').style.width = Math.min(100, Math.sqrt(sum / data.length) * 3) + '%';
+      micTest.raf = requestAnimationFrame(tick);
+    };
+    tick();
   };
 
   window.addEventListener('beforeunload', () => leaveVoice(true, false));
+  $('#noise-mode').replaceChildren(...Object.entries(NOISE_MODES).map(([value, label]) => new Option(label, value)));
 })();

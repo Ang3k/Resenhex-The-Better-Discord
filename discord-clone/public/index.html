@@ -71,6 +71,7 @@
             <div class="voice-status" id="vp-status" data-tip="Conectando…"><span data-icon="signal" data-size="16"></span>Voz conectada</div>
             <div id="voice-room-name" class="muted-text"></div>
           </div>
+          <button type="button" id="btn-noise" class="icon-btn noise" aria-label="Supressão de ruído por IA"></button>
           <button type="button" id="btn-leave" class="icon-btn hangup" data-icon="phone" data-tip="Desconectar" aria-label="Desconectar"></button>
         </div>
         <div class="vp-actions">
@@ -161,7 +162,16 @@
         <label>SAÍDA DE ÁUDIO
           <select id="speaker-select"></select>
         </label>
-        <label class="row"><input type="checkbox" id="noise-toggle" checked> Supressão de ruído / cancelamento de eco</label>
+        <label>SUPRESSÃO DE RUÍDO
+          <select id="noise-mode"></select>
+          <span class="hint">A IA roda no seu computador e tira barulhos de fundo (teclado, ventilador, obra, cachorro) antes da sua voz ir para a chamada.</span>
+        </label>
+        <label class="row"><input type="checkbox" id="echo-toggle" checked> Cancelamento de eco (deixe ligado se não usa fone)</label>
+        <div class="mic-test">
+          <button type="button" id="mic-test" class="secondary">Testar microfone</button>
+          <div class="mic-meter"><div id="mic-meter-fill"></div></div>
+        </div>
+        <span class="hint">No teste você ouve a própria voz já com a supressão. Use fone para não dar microfonia.</span>
         <label>MODO DE ENTRADA
           <select id="input-mode">
             <option value="voice">Detecção de voz</option>

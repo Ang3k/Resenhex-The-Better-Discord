@@ -227,6 +227,11 @@ a { color: var(--link); }
 .icon-btn:hover { background: var(--hover-strong); color: var(--text); }
 .icon-btn.off { color: var(--red); }
 .icon-btn.locked { color: var(--red); background: rgba(242, 63, 67, .15); cursor: not-allowed; }
+.icon-btn.noise.active { color: var(--green); }
+.mic-test { display: flex; align-items: center; gap: 12px; }
+.card .mic-test button { flex-shrink: 0; }
+.mic-meter { flex: 1; height: 8px; border-radius: 4px; background: var(--bg-rail); overflow: hidden; }
+#mic-meter-fill { height: 100%; width: 0; background: var(--green); transition: width .05s linear; }
 .icon-btn.hangup:hover { background: var(--hover-strong); color: var(--red); }
 .icon-btn.active { color: var(--text-strong); }
 

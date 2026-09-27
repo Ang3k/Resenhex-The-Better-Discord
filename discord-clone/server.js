@@ -268,6 +268,8 @@ const online = new Map();
 
 const app = express();
 app.use(express.static(path.join(__dirname, 'public')));
+// Supressão de ruído por IA (RNNoise e GTCRN compilados para WebAssembly), usada no navegador.
+app.use('/vendor/noise', express.static(path.dirname(require.resolve('@sapphi-red/web-noise-suppressor')), { maxAge: '7d' }));
 app.get('/config', (_req, res) => {
   res.json({ passwordRequired: !!ACCESS_PASSWORD, hasOwner: !!db.ownerId, maxUploadMb: MAX_UPLOAD_MB });
 });
