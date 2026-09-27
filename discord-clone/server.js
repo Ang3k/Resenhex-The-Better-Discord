@@ -191,8 +191,13 @@ function loginFailed(key) {
   loginFailures.set(key, f);
 }
 
-// IP real de quem conecta (atrás do Cloudflare Tunnel todo mundo chega como 127.0.0.1).
-const clientIp = (headers, address) => String(headers['cf-connecting-ip'] || address || '');
+// IP real de quem conecta. Atrás do Cloudflare Tunnel ou de um proxy HTTPS (Caddy, Nginx)
+// todo mundo chegaria como 127.0.0.1; TRUST_PROXY=1 faz confiar no X-Forwarded-For do proxy.
+const TRUST_PROXY = process.env.TRUST_PROXY === '1';
+const clientIp = (headers, address) => String(
+  headers['cf-connecting-ip']
+  || (TRUST_PROXY && String(headers['x-forwarded-for'] || '').split(',')[0].trim())
+  || address || '');
 
 function createSession(accountId) {
   const token = crypto.randomBytes(32).toString('hex');

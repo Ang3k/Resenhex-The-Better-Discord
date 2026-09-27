@@ -120,7 +120,48 @@ Como a chamada é direta entre os navegadores, quem transmite envia **uma cópia
 **Aparece "limitado pelo processador".**
 Use o perfil **720p · 30 fps**, que exige menos do processador. Fechar outros programas pesados também ajuda.
 
-## Colocando online para os amigos
+## Online 24h, sem depender do seu PC (recomendado)
+
+O jeito mais estável é alugar um **VPS**: um computador Linux na nuvem, ligado o tempo todo. Um de US$ 4–6 por mês aguenta tranquilo um grupo de amigos (Hetzner, DigitalOcean, Contabo, Vultr…). Escolha **Ubuntu 24.04**.
+
+O script `deploy/instalar-vps.sh` faz tudo sozinho:
+
+- instala o Node.js;
+- coloca o Resenhex para ligar sozinho e voltar se cair;
+- configura **HTTPS automático**, com um endereço gratuito se você não tiver domínio;
+- instala um **servidor TURN**, para a voz conectar até em 4G e em redes de faculdade;
+- configura o firewall.
+
+**Passo a passo (do Windows):**
+
+1. Crie o VPS e anote o **IP** e a **senha do root** (o provedor mostra os dois).
+2. No GitHub, baixe o projeto em **Code → Download ZIP** e extraia.
+3. Abra o **PowerShell** dentro da pasta extraída, onde fica a pasta `discord-clone`, e envie ela para o VPS:
+   ```powershell
+   scp -r discord-clone root@SEU_IP:/root/resenhex
+   ```
+4. Entre no VPS e rode o instalador:
+   ```powershell
+   ssh root@SEU_IP
+   ```
+   ```bash
+   cd /root/resenhex && bash deploy/instalar-vps.sh
+   ```
+5. O script pede a **senha do servidor** e um **domínio**. Se não tiver domínio, aperte Enter: ele usa um endereço gratuito, tipo `https://203-0-113-10.sslip.io`.
+6. No fim aparece o **link** para mandar aos amigos.
+
+**Levar contas e mensagens que já existem no seu PC:** desligue o servidor no PC e rode (no PowerShell, dentro de `discord-clone`):
+```powershell
+scp data.json root@SEU_IP:/var/lib/resenhex/
+scp -r uploads root@SEU_IP:/var/lib/resenhex/
+ssh root@SEU_IP "chown -R resenhex:resenhex /var/lib/resenhex && systemctl restart resenhex"
+```
+
+**Atualizar para uma versão nova:** repita os passos 2 a 4. O script detecta a instalação existente e mantém contas, mensagens e senha.
+
+**Se não abrir:** alguns provedores (Hetzner Cloud Firewall, Oracle, AWS) têm um firewall próprio no painel. Libere nele: TCP 80 e 443, TCP/UDP 3478 e UDP 49160–49200.
+
+## Colocando online a partir do seu PC
 
 Navegadores **só liberam microfone e captura de tela em HTTPS** (ou em `localhost`). Então, para os amigos acessarem, o servidor precisa estar em HTTPS. Algumas opções:
 
@@ -147,6 +188,7 @@ ACCESS_PASSWORD=minhasenha npm start
 | `DATA_FILE` | Onde salvar contas, cargos, canais e mensagens (padrão `data.json`) |
 | `UPLOAD_DIR` | Pasta dos arquivos enviados no chat (padrão `uploads/`) |
 | `MAX_UPLOAD_MB` | Tamanho máximo de cada arquivo (padrão `25`) |
+| `TRUST_PROXY` | `1` quando roda atrás de um proxy HTTPS (Caddy, Nginx), para ler o IP real de quem conecta. O instalador do VPS já define |
 | `TURN_URL` | Servidor(es) TURN, separados por vírgula, ex.: `turn:meu-turn.com:3478` |
 | `TURN_USERNAME` / `TURN_CREDENTIAL` | Credenciais do TURN |
 
