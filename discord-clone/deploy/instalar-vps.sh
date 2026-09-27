@@ -21,6 +21,7 @@ TURN_MIN_PORT=49160
 TURN_MAX_PORT=49200
 
 say() { printf '\n\033[1;35m==> %s\033[0m\n' "$*"; }
+read_env() { sed -n "s/^${1}=//p" "$ENV_FILE" | tail -n 1; }
 [ "$(id -u)" = 0 ] || { echo "Rode com sudo: sudo bash deploy/instalar-vps.sh"; exit 1; }
 [ -f "$APP_SRC/server.js" ] || { echo "Não achei server.js em $APP_SRC. Rode o script de dentro da pasta do Resenhex."; exit 1; }
 command -v apt-get >/dev/null || { echo "Este script é para Ubuntu/Debian."; exit 1; }
@@ -29,9 +30,17 @@ export DEBIAN_FRONTEND=noninteractive
 # ---------- configuração (só pergunta na primeira vez) ----------
 if [ -f "$ENV_FILE" ]; then
   say "Instalação existente encontrada: atualizando e mantendo as configurações"
-  # shellcheck disable=SC1090
-  . "$ENV_FILE"
-  DOMAIN="${RESENHEX_DOMAIN:?}"
+  DOMAIN="$(read_env RESENHEX_DOMAIN)"
+  PUBLIC_IP="$(read_env PUBLIC_IP)"
+  TURN_USERNAME="$(read_env TURN_USERNAME)"
+  TURN_CREDENTIAL="$(read_env TURN_CREDENTIAL)"
+  ACCESS_PASSWORD_B64="$(read_env ACCESS_PASSWORD_B64)"
+  if [ -z "$ACCESS_PASSWORD_B64" ]; then
+    # Atualiza configurações geradas por versões anteriores sem executar a senha como código.
+    ACCESS_PASSWORD="$(read_env ACCESS_PASSWORD)"
+    [ -n "$ACCESS_PASSWORD" ] || { echo "A senha salva está vazia."; exit 1; }
+    ACCESS_PASSWORD_B64="$(printf '%s' "$ACCESS_PASSWORD" | base64 | tr -d '\n')"
+  fi
 else
   apt-get update -q
   apt-get install -y -q curl ca-certificates >/dev/null
@@ -45,20 +54,39 @@ else
   fi
   [[ "$PUBLIC_IP" =~ ^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$ ]] || { echo "IP inválido: $PUBLIC_IP"; exit 1; }
   echo
-  read -rp "Senha do servidor (seus amigos usam para criar conta): " ACCESS_PASSWORD
+  read -rsp "Senha do servidor (seus amigos usam para criar conta): " ACCESS_PASSWORD
+  echo
   [ -n "$ACCESS_PASSWORD" ] || { echo "A senha não pode ser vazia."; exit 1; }
   echo "Se você tem um domínio (ex.: resenha.seudominio.com), aponte ele para $PUBLIC_IP e digite abaixo."
   read -rp "Domínio (Enter para usar um endereço gratuito automático): " DOMAIN
   DOMAIN="${DOMAIN:-$(echo "$PUBLIC_IP" | tr . -).sslip.io}"
   TURN_USERNAME=resenhex
-  TURN_CREDENTIAL="$(head -c 24 /dev/urandom | base64 | tr -dc 'A-Za-z0-9' | head -c 24)"
-  umask 077
-  cat > "$ENV_FILE" <<EOF
+  TURN_CREDENTIAL="$(od -An -N24 -tx1 /dev/urandom | tr -d '[:space:]')"
+  ACCESS_PASSWORD_B64="$(printf '%s' "$ACCESS_PASSWORD" | base64 | tr -d '\n')"
+fi
+
+# Apenas valores validados entram nos arquivos de Caddy, coturn e systemd.
+[[ "$PUBLIC_IP" =~ ^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$ ]] || { echo "IP inválido: $PUBLIC_IP"; exit 1; }
+IFS='.' read -ra IP_OCTETS <<< "$PUBLIC_IP"
+for octet in "${IP_OCTETS[@]}"; do
+  [ "$octet" -le 255 ] || { echo "IP inválido: $PUBLIC_IP"; exit 1; }
+done
+[ "${#DOMAIN}" -le 253 ] && [[ "$DOMAIN" == *.* && "$DOMAIN" != .* && "$DOMAIN" != *. && "$DOMAIN" != *..* ]] || { echo "Domínio inválido."; exit 1; }
+IFS='.' read -ra DOMAIN_LABELS <<< "$DOMAIN"
+for label in "${DOMAIN_LABELS[@]}"; do
+  [[ "$label" =~ ^[A-Za-z0-9]([A-Za-z0-9-]{0,61}[A-Za-z0-9])?$ ]] || { echo "Domínio inválido."; exit 1; }
+done
+[[ "$TURN_USERNAME" =~ ^[A-Za-z0-9_-]+$ && "$TURN_CREDENTIAL" =~ ^[A-Za-z0-9]+$ ]] || { echo "Credenciais TURN inválidas."; exit 1; }
+[[ "$ACCESS_PASSWORD_B64" =~ ^[A-Za-z0-9+/]+={0,2}$ ]] || { echo "Senha salva inválida."; exit 1; }
+
+umask 077
+cat > "$ENV_FILE" <<EOF
 # Configuração do Resenhex (gerada por deploy/instalar-vps.sh)
 RESENHEX_DOMAIN=$DOMAIN
 PUBLIC_IP=$PUBLIC_IP
 PORT=3000
-ACCESS_PASSWORD=$ACCESS_PASSWORD
+HOST=127.0.0.1
+ACCESS_PASSWORD_B64=$ACCESS_PASSWORD_B64
 DATA_FILE=$DATA_DIR/data.json
 UPLOAD_DIR=$DATA_DIR/uploads
 TRUST_PROXY=1
@@ -66,10 +94,8 @@ TURN_URL=turn:$DOMAIN:3478?transport=udp,turn:$DOMAIN:3478?transport=tcp
 TURN_USERNAME=$TURN_USERNAME
 TURN_CREDENTIAL=$TURN_CREDENTIAL
 EOF
-  umask 022
-  # shellcheck disable=SC1090
-  . "$ENV_FILE"
-fi
+chmod 600 "$ENV_FILE"
+umask 022
 
 # ---------- pacotes ----------
 say "Instalando pacotes (Node.js, Caddy, coturn)"
@@ -155,7 +181,22 @@ sed -i 's/^#\?TURNSERVER_ENABLED=.*/TURNSERVER_ENABLED=1/' /etc/default/coturn 2
 
 # ---------- firewall ----------
 say "Liberando portas no firewall"
-ufw allow OpenSSH >/dev/null
+# Preserva o acesso SSH mesmo quando o VPS usa outra porta.
+ssh_ports=(22)
+if [ -n "${SSH_CONNECTION:-}" ]; then
+  read -r _ _ _ ssh_port <<< "$SSH_CONNECTION"
+  if [[ "$ssh_port" =~ ^[0-9]+$ ]] && [ "$ssh_port" -ge 1 ] && [ "$ssh_port" -le 65535 ]; then
+    ssh_ports+=("$ssh_port")
+  fi
+fi
+if command -v sshd >/dev/null; then
+  while read -r ssh_port; do
+    if [[ "$ssh_port" =~ ^[0-9]+$ ]] && [ "$ssh_port" -ge 1 ] && [ "$ssh_port" -le 65535 ]; then
+      ssh_ports+=("$ssh_port")
+    fi
+  done < <(sshd -T 2>/dev/null | awk '$1 == "port" { print $2 }')
+fi
+for ssh_port in "${ssh_ports[@]}"; do ufw allow "$ssh_port/tcp" >/dev/null; done
 ufw allow 80/tcp >/dev/null
 ufw allow 443/tcp >/dev/null
 ufw allow 443/udp >/dev/null
@@ -187,7 +228,7 @@ cat <<EOF
  Resenhex online!
 
    Link para mandar aos amigos:  https://$DOMAIN
-   Senha do servidor:            $ACCESS_PASSWORD
+   Senha do servidor:            a que você informou na instalação
 
  Entre primeiro e crie SUA conta (se o servidor for novo,
  a primeira conta vira a dona).

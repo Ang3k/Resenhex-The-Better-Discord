@@ -9,10 +9,13 @@ const express = require('express');
 const { Server } = require('socket.io');
 
 const PORT = process.env.PORT || 3000;
+const HOST = process.env.HOST || '0.0.0.0';
 const DATA_FILE = process.env.DATA_FILE || path.join(__dirname, 'data.json');
 const MAX_MESSAGES = 300;
 // Se definida, só cria conta quem souber a senha (recomendado quando o servidor estiver na internet).
-const ACCESS_PASSWORD = process.env.ACCESS_PASSWORD || '';
+const ACCESS_PASSWORD = process.env.ACCESS_PASSWORD_B64
+  ? Buffer.from(process.env.ACCESS_PASSWORD_B64, 'base64').toString('utf8')
+  : process.env.ACCESS_PASSWORD || '';
 const UPLOAD_DIR = process.env.UPLOAD_DIR || path.join(__dirname, 'uploads');
 const MAX_UPLOAD_MB = Number(process.env.MAX_UPLOAD_MB) || 25;
 const MAX_ATTACHMENTS = 10;
@@ -195,8 +198,7 @@ function loginFailed(key) {
 // todo mundo chegaria como 127.0.0.1; TRUST_PROXY=1 faz confiar no X-Forwarded-For do proxy.
 const TRUST_PROXY = process.env.TRUST_PROXY === '1';
 const clientIp = (headers, address) => String(
-  headers['cf-connecting-ip']
-  || (TRUST_PROXY && String(headers['x-forwarded-for'] || '').split(',')[0].trim())
+  (TRUST_PROXY && String(headers['x-forwarded-for'] || '').split(',')[0].trim())
   || address || '');
 
 function createSession(accountId) {
@@ -873,6 +875,6 @@ function formatMinutes(m) {
   return `${Math.round(m / 1440)} dia(s)`;
 }
 
-server.listen(PORT, () => {
-  console.log(`Resenhex rodando em http://localhost:${PORT}`);
+server.listen(PORT, HOST, () => {
+  console.log(`Resenhex rodando em http://${HOST}:${PORT}`);
 });

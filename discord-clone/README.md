@@ -150,12 +150,13 @@ O script `deploy/instalar-vps.sh` faz tudo sozinho:
 5. O script pede a **senha do servidor** e um **domínio**. Se não tiver domínio, aperte Enter: ele usa um endereço gratuito, tipo `https://203-0-113-10.sslip.io`.
 6. No fim aparece o **link** para mandar aos amigos.
 
-**Levar contas e mensagens que já existem no seu PC:** desligue o servidor no PC e rode (no PowerShell, dentro de `discord-clone`):
+**Levar contas e mensagens que já existem no seu PC:** pare o servidor no PC durante a cópia, para não perder mensagens enviadas nesse intervalo. Se você usou o link Cloudflare configurado neste PC, os dados estão em `ResenhaCloudflare` dentro de `AppData\Local`, e não na pasta do projeto. No PowerShell, rode:
 ```powershell
-scp data.json root@SEU_IP:/var/lib/resenhex/
-scp -r uploads root@SEU_IP:/var/lib/resenhex/
+scp "$env:LOCALAPPDATA\ResenhaCloudflare\data.json" root@SEU_IP:/var/lib/resenhex/
+scp -r "$env:LOCALAPPDATA\ResenhaCloudflare\uploads" root@SEU_IP:/var/lib/resenhex/
 ssh root@SEU_IP "chown -R resenhex:resenhex /var/lib/resenhex && systemctl restart resenhex"
 ```
+Se você rodou `npm start` diretamente, copie o `data.json` e a pasta `uploads` daquela instalação em vez dos caminhos acima.
 
 **Atualizar para uma versão nova:** repita os passos 2 a 4. O script detecta a instalação existente e mantém contas, mensagens e senha.
 
@@ -185,6 +186,8 @@ ACCESS_PASSWORD=minhasenha npm start
 |---|---|
 | `PORT` | Porta HTTP (padrão `3000`) |
 | `ACCESS_PASSWORD` | Senha exigida para criar conta (padrão: sem senha) |
+| `ACCESS_PASSWORD_B64` | Senha codificada usada pelo instalador do VPS; tem prioridade sobre `ACCESS_PASSWORD` |
+| `HOST` | Endereço de escuta do servidor (padrão `0.0.0.0`; no VPS, `127.0.0.1` atrás do Caddy) |
 | `DATA_FILE` | Onde salvar contas, cargos, canais e mensagens (padrão `data.json`) |
 | `UPLOAD_DIR` | Pasta dos arquivos enviados no chat (padrão `uploads/`) |
 | `MAX_UPLOAD_MB` | Tamanho máximo de cada arquivo (padrão `25`) |
