@@ -13,5 +13,5 @@ Ideias anotadas para as próximas versões do Resenhex.
 ## Transmissão de tela
 
 - [x] Trocar a qualidade (720p/1080p, 30/60 fps) depois de começar. Já existe: clique de novo no 🖥️.
-- [ ] **Trocar o que está sendo transmitido sem parar a transmissão**: escolher outra janela, tela ou aba no meio da live. Precisa pedir a nova captura e substituir o vídeo enviado para cada pessoa, sem renegociar a conexão.
+- [ ] **Trocar a tela ou o aplicativo transmitido sem parar a transmissão**: no meio da live, um botão "Trocar tela/aplicativo" abre de novo a escolha do navegador (outro monitor, outro programa ou outra aba), e quem assiste continua vendo sem interrupção. Precisa pedir a nova captura e substituir o vídeo enviado para cada pessoa, sem renegociar a conexão.
 - [ ] Deixar a opção de qualidade mais visível durante a transmissão, por exemplo num menu "⚙️ Transmissão" direto no bloco da tela.
