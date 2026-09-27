@@ -1,5 +1,5 @@
 // Servidor do clone do Discord: contas, cargos e permissões, moderação,
-// chat de texto e sinalização WebRTC para voz e compartilhamento de tela.
+// chat de texto com anexos, e sinalização WebRTC para voz, câmera e tela.
 const path = require('path');
 const fs = require('fs');
 const http = require('http');
@@ -12,6 +12,18 @@ const DATA_FILE = process.env.DATA_FILE || path.join(__dirname, 'data.json');
 const MAX_MESSAGES = 300;
 // Se definida, só cria conta quem souber a senha (recomendado quando o servidor estiver na internet).
 const ACCESS_PASSWORD = process.env.ACCESS_PASSWORD || '';
+const UPLOAD_DIR = process.env.UPLOAD_DIR || path.join(__dirname, 'uploads');
+const MAX_UPLOAD_MB = Number(process.env.MAX_UPLOAD_MB) || 25;
+const MAX_ATTACHMENTS = 10;
+fs.mkdirSync(UPLOAD_DIR, { recursive: true });
+
+// Tipos que o navegador pode exibir direto. Todo o resto é servido como download,
+// para que um arquivo enviado (ex.: .html, .svg) nunca rode código neste site.
+const INLINE_TYPES = {
+  png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg', gif: 'image/gif', webp: 'image/webp',
+  mp4: 'video/mp4', webm: 'video/webm',
+  mp3: 'audio/mpeg', ogg: 'audio/ogg', wav: 'audio/wav', m4a: 'audio/mp4',
+};
 
 const PERMS = {
   ADMIN: 'Administrador (todas as permissões)',
@@ -23,10 +35,11 @@ const PERMS = {
   TIMEOUT: 'Castigar membros',
   MUTE_MEMBERS: 'Silenciar e ensurdecer membros',
   MOVE_MEMBERS: 'Mover e desconectar membros da voz',
+  MENTION_EVERYONE: 'Mencionar @everyone e @here',
   SEND_MESSAGES: 'Enviar mensagens',
   CONNECT: 'Entrar em canais de voz',
   SPEAK: 'Falar na voz',
-  STREAM: 'Compartilhar tela',
+  STREAM: 'Vídeo (câmera e compartilhar tela)',
 };
 const ALL_PERMS = Object.keys(PERMS);
 
@@ -57,7 +70,7 @@ function defaultDb() {
     // A posição no array é a hierarquia: índice maior = cargo mais alto.
     roles: [
       { id: 'everyone', name: '@everyone', color: '', hoist: false, perms: ['SEND_MESSAGES', 'CONNECT', 'SPEAK', 'STREAM'] },
-      { id: newId(), name: 'Moderador', color: '#3498db', hoist: true, perms: ['KICK', 'TIMEOUT', 'MUTE_MEMBERS', 'MOVE_MEMBERS', 'MANAGE_MESSAGES'] },
+      { id: newId(), name: 'Moderador', color: '#3498db', hoist: true, perms: ['KICK', 'TIMEOUT', 'MUTE_MEMBERS', 'MOVE_MEMBERS', 'MANAGE_MESSAGES', 'MENTION_EVERYONE'] },
       { id: newId(), name: 'Admin', color: '#e74c3c', hoist: true, perms: ['ADMIN'] },
     ],
     channels: [
@@ -65,6 +78,7 @@ function defaultDb() {
       ...voice.map((name) => ({ id: newId(), type: 'voice', name, allowedRoles: [] })),
     ],
     messages: Object.fromEntries(text.map((c) => [c, []])),
+    uploads: {},
   };
 }
 
@@ -86,6 +100,7 @@ function loadDb() {
 }
 
 const db = loadDb();
+db.uploads ||= {};
 
 // Grava na hora ao desligar o servidor (Ctrl+C), para não perder o que estava pendente.
 function saveNow() {
@@ -158,14 +173,93 @@ function canView(acc, channel) {
   return !channel.allowedRoles.length || can(acc, 'ADMIN') || channel.allowedRoles.some((r) => acc.roles.includes(r));
 }
 
+// ---------------- menções e anexos ----------------
+// Menções ficam no texto como <@idDaConta> e <@&idDoCargo>; @everyone/@here só contam com permissão.
+function parseMentions(acc, text, replyAuthorId) {
+  const users = new Set([...text.matchAll(/<@([0-9a-f]{16})>/g)].map((m) => m[1]).filter((id) => db.accounts[id]));
+  if (replyAuthorId && replyAuthorId !== acc.id && db.accounts[replyAuthorId]) users.add(replyAuthorId);
+  const roles = [...new Set([...text.matchAll(/<@&([0-9a-f]{16})>/g)].map((m) => m[1]))].filter((id) => roleIndex(id) > 0);
+  const everyone = /(^|[^\w<])@(everyone|here)\b/.test(text) && can(acc, 'MENTION_EVERYONE');
+  return { users: [...users], roles, everyone };
+}
+
+function mentionsAccount(msg, acc) {
+  const m = msg.mentions;
+  return !!m && msg.authorId !== acc.id && (m.everyone || m.users.includes(acc.id) || m.roles.some((r) => acc.roles.includes(r)));
+}
+
+function deleteUpload(id) {
+  const up = db.uploads[id];
+  if (!up) return;
+  delete db.uploads[id];
+  fs.unlink(path.join(UPLOAD_DIR, up.file), () => {});
+}
+
+const deleteAttachments = (msg) => (msg.attachments || []).forEach((a) => deleteUpload(a.id));
+
+// Apaga anexos enviados mas nunca usados numa mensagem (ex.: a pessoa desistiu).
+setInterval(() => {
+  const limit = Date.now() - 60 * 60 * 1000;
+  for (const up of Object.values(db.uploads)) if (!up.messageId && up.ts < limit) deleteUpload(up.id);
+  save();
+}, 10 * 60 * 1000).unref();
+
 // ---------------- sessões conectadas ----------------
-// socket.id -> { accountId, voice: idDoCanal|null, muted, deafened, sharing }
+// socket.id -> { accountId, voice: idDoCanal|null, muted, deafened, sharing, camera }
 const online = new Map();
 
 const app = express();
 app.use(express.static(path.join(__dirname, 'public')));
 app.get('/config', (_req, res) => {
-  res.json({ passwordRequired: !!ACCESS_PASSWORD, hasOwner: !!db.ownerId });
+  res.json({ passwordRequired: !!ACCESS_PASSWORD, hasOwner: !!db.ownerId, maxUploadMb: MAX_UPLOAD_MB });
+});
+
+app.post('/upload', express.raw({ type: () => true, limit: MAX_UPLOAD_MB * 1024 * 1024 }), (req, res) => {
+  const acc = db.accounts[db.sessions[req.get('x-token')]];
+  if (!acc || acc.banned) return res.status(401).json({ error: 'Não autenticado' });
+  if (!can(acc, 'SEND_MESSAGES') || timedOut(acc)) return res.status(403).json({ error: 'Você não pode enviar arquivos agora.' });
+  if (!Buffer.isBuffer(req.body) || !req.body.length) return res.status(400).json({ error: 'Arquivo vazio' });
+  let name;
+  try {
+    name = decodeURIComponent(req.get('x-filename') || '');
+  } catch {
+    name = '';
+  }
+  name = path.basename(name).replace(/[\x00-\x1f\x7f]/g, '').slice(0, 100) || 'arquivo';
+  const ext = path.extname(name).slice(1).toLowerCase().replace(/[^a-z0-9]/g, '').slice(0, 10);
+  const id = crypto.randomBytes(16).toString('hex');
+  const file = id + (ext ? '.' + ext : '');
+  fs.writeFile(path.join(UPLOAD_DIR, file), req.body, (err) => {
+    if (err) {
+      console.error('Falha ao salvar upload:', err);
+      return res.status(500).json({ error: 'Falha ao salvar o arquivo' });
+    }
+    const up = { id, file, name, size: req.body.length, type: INLINE_TYPES[ext] || 'application/octet-stream', uploaderId: acc.id, ts: Date.now(), messageId: null };
+    db.uploads[id] = up;
+    save();
+    res.json({ id, name, size: up.size, type: up.type, url: '/uploads/' + file });
+  });
+});
+
+app.get('/uploads/:file', (req, res) => {
+  const match = /^([0-9a-f]{32})(\.[a-z0-9]{1,10})?$/.exec(req.params.file);
+  const up = match && db.uploads[match[1]];
+  if (!up || up.file !== req.params.file) return res.status(404).end();
+  res.set({
+    'X-Content-Type-Options': 'nosniff',
+    'Content-Security-Policy': "default-src 'none'; sandbox",
+    'Cache-Control': 'private, max-age=31536000, immutable',
+  });
+  if (INLINE_TYPES[path.extname(up.file).slice(1)]) res.type(up.type);
+  else res.set({ 'Content-Type': 'application/octet-stream', 'Content-Disposition': `attachment; filename*=UTF-8''${encodeURIComponent(up.name)}` });
+  res.sendFile(path.join(UPLOAD_DIR, up.file));
+});
+
+// Upload maior que o limite ou outro erro de corpo da requisição.
+app.use((err, _req, res, _next) => {
+  if (err.type === 'entity.too.large') return res.status(413).json({ error: `Arquivo maior que ${MAX_UPLOAD_MB} MB` });
+  console.error(err);
+  res.status(500).json({ error: 'Erro no servidor' });
 });
 
 const server = http.createServer(app);
@@ -203,6 +297,7 @@ function stateFor(acc) {
         muted: s.muted,
         deafened: s.deafened,
         sharing: s.sharing,
+        camera: s.camera,
         // "silenced": ninguém deve ouvir essa pessoa (mutada pelo servidor, de castigo ou sem permissão de falar).
         silenced: !!a.serverMuted || timedOut(a) || !can(a, 'SPEAK'),
       };
@@ -220,6 +315,7 @@ function leaveVoice(socket) {
   socket.leave(room);
   s.voice = null;
   s.sharing = false;
+  s.camera = false;
 }
 
 // Aplica as regras de voz depois de qualquer mudança de cargo, canal ou castigo.
@@ -233,8 +329,9 @@ function enforceVoice() {
     if (!channel || !canView(acc, channel) || !can(acc, 'CONNECT')) {
       leaveVoice(socket);
       socket.emit('voice:force-leave', { reason: 'Você foi removido do canal de voz.' });
-    } else if (s.sharing && (!can(acc, 'STREAM') || timedOut(acc))) {
+    } else if ((s.sharing || s.camera) && (!can(acc, 'STREAM') || timedOut(acc))) {
       s.sharing = false;
+      s.camera = false;
       socket.emit('voice:stop-share');
     }
   }
@@ -319,9 +416,9 @@ io.on('connection', (socket) => {
     }
     if (acc.banned) return ack({ error: 'Você foi banido deste servidor.' });
     const token = payload.token || createSession(acc.id);
-    online.set(socket.id, { accountId: acc.id, voice: null, muted: false, deafened: false, sharing: false });
+    online.set(socket.id, { accountId: acc.id, voice: null, muted: false, deafened: false, sharing: false, camera: false });
     save();
-    ack({ token, accountId: acc.id, sid: socket.id, iceServers: iceServers(), permNames: PERMS });
+    ack({ token, accountId: acc.id, sid: socket.id, iceServers: iceServers(), permNames: PERMS, maxUploadMb: MAX_UPLOAD_MB });
     broadcastState();
   });
 
@@ -345,42 +442,96 @@ io.on('connection', (socket) => {
 
   on('chat:history', (acc, { channel }) => ({ messages: db.messages[textChannel(acc, channel).id] || [] }));
 
-  on('chat:send', (acc, { channel, text }) => {
+  const findMessage = (acc, channel, id) => {
     const c = textChannel(acc, channel);
-    text = String(text || '').trim().slice(0, 2000);
-    if (!text) return;
+    const list = db.messages[c.id] || [];
+    const i = list.findIndex((m) => m.id === id);
+    if (i < 0) fail('Mensagem não encontrada');
+    return { c, list, i, msg: list[i] };
+  };
+
+  on('chat:send', (acc, { channel, text, attachments, replyTo }) => {
+    const c = textChannel(acc, channel);
+    text = String(text || '').trim().slice(0, 4000);
     if (!can(acc, 'SEND_MESSAGES')) fail('Você não tem permissão para enviar mensagens.');
     if (timedOut(acc)) fail('Você está de castigo.');
-    const msg = { id: newId(), authorId: acc.id, text, ts: Date.now() };
+    const ids = [...new Set(Array.isArray(attachments) ? attachments : [])].slice(0, MAX_ATTACHMENTS);
+    const ups = ids.map((id) => db.uploads[id]);
+    if (ups.some((up) => !up || up.uploaderId !== acc.id || up.messageId)) fail('Anexo inválido, envie o arquivo de novo.');
+    if (!text && !ups.length) return;
     const list = (db.messages[c.id] ||= []);
+    const replied = replyTo ? list.find((m) => m.id === replyTo) : null;
+    const msg = { id: newId(), authorId: acc.id, text, ts: Date.now() };
+    if (ups.length) {
+      msg.attachments = ups.map((up) => ({ id: up.id, name: up.name, size: up.size, type: up.type, url: '/uploads/' + up.file }));
+      ups.forEach((up) => (up.messageId = msg.id));
+    }
+    if (replied) msg.replyTo = replied.id;
+    msg.mentions = parseMentions(acc, text, replied?.authorId);
     list.push(msg);
-    if (list.length > MAX_MESSAGES) list.shift();
+    while (list.length > MAX_MESSAGES) deleteAttachments(list.shift());
+    (acc.lastRead ||= {})[c.id] = msg.ts;
     emitToViewers(c, 'chat:message', { channel: c.id, msg });
     save();
   });
 
   on('chat:edit', (acc, { channel, id, text }) => {
-    const c = textChannel(acc, channel);
-    const msg = db.messages[c.id]?.find((m) => m.id === id);
-    text = String(text || '').trim().slice(0, 2000);
-    if (!msg || msg.authorId !== acc.id) fail('Só dá para editar suas mensagens.');
+    const { c, list, msg } = findMessage(acc, channel, id);
+    text = String(text || '').trim().slice(0, 4000);
+    if (msg.authorId !== acc.id) fail('Só dá para editar suas mensagens.');
     if (timedOut(acc)) fail('Você está de castigo.');
-    if (!text) return;
+    if (!text && !msg.attachments?.length) return;
     msg.text = text;
     msg.edited = Date.now();
+    msg.mentions = parseMentions(acc, text, list.find((m) => m.id === msg.replyTo)?.authorId);
     emitToViewers(c, 'chat:update', { channel: c.id, msg });
     save();
   });
 
   on('chat:delete', (acc, { channel, id }) => {
-    const c = textChannel(acc, channel);
-    const list = db.messages[c.id] || [];
-    const i = list.findIndex((m) => m.id === id);
-    if (i < 0) return;
-    if (list[i].authorId !== acc.id && !can(acc, 'MANAGE_MESSAGES')) fail('Sem permissão para apagar essa mensagem.');
+    const { c, list, i, msg } = findMessage(acc, channel, id);
+    if (msg.authorId !== acc.id && !can(acc, 'MANAGE_MESSAGES')) fail('Sem permissão para apagar essa mensagem.');
     list.splice(i, 1);
+    deleteAttachments(msg);
     emitToViewers(c, 'chat:delete', { channel: c.id, id });
     save();
+  });
+
+  on('chat:react', (acc, { channel, id, emoji }) => {
+    const { c, msg } = findMessage(acc, channel, id);
+    emoji = String(emoji || '');
+    if (!emoji || emoji.length > 16 || /[\s<>]/.test(emoji)) fail('Emoji inválido');
+    if (timedOut(acc)) fail('Você está de castigo.');
+    const reactions = (msg.reactions ||= {});
+    const users = reactions[emoji] || [];
+    if (users.includes(acc.id)) reactions[emoji] = users.filter((u) => u !== acc.id);
+    else {
+      if (!reactions[emoji] && Object.keys(reactions).length >= 20) fail('Limite de reações nesta mensagem');
+      reactions[emoji] = [...users, acc.id];
+    }
+    if (!reactions[emoji].length) delete reactions[emoji];
+    emitToViewers(c, 'chat:update', { channel: c.id, msg });
+    save();
+  });
+
+  on('chat:read', (acc, { channel }) => {
+    const c = textChannel(acc, channel);
+    (acc.lastRead ||= {})[c.id] = Date.now();
+    save();
+  });
+
+  // Quais canais têm mensagens não lidas e quantas menções a você.
+  on('chat:unread', (acc) => {
+    const lastRead = (acc.lastRead ||= {});
+    const result = {};
+    for (const c of db.channels) {
+      if (c.type !== 'text' || !canView(acc, c)) continue;
+      lastRead[c.id] ??= Date.now();
+      const fresh = (db.messages[c.id] || []).filter((m) => m.ts > lastRead[c.id] && m.authorId !== acc.id);
+      if (fresh.length) result[c.id] = { unread: true, mentions: fresh.filter((m) => mentionsAccount(m, acc)).length };
+    }
+    save();
+    return { unread: result };
   });
 
   on('typing', (acc, { channel }) => {
@@ -410,11 +561,13 @@ io.on('connection', (socket) => {
     broadcastState();
   });
 
-  on('voice:state', (acc, { muted, deafened, sharing }) => {
+  on('voice:state', (acc, { muted, deafened, sharing, camera }) => {
     const s = online.get(socket.id);
+    const video = !!s.voice && can(acc, 'STREAM') && !timedOut(acc);
     s.muted = !!muted;
     s.deafened = !!deafened;
-    s.sharing = !!sharing && !!s.voice && can(acc, 'STREAM') && !timedOut(acc);
+    s.sharing = !!sharing && video;
+    s.camera = !!camera && video;
     broadcastState();
   });
 
@@ -582,6 +735,7 @@ io.on('connection', (socket) => {
     } else if (action === 'delete') {
       if (channel.type === 'text' && db.channels.filter((c) => c.type === 'text').length === 1) fail('O servidor precisa de pelo menos um canal de texto.');
       db.channels = db.channels.filter((c) => c.id !== id);
+      (db.messages[id] || []).forEach(deleteAttachments);
       delete db.messages[id];
     } else {
       fail('Ação desconhecida');

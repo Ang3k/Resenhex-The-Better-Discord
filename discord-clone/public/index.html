@@ -54,6 +54,7 @@
           <div id="voice-room-name" class="muted-text"></div>
         </div>
         <div class="voice-buttons">
+          <button id="btn-camera" title="Ligar câmera">📷</button>
           <button id="btn-share" title="Compartilhar tela">🖥️</button>
           <button id="btn-leave" class="danger" title="Desconectar">📞</button>
         </div>
@@ -72,11 +73,28 @@
       <header id="main-header"></header>
 
       <section id="chat-view">
+        <div id="notify-banner" class="hidden">
+          <span>🔔 Quer ser avisado quando alguém mencionar você?</span>
+          <button type="button" id="notify-enable">Ativar notificações</button>
+          <button type="button" id="notify-dismiss" class="link" title="Agora não">✕</button>
+        </div>
         <div id="messages"></div>
-        <div id="typing" class="muted-text"></div>
-        <form id="chat-form">
-          <input id="chat-input" autocomplete="off" maxlength="2000">
-        </form>
+        <div id="drop-overlay" class="hidden">📎 Solte para enviar</div>
+        <div id="composer">
+          <div id="autocomplete" class="hidden"></div>
+          <div id="reply-bar" class="hidden">
+            <span id="reply-text"></span>
+            <button type="button" id="reply-cancel" title="Cancelar resposta">✕</button>
+          </div>
+          <div id="attachments-bar" class="hidden"></div>
+          <form id="chat-form">
+            <button type="button" id="btn-attach" title="Enviar arquivo">＋</button>
+            <input type="file" id="file-input" multiple hidden>
+            <textarea id="chat-input" rows="1" maxlength="4000" autocomplete="off"></textarea>
+            <button type="button" id="btn-emoji" title="Emoji">😀</button>
+          </form>
+          <div id="typing" class="muted-text"></div>
+        </div>
       </section>
 
       <section id="voice-view" class="hidden">
@@ -103,6 +121,19 @@
         <select id="speaker-select"></select>
       </label>
       <label class="row"><input type="checkbox" id="noise-toggle" checked> Supressão de ruído / cancelamento de eco</label>
+      <label>MODO DE ENTRADA
+        <select id="input-mode">
+          <option value="voice">Detecção de voz</option>
+          <option value="ptt">Pressionar para falar</option>
+        </select>
+      </label>
+      <div id="ptt-row" class="row gap hidden">
+        <span class="muted-text">Tecla:</span>
+        <button type="button" id="ptt-key" class="secondary"></button>
+        <span class="muted-text">funciona com esta janela em foco</span>
+      </div>
+      <label class="row"><input type="checkbox" id="sounds-toggle"> Sons (entrar/sair da sala, mutar, menções)</label>
+      <label class="row"><input type="checkbox" id="notify-toggle"> Notificações na área de trabalho quando me mencionarem</label>
       <div class="buttons">
         <button id="btn-logout" type="button" class="secondary danger-text">Sair da conta</button>
         <button id="settings-close" type="button">Salvar</button>
@@ -127,9 +158,13 @@
   </div>
 
   <div id="context-menu" class="hidden"></div>
+  <div id="emoji-picker" class="hidden"></div>
+  <div id="lightbox" class="modal hidden"><img alt=""><a target="_blank" rel="noopener noreferrer">Abrir original</a></div>
   <div id="toast" class="hidden"></div>
 
   <script src="/socket.io/socket.io.js"></script>
+  <script src="format.js"></script>
+  <script src="sounds.js"></script>
   <script src="app.js"></script>
 </body>
 </html>

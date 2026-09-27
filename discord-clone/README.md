@@ -3,10 +3,15 @@
 Servidor próprio para você e seus amigos, com:
 
 - **Contas** com usuário e senha (login automático depois da primeira vez)
-- **Chat de texto** em canais, com histórico salvo, links clicáveis, "fulano está digitando…", **editar** (✏️ ou seta ↑) e **apagar** mensagens
-- **Chamadas de voz** em salas, com indicador verde de quem está falando
-- **Compartilhamento de tela** (até 1080p/30fps, com áudio da aba/sistema quando o navegador permite); clique na tela para abrir em tela cheia
-- **Mutar / ensurdecer** (também pelos atalhos `Ctrl+Shift+M` / `Ctrl+Shift+D`)
+- **Chat de texto** em canais, com histórico salvo, "fulano está digitando…", **editar** (✏️ ou seta ↑) e **apagar** mensagens
+- **Imagens e arquivos**: botão ＋, **Ctrl+V** para colar um print, ou arrastar para o chat. Imagens e vídeos aparecem no chat.
+- **Menções** `@nome`, `@cargo` e `@everyone`, com autocompletar ao digitar `@`
+- **Não lidas**: canal em negrito, bolinha vermelha com o número de menções, contador no título da aba e **notificação na área de trabalho**
+- **Responder** mensagens (↩️) e **reagir** com emoji (😀)
+- **Formatação**: `**negrito**`, `*itálico*`, `__sublinhado__`, `~~riscado~~`, `` `código` ``, blocos ```` ``` ````, `> citação` e `||spoiler||`
+- **Chamadas de voz** em salas, com indicador verde de quem está falando e **sons** de entrar e sair
+- **Câmera** e **compartilhamento de tela** (até 1080p/30fps, com áudio da aba/sistema quando o navegador permite), dá para usar os dois ao mesmo tempo; clique na tela para abrir em tela cheia
+- **Mutar / ensurdecer** (também pelos atalhos `Ctrl+Shift+M` / `Ctrl+Shift+D`) e **push-to-talk** (apertar uma tecla para falar)
 - **Volume individual** e **mutar para mim** (só afeta o que você ouve)
 - **Cargos e permissões** estilo Discord, com hierarquia
 - **Moderação**: silenciar e ensurdecer no servidor, mover e desconectar da voz, castigo (timeout), expulsar e banir
@@ -87,6 +92,8 @@ ACCESS_PASSWORD=minhasenha npm start
 | `PORT` | Porta HTTP (padrão `3000`) |
 | `ACCESS_PASSWORD` | Senha exigida para criar conta (padrão: sem senha) |
 | `DATA_FILE` | Onde salvar contas, cargos, canais e mensagens (padrão `data.json`) |
+| `UPLOAD_DIR` | Pasta dos arquivos enviados no chat (padrão `uploads/`) |
+| `MAX_UPLOAD_MB` | Tamanho máximo de cada arquivo (padrão `25`) |
 | `TURN_URL` | Servidor(es) TURN, separados por vírgula, ex.: `turn:meu-turn.com:3478` |
 | `TURN_USERNAME` / `TURN_CREDENTIAL` | Credenciais do TURN |
 
@@ -103,7 +110,7 @@ Depois é só preencher `TURN_URL`, `TURN_USERNAME` e `TURN_CREDENTIAL`.
 
 - Canais e cargos: pela ⚙️ de configurações do servidor, direto no app
 - Nome do servidor ("Resenha") e cores do tema: `public/index.html` e `public/style.css`
-- **Backup:** tudo fica em `data.json`. Copie esse arquivo para guardar. Se você apagar esse arquivo, o servidor começa do zero e a próxima conta criada vira a dona.
+- **Backup:** tudo fica em `data.json`, e os arquivos enviados ficam na pasta `uploads/`. Copie os dois para guardar. Se você apagar o `data.json`, o servidor começa do zero e a próxima conta criada vira a dona.
 
 ## Estrutura
 
@@ -119,6 +126,9 @@ discord-clone/
 ## Limitações conhecidas
 
 - Um único servidor (dá para ter vários canais, mas não vários "servidores")
-- Sem envio de arquivos/imagens, reações, menções (@) ou mensagens diretas
+- Sem mensagens diretas (DM), fotos de perfil ou status ("jogando X")
+- Push-to-talk só funciona com a janela do Resenha em foco (limite do navegador)
+- Quem tiver o link de um arquivo enviado consegue abri-lo, mesmo que o arquivo esteja num canal privado. Os links são aleatórios e impossíveis de adivinhar.
+- O servidor guarda as últimas 300 mensagens de cada canal. As mais antigas, e os arquivos delas, são apagadas.
 - Não dá para trocar senha nem nome pela interface
 - Chamada em malha P2P: boa para grupos pequenos (até ~6 a 8 pessoas por sala)

@@ -1,31 +1,42 @@
 // Front-end do clone do Discord.
-// Chat de texto via Socket.IO; voz e tela via WebRTC em malha (cada pessoa
+// Chat de texto via Socket.IO; voz, câmera e tela via WebRTC em malha (cada pessoa
 // conecta diretamente com as outras da sala; o servidor só repassa a sinalização).
 // Cargos e moderação são validados no servidor; aqui só escondemos o que a pessoa não pode usar.
 (() => {
   const $ = (sel) => document.querySelector(sel);
   const socket = io({ autoConnect: false });
 
+  const EMOJIS = ['👍', '👎', '😂', '🤣', '❤️', '🔥', '😮', '😢', '😭', '😡', '🎉', '👀', '💀', '🙏', '😎', '🤔',
+    '🥳', '👏', '💯', '✅', '❌', '😅', '😍', '🥺', '😤', '🤡', '🗿', '👑', '⚡', '🎮', '🍕', '🍺'];
+
   const state = {
     me: null, // { accountId, sid }
     server: null, // último 'state' do servidor: roles, channels, members, voice, myPerms, bans, ownerId
     permNames: {},
+    maxUploadMb: 25,
     messages: {}, // idDoCanal -> mensagens (carregadas sob demanda)
+    unread: {}, // idDoCanal -> { unread, mentions }
     textChannel: null,
     view: 'chat', // 'chat' | 'voice'
     voiceChannel: null,
     muted: false,
     deafened: false,
     micStream: null,
-    screenStream: null,
-    peers: new Map(), // sid -> { pc, polite, makingOffer, ignoreOffer, micStream, screenStream, audioEl, screenSenders }
+    local: { screen: null, camera: null }, // meus streams de vídeo
+    peers: new Map(), // sid -> conexão WebRTC com cada participante da sala
     micDeviceId: localStorage.getItem('micDeviceId') || '',
     speakerDeviceId: localStorage.getItem('speakerDeviceId') || '',
     noiseSuppression: localStorage.getItem('noiseSuppression') !== 'false',
+    ptt: JSON.parse(localStorage.getItem('ptt') || '{"enabled":false,"code":"Backquote","label":"`"}'),
+    pttHeld: false,
+    notify: localStorage.getItem('notify') !== 'false',
     localVolume: JSON.parse(localStorage.getItem('localVolume') || '{}'), // accountId -> 0..1
     localMuted: new Set(JSON.parse(localStorage.getItem('localMuted') || '[]')),
     speaking: new Set(), // sids
     editing: null, // id da mensagem sendo editada
+    replyTo: null, // mensagem sendo respondida
+    pending: [], // anexos do rascunho
+    voiceSnapshot: null, // para tocar sons quando alguém entra/sai da sala
     removed: false,
   };
 
@@ -34,11 +45,11 @@
 
   // ---------------- utilidades ----------------
   function toast(text, kind = 'error') {
-    const el = $('#toast');
-    el.textContent = text;
-    el.className = kind;
+    const node = $('#toast');
+    node.textContent = text;
+    node.className = kind;
     clearTimeout(toast.t);
-    toast.t = setTimeout(() => el.classList.add('hidden'), 4500);
+    toast.t = setTimeout(() => node.classList.add('hidden'), 4500);
   }
 
   // Emite um evento e espera a resposta; mostra o erro, se houver.
@@ -78,31 +89,26 @@
     });
   }
 
-  function linkify(text) {
-    const frag = document.createDocumentFragment();
-    const re = /(https?:\/\/[^\s]+)/g;
-    let last = 0;
-    let m;
-    while ((m = re.exec(text))) {
-      frag.append(text.slice(last, m.index));
-      frag.append(el('a', { href: m[1], textContent: m[1], target: '_blank', rel: 'noopener noreferrer' }));
-      last = m.index + m[1].length;
-    }
-    frag.append(text.slice(last));
-    return frag;
+  const formatUntil = (ts) => new Date(ts).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' });
+
+  function formatSize(bytes) {
+    if (bytes < 1024) return bytes + ' B';
+    if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(0) + ' KB';
+    return (bytes / 1024 / 1024).toFixed(1) + ' MB';
   }
 
-  function formatUntil(ts) {
-    return new Date(ts).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' });
-  }
+  const isTyping = (target) => target && (target.matches?.('input, textarea, select') || target.isContentEditable);
 
   // ---------------- cargos e permissões (espelho do servidor) ----------------
   const member = (id) => state.server?.members.find((m) => m.id === id);
   const meMember = () => member(state.me.accountId);
   const roleIdx = (id) => state.server.roles.findIndex((r) => r.id === id);
+  const roleById = (id) => state.server.roles.find((r) => r.id === id);
   const isOwner = (id) => id === state.server.ownerId;
   const hasPerm = (p) => state.server?.myPerms.includes(p);
   const timedOut = (m) => m && m.timeoutUntil > Date.now();
+  const canSend = () => hasPerm('SEND_MESSAGES') && !timedOut(meMember());
+  const canVideo = () => hasPerm('STREAM') && !timedOut(meMember());
 
   function topPos(m) {
     if (isOwner(m.id)) return Infinity;
@@ -137,6 +143,15 @@
   const voiceEntries = (channel) => state.server.voice.filter((v) => v.channel === channel);
   const voiceEntry = (sid) => state.server.voice.find((v) => v.sid === sid);
   const channelById = (id) => state.server.channels.find((c) => c.id === id);
+
+  const fmtCtx = { member: (id) => member(id), role: (id) => roleById(id), onUser: (id, e) => openMemberMenu(id, e) };
+
+  function mentionsMe(msg) {
+    const m = msg.mentions;
+    if (!m || !state.me || msg.authorId === state.me.accountId) return false;
+    const mine = meMember();
+    return m.everyone || m.users.includes(state.me.accountId) || (mine && m.roles.some((r) => mine.roles.includes(r)));
+  }
 
   // ---------------- login / cadastro ----------------
   let config = { passwordRequired: false, hasOwner: true };
@@ -188,7 +203,7 @@
     socket.emit('auth', payload, (res) => {
       if (res.error) {
         if (payload.token) localStorage.removeItem('token');
-        showLogin(payload.token ? '' : undefined);
+        showLogin();
         return toast(res.error);
       }
       localStorage.setItem('token', res.token);
@@ -196,10 +211,16 @@
       state.me = { accountId: res.accountId, sid: res.sid };
       state.permNames = res.permNames;
       state.iceServers = res.iceServers;
+      state.maxUploadMb = res.maxUploadMb;
       $('#login-password').value = '';
       $('#server-password').value = '';
       $('#login').classList.add('hidden');
       $('#app').classList.remove('hidden');
+      call('chat:unread').then((r) => {
+        if (!r) return;
+        state.unread = r.unread;
+        if (state.server) render();
+      });
       if (state.server) render();
     });
   }
@@ -240,9 +261,26 @@
       const v = voiceEntry(sid);
       if (!v || v.channel !== state.voiceChannel) closePeer(sid);
     }
+    playVoiceSounds();
     applyAudio();
     render();
   });
+
+  // Sons quando alguém entra, sai ou começa a transmitir na minha sala.
+  function playVoiceSounds() {
+    const prev = state.voiceSnapshot;
+    if (!state.voiceChannel) {
+      state.voiceSnapshot = null;
+      return;
+    }
+    const others = voiceEntries(state.voiceChannel).filter((v) => v.sid !== state.me.sid);
+    const snap = { channel: state.voiceChannel, sids: new Set(others.map((v) => v.sid)), live: new Set(others.filter((v) => v.sharing).map((v) => v.sid)) };
+    state.voiceSnapshot = snap;
+    if (!prev || prev.channel !== snap.channel) return;
+    if ([...snap.sids].some((sid) => !prev.sids.has(sid))) Sounds.play('join');
+    else if ([...prev.sids].some((sid) => !snap.sids.has(sid))) Sounds.play('leave');
+    else if ([...snap.live].some((sid) => !prev.live.has(sid))) Sounds.play('stream');
+  }
 
   // ---------------- renderização ----------------
   function render() {
@@ -256,20 +294,42 @@
     renderMembers();
     renderMain();
     renderControls();
+    updateTitle();
     // Só redesenha as configurações se algo delas mudou; senão perderia o que está sendo editado.
     const settingsKey = JSON.stringify([state.server.roles, state.server.channels, state.server.bans, state.server.myPerms, state.server.members.map((m) => m.roles)]);
     if (!$('#server-settings').classList.contains('hidden') && settingsKey !== render.settingsKey) renderServerSettings();
     render.settingsKey = settingsKey;
   }
 
+  function updateTitle() {
+    const entries = Object.entries(state.unread).filter(([id]) => channelById(id));
+    const mentions = entries.reduce((n, [, u]) => n + u.mentions, 0);
+    document.title = (mentions ? `(${mentions}) ` : entries.length ? '• ' : '') + 'Resenha';
+  }
+
+  function openTextChannel(id) {
+    if (state.textChannel !== id) {
+      state.editing = null;
+      state.replyTo = null;
+    }
+    state.textChannel = id;
+    state.view = 'chat';
+    markRead(id);
+    render();
+    $('#chat-input').focus();
+  }
+
   function renderChannels() {
     const tl = $('#text-channels');
     tl.innerHTML = '';
     for (const c of state.server.channels.filter((c) => c.type === 'text')) {
+      const u = state.unread[c.id];
       tl.append(el('li', {
-        class: 'channel' + (state.view === 'chat' && state.textChannel === c.id ? ' active' : ''),
-        onclick: () => { state.textChannel = c.id; state.view = 'chat'; state.editing = null; render(); },
-      }, el('span', { class: 'icon', textContent: '#' }), c.name, c.allowedRoles.length ? el('span', { class: 'lock', textContent: '🔒', title: 'Canal privado' }) : null));
+        class: 'channel' + (state.view === 'chat' && state.textChannel === c.id ? ' active' : '') + (u ? ' unread' : ''),
+        onclick: () => openTextChannel(c.id),
+      }, el('span', { class: 'icon', textContent: '#' }), el('span', { class: 'channel-name', textContent: c.name }),
+      c.allowedRoles.length ? el('span', { class: 'lock', textContent: '🔒', title: 'Canal privado' }) : null,
+      u?.mentions ? el('span', { class: 'badge', textContent: u.mentions > 99 ? '99+' : String(u.mentions) }) : null));
     }
 
     const vl = $('#voice-channels');
@@ -280,6 +340,7 @@
         if (!m) return null;
         const flags = el('span', { class: 'flags' });
         if (v.sharing) flags.append(el('span', { class: 'live', textContent: 'AO VIVO' }), ' ');
+        if (v.camera) flags.append(el('span', { title: 'Câmera ligada', textContent: '📷' }));
         if (m.serverMuted || timedOut(m)) flags.append(el('span', { class: 'server-flag', textContent: '🔇', title: timedOut(m) ? 'De castigo' : 'Silenciado pelo servidor' }));
         else if (v.muted) flags.append('🔇');
         if (m.serverDeafened) flags.append(el('span', { class: 'server-flag', textContent: '🙉', title: 'Ensurdecido pelo servidor' }));
@@ -295,7 +356,7 @@
         el('div', {
           class: 'channel' + (state.view === 'voice' && state.voiceChannel === c.id ? ' active' : ''),
           onclick: () => (state.voiceChannel === c.id ? (state.view = 'voice', render()) : joinVoice(c.id)),
-        }, el('span', { class: 'icon', textContent: '🔊' }), c.name, c.allowedRoles.length ? el('span', { class: 'lock', textContent: '🔒' }) : null),
+        }, el('span', { class: 'icon', textContent: '🔊' }), el('span', { class: 'channel-name', textContent: c.name }), c.allowedRoles.length ? el('span', { class: 'lock', textContent: '🔒' }) : null),
         el('ul', { class: 'voice-users' }, users)));
     }
   }
@@ -346,18 +407,6 @@
     const c = channelById(state.textChannel);
     $('#main-header').textContent = c ? '# ' + c.name : '';
     if (!c) return;
-    const me = meMember();
-    const input = $('#chat-input');
-    if (timedOut(me)) {
-      input.disabled = true;
-      input.placeholder = '⏳ Você está de castigo até ' + formatUntil(me.timeoutUntil);
-    } else if (!hasPerm('SEND_MESSAGES')) {
-      input.disabled = true;
-      input.placeholder = 'Você não tem permissão para enviar mensagens.';
-    } else {
-      input.disabled = false;
-      input.placeholder = 'Conversar em #' + c.name;
-    }
     if (!state.messages[c.id]) {
       state.messages[c.id] = [];
       call('chat:history', { channel: c.id }).then((res) => {
@@ -366,69 +415,533 @@
         if (state.textChannel === c.id) renderMessages(true);
       });
     }
+    $('#notify-banner').classList.toggle('hidden', !('Notification' in window) || Notification.permission !== 'default' || !!localStorage.getItem('notifyDismissed'));
+    renderComposer();
     renderMessages();
   }
 
+  // ---------------- mensagens ----------------
+  const msgNodes = new Map(); // id -> { sig, node }
+  let stickToBottom = true;
+  $('#messages').addEventListener('scroll', () => {
+    const box = $('#messages');
+    stickToBottom = box.scrollHeight - box.scrollTop - box.clientHeight < 60;
+  });
+  const keepBottom = () => {
+    if (stickToBottom) $('#messages').scrollTop = $('#messages').scrollHeight;
+  };
+
+  // Só reconstrói as mensagens que mudaram, para não reiniciar vídeos/áudios tocando.
   function renderMessages(scrollToEnd = false) {
     if (state.view !== 'chat') return;
     const box = $('#messages');
-    // Não redesenha enquanto a pessoa edita uma mensagem.
-    if (state.editing && box.querySelector('.msg-edit')) return;
-    const atBottom = box.scrollHeight - box.scrollTop - box.clientHeight < 50;
-    const lastChannel = box.dataset.channel;
-    box.innerHTML = '';
-    box.dataset.channel = state.textChannel;
+    if (box.dataset.channel !== state.textChannel) {
+      box.innerHTML = '';
+      msgNodes.clear();
+      box.dataset.channel = state.textChannel;
+      scrollToEnd = true;
+    }
+    const list = state.messages[state.textChannel] || [];
+    const epoch = JSON.stringify([state.server.members.map((m) => [m.id, m.name, m.color, m.roles]), state.server.roles.map((r) => [r.id, r.name, r.color]),
+      hasPerm('MANAGE_MESSAGES'), canSend(), state.replyTo?.id]);
+    const nodes = [];
     let prev = null;
-    for (const msg of state.messages[state.textChannel] || []) {
-      const author = member(msg.authorId);
-      const name = author?.name || msg.authorName || 'Usuário removido';
-      const continued = prev && prev.authorId === msg.authorId && (msg.authorId || prev.authorName === msg.authorName) && msg.ts - prev.ts < 5 * 60 * 1000;
-      const mine = msg.authorId === state.me.accountId;
-      const body = el('div', { class: 'msg-body' });
-      if (!continued) {
-        const openMenu = (e) => author && openMemberMenu(author.id, e);
-        body.append(el('div', {},
-          el('span', { class: 'msg-author', style: { color: nameColor(author) || msg.authorColor || '' }, textContent: name, onclick: openMenu, oncontextmenu: openMenu }),
-          el('span', { class: 'msg-time', textContent: formatUntil(msg.ts) })));
+    for (const msg of list) {
+      const continued = !!(prev && !msg.replyTo && prev.authorId === msg.authorId && (msg.authorId || prev.authorName === msg.authorName) && msg.ts - prev.ts < 5 * 60 * 1000);
+      const replied = msg.replyTo ? list.find((m) => m.id === msg.replyTo) || null : null;
+      const sig = JSON.stringify([msg, continued, state.editing === msg.id, epoch, replied && [replied.text, replied.authorId, !!replied.attachments]]);
+      let entry = msgNodes.get(msg.id);
+      if (!entry || entry.sig !== sig) {
+        entry = { sig, node: buildMessage(msg, continued, replied, msg.replyTo && !replied) };
+        msgNodes.set(msg.id, entry);
       }
-      if (state.editing === msg.id) {
-        const input = el('input', { class: 'msg-edit', value: msg.text, maxLength: 2000 });
-        input.onkeydown = async (e) => {
-          if (e.key === 'Escape') { state.editing = null; renderMessages(); }
-          if (e.key === 'Enter') {
-            e.preventDefault();
-            const text = input.value.trim();
-            state.editing = null;
-            if (text && text !== msg.text) await call('chat:edit', { channel: state.textChannel, id: msg.id, text });
-            renderMessages();
-          }
-        };
-        body.append(input, el('div', { class: 'muted-text', textContent: 'Esc para cancelar • Enter para salvar' }));
-        setTimeout(() => input.focus());
-      } else {
-        body.append(el('div', { class: 'msg-text' }, linkify(msg.text), msg.edited ? el('span', { class: 'edited', textContent: ' (editado)' }) : null));
-      }
-      const actions = el('div', { class: 'msg-actions' });
-      if (mine && !timedOut(meMember())) actions.append(el('button', { title: 'Editar', textContent: '✏️', onclick: () => { state.editing = msg.id; renderMessages(); } }));
-      if (mine || hasPerm('MANAGE_MESSAGES')) {
-        actions.append(el('button', {
-          title: 'Apagar',
-          textContent: '🗑️',
-          onclick: (e) => {
-            if (e.shiftKey || confirm('Apagar esta mensagem?')) call('chat:delete', { channel: state.textChannel, id: msg.id });
-          },
-        }));
-      }
-      box.append(el('div', { class: 'msg' + (continued ? ' continued' : '') },
-        continued ? null : avatar(author || { name, color: msg.authorColor }),
-        body,
-        actions.childElementCount ? actions : null));
+      nodes.push(entry.node);
       prev = msg;
     }
-    if (atBottom || scrollToEnd || lastChannel !== state.textChannel) box.scrollTop = box.scrollHeight;
+    const wanted = new Set(nodes);
+    for (const child of [...box.children]) if (!wanted.has(child)) child.remove();
+    for (const [id, entry] of msgNodes) if (!wanted.has(entry.node)) msgNodes.delete(id);
+    nodes.forEach((node, i) => {
+      if (box.children[i] !== node) box.insertBefore(node, box.children[i] || null);
+    });
+    if (scrollToEnd) stickToBottom = true;
+    keepBottom();
   }
 
-  // Palco de voz: um bloco por participante + um bloco grande por tela compartilhada.
+  function buildMessage(msg, continued, replied, replyMissing) {
+    const author = member(msg.authorId);
+    const name = author?.name || msg.authorName || 'Usuário removido';
+    const mine = msg.authorId === state.me.accountId;
+    const row = el('div', { class: 'msg' + (continued ? ' continued' : '') + (mentionsMe(msg) ? ' mentioned' : ''), data: { id: msg.id } });
+
+    if (replied || replyMissing) {
+      const ra = replied && member(replied.authorId);
+      row.append(el('div', { class: 'reply-ref', onclick: () => replied && jumpTo(replied.id) },
+        el('span', { class: 'reply-curve' }),
+        replied
+          ? [el('span', { class: 'reply-author', style: { color: nameColor(ra) }, textContent: '@' + (ra?.name || replied.authorName || '?') }),
+            el('span', { class: 'reply-snippet', textContent: Format.plain(replied.text, fmtCtx) || '📎 Anexo' })]
+          : el('span', { class: 'reply-snippet', textContent: 'Mensagem original apagada' })));
+    }
+
+    const body = el('div', { class: 'msg-body' });
+    if (!continued) {
+      const openMenu = (e) => author && openMemberMenu(author.id, e);
+      row.append(avatar(author || { name, color: msg.authorColor }));
+      body.append(el('div', {},
+        el('span', { class: 'msg-author', style: { color: nameColor(author) || msg.authorColor || '' }, textContent: name, onclick: openMenu, oncontextmenu: openMenu }),
+        el('span', { class: 'msg-time', textContent: formatUntil(msg.ts) })));
+    }
+
+    if (state.editing === msg.id) {
+      const input = el('textarea', { class: 'msg-edit', value: Format.toDisplay(msg.text, fmtCtx), maxLength: 4000, rows: 1 });
+      input.onkeydown = async (e) => {
+        if (e.key === 'Escape') { state.editing = null; renderMessages(); }
+        if (e.key === 'Enter' && !e.shiftKey) {
+          e.preventDefault();
+          const text = Format.toRaw(input.value.trim(), state.server.members, state.server.roles);
+          state.editing = null;
+          if (text !== msg.text && (text || msg.attachments?.length)) await call('chat:edit', { channel: state.textChannel, id: msg.id, text });
+          renderMessages();
+        }
+      };
+      input.oninput = () => autoresize(input);
+      body.append(input, el('div', { class: 'muted-text', textContent: 'Esc para cancelar • Enter para salvar' }));
+      setTimeout(() => { autoresize(input); input.focus(); input.setSelectionRange(input.value.length, input.value.length); });
+    } else if (msg.text) {
+      const onlyEmoji = /^(\p{Extended_Pictographic}|\p{Emoji_Component}|\s){1,20}$/u.test(msg.text) && !/\d/.test(msg.text);
+      body.append(el('div', { class: 'msg-text' + (onlyEmoji ? ' jumbo' : '') }, Format.render(msg.text, fmtCtx),
+        msg.edited ? el('span', { class: 'edited', textContent: ' (editado)', title: formatUntil(msg.edited) }) : null));
+    }
+
+    if (msg.attachments?.length) body.append(el('div', { class: 'attachments' }, msg.attachments.map(attachmentNode)));
+
+    const reactions = Object.entries(msg.reactions || {});
+    if (reactions.length) {
+      body.append(el('div', { class: 'reactions' },
+        reactions.map(([emoji, users]) => el('button', {
+          class: 'reaction' + (users.includes(state.me.accountId) ? ' mine' : ''),
+          title: users.map((id) => member(id)?.name || '?').join(', '),
+          onclick: () => react(msg.id, emoji),
+        }, emoji, el('span', { textContent: String(users.length) }))),
+        canSend() ? el('button', { class: 'reaction add', title: 'Adicionar reação', textContent: '＋', onclick: (e) => openEmojiPicker(e.currentTarget, (em) => react(msg.id, em)) }) : null));
+    }
+    row.append(body);
+
+    const actions = el('div', { class: 'msg-actions' });
+    if (canSend()) {
+      actions.append(el('button', { title: 'Reagir', textContent: '😀', onclick: (e) => openEmojiPicker(e.currentTarget, (em) => react(msg.id, em)) }));
+      actions.append(el('button', { title: 'Responder', textContent: '↩️', onclick: () => startReply(msg) }));
+    }
+    if (mine && canSend()) actions.append(el('button', { title: 'Editar', textContent: '✏️', onclick: () => { state.editing = msg.id; renderMessages(); } }));
+    if (mine || hasPerm('MANAGE_MESSAGES')) {
+      actions.append(el('button', {
+        title: 'Apagar (Shift+clique apaga sem perguntar)',
+        textContent: '🗑️',
+        onclick: (e) => {
+          if (e.shiftKey || confirm('Apagar esta mensagem?')) call('chat:delete', { channel: state.textChannel, id: msg.id });
+        },
+      }));
+    }
+    if (actions.childElementCount) row.append(actions);
+    return row;
+  }
+
+  function attachmentNode(a) {
+    if (a.type.startsWith('image/')) {
+      const img = el('img', { src: a.url, alt: a.name, loading: 'lazy', onclick: () => openLightbox(a), onload: keepBottom });
+      return el('div', { class: 'att-image' }, img);
+    }
+    if (a.type.startsWith('video/')) return el('video', { class: 'att-video', src: a.url, controls: true, preload: 'metadata', onloadedmetadata: keepBottom });
+    const file = el('a', { class: 'att-file', href: a.url, download: a.name, title: 'Baixar' },
+      el('span', { class: 'att-icon', textContent: a.type.startsWith('audio/') ? '🎵' : '📄' }),
+      el('div', { class: 'att-info' }, el('div', { class: 'att-name', textContent: a.name }), el('div', { class: 'muted-text', textContent: formatSize(a.size) })),
+      el('span', { textContent: '⬇️' }));
+    if (a.type.startsWith('audio/')) return el('div', { class: 'att-audio' }, file, el('audio', { src: a.url, controls: true, preload: 'none' }));
+    return file;
+  }
+
+  function openLightbox(a) {
+    const box = $('#lightbox');
+    box.querySelector('img').src = a.url;
+    box.querySelector('a').href = a.url;
+    box.classList.remove('hidden');
+  }
+  $('#lightbox').onclick = (e) => { if (e.target.tagName !== 'A') $('#lightbox').classList.add('hidden'); };
+
+  function jumpTo(id) {
+    const node = $('#messages').querySelector(`[data-id="${id}"]`);
+    if (!node) return;
+    node.scrollIntoView({ block: 'center', behavior: 'smooth' });
+    node.classList.remove('flash');
+    void node.offsetWidth;
+    node.classList.add('flash');
+  }
+
+  const react = (id, emoji) => call('chat:react', { channel: state.textChannel, id, emoji });
+
+  function startReply(msg) {
+    state.replyTo = msg;
+    renderComposer();
+    renderMessages();
+    $('#chat-input').focus();
+  }
+
+  // ---------------- caixa de mensagem ----------------
+  function autoresize(input = $('#chat-input')) {
+    input.style.height = 'auto';
+    input.style.height = Math.min(input.scrollHeight, 240) + 'px';
+  }
+
+  function renderComposer() {
+    const c = channelById(state.textChannel);
+    const input = $('#chat-input');
+    const me = meMember();
+    if (timedOut(me)) {
+      input.disabled = true;
+      input.placeholder = '⏳ Você está de castigo até ' + formatUntil(me.timeoutUntil);
+    } else if (!hasPerm('SEND_MESSAGES')) {
+      input.disabled = true;
+      input.placeholder = 'Você não tem permissão para enviar mensagens.';
+    } else {
+      input.disabled = false;
+      input.placeholder = 'Conversar em #' + (c?.name || '');
+    }
+    $('#btn-attach').disabled = input.disabled;
+    $('#btn-emoji').disabled = input.disabled;
+
+    const reply = state.replyTo;
+    $('#reply-bar').classList.toggle('hidden', !reply);
+    if (reply) {
+      const ra = member(reply.authorId);
+      $('#reply-text').replaceChildren('Respondendo a ', el('strong', { style: { color: nameColor(ra) }, textContent: ra?.name || reply.authorName || '?' }));
+    }
+
+    const bar = $('#attachments-bar');
+    bar.classList.toggle('hidden', !state.pending.length);
+    bar.replaceChildren(...state.pending.map((p) => el('div', { class: 'pending' + (p.uploading ? ' uploading' : '') },
+      p.preview ? el('img', { src: p.preview, alt: '' }) : el('div', { class: 'att-icon', textContent: '📄' }),
+      el('div', { class: 'pending-name', textContent: p.name }),
+      el('div', { class: 'muted-text', textContent: p.uploading ? 'enviando…' : formatSize(p.size) }),
+      el('button', { type: 'button', class: 'pending-remove', title: 'Remover', textContent: '✕', onclick: () => removePending(p) }))));
+  }
+
+  function removePending(p) {
+    state.pending = state.pending.filter((x) => x !== p);
+    if (p.preview) URL.revokeObjectURL(p.preview);
+    renderComposer();
+  }
+
+  async function uploadFiles(files) {
+    if (!canSend()) return toast('Você não pode enviar arquivos agora.');
+    for (const file of files) {
+      if (state.pending.length >= 10) return toast('No máximo 10 arquivos por mensagem.');
+      if (file.size > state.maxUploadMb * 1024 * 1024) {
+        toast(`"${file.name}" é maior que ${state.maxUploadMb} MB.`);
+        continue;
+      }
+      const item = { name: file.name || 'imagem.png', size: file.size, uploading: true, preview: file.type.startsWith('image/') ? URL.createObjectURL(file) : null };
+      state.pending.push(item);
+      renderComposer();
+      fetch('/upload', {
+        method: 'POST',
+        headers: { 'x-token': localStorage.getItem('token'), 'x-filename': encodeURIComponent(item.name), 'content-type': 'application/octet-stream' },
+        body: file,
+      })
+        .then((r) => r.json().catch(() => ({ error: 'Falha no envio (' + r.status + ')' })))
+        .catch(() => ({ error: 'Falha no envio' }))
+        .then((res) => {
+          if (!state.pending.includes(item)) return;
+          if (res.error) {
+            toast(res.error);
+            removePending(item);
+            return;
+          }
+          Object.assign(item, res, { uploading: false });
+          renderComposer();
+        });
+    }
+  }
+
+  async function sendMessage() {
+    const input = $('#chat-input');
+    const text = input.value.trim();
+    if (state.pending.some((p) => p.uploading)) return toast('Espere os arquivos terminarem de enviar.', 'info');
+    if (!text && !state.pending.length) return;
+    const draft = { value: input.value, pending: state.pending, replyTo: state.replyTo };
+    const payload = {
+      channel: state.textChannel,
+      text: Format.toRaw(text, state.server.members, state.server.roles),
+      attachments: state.pending.map((p) => p.id),
+      replyTo: state.replyTo?.id,
+    };
+    input.value = '';
+    state.pending = [];
+    state.replyTo = null;
+    autoresize();
+    renderComposer();
+    renderMessages();
+    const res = await call('chat:send', payload);
+    if (!res && !input.value) {
+      // Deu erro: devolve o rascunho.
+      input.value = draft.value;
+      state.pending = draft.pending;
+      state.replyTo = draft.replyTo;
+      autoresize();
+      renderComposer();
+      return;
+    }
+    draft.pending.forEach((p) => p.preview && URL.revokeObjectURL(p.preview));
+  }
+
+  $('#chat-form').addEventListener('submit', (e) => e.preventDefault());
+  $('#btn-attach').onclick = () => $('#file-input').click();
+  $('#file-input').onchange = (e) => {
+    uploadFiles([...e.target.files]);
+    e.target.value = '';
+  };
+  $('#btn-emoji').onclick = (e) => openEmojiPicker(e.currentTarget, (emoji) => insertAtCursor(emoji));
+  $('#reply-cancel').onclick = () => { state.replyTo = null; renderComposer(); renderMessages(); };
+
+  function insertAtCursor(text) {
+    const input = $('#chat-input');
+    const start = input.selectionStart ?? input.value.length;
+    input.value = input.value.slice(0, start) + text + input.value.slice(input.selectionEnd ?? start);
+    input.focus();
+    input.setSelectionRange(start + text.length, start + text.length);
+    autoresize();
+  }
+
+  // Colar print (Ctrl+V) e arrastar arquivos para o chat.
+  $('#chat-input').addEventListener('paste', (e) => {
+    const files = [...(e.clipboardData?.files || [])];
+    if (!files.length) return;
+    e.preventDefault();
+    uploadFiles(files);
+  });
+  let dragDepth = 0;
+  const hasFiles = (e) => [...(e.dataTransfer?.types || [])].includes('Files');
+  $('#chat-view').addEventListener('dragenter', (e) => {
+    if (!hasFiles(e)) return;
+    dragDepth++;
+    $('#drop-overlay').classList.remove('hidden');
+  });
+  $('#chat-view').addEventListener('dragleave', () => {
+    if (--dragDepth <= 0) { dragDepth = 0; $('#drop-overlay').classList.add('hidden'); }
+  });
+  $('#chat-view').addEventListener('dragover', (e) => { if (hasFiles(e)) e.preventDefault(); });
+  $('#chat-view').addEventListener('drop', (e) => {
+    if (!hasFiles(e)) return;
+    e.preventDefault();
+    dragDepth = 0;
+    $('#drop-overlay').classList.add('hidden');
+    uploadFiles([...e.dataTransfer.files]);
+  });
+
+  // Autocompletar menções ao digitar "@".
+  let ac = null; // { items, index, start }
+  function updateAutocomplete() {
+    const input = $('#chat-input');
+    const before = input.value.slice(0, input.selectionStart);
+    const m = /(^|\s)@([^\s@]{0,32})$/.exec(before);
+    if (!m) return closeAutocomplete();
+    const q = m[2].toLowerCase();
+    const items = [];
+    for (const mem of state.server.members) {
+      if (mem.name.toLowerCase().includes(q)) items.push({ insert: '@' + mem.name, label: mem.name, color: nameColor(mem), member: mem });
+    }
+    for (const r of state.server.roles.slice(1)) {
+      if (r.name.toLowerCase().includes(q)) items.push({ insert: '@' + r.name, label: '@' + r.name, color: r.color, note: 'cargo' });
+    }
+    if (hasPerm('MENTION_EVERYONE')) {
+      if ('everyone'.startsWith(q)) items.push({ insert: '@everyone', label: '@everyone', note: 'avisa todo mundo' });
+      if ('here'.startsWith(q)) items.push({ insert: '@here', label: '@here', note: 'avisa todo mundo' });
+    }
+    items.sort((a, b) => Number(!a.label.toLowerCase().replace('@', '').startsWith(q)) - Number(!b.label.toLowerCase().replace('@', '').startsWith(q)));
+    if (!items.length) return closeAutocomplete();
+    ac = { items: items.slice(0, 8), index: 0, start: before.length - m[2].length - 1 };
+    renderAutocomplete();
+  }
+
+  function renderAutocomplete() {
+    const box = $('#autocomplete');
+    box.classList.remove('hidden');
+    box.replaceChildren(el('div', { class: 'menu-section', textContent: 'MEMBROS E CARGOS' }), ...ac.items.map((item, i) => el('button', {
+      type: 'button',
+      class: 'ac-item' + (i === ac.index ? ' active' : ''),
+      onmousedown: (e) => { e.preventDefault(); applyAutocomplete(item); },
+    }, item.member ? avatar(item.member, 'small') : el('span', { class: 'ac-at', textContent: '@' }),
+    el('span', { style: { color: item.color || '' }, textContent: item.label }),
+    item.note ? el('span', { class: 'muted-text', textContent: item.note }) : null)));
+  }
+
+  function closeAutocomplete() {
+    ac = null;
+    $('#autocomplete').classList.add('hidden');
+  }
+
+  function applyAutocomplete(item) {
+    const input = $('#chat-input');
+    const end = input.selectionStart;
+    input.value = input.value.slice(0, ac.start) + item.insert + ' ' + input.value.slice(end);
+    const pos = ac.start + item.insert.length + 1;
+    input.setSelectionRange(pos, pos);
+    closeAutocomplete();
+    input.focus();
+  }
+
+  $('#chat-input').addEventListener('keydown', (e) => {
+    if (ac) {
+      if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+        e.preventDefault();
+        ac.index = (ac.index + (e.key === 'ArrowDown' ? 1 : -1) + ac.items.length) % ac.items.length;
+        return renderAutocomplete();
+      }
+      if (e.key === 'Enter' || e.key === 'Tab') {
+        e.preventDefault();
+        return applyAutocomplete(ac.items[ac.index]);
+      }
+      if (e.key === 'Escape') return closeAutocomplete();
+    }
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      return sendMessage();
+    }
+    if (e.key === 'Escape' && state.replyTo) {
+      state.replyTo = null;
+      renderComposer();
+      renderMessages();
+    }
+    // Seta para cima edita a última mensagem, como no Discord.
+    if (e.key === 'ArrowUp' && !e.target.value) {
+      const mine = (state.messages[state.textChannel] || []).filter((m) => m.authorId === state.me.accountId);
+      if (!mine.length) return;
+      e.preventDefault();
+      state.editing = mine[mine.length - 1].id;
+      renderMessages();
+    }
+  });
+
+  let lastTyping = 0;
+  $('#chat-input').addEventListener('input', () => {
+    autoresize();
+    updateAutocomplete();
+    if (Date.now() - lastTyping > 2000 && $('#chat-input').value) {
+      lastTyping = Date.now();
+      socket.emit('typing', { channel: state.textChannel });
+    }
+  });
+  $('#chat-input').addEventListener('blur', () => setTimeout(closeAutocomplete, 100));
+
+  // ---------------- seletor de emoji ----------------
+  function openEmojiPicker(anchor, onPick) {
+    const picker = $('#emoji-picker');
+    picker.replaceChildren(...EMOJIS.map((emoji) => el('button', {
+      type: 'button',
+      textContent: emoji,
+      onclick: () => { picker.classList.add('hidden'); onPick(emoji); },
+    })));
+    picker.classList.remove('hidden');
+    const a = anchor.getBoundingClientRect();
+    const p = picker.getBoundingClientRect();
+    picker.style.left = Math.max(8, Math.min(a.right - p.width, innerWidth - p.width - 8)) + 'px';
+    picker.style.top = (a.top - p.height - 8 > 8 ? a.top - p.height - 8 : a.bottom + 8) + 'px';
+  }
+
+  // ---------------- não lidas e notificações ----------------
+  const isViewing = (channel) => state.view === 'chat' && state.textChannel === channel && document.visibilityState === 'visible' && document.hasFocus();
+
+  function markRead(channel) {
+    if (!channel) return;
+    if (state.unread[channel]) {
+      delete state.unread[channel];
+      renderChannels();
+      updateTitle();
+    }
+    socket.emit('chat:read', { channel }, () => {});
+  }
+
+  window.addEventListener('focus', () => { if (state.me && state.view === 'chat') markRead(state.textChannel); });
+  document.addEventListener('visibilitychange', () => {
+    if (state.me && document.visibilityState === 'visible' && state.view === 'chat') markRead(state.textChannel);
+  });
+
+  function notify(msg, channel) {
+    if (!state.notify || !('Notification' in window) || Notification.permission !== 'granted') return;
+    if (document.visibilityState === 'visible' && document.hasFocus()) return;
+    const author = member(msg.authorId)?.name || 'Alguém';
+    const n = new Notification(`${author} em #${channelById(channel)?.name || ''}`, {
+      body: Format.plain(msg.text, fmtCtx).slice(0, 200) || '📎 Anexo',
+      tag: channel,
+      silent: true,
+    });
+    n.onclick = () => {
+      window.focus();
+      openTextChannel(channel);
+      n.close();
+    };
+  }
+
+  $('#notify-enable').onclick = async () => {
+    const result = await Notification.requestPermission();
+    state.notify = result === 'granted';
+    localStorage.setItem('notify', state.notify);
+    $('#notify-banner').classList.add('hidden');
+    if (state.notify) toast('Notificações ativadas!', 'info');
+  };
+  $('#notify-dismiss').onclick = () => {
+    localStorage.setItem('notifyDismissed', '1');
+    $('#notify-banner').classList.add('hidden');
+  };
+
+  // ---------------- chat (eventos) ----------------
+  socket.on('chat:message', ({ channel, msg }) => {
+    state.messages[channel]?.push(msg);
+    if (msg.authorId !== state.me?.accountId) {
+      if (isViewing(channel)) markRead(channel);
+      else {
+        const u = (state.unread[channel] ||= { unread: true, mentions: 0 });
+        if (mentionsMe(msg)) {
+          u.mentions++;
+          Sounds.play('mention');
+          notify(msg, channel);
+        }
+        renderChannels();
+        updateTitle();
+      }
+    }
+    if (channel === state.textChannel) renderMessages(msg.authorId === state.me?.accountId);
+  });
+
+  socket.on('chat:update', ({ channel, msg }) => {
+    const list = state.messages[channel];
+    const i = list ? list.findIndex((m) => m.id === msg.id) : -1;
+    if (i >= 0) list[i] = msg;
+    if (channel === state.textChannel) renderMessages();
+  });
+
+  socket.on('chat:delete', ({ channel, id }) => {
+    if (state.messages[channel]) state.messages[channel] = state.messages[channel].filter((m) => m.id !== id);
+    if (state.replyTo?.id === id) {
+      state.replyTo = null;
+      renderComposer();
+    }
+    if (channel === state.textChannel) renderMessages();
+  });
+
+  const typers = new Map();
+  socket.on('typing', ({ channel, name }) => {
+    typers.set(name, { channel, until: Date.now() + 3000 });
+    renderTyping();
+    setTimeout(renderTyping, 3100);
+  });
+  function renderTyping() {
+    const now = Date.now();
+    const names = [...typers].filter(([, t]) => t.until > now && t.channel === state.textChannel).map(([n]) => n);
+    $('#typing').textContent = names.length ? names.join(', ') + (names.length > 1 ? ' estão' : ' está') + ' digitando…' : '';
+  }
+
+  // Palco de voz: um bloco por participante (com câmera, se ligada) + um bloco grande por tela compartilhada.
   function renderStage() {
     const stage = $('#stage');
     const wanted = new Set();
@@ -437,8 +950,8 @@
       const m = member(v.accountId);
       if (!m) continue;
       const self = v.sid === state.me.sid;
-      const screenStream = self ? state.screenStream : state.peers.get(v.sid)?.screenStream;
-      if (v.sharing && screenStream) {
+      const remote = self ? state.local : state.peers.get(v.sid)?.remote || {};
+      if (v.sharing && remote.screen) {
         const key = 'screen-' + v.sid;
         wanted.add(key);
         let tile = stage.querySelector(`[data-key="${key}"]`);
@@ -449,8 +962,8 @@
           stage.prepend(tile);
         }
         const video = tile.querySelector('video');
-        if (video.srcObject !== screenStream) {
-          video.srcObject = screenStream;
+        if (video.srcObject !== remote.screen) {
+          video.srcObject = remote.screen;
           setSinkId(video);
         }
         tile.querySelector('.label').textContent = '🖥️ Tela de ' + m.name;
@@ -464,9 +977,14 @@
           class: 'tile',
           data: { key },
           oncontextmenu: (e) => openMemberMenu(m.id, e),
-        }, avatar(m, '', v.sid), el('div', { class: 'label' }));
+        }, avatar(m, '', v.sid), el('video', { class: 'cam hidden' + (self ? ' mirror' : ''), autoplay: true, playsInline: true, muted: true }), el('div', { class: 'label' }));
         stage.append(tile);
       }
+      const cam = tile.querySelector('video.cam');
+      const camStream = v.camera ? remote.camera : null;
+      if (cam.srcObject !== camStream) cam.srcObject = camStream;
+      cam.classList.toggle('hidden', !camStream);
+      tile.querySelector('.avatar').classList.toggle('hidden', !!camStream);
       tile.classList.toggle('speaking', state.speaking.has(v.sid));
       const silenced = m.serverMuted || timedOut(m);
       tile.querySelector('.label').textContent = m.name + (silenced || v.muted ? ' 🔇' : '') + (m.serverDeafened || v.deafened ? ' 🙉' : '');
@@ -488,24 +1006,34 @@
     mute.classList.toggle('off', state.muted || forcedMute);
     mute.classList.toggle('locked', forcedMute);
     mute.textContent = state.muted || forcedMute ? '🔇' : '🎤';
-    mute.title = forcedMute ? 'Silenciado pelo servidor' : 'Microfone';
+    mute.title = forcedMute ? 'Silenciado pelo servidor' : 'Microfone (Ctrl+Shift+M)';
     const deafen = $('#btn-deafen');
     deafen.classList.toggle('off', state.deafened || me.serverDeafened);
     deafen.classList.toggle('locked', !!me.serverDeafened);
     deafen.textContent = state.deafened || me.serverDeafened ? '🙉' : '🎧';
-    deafen.title = me.serverDeafened ? 'Ensurdecido pelo servidor' : 'Fone de ouvido';
-    const share = $('#btn-share');
-    share.classList.toggle('on', !!state.screenStream);
-    share.disabled = !state.screenStream && (!hasPerm('STREAM') || timedOut(me));
-    share.title = state.screenStream ? 'Parar de compartilhar' : share.disabled ? 'Sem permissão para compartilhar tela' : 'Compartilhar tela';
+    deafen.title = me.serverDeafened ? 'Ensurdecido pelo servidor' : 'Fone de ouvido (Ctrl+Shift+D)';
+    for (const [id, kind, on, off] of [['#btn-share', 'screen', 'Parar de compartilhar', 'Compartilhar tela'], ['#btn-camera', 'camera', 'Desligar câmera', 'Ligar câmera']]) {
+      const btn = $(id);
+      btn.classList.toggle('on', !!state.local[kind]);
+      btn.disabled = !state.local[kind] && !canVideo();
+      btn.title = state.local[kind] ? on : btn.disabled ? 'Sem permissão para vídeo' : off;
+    }
   }
 
   // ---------------- menu de membro (clique direito) ----------------
   function closeMenu() {
     $('#context-menu').classList.add('hidden');
   }
-  document.addEventListener('click', (e) => { if (!e.target.closest('#context-menu')) closeMenu(); }, true);
-  document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeMenu(); });
+  document.addEventListener('click', (e) => {
+    if (!e.target.closest('#context-menu')) closeMenu();
+    if (!e.target.closest('#emoji-picker')) $('#emoji-picker').classList.add('hidden');
+  }, true);
+  document.addEventListener('keydown', (e) => {
+    if (e.key !== 'Escape') return;
+    closeMenu();
+    $('#emoji-picker').classList.add('hidden');
+    $('#lightbox').classList.add('hidden');
+  });
 
   function openMemberMenu(accountId, e) {
     e.preventDefault();
@@ -522,7 +1050,7 @@
     const mod = (action, value) => call('mod', { action, target: m.id, value });
 
     // Cabeçalho com nome e cargos
-    const roleChips = m.roles.map((id) => state.server.roles[roleIdx(id)]).filter(Boolean)
+    const roleChips = m.roles.map((id) => roleById(id)).filter(Boolean)
       .sort((a, b) => roleIdx(b.id) - roleIdx(a.id))
       .map((r) => el('span', { class: 'chip' }, el('span', { class: 'dot', style: { background: r.color || '#99aab5' } }), r.name));
     menu.append(el('div', { class: 'menu-head' },
@@ -531,6 +1059,10 @@
         el('div', { class: 'member-name', style: { color: nameColor(m) } }, m.name, isOwner(m.id) ? ' 👑' : ''),
         timedOut(m) ? el('div', { class: 'sub', textContent: '⏳ Castigo até ' + formatUntil(m.timeoutUntil) }) : null,
         el('div', { class: 'chips' }, roleChips.length ? roleChips : el('span', { class: 'muted-text', textContent: 'Sem cargos' })))));
+
+    if (!self && canSend() && state.view === 'chat') {
+      menu.append(item('💬 Mencionar', () => insertAtCursor('@' + m.name + ' ')));
+    }
 
     // Controles locais (só afetam o que eu ouço)
     if (!self && v && v.channel === state.voiceChannel) {
@@ -760,64 +1292,6 @@
       el('button', { type: 'button', class: 'secondary', textContent: 'Desbanir', onclick: () => call('mod', { action: 'unban', target: b.id }) }))));
   }
 
-  // ---------------- chat ----------------
-  socket.on('chat:message', ({ channel, msg }) => {
-    if (!state.messages[channel]) return; // carrega quando abrir o canal
-    state.messages[channel].push(msg);
-    if (channel === state.textChannel) renderMessages();
-  });
-
-  socket.on('chat:update', ({ channel, msg }) => {
-    const list = state.messages[channel];
-    const i = list?.findIndex((m) => m.id === msg.id);
-    if (i >= 0) list[i] = msg;
-    if (channel === state.textChannel) renderMessages();
-  });
-
-  socket.on('chat:delete', ({ channel, id }) => {
-    if (state.messages[channel]) state.messages[channel] = state.messages[channel].filter((m) => m.id !== id);
-    if (channel === state.textChannel) renderMessages();
-  });
-
-  $('#chat-form').addEventListener('submit', (e) => {
-    e.preventDefault();
-    const input = $('#chat-input');
-    const text = input.value.trim();
-    if (!text) return;
-    call('chat:send', { channel: state.textChannel, text });
-    input.value = '';
-  });
-
-  // Seta para cima edita a última mensagem, como no Discord.
-  $('#chat-input').addEventListener('keydown', (e) => {
-    if (e.key !== 'ArrowUp' || e.target.value) return;
-    const mine = (state.messages[state.textChannel] || []).filter((m) => m.authorId === state.me.accountId);
-    if (!mine.length) return;
-    e.preventDefault();
-    state.editing = mine[mine.length - 1].id;
-    renderMessages();
-  });
-
-  let lastTyping = 0;
-  $('#chat-input').addEventListener('input', () => {
-    if (Date.now() - lastTyping > 2000) {
-      lastTyping = Date.now();
-      socket.emit('typing', { channel: state.textChannel });
-    }
-  });
-
-  const typers = new Map();
-  socket.on('typing', ({ channel, name }) => {
-    typers.set(name, { channel, until: Date.now() + 3000 });
-    renderTyping();
-    setTimeout(renderTyping, 3100);
-  });
-  function renderTyping() {
-    const now = Date.now();
-    const names = [...typers].filter(([, t]) => t.until > now && t.channel === state.textChannel).map(([n]) => n);
-    $('#typing').textContent = names.length ? names.join(', ') + (names.length > 1 ? ' estão' : ' está') + ' digitando…' : '';
-  }
-
   // ---------------- áudio local ----------------
   async function getMicStream() {
     const constraints = {
@@ -844,14 +1318,19 @@
     return audioCtx;
   }
 
+  // Estou impedido de falar agora? (mudo, surdo, servidor, castigo ou push-to-talk solto)
+  function selfSilent() {
+    const me = meMember();
+    return state.muted || state.deafened || !!me?.serverDeafened || !!me?.serverMuted || timedOut(me) || !hasPerm('SPEAK') || (state.ptt.enabled && !state.pttHeld);
+  }
+
   // Aplica mudo/surdo (meu, do servidor e local) em tudo que toca ou transmite.
   function applyAudio() {
     if (!state.server || !state.me) return;
     const me = meMember();
     if (!me) return;
     const iCantHear = state.deafened || me.serverDeafened;
-    const iCantSpeak = state.muted || iCantHear || me.serverMuted || timedOut(me) || !hasPerm('SPEAK');
-    state.micStream?.getAudioTracks().forEach((t) => (t.enabled = !iCantSpeak));
+    state.micStream?.getAudioTracks().forEach((t) => (t.enabled = !selfSilent()));
 
     for (const [sid, p] of state.peers) {
       const v = voiceEntry(sid);
@@ -877,7 +1356,8 @@
     socket.emit('voice:state', {
       muted: state.muted || state.deafened,
       deafened: state.deafened || !!me?.serverDeafened,
-      sharing: !!state.screenStream,
+      sharing: !!state.local.screen,
+      camera: !!state.local.camera,
     });
   }
 
@@ -912,7 +1392,7 @@
       const rms = Math.sqrt(sum / data.length);
       const v = voiceEntry(sid);
       const muted = sid === state.me?.sid
-        ? state.muted || state.deafened || v?.silenced
+        ? selfSilent()
         : !v || v.muted || v.silenced || state.localMuted.has(v.accountId);
       const speaking = rms > 4 && !muted;
       if (speaking !== state.speaking.has(sid)) {
@@ -928,7 +1408,7 @@
 
   // ---------------- voz (WebRTC) ----------------
   async function joinVoice(channel) {
-    if (state.voiceChannel) leaveVoice();
+    if (state.voiceChannel) leaveVoice(true, false);
     state.micStream = await getMicStream();
     const res = await call('voice:join', { channel });
     if (!res) {
@@ -937,7 +1417,9 @@
       return;
     }
     state.voiceChannel = channel;
+    state.voiceSnapshot = null;
     state.view = 'voice';
+    Sounds.play('join');
     watchSpeaking(state.me.sid, state.micStream);
     applyAudio();
     // Quem entra inicia a conexão com todos que já estavam na sala.
@@ -946,15 +1428,18 @@
     render();
   }
 
-  function leaveVoice(notify = true) {
+  function leaveVoice(notify = true, sound = true) {
     if (!state.voiceChannel) return;
-    stopScreenShare(false);
+    stopVideo('screen', false);
+    stopVideo('camera', false);
     for (const sid of [...state.peers.keys()]) closePeer(sid);
     state.micStream?.getTracks().forEach((t) => t.stop());
     state.micStream = null;
     unwatchSpeaking(state.me.sid);
     state.voiceChannel = null;
+    state.voiceSnapshot = null;
     state.view = 'chat';
+    if (sound) Sounds.play('leave');
     if (notify && socket.connected) socket.emit('voice:leave');
     render();
   }
@@ -970,9 +1455,14 @@
   });
 
   socket.on('voice:stop-share', () => {
-    stopScreenShare(false);
-    toast('Você não pode mais compartilhar a tela.');
+    stopVideo('screen', false);
+    stopVideo('camera', false);
+    toast('Você não pode mais usar vídeo.');
   });
+
+  // Ids dos meus streams de vídeo, enviados junto da negociação para o outro lado
+  // saber qual trilha é tela e qual é câmera.
+  const videoIds = () => ({ screen: state.local.screen?.id, camera: state.local.camera?.id });
 
   function getPeer(sid) {
     let peer = state.peers.get(sid);
@@ -986,21 +1476,21 @@
       ignoreOffer: false,
       settingRemoteAnswer: false,
       micStream: null,
-      screenStream: null,
       audioEl: null,
-      remoteScreenId: null,
-      screenSenders: [],
+      remote: { screen: null, camera: null },
+      remoteIds: { screen: null, camera: null },
+      senders: { screen: [], camera: [] },
     };
     state.peers.set(sid, peer);
 
     for (const track of state.micStream.getTracks()) pc.addTrack(track, state.micStream);
-    if (state.screenStream) addScreenTracks(peer);
+    for (const kind of ['screen', 'camera']) if (state.local[kind]) addVideoTracks(peer, kind);
 
     pc.onnegotiationneeded = async () => {
       try {
         peer.makingOffer = true;
         await pc.setLocalDescription();
-        socket.emit('signal', { to: sid, data: { description: pc.localDescription, screen: state.screenStream?.id } });
+        socket.emit('signal', { to: sid, data: { description: pc.localDescription, video: videoIds() } });
       } catch (err) {
         console.error(err);
       } finally {
@@ -1018,12 +1508,13 @@
 
     pc.ontrack = ({ track, streams }) => {
       const stream = streams[0] || new MediaStream([track]);
-      const isScreen = track.kind === 'video' || stream.id === peer.remoteScreenId;
-      if (isScreen) {
-        peer.screenStream = stream;
+      const kind = stream.id === peer.remoteIds.camera ? 'camera'
+        : stream.id === peer.remoteIds.screen || track.kind === 'video' ? 'screen' : 'mic';
+      if (kind !== 'mic') {
+        peer.remote[kind] = stream;
         stream.onremovetrack = () => {
-          if (!stream.getTracks().length) {
-            peer.screenStream = null;
+          if (!stream.getTracks().length && peer.remote[kind] === stream) {
+            peer.remote[kind] = null;
             renderStage();
           }
         };
@@ -1067,7 +1558,7 @@
         const offerCollision = data.description.type === 'offer' && !readyForOffer;
         peer.ignoreOffer = !peer.polite && offerCollision;
         if (peer.ignoreOffer) return;
-        peer.remoteScreenId = data.screen || null;
+        peer.remoteIds = { screen: data.video?.screen || null, camera: data.video?.camera || null };
         peer.settingRemoteAnswer = data.description.type === 'answer';
         try {
           await pc.setRemoteDescription(data.description);
@@ -1076,7 +1567,7 @@
         }
         if (data.description.type === 'offer') {
           await pc.setLocalDescription();
-          socket.emit('signal', { to: from, data: { description: pc.localDescription, screen: state.screenStream?.id } });
+          socket.emit('signal', { to: from, data: { description: pc.localDescription, video: videoIds() } });
         }
       } else if (data.candidate) {
         try {
@@ -1095,41 +1586,46 @@
     if (state.view === 'voice') renderStage();
   });
 
-  // ---------------- compartilhamento de tela ----------------
-  function addScreenTracks(peer) {
-    for (const track of state.screenStream.getTracks()) {
-      peer.screenSenders.push(peer.pc.addTrack(track, state.screenStream));
-    }
+  // ---------------- câmera e compartilhamento de tela ----------------
+  function addVideoTracks(peer, kind) {
+    const stream = state.local[kind];
+    for (const track of stream.getTracks()) peer.senders[kind].push(peer.pc.addTrack(track, stream));
   }
 
-  async function startScreenShare() {
-    if (!navigator.mediaDevices.getDisplayMedia) return toast('Seu navegador não suporta compartilhamento de tela.');
+  async function startVideo(kind) {
     try {
-      state.screenStream = await navigator.mediaDevices.getDisplayMedia({
-        video: { frameRate: 30, width: { ideal: 1920 }, height: { ideal: 1080 } },
-        audio: true, // áudio da aba/sistema quando o navegador permitir
-      });
-    } catch {
-      return; // usuário cancelou
+      if (kind === 'screen') {
+        if (!navigator.mediaDevices.getDisplayMedia) return toast('Seu navegador não suporta compartilhamento de tela.');
+        state.local.screen = await navigator.mediaDevices.getDisplayMedia({
+          video: { frameRate: 30, width: { ideal: 1920 }, height: { ideal: 1080 } },
+          audio: true, // áudio da aba/sistema quando o navegador permitir
+        });
+        state.local.screen.getVideoTracks()[0].contentHint = 'detail';
+      } else {
+        state.local.camera = await navigator.mediaDevices.getUserMedia({ video: { width: { ideal: 1280 }, height: { ideal: 720 }, frameRate: 30 } });
+      }
+    } catch (err) {
+      if (kind === 'camera') toast('Não consegui acessar a câmera.');
+      return; // usuário cancelou ou sem permissão
     }
-    const [video] = state.screenStream.getVideoTracks();
-    video.contentHint = 'detail';
-    video.onended = () => stopScreenShare(); // botão "Parar compartilhamento" do navegador
-    for (const peer of state.peers.values()) addScreenTracks(peer);
+    // Botão "Parar compartilhamento" do navegador, ou câmera desconectada.
+    state.local[kind].getVideoTracks()[0].onended = () => stopVideo(kind);
+    for (const peer of state.peers.values()) addVideoTracks(peer, kind);
+    if (kind === 'screen') Sounds.play('stream');
     sendVoiceState();
     state.view = 'voice';
     render();
   }
 
-  function stopScreenShare(notify = true) {
-    if (!state.screenStream) return;
-    state.screenStream.getTracks().forEach((t) => t.stop());
-    state.screenStream = null;
+  function stopVideo(kind, notify = true) {
+    if (!state.local[kind]) return;
+    state.local[kind].getTracks().forEach((t) => t.stop());
+    state.local[kind] = null;
     for (const peer of state.peers.values()) {
-      for (const sender of peer.screenSenders) {
+      for (const sender of peer.senders[kind]) {
         try { peer.pc.removeTrack(sender); } catch {}
       }
-      peer.screenSenders = [];
+      peer.senders[kind] = [];
     }
     if (notify) sendVoiceState();
     render();
@@ -1143,6 +1639,7 @@
     } else {
       state.muted = !state.muted;
     }
+    Sounds.play(state.muted ? 'mute' : 'unmute');
     applyAudio();
     sendVoiceState();
     renderControls();
@@ -1150,24 +1647,82 @@
 
   $('#btn-deafen').onclick = () => {
     state.deafened = !state.deafened;
+    Sounds.play(state.deafened ? 'deafen' : 'undeafen');
     applyAudio();
     sendVoiceState();
     renderControls();
   };
 
-  $('#btn-share').onclick = () => (state.screenStream ? stopScreenShare() : startScreenShare());
+  $('#btn-share').onclick = () => (state.local.screen ? stopVideo('screen') : startVideo('screen'));
+  $('#btn-camera').onclick = () => (state.local.camera ? stopVideo('camera') : startVideo('camera'));
   $('#btn-leave').onclick = () => leaveVoice();
 
-  // Atalho estilo Discord: Ctrl+Shift+M muta, Ctrl+Shift+D ensurdece.
   document.addEventListener('keydown', (e) => {
-    if (!e.ctrlKey || !e.shiftKey || !state.me) return;
-    if (e.key.toLowerCase() === 'm') { e.preventDefault(); $('#btn-mute').click(); }
-    if (e.key.toLowerCase() === 'd') { e.preventDefault(); $('#btn-deafen').click(); }
+    if (!state.me) return;
+    // Atalhos estilo Discord: Ctrl+Shift+M muta, Ctrl+Shift+D ensurdece.
+    if (e.ctrlKey && e.shiftKey && e.key.toLowerCase() === 'm') { e.preventDefault(); $('#btn-mute').click(); }
+    if (e.ctrlKey && e.shiftKey && e.key.toLowerCase() === 'd') { e.preventDefault(); $('#btn-deafen').click(); }
+    // Push-to-talk: fala enquanto a tecla estiver pressionada (fora de campos de texto).
+    if (state.ptt.enabled && e.code === state.ptt.code && !e.repeat && !isTyping(e.target) && !capturingKey) {
+      e.preventDefault();
+      state.pttHeld = true;
+      applyAudio();
+    }
+  });
+  document.addEventListener('keyup', (e) => {
+    if (state.ptt.enabled && e.code === state.ptt.code && state.pttHeld) {
+      state.pttHeld = false;
+      applyAudio();
+    }
+  });
+  window.addEventListener('blur', () => {
+    if (!state.pttHeld) return;
+    state.pttHeld = false;
+    applyAudio();
   });
 
   // ---------------- configurações do usuário ----------------
+  let capturingKey = false;
+  const keyLabel = (e) => (e.code === 'Space' ? 'Espaço' : e.key.length === 1 ? e.key.toUpperCase() : e.key);
+
+  function renderPttSettings() {
+    $('#input-mode').value = state.ptt.enabled ? 'ptt' : 'voice';
+    $('#ptt-row').classList.toggle('hidden', !state.ptt.enabled);
+    $('#ptt-key').textContent = capturingKey ? 'Aperte uma tecla…' : state.ptt.label;
+  }
+
+  $('#input-mode').onchange = () => {
+    state.ptt.enabled = $('#input-mode').value === 'ptt';
+    state.pttHeld = false;
+    localStorage.setItem('ptt', JSON.stringify(state.ptt));
+    applyAudio();
+    renderPttSettings();
+  };
+
+  $('#ptt-key').onclick = () => {
+    capturingKey = true;
+    renderPttSettings();
+    const onKey = (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      capturingKey = false;
+      document.removeEventListener('keydown', onKey, true);
+      if (e.key !== 'Escape') {
+        state.ptt.code = e.code;
+        state.ptt.label = keyLabel(e);
+        localStorage.setItem('ptt', JSON.stringify(state.ptt));
+      }
+      renderPttSettings();
+    };
+    document.addEventListener('keydown', onKey, true);
+  };
+
   $('#btn-settings').onclick = async () => {
     $('#profile-color').value = meMember().color;
+    $('#sounds-toggle').checked = Sounds.enabled;
+    $('#notify-toggle').checked = state.notify && 'Notification' in window && Notification.permission === 'granted';
+    $('#notify-toggle').disabled = !('Notification' in window) || Notification.permission === 'denied';
+    renderPttSettings();
     const devices = await navigator.mediaDevices.enumerateDevices().catch(() => []);
     const fill = (select, kind, current) => {
       select.innerHTML = '<option value="">Padrão</option>';
@@ -1180,6 +1735,19 @@
     $('#speaker-select').disabled = !('setSinkId' in HTMLMediaElement.prototype);
     $('#noise-toggle').checked = state.noiseSuppression;
     $('#settings').classList.remove('hidden');
+  };
+
+  $('#sounds-toggle').onchange = () => {
+    Sounds.enabled = $('#sounds-toggle').checked;
+    Sounds.play('message');
+  };
+
+  $('#notify-toggle').onchange = async () => {
+    let on = $('#notify-toggle').checked;
+    if (on && Notification.permission !== 'granted') on = (await Notification.requestPermission()) === 'granted';
+    state.notify = on;
+    $('#notify-toggle').checked = on;
+    localStorage.setItem('notify', on);
   };
 
   $('#btn-logout').onclick = async () => {
@@ -1221,5 +1789,5 @@
     }
   };
 
-  window.addEventListener('beforeunload', () => leaveVoice());
+  window.addEventListener('beforeunload', () => leaveVoice(true, false));
 })();
