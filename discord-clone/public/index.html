@@ -3,95 +3,125 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Resenha — clone do Discord</title>
-  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 32 32%22%3E%3Crect width=%2232%22 height=%2232%22 rx=%2210%22 fill=%22%235865f2%22/%3E%3Ctext x=%2216%22 y=%2222%22 font-size=%2218%22 font-family=%22sans-serif%22 font-weight=%22bold%22 fill=%22white%22 text-anchor=%22middle%22%3ER%3C/text%3E%3C/svg%3E">
+  <meta name="theme-color" content="#1e1f22">
+  <title>Resenhex</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 32 32%22%3E%3Cdefs%3E%3ClinearGradient id=%22g%22 x1=%220%22 y1=%220%22 x2=%221%22 y2=%221%22%3E%3Cstop offset=%220%22 stop-color=%22%236d5dfc%22/%3E%3Cstop offset=%221%22 stop-color=%22%23c64cf0%22/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width=%2232%22 height=%2232%22 rx=%229%22 fill=%22url(%23g)%22/%3E%3Cpath fill=%22white%22 d=%22M16 6c-5.5 0-10 4-10 8.9 0 2.7 1.3 5 3.4 6.7l-.9 3.6a.6.6 0 0 0 .9.7l4.1-2.1c.8.2 1.6.2 2.5.2 5.5 0 10-4 10-8.9S21.5 6 16 6z%22/%3E%3Cpath stroke=%22%238a55f5%22 stroke-width=%222.2%22 stroke-linecap=%22round%22 d=%22M12.5 11.5l7 6M19.5 11.5l-7 6%22/%3E%3C/svg%3E">
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
   <!-- Tela de entrada / cadastro -->
-  <div id="login" class="modal">
-    <form id="login-form" class="card">
+  <div id="login" class="auth">
+    <form id="login-form" class="auth-card">
+      <div class="brand"><span class="brand-mark" data-logo="30"></span><span class="brand-name">Resenhex</span></div>
       <h1 id="login-title">Bem-vindo de volta!</h1>
       <p id="login-subtitle">Entre com sua conta.</p>
       <div id="login-notice" class="notice hidden"></div>
-      <label>NOME DE USUÁRIO
+      <label><span>NOME DE USUÁRIO <span class="req">*</span></span>
         <input id="login-name" maxlength="32" required autocomplete="username">
       </label>
-      <label>SENHA
+      <label><span>SENHA <span class="req">*</span></span>
         <input id="login-password" type="password" required autocomplete="current-password">
       </label>
-      <label id="server-password-label" class="hidden">SENHA DO SERVIDOR
+      <label id="server-password-label" class="hidden"><span>SENHA DO SERVIDOR <span class="req">*</span></span>
         <input id="server-password" type="password" autocomplete="off">
       </label>
       <label id="login-color-label" class="hidden">COR DO AVATAR
         <input id="login-color" type="color" value="#5865f2">
       </label>
-      <button type="submit" id="login-submit">Entrar</button>
+      <button type="submit" id="login-submit" class="btn-primary">Entrar</button>
       <p class="switch"><span id="login-switch-text">Precisa de uma conta?</span> <a href="#" id="login-switch">Registre-se</a></p>
     </form>
   </div>
 
   <div id="app" class="hidden">
+    <!-- Barra de servidores -->
     <nav id="servers">
-      <div class="server-icon active" title="Resenha">R</div>
+      <div class="rail-item home" data-tip="Resenhex" data-tip-pos="right">
+        <div class="rail-icon brand-icon" data-logo="28"></div>
+      </div>
+      <div class="rail-sep"></div>
+      <div class="rail-item active" data-tip="Resenha" data-tip-pos="right">
+        <span class="rail-pill"></span>
+        <div class="rail-icon server-icon">R</div>
+        <span id="server-badge" class="badge rail-badge hidden"></span>
+      </div>
     </nav>
 
+    <!-- Canais -->
     <aside id="sidebar">
-      <header class="server-name" id="server-header">
-        <span>Resenha</span>
-        <button id="btn-server-settings" class="hidden" title="Configurações do servidor">⚙️</button>
-      </header>
+      <button type="button" id="server-header" class="server-name">
+        <span>Resenha</span><span class="chev" data-icon="chevronDown"></span>
+      </button>
       <div class="channels">
-        <div class="category">CANAIS DE TEXTO</div>
+        <div class="category" data-cat="text">
+          <button type="button" class="cat-toggle"><span class="cat-chev" data-icon="chevronDown" data-size="12"></span>CANAIS DE TEXTO</button>
+          <button type="button" class="cat-add hidden" data-type="text" data-tip="Criar canal" aria-label="Criar canal de texto" data-icon="plus" data-size="16"></button>
+        </div>
         <ul id="text-channels"></ul>
-        <div class="category">CANAIS DE VOZ</div>
+        <div class="category" data-cat="voice">
+          <button type="button" class="cat-toggle"><span class="cat-chev" data-icon="chevronDown" data-size="12"></span>CANAIS DE VOZ</button>
+          <button type="button" class="cat-add hidden" data-type="voice" data-tip="Criar canal" aria-label="Criar canal de voz" data-icon="plus" data-size="16"></button>
+        </div>
         <ul id="voice-channels"></ul>
       </div>
 
       <div id="voice-panel" class="hidden">
-        <div>
-          <div class="voice-status">Voz conectada</div>
-          <div id="voice-room-name" class="muted-text"></div>
+        <div class="vp-row">
+          <div class="vp-info">
+            <div class="voice-status" id="vp-status" data-tip="Conectando…"><span data-icon="signal" data-size="16"></span>Voz conectada</div>
+            <div id="voice-room-name" class="muted-text"></div>
+          </div>
+          <button type="button" id="btn-leave" class="icon-btn hangup" data-icon="phone" data-tip="Desconectar" aria-label="Desconectar"></button>
         </div>
-        <div class="voice-buttons">
-          <button id="btn-camera" title="Ligar câmera">📷</button>
-          <button id="btn-share" title="Compartilhar tela">🖥️</button>
-          <button id="btn-leave" class="danger" title="Desconectar">📞</button>
+        <div class="vp-actions">
+          <button type="button" id="btn-camera" class="vp-btn" aria-label="Câmera"></button>
+          <button type="button" id="btn-share" class="vp-btn" aria-label="Compartilhar tela"></button>
         </div>
       </div>
 
       <div id="user-panel">
-        <div class="avatar" id="me-avatar"></div>
-        <div class="me-name" id="me-name"></div>
-        <button id="btn-mute" title="Microfone">🎤</button>
-        <button id="btn-deafen" title="Fone de ouvido">🎧</button>
-        <button id="btn-settings" title="Configurações do usuário">⚙️</button>
+        <div class="me-card">
+          <div class="avatar-wrap"><div class="avatar" id="me-avatar"></div><span class="status online"></span></div>
+          <div class="me-text">
+            <div class="me-name" id="me-name"></div>
+            <div class="me-sub" id="me-sub">Online</div>
+          </div>
+        </div>
+        <button type="button" id="btn-mute" class="icon-btn" aria-label="Microfone"></button>
+        <button type="button" id="btn-deafen" class="icon-btn" aria-label="Fone de ouvido"></button>
+        <button type="button" id="btn-settings" class="icon-btn" data-icon="settings" data-tip="Configurações de usuário" aria-label="Configurações de usuário"></button>
       </div>
     </aside>
 
+    <!-- Conteúdo -->
     <main id="main">
-      <header id="main-header"></header>
+      <header id="main-header">
+        <div id="header-title"></div>
+        <div class="header-tools">
+          <button type="button" id="btn-members" class="icon-btn" data-icon="users" aria-label="Lista de membros"></button>
+        </div>
+      </header>
 
       <section id="chat-view">
         <div id="notify-banner" class="hidden">
-          <span>🔔 Quer ser avisado quando alguém mencionar você?</span>
+          <span>Quer ser avisado quando alguém mencionar você?</span>
           <button type="button" id="notify-enable">Ativar notificações</button>
-          <button type="button" id="notify-dismiss" class="link" title="Agora não">✕</button>
+          <button type="button" id="notify-dismiss" class="link" data-icon="x" data-size="16" aria-label="Agora não"></button>
         </div>
         <div id="messages"></div>
-        <div id="drop-overlay" class="hidden">📎 Solte para enviar</div>
+        <div id="drop-overlay" class="hidden"><div><span data-icon="file" data-size="40"></span><strong>Enviar arquivos</strong><span>Solte para enviar no canal</span></div></div>
         <div id="composer">
           <div id="autocomplete" class="hidden"></div>
           <div id="reply-bar" class="hidden">
             <span id="reply-text"></span>
-            <button type="button" id="reply-cancel" title="Cancelar resposta">✕</button>
+            <button type="button" id="reply-cancel" data-icon="x" data-size="16" aria-label="Cancelar resposta"></button>
           </div>
           <div id="attachments-bar" class="hidden"></div>
           <form id="chat-form">
-            <button type="button" id="btn-attach" title="Enviar arquivo">＋</button>
+            <button type="button" id="btn-attach" data-icon="plusCircle" data-size="22" data-tip="Enviar arquivo" aria-label="Enviar arquivo"></button>
             <input type="file" id="file-input" multiple hidden>
             <textarea id="chat-input" rows="1" maxlength="4000" autocomplete="off"></textarea>
-            <button type="button" id="btn-emoji" title="Emoji">😀</button>
+            <button type="button" id="btn-emoji" data-icon="smile" data-size="22" data-tip="Emoji" aria-label="Emoji"></button>
           </form>
           <div id="typing" class="muted-text"></div>
         </div>
@@ -99,6 +129,12 @@
 
       <section id="voice-view" class="hidden">
         <div id="stage"></div>
+        <div id="stage-controls">
+          <button type="button" id="sc-mic" class="sc-btn" aria-label="Microfone"></button>
+          <button type="button" id="sc-cam" class="sc-btn" aria-label="Câmera"></button>
+          <button type="button" id="sc-screen" class="sc-btn" aria-label="Compartilhar tela"></button>
+          <button type="button" id="sc-leave" class="sc-btn hangup" data-icon="phone" data-tip="Desconectar" aria-label="Desconectar"></button>
+        </div>
       </section>
     </main>
 
@@ -109,42 +145,49 @@
 
   <!-- Configurações do usuário -->
   <div id="settings" class="modal hidden">
-    <div class="card">
-      <h2>Configurações</h2>
-      <label>COR DO AVATAR
-        <input id="profile-color" type="color">
-      </label>
-      <label>MICROFONE
-        <select id="mic-select"></select>
-      </label>
-      <label>SAÍDA DE ÁUDIO
-        <select id="speaker-select"></select>
-      </label>
-      <label class="row"><input type="checkbox" id="noise-toggle" checked> Supressão de ruído / cancelamento de eco</label>
-      <label>MODO DE ENTRADA
-        <select id="input-mode">
-          <option value="voice">Detecção de voz</option>
-          <option value="ptt">Pressionar para falar</option>
-        </select>
-      </label>
-      <div id="ptt-row" class="row gap hidden">
-        <span class="muted-text">Tecla:</span>
-        <button type="button" id="ptt-key" class="secondary"></button>
-        <span class="muted-text">funciona com esta janela em foco</span>
+    <div class="card settings-card">
+      <div class="settings-head">
+        <h2>Configurações de usuário</h2>
       </div>
-      <label>UPLOAD DA SUA INTERNET
-        <select id="upload-select">
-          <option value="3">3 Mbps</option>
-          <option value="5">5 Mbps</option>
-          <option value="10">10 Mbps</option>
-          <option value="20">20 Mbps</option>
-          <option value="50">50 Mbps</option>
-          <option value="100">100 Mbps ou mais</option>
-        </select>
-        <span class="hint">Quem transmite a tela envia uma cópia para cada pessoa. Coloque aqui o upload do seu teste de velocidade para a qualidade ser dividida sem travar.</span>
-      </label>
-      <label class="row"><input type="checkbox" id="sounds-toggle"> Sons (entrar/sair da sala, mutar, menções)</label>
-      <label class="row"><input type="checkbox" id="notify-toggle"> Notificações na área de trabalho quando me mencionarem</label>
+      <div class="settings-scroll">
+        <div class="section-title">MINHA CONTA</div>
+        <label>COR DO AVATAR
+          <input id="profile-color" type="color">
+        </label>
+        <div class="section-title">VOZ E VÍDEO</div>
+        <label>MICROFONE
+          <select id="mic-select"></select>
+        </label>
+        <label>SAÍDA DE ÁUDIO
+          <select id="speaker-select"></select>
+        </label>
+        <label class="row"><input type="checkbox" id="noise-toggle" checked> Supressão de ruído / cancelamento de eco</label>
+        <label>MODO DE ENTRADA
+          <select id="input-mode">
+            <option value="voice">Detecção de voz</option>
+            <option value="ptt">Pressionar para falar</option>
+          </select>
+        </label>
+        <div id="ptt-row" class="row gap hidden">
+          <span class="muted-text">Tecla:</span>
+          <button type="button" id="ptt-key" class="secondary"></button>
+          <span class="muted-text">funciona com esta janela em foco</span>
+        </div>
+        <label>UPLOAD DA SUA INTERNET
+          <select id="upload-select">
+            <option value="3">3 Mbps</option>
+            <option value="5">5 Mbps</option>
+            <option value="10">10 Mbps</option>
+            <option value="20">20 Mbps</option>
+            <option value="50">50 Mbps</option>
+            <option value="100">100 Mbps ou mais</option>
+          </select>
+          <span class="hint">Quem transmite a tela envia uma cópia para cada pessoa. Coloque aqui o upload do seu teste de velocidade para a qualidade ser dividida sem travar.</span>
+        </label>
+        <div class="section-title">NOTIFICAÇÕES</div>
+        <label class="row"><input type="checkbox" id="sounds-toggle"> Sons (entrar/sair da sala, mutar, menções)</label>
+        <label class="row"><input type="checkbox" id="notify-toggle"> Notificações na área de trabalho quando me mencionarem</label>
+      </div>
       <div class="buttons">
         <button id="btn-logout" type="button" class="secondary danger-text">Sair da conta</button>
         <button id="settings-close" type="button">Salvar</button>
@@ -157,7 +200,7 @@
     <div class="card wide">
       <div class="settings-head">
         <h2>Configurações do servidor</h2>
-        <button type="button" class="close" id="server-settings-close" title="Fechar">✕</button>
+        <button type="button" class="close" id="server-settings-close" data-icon="x" aria-label="Fechar"></button>
       </div>
       <div class="tabs" id="settings-tabs">
         <button type="button" data-tab="roles">Cargos</button>
@@ -168,12 +211,44 @@
     </div>
   </div>
 
+  <!-- Criar canal -->
+  <div id="create-channel" class="modal hidden">
+    <form id="create-channel-form" class="card">
+      <div class="settings-head">
+        <div>
+          <h2>Criar canal</h2>
+          <div class="muted-text" id="create-channel-sub"></div>
+        </div>
+        <button type="button" class="close" id="create-channel-close" data-icon="x" aria-label="Fechar"></button>
+      </div>
+      <div class="field-title">TIPO DE CANAL</div>
+      <label class="type-option"><input type="radio" name="ctype" value="text" checked><span class="type-icon" data-icon="hash" data-size="24"></span>
+        <span><strong>Texto</strong><span class="muted-text">Mensagens, imagens, emoji e opiniões</span></span></label>
+      <label class="type-option"><input type="radio" name="ctype" value="voice"><span class="type-icon" data-icon="volume" data-size="24"></span>
+        <span><strong>Voz</strong><span class="muted-text">Voz, câmera e compartilhamento de tela</span></span></label>
+      <label>NOME DO CANAL
+        <input id="create-channel-name" maxlength="32" required autocomplete="off" placeholder="novo-canal">
+      </label>
+      <label class="row"><input type="checkbox" id="create-channel-private"> Canal privado</label>
+      <div id="create-channel-roles" class="hidden">
+        <div class="muted-text">Só estes cargos (e administradores) vão ver o canal:</div>
+        <div class="chips" id="create-channel-role-list"></div>
+      </div>
+      <div class="buttons">
+        <button type="button" class="secondary" id="create-channel-cancel">Cancelar</button>
+        <button type="submit">Criar canal</button>
+      </div>
+    </form>
+  </div>
+
   <div id="context-menu" class="hidden"></div>
   <div id="emoji-picker" class="hidden"></div>
   <div id="lightbox" class="modal hidden"><img alt=""><a target="_blank" rel="noopener noreferrer">Abrir original</a></div>
+  <div id="tooltip" class="hidden"></div>
   <div id="toast" class="hidden"></div>
 
   <script src="/socket.io/socket.io.js"></script>
+  <script src="icons.js"></script>
   <script src="format.js"></script>
   <script src="sounds.js"></script>
   <script src="app.js"></script>

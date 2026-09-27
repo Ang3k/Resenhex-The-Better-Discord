@@ -102,7 +102,7 @@ window.Format = (() => {
       lines.forEach((line, j) => {
         const q = /^> (.*)$/.exec(line);
         if (q) {
-          quote ||= frag.appendChild(wrap('blockquote', '', ''));
+          quote ||= frag.appendChild(document.createElement('blockquote'));
           if (quote.childNodes.length) quote.append('\n');
           quote.append(inline(q[1], ctx));
           return;

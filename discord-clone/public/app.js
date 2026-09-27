@@ -1,4 +1,4 @@
-// Front-end do clone do Discord.
+// Front-end do Resenhex (plataforma de chat e voz inspirada no Discord).
 // Chat de texto via Socket.IO; voz, câmera e tela via WebRTC em malha (cada pessoa
 // conecta diretamente com as outras da sala; o servidor só repassa a sinalização).
 // Cargos e moderação são validados no servidor; aqui só escondemos o que a pessoa não pode usar.
@@ -49,6 +49,8 @@
     pending: [], // anexos do rascunho
     voiceSnapshot: null, // para tocar sons quando alguém entra/sai da sala
     removed: false,
+    showMembers: localStorage.getItem('showMembers') !== 'false',
+    collapsed: new Set(JSON.parse(localStorage.getItem('collapsed') || '[]')), // categorias recolhidas
   };
 
   let audioCtx = null;
@@ -83,6 +85,8 @@
       else if (k === 'style') Object.assign(node.style, v);
       else if (k === 'data') Object.assign(node.dataset, v);
       else if (k.startsWith('on')) node.addEventListener(k.slice(2), v);
+      else if (k === 'tip') node.dataset.tip = v;
+      else if (k.startsWith('aria')) node.setAttribute(k.replace(/^aria([A-Z])/, (_, c) => 'aria-' + c.toLowerCase()), v);
       else node[k] = v;
     }
     node.append(...children.flat().filter((c) => c != null && c !== false));
@@ -107,6 +111,52 @@
     if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(0) + ' KB';
     return (bytes / 1024 / 1024).toFixed(1) + ' MB';
   }
+
+  // Preenche os ícones declarados no HTML (data-icon / data-logo).
+  for (const node of document.querySelectorAll('[data-icon]')) node.prepend(Icon(node.dataset.icon, Number(node.dataset.size) || 20));
+  for (const node of document.querySelectorAll('[data-logo]')) node.append(Icon.logo(Number(node.dataset.logo)));
+
+  // Dicas flutuantes (tooltip) para qualquer elemento com data-tip.
+  let tipTarget = null;
+  function showTip(target) {
+    const tip = $('#tooltip');
+    tipTarget = target;
+    tip.textContent = target.dataset.tip;
+    const pos = target.dataset.tipPos || 'top';
+    tip.className = pos;
+    const r = target.getBoundingClientRect();
+    const t = tip.getBoundingClientRect();
+    let x = r.left + r.width / 2 - t.width / 2;
+    let y = r.top - t.height - 8;
+    if (pos === 'right') { x = r.right + 12; y = r.top + r.height / 2 - t.height / 2; }
+    if (pos === 'bottom') y = r.bottom + 8;
+    tip.style.left = Math.max(4, Math.min(x, innerWidth - t.width - 4)) + 'px';
+    tip.style.top = Math.max(4, y) + 'px';
+  }
+  function hideTip() {
+    tipTarget = null;
+    $('#tooltip').className = 'hidden';
+  }
+  document.addEventListener('mouseover', (e) => {
+    const target = e.target.closest?.('[data-tip]');
+    if (target === tipTarget) return;
+    if (target && target.dataset.tip) showTip(target);
+    else hideTip();
+  });
+  document.addEventListener('mousedown', hideTip, true);
+  const refreshTip = (node) => { if (tipTarget === node) showTip(node); };
+
+  // Datas no estilo do Discord: "Hoje às 18:14", "Ontem às 09:02", "27/09/2026 18:14".
+  const hhmm = (ts) => new Date(ts).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+  const dayKey = (ts) => new Date(ts).toDateString();
+  function formatStamp(ts) {
+    const today = new Date();
+    const yesterday = new Date(today.getTime() - 86400000);
+    if (dayKey(ts) === today.toDateString()) return 'Hoje às ' + hhmm(ts);
+    if (dayKey(ts) === yesterday.toDateString()) return 'Ontem às ' + hhmm(ts);
+    return new Date(ts).toLocaleDateString('pt-BR') + ' ' + hhmm(ts);
+  }
+  const formatDay = (ts) => new Date(ts).toLocaleDateString('pt-BR', { day: 'numeric', month: 'long', year: 'numeric' });
 
   const isTyping = (target) => target && (target.matches?.('input, textarea, select') || target.isContentEditable);
 
@@ -173,7 +223,7 @@
     const register = mode === 'register';
     $('#login-title').textContent = register ? 'Criar uma conta' : 'Bem-vindo de volta!';
     $('#login-subtitle').textContent = register
-      ? (config.hasOwner ? 'Escolha um nome e uma senha.' : 'Você é o primeiro! Esta conta será a dona do servidor 👑')
+      ? (config.hasOwner ? 'Escolha um nome e uma senha.' : 'Você é o primeiro! Esta conta será a dona do servidor Resenha.')
       : 'Entre com sua conta.';
     $('#login-submit').textContent = register ? 'Criar conta' : 'Entrar';
     $('#login-switch-text').textContent = register ? 'Já tem uma conta?' : 'Precisa de uma conta?';
@@ -301,7 +351,11 @@
     $('#me-name').textContent = me.name;
     $('#me-name').style.color = nameColor(me);
     $('#me-avatar').replaceWith(Object.assign(avatar(me), { id: 'me-avatar' }));
-    $('#btn-server-settings').classList.toggle('hidden', !['MANAGE_ROLES', 'MANAGE_CHANNELS', 'BAN'].some(hasPerm));
+    $('#me-sub').textContent = state.voiceChannel ? 'Em chamada' : 'Online';
+    $('#app').classList.toggle('hide-members', !state.showMembers);
+    $('#btn-members').classList.toggle('active', state.showMembers);
+    $('#btn-members').dataset.tip = state.showMembers ? 'Ocultar lista de membros' : 'Mostrar lista de membros';
+    for (const btn of document.querySelectorAll('.cat-add')) btn.classList.toggle('hidden', !hasPerm('MANAGE_CHANNELS'));
     renderChannels();
     renderMembers();
     renderMain();
@@ -316,7 +370,11 @@
   function updateTitle() {
     const entries = Object.entries(state.unread).filter(([id]) => channelById(id));
     const mentions = entries.reduce((n, [, u]) => n + u.mentions, 0);
-    document.title = (mentions ? `(${mentions}) ` : entries.length ? '• ' : '') + 'Resenha';
+    const badge = $('#server-badge');
+    badge.textContent = mentions > 99 ? '99+' : String(mentions);
+    badge.classList.toggle('hidden', !mentions);
+    const where = state.view === 'voice' && state.voiceChannel ? channelById(state.voiceChannel)?.name : '#' + (channelById(state.textChannel)?.name || '');
+    document.title = (mentions ? `(${mentions}) ` : entries.length ? '• ' : '') + `${where} | Resenha | Resenhex`;
   }
 
   function openTextChannel(id) {
@@ -332,32 +390,45 @@
   }
 
   function renderChannels() {
+    const canManage = hasPerm('MANAGE_CHANNELS');
+    const gear = () => canManage ? el('button', {
+      class: 'channel-gear', tip: 'Editar canal', ariaLabel: 'Editar canal',
+      onclick: (e) => { e.stopPropagation(); openServerSettings('channels'); },
+    }, Icon('settings', 16)) : null;
+    for (const cat of document.querySelectorAll('.category[data-cat]')) cat.classList.toggle('collapsed', state.collapsed.has(cat.dataset.cat));
+
     const tl = $('#text-channels');
     tl.innerHTML = '';
+    const textCollapsed = state.collapsed.has('text');
     for (const c of state.server.channels.filter((c) => c.type === 'text')) {
       const u = state.unread[c.id];
+      const active = state.view === 'chat' && state.textChannel === c.id;
+      if (textCollapsed && !active && !u) continue;
       tl.append(el('li', {
-        class: 'channel' + (state.view === 'chat' && state.textChannel === c.id ? ' active' : '') + (u ? ' unread' : ''),
+        class: 'channel' + (active ? ' active' : '') + (u ? ' unread' : ''),
         onclick: () => openTextChannel(c.id),
-      }, el('span', { class: 'icon', textContent: '#' }), el('span', { class: 'channel-name', textContent: c.name }),
-      c.allowedRoles.length ? el('span', { class: 'lock', textContent: '🔒', title: 'Canal privado' }) : null,
-      u?.mentions ? el('span', { class: 'badge', textContent: u.mentions > 99 ? '99+' : String(u.mentions) }) : null));
+      }, el('span', { class: 'icon' }, Icon('hash')), el('span', { class: 'channel-name', textContent: c.name }),
+      c.allowedRoles.length ? el('span', { class: 'lock', tip: 'Canal privado' }, Icon('lock', 14)) : null,
+      u?.mentions ? el('span', { class: 'badge', textContent: u.mentions > 99 ? '99+' : String(u.mentions) }) : null,
+      gear()));
     }
 
     const vl = $('#voice-channels');
     vl.innerHTML = '';
+    const voiceCollapsed = state.collapsed.has('voice');
     for (const c of state.server.channels.filter((c) => c.type === 'voice')) {
+      if (voiceCollapsed && state.voiceChannel !== c.id) continue;
       const users = voiceEntries(c.id).map((v) => {
         const m = member(v.accountId);
         if (!m) return null;
         const flags = el('span', { class: 'flags' });
-        if (v.sharing) flags.append(el('span', { class: 'live', textContent: 'AO VIVO' }), ' ');
-        if (v.camera) flags.append(el('span', { title: 'Câmera ligada', textContent: '📷' }));
-        if (m.serverMuted || timedOut(m)) flags.append(el('span', { class: 'server-flag', textContent: '🔇', title: timedOut(m) ? 'De castigo' : 'Silenciado pelo servidor' }));
-        else if (v.muted) flags.append('🔇');
-        if (m.serverDeafened) flags.append(el('span', { class: 'server-flag', textContent: '🙉', title: 'Ensurdecido pelo servidor' }));
-        else if (v.deafened) flags.append('🙉');
-        if (state.localMuted.has(m.id)) flags.append(el('span', { title: 'Mutado para você', textContent: '🔕' }));
+        if (v.sharing) flags.append(el('span', { class: 'live', textContent: 'AO VIVO' }));
+        if (v.camera) flags.append(el('span', { tip: 'Câmera ligada' }, Icon('camera', 16)));
+        if (state.localMuted.has(m.id)) flags.append(el('span', { tip: 'Mutado para você' }, Icon('volumeX', 16)));
+        if (m.serverMuted || timedOut(m)) flags.append(el('span', { class: 'server-flag', tip: timedOut(m) ? 'De castigo' : 'Silenciado pelo servidor' }, Icon('micOff', 16)));
+        else if (v.muted) flags.append(el('span', { tip: 'Mutado' }, Icon('micOff', 16)));
+        if (m.serverDeafened) flags.append(el('span', { class: 'server-flag', tip: 'Ensurdecido pelo servidor' }, Icon('headphonesOff', 16)));
+        else if (v.deafened) flags.append(el('span', { tip: 'Ensurdecido' }, Icon('headphonesOff', 16)));
         return el('li', {
           class: 'voice-user',
           onclick: (e) => openMemberMenu(m.id, e),
@@ -368,7 +439,8 @@
         el('div', {
           class: 'channel' + (state.view === 'voice' && state.voiceChannel === c.id ? ' active' : ''),
           onclick: () => (state.voiceChannel === c.id ? (state.view = 'voice', render()) : joinVoice(c.id)),
-        }, el('span', { class: 'icon', textContent: '🔊' }), el('span', { class: 'channel-name', textContent: c.name }), c.allowedRoles.length ? el('span', { class: 'lock', textContent: '🔒' }) : null),
+        }, el('span', { class: 'icon' }, Icon('volume')), el('span', { class: 'channel-name', textContent: c.name }),
+        c.allowedRoles.length ? el('span', { class: 'lock', tip: 'Canal privado' }, Icon('lock', 14)) : null, gear()),
         el('ul', { class: 'voice-users' }, users)));
     }
   }
@@ -394,17 +466,24 @@
       for (const m of g.members) {
         const v = state.server.voice.find((x) => x.accountId === m.id);
         let sub = '';
-        if (timedOut(m)) sub = '⏳ De castigo até ' + formatUntil(m.timeoutUntil);
-        else if (v) sub = (v.sharing ? '🖥️ Transmitindo em ' : '🔊 ') + (channelById(v.channel)?.name || '');
+        if (timedOut(m)) sub = 'De castigo até ' + formatUntil(m.timeoutUntil);
+        else if (v) sub = (v.sharing ? 'Transmitindo em ' : 'Em ') + (channelById(v.channel)?.name || 'um canal de voz');
         list.append(el('div', {
           class: 'member' + (m.online ? '' : ' offline'),
           onclick: (e) => openMemberMenu(m.id, e),
           oncontextmenu: (e) => openMemberMenu(m.id, e),
-        }, avatar(m), el('div', { class: 'member-info' },
-          el('div', { class: 'member-name', style: { color: nameColor(m) } }, m.name, isOwner(m.id) ? el('span', { title: 'Dono do servidor', textContent: ' 👑' }) : null),
+        }, el('div', { class: 'avatar-wrap' }, avatar(m), el('span', { class: 'status ' + (m.online ? 'online' : 'offline') })),
+        el('div', { class: 'member-info' },
+          el('div', { class: 'member-name', style: { color: nameColor(m) } }, el('span', { textContent: m.name }),
+            isOwner(m.id) ? el('span', { class: 'owner-crown', tip: 'Dono do servidor' }, Icon('crown', 14)) : null),
           sub ? el('div', { class: 'sub', textContent: sub }) : null)));
       }
     }
+  }
+
+  function setHeader(icon, text, sub) {
+    $('#header-title').replaceChildren(Icon(icon, 24), el('span', { class: 'title-text', textContent: text }),
+      sub ? el('span', { class: 'title-sub', textContent: sub }) : '');
   }
 
   function renderMain() {
@@ -412,13 +491,14 @@
     $('#chat-view').classList.toggle('hidden', !!inVoiceView);
     $('#voice-view').classList.toggle('hidden', !inVoiceView);
     if (inVoiceView) {
-      $('#main-header').textContent = '🔊 ' + (channelById(state.voiceChannel)?.name || '');
+      const n = voiceEntries(state.voiceChannel).length;
+      setHeader('volume', channelById(state.voiceChannel)?.name || '', `${n} ${n === 1 ? 'pessoa' : 'pessoas'} na chamada`);
       renderStage();
       return;
     }
     const c = channelById(state.textChannel);
-    $('#main-header').textContent = c ? '# ' + c.name : '';
-    if (!c) return;
+    if (!c) return $('#header-title').replaceChildren();
+    setHeader('hash', c.name, c.allowedRoles.length ? 'Canal privado' : '');
     if (!state.messages[c.id]) {
       state.messages[c.id] = [];
       call('chat:history', { channel: c.id }).then((res) => {
@@ -434,6 +514,19 @@
 
   // ---------------- mensagens ----------------
   const msgNodes = new Map(); // id -> { sig, node }
+  const extraNodes = new Map(); // boas-vindas e divisores de data, por chave
+
+  function cachedNode(key, build) {
+    if (!extraNodes.has(key)) extraNodes.set(key, build());
+    return extraNodes.get(key);
+  }
+
+  const welcomeNode = (c) => cachedNode('welcome:' + c.id + ':' + c.name, () => el('div', { class: 'welcome' },
+    el('div', { class: 'welcome-icon' }, Icon('hash', 42)),
+    el('h2', { textContent: `Bem-vindo(a) a #${c.name}!` }),
+    el('p', { textContent: `Este é o começo do canal #${c.name}.` })));
+
+  const dayNode = (ts) => cachedNode('day:' + dayKey(ts), () => el('div', { class: 'day-divider' }, el('span', { textContent: formatDay(ts) })));
   let stickToBottom = true;
   $('#messages').addEventListener('scroll', () => {
     const box = $('#messages');
@@ -447,6 +540,8 @@
   function renderMessages(scrollToEnd = false) {
     if (state.view !== 'chat') return;
     const box = $('#messages');
+    const channel = channelById(state.textChannel);
+    if (!channel) return;
     if (box.dataset.channel !== state.textChannel) {
       box.innerHTML = '';
       msgNodes.clear();
@@ -455,11 +550,13 @@
     }
     const list = state.messages[state.textChannel] || [];
     const epoch = JSON.stringify([state.server.members.map((m) => [m.id, m.name, m.color, m.roles]), state.server.roles.map((r) => [r.id, r.name, r.color]),
-      hasPerm('MANAGE_MESSAGES'), canSend(), state.replyTo?.id]);
-    const nodes = [];
+      hasPerm('MANAGE_MESSAGES'), canSend(), state.replyTo?.id, dayKey(Date.now())]);
+    const nodes = [welcomeNode(channel)];
     let prev = null;
     for (const msg of list) {
-      const continued = !!(prev && !msg.replyTo && prev.authorId === msg.authorId && (msg.authorId || prev.authorName === msg.authorName) && msg.ts - prev.ts < 5 * 60 * 1000);
+      const newDay = !prev || dayKey(prev.ts) !== dayKey(msg.ts);
+      if (newDay) nodes.push(dayNode(msg.ts));
+      const continued = !!(prev && !newDay && !msg.replyTo && prev.authorId === msg.authorId && (msg.authorId || prev.authorName === msg.authorName) && msg.ts - prev.ts < 5 * 60 * 1000);
       const replied = msg.replyTo ? list.find((m) => m.id === msg.replyTo) || null : null;
       const sig = JSON.stringify([msg, continued, state.editing === msg.id, epoch, replied && [replied.text, replied.authorId, !!replied.attachments]]);
       let entry = msgNodes.get(msg.id);
@@ -473,6 +570,7 @@
     const wanted = new Set(nodes);
     for (const child of [...box.children]) if (!wanted.has(child)) child.remove();
     for (const [id, entry] of msgNodes) if (!wanted.has(entry.node)) msgNodes.delete(id);
+    for (const [key, node] of extraNodes) if (!wanted.has(node) && !node.isConnected) extraNodes.delete(key);
     nodes.forEach((node, i) => {
       if (box.children[i] !== node) box.insertBefore(node, box.children[i] || null);
     });
@@ -484,7 +582,11 @@
     const author = member(msg.authorId);
     const name = author?.name || msg.authorName || 'Usuário removido';
     const mine = msg.authorId === state.me.accountId;
-    const row = el('div', { class: 'msg' + (continued ? ' continued' : '') + (mentionsMe(msg) ? ' mentioned' : ''), data: { id: msg.id } });
+    const row = el('div', {
+      class: 'msg' + (continued ? ' continued' : '') + (mentionsMe(msg) ? ' mentioned' : '') + (state.replyTo?.id === msg.id ? ' replying' : ''),
+      data: { id: msg.id },
+    });
+    const openMenu = (e) => author && openMemberMenu(author.id, e);
 
     if (replied || replyMissing) {
       const ra = replied && member(replied.authorId);
@@ -492,17 +594,21 @@
         el('span', { class: 'reply-curve' }),
         replied
           ? [el('span', { class: 'reply-author', style: { color: nameColor(ra) }, textContent: '@' + (ra?.name || replied.authorName || '?') }),
-            el('span', { class: 'reply-snippet', textContent: Format.plain(replied.text, fmtCtx) || '📎 Anexo' })]
+            el('span', { class: 'reply-snippet', textContent: Format.plain(replied.text, fmtCtx) || 'Clique para ver o anexo' })]
           : el('span', { class: 'reply-snippet', textContent: 'Mensagem original apagada' })));
     }
 
     const body = el('div', { class: 'msg-body' });
-    if (!continued) {
-      const openMenu = (e) => author && openMemberMenu(author.id, e);
-      row.append(avatar(author || { name, color: msg.authorColor }));
+    if (continued) {
+      row.append(el('span', { class: 'hover-time', textContent: hhmm(msg.ts), tip: formatStamp(msg.ts) }));
+    } else {
+      const av = avatar(author || { name, color: msg.authorColor });
+      av.onclick = openMenu;
+      av.oncontextmenu = openMenu;
+      row.append(av);
       body.append(el('div', {},
         el('span', { class: 'msg-author', style: { color: nameColor(author) || msg.authorColor || '' }, textContent: name, onclick: openMenu, oncontextmenu: openMenu }),
-        el('span', { class: 'msg-time', textContent: formatUntil(msg.ts) })));
+        el('span', { class: 'msg-time', textContent: formatStamp(msg.ts), tip: new Date(msg.ts).toLocaleString('pt-BR', { dateStyle: 'full', timeStyle: 'short' }) })));
     }
 
     if (state.editing === msg.id) {
@@ -523,7 +629,7 @@
     } else if (msg.text) {
       const onlyEmoji = /^(\p{Extended_Pictographic}|\p{Emoji_Component}|\s){1,20}$/u.test(msg.text) && !/\d/.test(msg.text);
       body.append(el('div', { class: 'msg-text' + (onlyEmoji ? ' jumbo' : '') }, Format.render(msg.text, fmtCtx),
-        msg.edited ? el('span', { class: 'edited', textContent: ' (editado)', title: formatUntil(msg.edited) }) : null));
+        msg.edited ? el('span', { class: 'edited', textContent: ' (editado)', tip: formatStamp(msg.edited) }) : null));
     }
 
     if (msg.attachments?.length) body.append(el('div', { class: 'attachments' }, msg.attachments.map(attachmentNode)));
@@ -533,27 +639,24 @@
       body.append(el('div', { class: 'reactions' },
         reactions.map(([emoji, users]) => el('button', {
           class: 'reaction' + (users.includes(state.me.accountId) ? ' mine' : ''),
-          title: users.map((id) => member(id)?.name || '?').join(', '),
+          tip: users.map((id) => member(id)?.name || '?').join(', '),
           onclick: () => react(msg.id, emoji),
         }, emoji, el('span', { textContent: String(users.length) }))),
-        canSend() ? el('button', { class: 'reaction add', title: 'Adicionar reação', textContent: '＋', onclick: (e) => openEmojiPicker(e.currentTarget, (em) => react(msg.id, em)) }) : null));
+        canSend() ? el('button', { class: 'reaction add', tip: 'Adicionar reação', ariaLabel: 'Adicionar reação', onclick: (e) => openEmojiPicker(e.currentTarget, (em) => react(msg.id, em)) }, Icon('smilePlus', 16)) : null));
     }
     row.append(body);
 
     const actions = el('div', { class: 'msg-actions' });
+    const action = (label, icon, onclick, cls = '') => el('button', { class: cls, tip: label, ariaLabel: label, onclick }, Icon(icon, 20));
     if (canSend()) {
-      actions.append(el('button', { title: 'Reagir', textContent: '😀', onclick: (e) => openEmojiPicker(e.currentTarget, (em) => react(msg.id, em)) }));
-      actions.append(el('button', { title: 'Responder', textContent: '↩️', onclick: () => startReply(msg) }));
+      actions.append(action('Adicionar reação', 'smilePlus', (e) => openEmojiPicker(e.currentTarget, (em) => react(msg.id, em))));
+      actions.append(action('Responder', 'reply', () => startReply(msg)));
     }
-    if (mine && canSend()) actions.append(el('button', { title: 'Editar', textContent: '✏️', onclick: () => { state.editing = msg.id; renderMessages(); } }));
+    if (mine && canSend()) actions.append(action('Editar', 'pencil', () => { state.editing = msg.id; renderMessages(); }));
     if (mine || hasPerm('MANAGE_MESSAGES')) {
-      actions.append(el('button', {
-        title: 'Apagar (Shift+clique apaga sem perguntar)',
-        textContent: '🗑️',
-        onclick: (e) => {
-          if (e.shiftKey || confirm('Apagar esta mensagem?')) call('chat:delete', { channel: state.textChannel, id: msg.id });
-        },
-      }));
+      actions.append(action('Apagar (Shift+clique apaga sem perguntar)', 'trash', (e) => {
+        if (e.shiftKey || confirm('Apagar esta mensagem?')) call('chat:delete', { channel: state.textChannel, id: msg.id });
+      }, 'danger'));
     }
     if (actions.childElementCount) row.append(actions);
     return row;
@@ -565,10 +668,10 @@
       return el('div', { class: 'att-image' }, img);
     }
     if (a.type.startsWith('video/')) return el('video', { class: 'att-video', src: a.url, controls: true, preload: 'metadata', onloadedmetadata: keepBottom });
-    const file = el('a', { class: 'att-file', href: a.url, download: a.name, title: 'Baixar' },
-      el('span', { class: 'att-icon', textContent: a.type.startsWith('audio/') ? '🎵' : '📄' }),
+    const file = el('a', { class: 'att-file', href: a.url, download: a.name },
+      el('span', { class: 'att-icon' }, Icon(a.type.startsWith('audio/') ? 'music' : 'file', 30)),
       el('div', { class: 'att-info' }, el('div', { class: 'att-name', textContent: a.name }), el('div', { class: 'muted-text', textContent: formatSize(a.size) })),
-      el('span', { textContent: '⬇️' }));
+      el('span', { class: 'att-dl', tip: 'Baixar' }, Icon('download', 22)));
     if (a.type.startsWith('audio/')) return el('div', { class: 'att-audio' }, file, el('audio', { src: a.url, controls: true, preload: 'none' }));
     return file;
   }
@@ -632,10 +735,10 @@
     const bar = $('#attachments-bar');
     bar.classList.toggle('hidden', !state.pending.length);
     bar.replaceChildren(...state.pending.map((p) => el('div', { class: 'pending' + (p.uploading ? ' uploading' : '') },
-      p.preview ? el('img', { src: p.preview, alt: '' }) : el('div', { class: 'att-icon', textContent: '📄' }),
+      p.preview ? el('img', { src: p.preview, alt: '' }) : el('div', { class: 'att-icon' }, Icon('file', 48)),
       el('div', { class: 'pending-name', textContent: p.name }),
       el('div', { class: 'muted-text', textContent: p.uploading ? 'enviando…' : formatSize(p.size) }),
-      el('button', { type: 'button', class: 'pending-remove', title: 'Remover', textContent: '✕', onclick: () => removePending(p) }))));
+      el('button', { type: 'button', class: 'pending-remove', tip: 'Remover anexo', ariaLabel: 'Remover anexo', onclick: () => removePending(p) }, Icon('trash', 18)))));
   }
 
   function removePending(p) {
@@ -782,7 +885,7 @@
       type: 'button',
       class: 'ac-item' + (i === ac.index ? ' active' : ''),
       onmousedown: (e) => { e.preventDefault(); applyAutocomplete(item); },
-    }, item.member ? avatar(item.member, 'small') : el('span', { class: 'ac-at', textContent: '@' }),
+    }, item.member ? avatar(item.member, 'small') : el('span', { class: 'ac-at' }, Icon('at', 18)),
     el('span', { style: { color: item.color || '' }, textContent: item.label }),
     item.note ? el('span', { class: 'muted-text', textContent: item.note }) : null)));
   }
@@ -971,7 +1074,7 @@
           const video = el('video', { autoplay: true, playsInline: true });
           video.onclick = () => (document.fullscreenElement ? document.exitFullscreen() : video.requestFullscreen());
           tile = el('div', { class: 'tile screen', data: { key } }, video,
-            el('div', { class: 'paused-overlay hidden' }, el('div', { class: 'paused-title', textContent: '⏸ Transmissão pausada' }),
+            el('div', { class: 'paused-overlay hidden' }, Icon('pause', 44), el('div', { class: 'paused-title', textContent: 'Transmissão pausada' }),
               el('div', { class: 'muted-text', textContent: 'A janela compartilhada foi minimizada. Ela volta sozinha quando a janela for restaurada.' })),
             el('div', { class: 'stats' }), el('div', { class: 'label' }));
           stage.prepend(tile);
@@ -982,7 +1085,8 @@
           video.srcObject = remote.screen;
           setSinkId(video);
         }
-        tile.querySelector('.label').textContent = '🖥️ Tela de ' + m.name;
+        tile.querySelector('.label').replaceChildren(Icon('screen', 16), 'Tela de ' + m.name);
+        tile.querySelector('.label .ico').style.color = '#fff';
       }
 
       const key = 'user-' + v.sid;
@@ -992,6 +1096,7 @@
         tile = el('div', {
           class: 'tile',
           data: { key },
+          style: { '--tile': m.color },
           oncontextmenu: (e) => openMemberMenu(m.id, e),
         }, avatar(m, '', v.sid), el('video', { class: 'cam hidden' + (self ? ' mirror' : ''), autoplay: true, playsInline: true, muted: true }), el('div', { class: 'label' }));
         stage.append(tile);
@@ -1003,7 +1108,10 @@
       tile.querySelector('.avatar').classList.toggle('hidden', !!camStream);
       tile.classList.toggle('speaking', state.speaking.has(v.sid));
       const silenced = m.serverMuted || timedOut(m);
-      tile.querySelector('.label').textContent = m.name + (silenced || v.muted ? ' 🔇' : '') + (m.serverDeafened || v.deafened ? ' 🙉' : '');
+      tile.style.setProperty('--tile', m.color);
+      tile.querySelector('.label').replaceChildren(m.name,
+        silenced || v.muted ? Icon('micOff', 16) : '',
+        m.serverDeafened || v.deafened ? Icon('headphonesOff', 16) : '');
     }
 
     for (const tile of [...stage.children]) {
@@ -1016,29 +1124,55 @@
     const me = meMember();
     const inVoice = !!state.voiceChannel;
     const forcedMute = me.serverMuted || timedOut(me) || !hasPerm('SPEAK');
+    const micOff = state.muted || state.deafened || forcedMute;
+    const deaf = state.deafened || me.serverDeafened;
     $('#voice-panel').classList.toggle('hidden', !inVoice);
-    $('#voice-room-name').textContent = channelById(state.voiceChannel)?.name || '';
+    $('#voice-room-name').textContent = inVoice ? `${channelById(state.voiceChannel)?.name || ''} / Resenha` : '';
+
     const mute = $('#btn-mute');
-    mute.classList.toggle('off', state.muted || forcedMute);
+    mute.replaceChildren(Icon(micOff ? 'micOff' : 'mic'));
+    mute.classList.toggle('off', micOff && !forcedMute);
     mute.classList.toggle('locked', forcedMute);
-    mute.textContent = state.muted || forcedMute ? '🔇' : '🎤';
-    mute.title = forcedMute ? 'Silenciado pelo servidor' : 'Microfone (Ctrl+Shift+M)';
+    mute.dataset.tip = forcedMute ? 'Silenciado pelo servidor' : micOff ? 'Ativar microfone' : 'Silenciar';
+    refreshTip(mute);
     const deafen = $('#btn-deafen');
-    deafen.classList.toggle('off', state.deafened || me.serverDeafened);
+    deafen.replaceChildren(Icon(deaf ? 'headphonesOff' : 'headphones'));
+    deafen.classList.toggle('off', state.deafened && !me.serverDeafened);
     deafen.classList.toggle('locked', !!me.serverDeafened);
-    deafen.textContent = state.deafened || me.serverDeafened ? '🙉' : '🎧';
-    deafen.title = me.serverDeafened ? 'Ensurdecido pelo servidor' : 'Fone de ouvido (Ctrl+Shift+D)';
-    for (const [id, kind, on, off] of [['#btn-share', 'screen', 'Qualidade / parar transmissão', 'Compartilhar tela'], ['#btn-camera', 'camera', 'Desligar câmera', 'Ligar câmera']]) {
-      const btn = $(id);
-      btn.classList.toggle('on', !!state.local[kind]);
-      btn.disabled = !state.local[kind] && !canVideo();
-      btn.title = state.local[kind] ? on : btn.disabled ? 'Sem permissão para vídeo' : off;
+    deafen.dataset.tip = me.serverDeafened ? 'Ensurdecido pelo servidor' : deaf ? 'Desativar surdez' : 'Ensurdecer';
+    refreshTip(deafen);
+
+    const video = {
+      camera: { btn: $('#btn-camera'), sc: $('#sc-cam'), label: 'Câmera', on: 'Desligar câmera', off: 'Ligar câmera', icon: 'camera', iconOff: 'cameraOff' },
+      screen: { btn: $('#btn-share'), sc: $('#sc-screen'), label: 'Tela', on: 'Qualidade / parar transmissão', off: 'Compartilhar tela', icon: 'screenShare', iconOff: 'screenShare' },
+    };
+    for (const [kind, v] of Object.entries(video)) {
+      const active = !!state.local[kind];
+      const disabled = !active && !canVideo();
+      const tip = active ? v.on : disabled ? 'Sem permissão para vídeo' : v.off;
+      v.btn.replaceChildren(Icon(v.icon, 18), v.label);
+      v.sc.replaceChildren(Icon(active || kind === 'screen' ? v.icon : v.iconOff, 24));
+      for (const b of [v.btn, v.sc]) {
+        b.classList.toggle('on', active);
+        b.disabled = disabled;
+        b.dataset.tip = tip;
+        refreshTip(b);
+      }
     }
+    const scMic = $('#sc-mic');
+    scMic.replaceChildren(Icon(micOff ? 'micOff' : 'mic', 24));
+    scMic.classList.toggle('off', micOff);
+    scMic.dataset.tip = mute.dataset.tip;
+    refreshTip(scMic);
   }
 
   // ---------------- menu de membro (clique direito) ----------------
   function closeMenu() {
-    $('#context-menu').classList.add('hidden');
+    const menu = $('#context-menu');
+    if (!menu.classList.contains('hidden') && $('#server-header').classList.contains('open')) $('#server-header').dataset.closedAt = Date.now();
+    menu.classList.add('hidden');
+    menu.style.width = '';
+    $('#server-header').classList.remove('open');
   }
   document.addEventListener('click', (e) => {
     if (!e.target.closest('#context-menu')) closeMenu();
@@ -1049,7 +1183,91 @@
     closeMenu();
     $('#emoji-picker').classList.add('hidden');
     $('#lightbox').classList.add('hidden');
+    $('#create-channel').classList.add('hidden');
   });
+
+  const menuItem = (label, icon, onclick, cls = '') => el('button', { class: 'menu-item ' + cls, onclick: async () => { closeMenu(); await onclick(); } },
+    el('span', { textContent: label }), icon ? Icon(icon, 18) : null);
+
+  // Menu do servidor (clicar no nome "Resenha").
+  $('#server-header').onclick = () => {
+    const header = $('#server-header');
+    if (Date.now() - Number(header.dataset.closedAt || 0) < 300) return; // o clique fechou o menu
+    const items = [];
+    if (['MANAGE_ROLES', 'MANAGE_CHANNELS', 'BAN'].some(hasPerm)) items.push(menuItem('Configurações do servidor', 'settings', () => openServerSettings()));
+    if (hasPerm('MANAGE_CHANNELS')) items.push(menuItem('Criar canal', 'plusCircle', () => openCreateChannel('text')));
+    items.push(menuItem('Copiar link de convite', 'link', copyInvite));
+    items.push(el('div', { class: 'menu-sep' }), menuItem('Configurações de usuário', 'userCog', () => $('#btn-settings').click()));
+    const menu = $('#context-menu');
+    menu.replaceChildren(...items);
+    header.classList.add('open');
+    const r = header.getBoundingClientRect();
+    menu.style.width = (r.width - 16) + 'px';
+    showMenuAt(r.left + 8, r.bottom + 8);
+  };
+
+  async function copyInvite() {
+    const text = location.origin;
+    try {
+      await navigator.clipboard.writeText(text);
+      toast('Link copiado! Mande para os amigos junto com a senha do servidor.', 'info');
+    } catch {
+      prompt('Copie o link de convite:', text);
+    }
+  }
+
+  // Categorias recolhíveis
+  for (const cat of document.querySelectorAll('.category[data-cat]')) {
+    cat.querySelector('.cat-toggle').onclick = () => {
+      const key = cat.dataset.cat;
+      state.collapsed.has(key) ? state.collapsed.delete(key) : state.collapsed.add(key);
+      localStorage.setItem('collapsed', JSON.stringify([...state.collapsed]));
+      renderChannels();
+    };
+    cat.querySelector('.cat-add').onclick = () => openCreateChannel(cat.dataset.cat);
+  }
+
+  $('#btn-members').onclick = () => {
+    state.showMembers = !state.showMembers;
+    localStorage.setItem('showMembers', state.showMembers);
+    render();
+    refreshTip($('#btn-members'));
+  };
+
+  // Janela "Criar canal"
+  function openCreateChannel(type) {
+    const form = $('#create-channel-form');
+    form.reset();
+    form.querySelector(`input[name=ctype][value=${type}]`).checked = true;
+    $('#create-channel-sub').textContent = type === 'voice' ? 'em Canais de voz' : 'em Canais de texto';
+    $('#create-channel-roles').classList.add('hidden');
+    $('#create-channel-role-list').replaceChildren(...state.server.roles.slice(1).map((r) => {
+      const box = el('input', { type: 'checkbox' });
+      box.dataset.role = r.id;
+      return el('label', { class: 'chip selectable' }, box, el('span', { class: 'dot', style: { background: r.color || '#99aab5' } }), r.name);
+    }));
+    $('#create-channel').classList.remove('hidden');
+    $('#create-channel-name').focus();
+  }
+  const closeCreateChannel = () => $('#create-channel').classList.add('hidden');
+  $('#create-channel-close').onclick = closeCreateChannel;
+  $('#create-channel-cancel').onclick = closeCreateChannel;
+  $('#create-channel-private').onchange = (e) => $('#create-channel-roles').classList.toggle('hidden', !e.target.checked);
+  $('#create-channel-name').oninput = (e) => {
+    // Canais de texto usam nomes-com-hifen, como no Discord.
+    if ($('#create-channel-form').ctype.value === 'text') e.target.value = e.target.value.toLowerCase().replace(/\s/g, '-');
+  };
+  $('#create-channel-form').onsubmit = async (e) => {
+    e.preventDefault();
+    const form = e.target;
+    const type = form.ctype.value;
+    const allowedRoles = $('#create-channel-private').checked
+      ? [...$('#create-channel-role-list').querySelectorAll('input:checked')].map((b) => b.dataset.role) : [];
+    const res = await call('channel', { action: 'create', type, name: $('#create-channel-name').value, allowedRoles });
+    if (!res) return;
+    closeCreateChannel();
+    if (type === 'text') openTextChannel(res.id);
+  };
 
   function openMemberMenu(accountId, e) {
     e.preventDefault();
@@ -1060,7 +1278,7 @@
     menu.innerHTML = '';
     const self = m.id === state.me.accountId;
     const v = state.server.voice.find((x) => x.accountId === m.id);
-    const item = (label, onclick, cls = '') => el('button', { class: 'menu-item ' + cls, textContent: label, onclick: async () => { closeMenu(); await onclick(); } });
+    const item = (label, onclick, cls = '') => menuItem(label, null, onclick, cls);
     const section = (title) => el('div', { class: 'menu-section', textContent: title });
     const sep = () => el('div', { class: 'menu-sep' });
     const mod = (action, value) => call('mod', { action, target: m.id, value });
@@ -1072,21 +1290,21 @@
     menu.append(el('div', { class: 'menu-head' },
       avatar(m),
       el('div', {},
-        el('div', { class: 'member-name', style: { color: nameColor(m) } }, m.name, isOwner(m.id) ? ' 👑' : ''),
+        el('div', { class: 'member-name', style: { color: nameColor(m) } }, m.name, isOwner(m.id) ? el('span', { class: 'owner-crown' }, Icon('crown', 14)) : ''),
         timedOut(m) ? el('div', { class: 'sub', textContent: '⏳ Castigo até ' + formatUntil(m.timeoutUntil) }) : null,
         el('div', { class: 'chips' }, roleChips.length ? roleChips : el('span', { class: 'muted-text', textContent: 'Sem cargos' })))));
 
     if (!self && canSend() && state.view === 'chat') {
-      menu.append(item('💬 Mencionar', () => insertAtCursor('@' + m.name + ' ')));
+      menu.append(item('Mencionar', () => insertAtCursor('@' + m.name + ' ')));
     }
 
     // Controles locais (só afetam o que eu ouço)
     if (!self && v && v.channel === state.voiceChannel) {
       const vol = Math.round((state.localVolume[m.id] ?? 1) * 100);
-      const label = el('span', { textContent: `Volume: ${vol}%` });
+      const label = el('span', { textContent: `Volume do usuário: ${vol}%` });
       const range = el('input', { type: 'range', min: 0, max: 100, value: vol });
       range.oninput = () => {
-        label.textContent = `Volume: ${range.value}%`;
+        label.textContent = `Volume do usuário: ${range.value}%`;
         state.localVolume[m.id] = range.value / 100;
         localStorage.setItem('localVolume', JSON.stringify(state.localVolume));
         applyAudio();
@@ -1095,7 +1313,7 @@
     }
     if (!self) {
       const localMuted = state.localMuted.has(m.id);
-      menu.append(item(localMuted ? '🔔 Desmutar para mim' : '🔕 Mutar para mim', () => {
+      menu.append(item(localMuted ? 'Desmutar para mim' : 'Mutar para mim', () => {
         localMuted ? state.localMuted.delete(m.id) : state.localMuted.add(m.id);
         localStorage.setItem('localMuted', JSON.stringify([...state.localMuted]));
         applyAudio();
@@ -1106,26 +1324,26 @@
     const actOn = canActOn(m);
     const modItems = [];
     if (hasPerm('MUTE_MEMBERS') && actOn) {
-      modItems.push(item(m.serverMuted ? '🎤 Remover silêncio do servidor' : '🔇 Silenciar no servidor', () => mod('serverMute', !m.serverMuted)));
-      modItems.push(item(m.serverDeafened ? '🎧 Remover surdez do servidor' : '🙉 Ensurdecer no servidor', () => mod('serverDeafen', !m.serverDeafened)));
+      modItems.push(item(m.serverMuted ? 'Remover silêncio do servidor' : 'Silenciar no servidor', () => mod('serverMute', !m.serverMuted)));
+      modItems.push(item(m.serverDeafened ? 'Remover surdez do servidor' : 'Ensurdecer no servidor', () => mod('serverDeafen', !m.serverDeafened)));
     }
     if (hasPerm('MOVE_MEMBERS') && actOn && v) {
-      modItems.push(item('📴 Desconectar da voz', () => mod('disconnect')));
+      modItems.push(item('Desconectar da voz', () => mod('disconnect')));
       const others = state.server.channels.filter((c) => c.type === 'voice' && c.id !== v.channel);
       if (others.length) {
         modItems.push(section('MOVER PARA'));
-        for (const c of others) modItems.push(item('🔊 ' + c.name, () => mod('move', c.id), 'indent'));
+        for (const c of others) modItems.push(item(c.name, () => mod('move', c.id), 'indent'));
       }
     }
     if (modItems.length) menu.append(sep(), ...modItems);
 
     if (hasPerm('TIMEOUT') && !self && iOutrank(m)) {
       menu.append(sep());
-      if (timedOut(m)) menu.append(item('✅ Remover castigo', () => mod('timeout', 0)));
+      if (timedOut(m)) menu.append(item('Remover castigo', () => mod('timeout', 0)));
       else {
         menu.append(section('CASTIGO (não fala nem escreve)'));
         const options = [['60 segundos', 1], ['5 minutos', 5], ['10 minutos', 10], ['1 hora', 60], ['1 dia', 1440], ['1 semana', 10080]];
-        for (const [label, min] of options) menu.append(item('⏳ ' + label, () => mod('timeout', min), 'indent'));
+        for (const [label, min] of options) menu.append(item(label, () => mod('timeout', min), 'indent'));
       }
     }
 
@@ -1149,10 +1367,10 @@
 
     const danger = [];
     if (hasPerm('KICK') && !self && iOutrank(m)) {
-      danger.push(item(`👢 Expulsar ${m.name}`, () => confirm(`Expulsar ${m.name}? A pessoa vai precisar entrar de novo.`) && mod('kick'), 'danger'));
+      danger.push(item(`Expulsar ${m.name}`, () => confirm(`Expulsar ${m.name}? A pessoa vai precisar entrar de novo.`) && mod('kick'), 'danger'));
     }
     if (hasPerm('BAN') && !self && iOutrank(m)) {
-      danger.push(item(`🔨 Banir ${m.name}`, () => confirm(`Banir ${m.name}? A pessoa não vai conseguir entrar mais.`) && mod('ban'), 'danger'));
+      danger.push(item(`Banir ${m.name}`, () => confirm(`Banir ${m.name}? A pessoa não vai conseguir entrar mais.`) && mod('ban'), 'danger'));
     }
     if (danger.length) menu.append(sep(), ...danger);
 
@@ -1172,12 +1390,13 @@
   let selectedRole = null;
   let creatingRole = false;
 
-  $('#btn-server-settings').onclick = () => {
+  function openServerSettings(tab) {
     const tabs = { roles: 'MANAGE_ROLES', channels: 'MANAGE_CHANNELS', bans: 'BAN' };
+    if (tab) settingsTab = tab;
     if (!hasPerm(tabs[settingsTab])) settingsTab = Object.keys(tabs).find((t) => hasPerm(tabs[t]));
     $('#server-settings').classList.remove('hidden');
     renderServerSettings();
-  };
+  }
   $('#server-settings-close').onclick = () => $('#server-settings').classList.add('hidden');
   $('#settings-tabs').onclick = (e) => {
     if (!e.target.dataset.tab) return;
@@ -1283,14 +1502,14 @@
       const boxes = roleBoxes(c.allowedRoles);
       return el('div', { class: 'channel-row' },
         el('div', { class: 'row gap' },
-          el('span', { class: 'icon', textContent: c.type === 'text' ? '#' : '🔊' }), name,
+          el('span', { class: 'icon' }, Icon(c.type === 'text' ? 'hash' : 'volume', 18)), name,
           el('button', { type: 'button', textContent: 'Salvar', onclick: () => call('channel', { action: 'update', id: c.id, name: name.value, allowedRoles: picked(boxes) }).then((r) => r && toast('Canal salvo', 'info')) }),
           el('button', { type: 'button', class: 'secondary danger-text', textContent: 'Apagar', onclick: () => confirm(`Apagar o canal ${c.name}?` + (c.type === 'text' ? ' As mensagens serão perdidas.' : '')) && call('channel', { action: 'delete', id: c.id }) })),
         el('div', { class: 'muted-text', textContent: 'Privado — só estes cargos veem (nenhum marcado = todos veem):' }),
         boxes);
     });
 
-    const type = el('select', {}, el('option', { value: 'text', textContent: '# Texto' }), el('option', { value: 'voice', textContent: '🔊 Voz' }));
+    const type = el('select', {}, el('option', { value: 'text', textContent: 'Texto' }), el('option', { value: 'voice', textContent: 'Voz' }));
     const newName = el('input', { placeholder: 'nome do canal', maxLength: 32 });
     const newRoles = roleBoxes([]);
     const create = el('div', { class: 'channel-row new' },
@@ -1719,7 +1938,7 @@
           video: { width: { ideal: preset.width }, height: { ideal: preset.height }, frameRate: { ideal: preset.fps, max: preset.fps } },
           // Áudio da aba/sistema sem os filtros de voz, que estragam música e som de jogo.
           audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false },
-          selfBrowserSurface: 'exclude', // não mostra a própria aba do Resenha (efeito "espelho infinito")
+          selfBrowserSurface: 'exclude', // não mostra a própria aba do Resenhex (efeito "espelho infinito")
           surfaceSwitching: 'include', // botão "compartilhar esta guia em vez disso"
           systemAudio: 'include',
           monitorTypeSurfaces: 'include',
@@ -1848,6 +2067,33 @@
   };
   $('#btn-camera').onclick = () => (state.local.camera ? stopVideo('camera') : startVideo('camera'));
   $('#btn-leave').onclick = () => leaveVoice();
+  $('#sc-leave').onclick = () => leaveVoice();
+  $('#sc-mic').onclick = () => $('#btn-mute').click();
+  $('#sc-cam').onclick = () => $('#btn-camera').click();
+  $('#sc-screen').onclick = (e) => {
+    if (!canVideo() && !state.local.screen) return;
+    openShareMenu(e.currentTarget);
+  };
+
+  // Ping da chamada (tempo de ida e volta até os outros participantes).
+  async function updatePing() {
+    const status = $('#vp-status');
+    if (!state.voiceChannel) return;
+    const rtts = [];
+    for (const peer of state.peers.values()) {
+      try {
+        (await peer.pc.getStats()).forEach((r) => {
+          if (r.type === 'candidate-pair' && r.nominated && r.state === 'succeeded' && r.currentRoundTripTime != null) rtts.push(r.currentRoundTripTime * 1000);
+        });
+      } catch {}
+    }
+    const ms = rtts.length ? Math.round(Math.max(...rtts)) : null;
+    status.classList.toggle('bad', ms != null && ms > 150 && ms <= 300);
+    status.classList.toggle('awful', ms != null && ms > 300);
+    status.dataset.tip = ms != null ? `Ping: ${ms} ms` : state.peers.size ? 'Conectando…' : 'Você está sozinho na sala';
+    refreshTip(status);
+  }
+  setInterval(updatePing, 2000);
 
   document.addEventListener('keydown', (e) => {
     if (!state.me) return;

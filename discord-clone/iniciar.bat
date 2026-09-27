@@ -1,10 +1,10 @@
 @echo off
 chcp 65001 >nul
-title Resenha - servidor
+title Resenhex
 cd /d "%~dp0"
 
 echo ============================================
-echo   Resenha - clone do Discord
+echo   Resenhex - servidor Resenha
 echo ============================================
 echo.
 
@@ -52,7 +52,7 @@ if "%ACCESS_PASSWORD%"=="" (
 
 echo.
 echo Iniciando o servidor em outra janela...
-start "Resenha - servidor (NAO FECHE)" cmd /k npm start
+start "Resenhex - servidor (NAO FECHE)" cmd /k npm start
 timeout /t 3 >nul
 
 echo.

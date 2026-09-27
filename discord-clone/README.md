@@ -1,6 +1,6 @@
-# Resenha: um clone do Discord
+# Resenhex
 
-Servidor próprio para você e seus amigos, com:
+Plataforma própria de chat e voz para você e seus amigos, inspirada no Discord. Vem com o servidor **Resenha** pronto para usar, com:
 
 - **Contas** com usuário e senha (login automático depois da primeira vez)
 - **Chat de texto** em canais, com histórico salvo, "fulano está digitando…", **editar** (✏️ ou seta ↑) e **apagar** mensagens
@@ -17,7 +17,8 @@ Servidor próprio para você e seus amigos, com:
 - **Moderação**: silenciar e ensurdecer no servidor, mover e desconectar da voz, castigo (timeout), expulsar e banir
 - **Canais privados** (visíveis só para certos cargos), além de criar, renomear e apagar canais
 - Escolha de **microfone e saída de áudio**, com supressão de ruído
-- Lista de membros agrupada por cargo, com online e offline
+- Lista de membros agrupada por cargo, com online e offline (dá para esconder pelo botão no topo)
+- Interface no estilo Discord: ícones vetoriais, dicas ao passar o mouse, categorias recolhíveis, divisores de data, menu do servidor (clique em "Resenha") e controles da chamada na parte de baixo da tela
 
 ## Cargos e moderação
 
@@ -133,7 +134,7 @@ Depois é só preencher `TURN_URL`, `TURN_USERNAME` e `TURN_CREDENTIAL`.
 ## Personalizando
 
 - Canais e cargos: pela ⚙️ de configurações do servidor, direto no app
-- Nome do servidor ("Resenha") e cores do tema: `public/index.html` e `public/style.css`
+- Nome do servidor ("Resenha") e cores do tema: `public/index.html` e `public/style.css` (as cores ficam no topo do CSS, em `:root`)
 - **Backup:** tudo fica em `data.json`, e os arquivos enviados ficam na pasta `uploads/`. Copie os dois para guardar. Se você apagar o `data.json`, o servidor começa do zero e a próxima conta criada vira a dona.
 
 ## Estrutura
@@ -143,6 +144,7 @@ discord-clone/
 ├── server.js          # Express + Socket.IO: contas, cargos/permissões, moderação, chat e sinalização WebRTC
 └── public/
     ├── index.html     # layout (servidores, canais, chat, palco de voz, membros)
+    ├── icons.js       # ícones SVG e o logo do Resenhex
     ├── style.css      # tema escuro estilo Discord
     └── app.js         # lógica do cliente: chat, menus de moderação, configurações, WebRTC (voz/tela)
 ```
@@ -151,7 +153,7 @@ discord-clone/
 
 - Um único servidor (dá para ter vários canais, mas não vários "servidores")
 - Sem mensagens diretas (DM), fotos de perfil ou status ("jogando X")
-- Push-to-talk só funciona com a janela do Resenha em foco (limite do navegador)
+- Push-to-talk só funciona com a janela do Resenhex em foco (limite do navegador)
 - Quem tiver o link de um arquivo enviado consegue abri-lo, mesmo que o arquivo esteja num canal privado. Os links são aleatórios e impossíveis de adivinhar.
 - O servidor guarda as últimas 300 mensagens de cada canal. As mais antigas, e os arquivos delas, são apagadas.
 - Não dá para trocar senha nem nome pela interface

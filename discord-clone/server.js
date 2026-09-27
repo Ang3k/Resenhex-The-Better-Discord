@@ -1,4 +1,4 @@
-// Servidor do clone do Discord: contas, cargos e permissões, moderação,
+// Servidor do Resenhex (plataforma de chat e voz inspirada no Discord): contas, cargos e permissões, moderação,
 // chat de texto com anexos, e sinalização WebRTC para voz, câmera e tela.
 const path = require('path');
 const fs = require('fs');
@@ -761,5 +761,5 @@ function formatMinutes(m) {
 }
 
 server.listen(PORT, () => {
-  console.log(`Discord clone rodando em http://localhost:${PORT}`);
+  console.log(`Resenhex rodando em http://localhost:${PORT}`);
 });
