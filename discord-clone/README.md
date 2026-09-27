@@ -172,6 +172,8 @@ sudo bash /home/ubuntu/resenhex/deploy/instalar-vps.sh --oracle
 
 O modo `--oracle` mantém as regras `iptables` da imagem, necessárias para os volumes de disco. **Não ative UFW nessa imagem**: a Oracle alerta que isso pode impedir o reinício da máquina. Além do firewall do sistema, libere no painel da Oracle as regras de entrada TCP 80/443, TCP/UDP 3478 e UDP 49160–49200 (e mantenha TCP 22 para SSH). Ao copiar contas e mensagens, use `ubuntu@SEU_IP` e depois `sudo chown -R resenhex:resenhex /var/lib/resenhex && sudo systemctl restart resenhex` via SSH.
 
+Na primeira instalação, o script também aceita `RESENHEX_PASSWORD_FILE=/caminho/privado` para reutilizar a senha de cadastro de uma instalação anterior sem digitá-la no terminal. O arquivo deve ser legível apenas pelo administrador do servidor.
+
 ## Colocando online a partir do seu PC
 
 Navegadores **só liberam microfone e captura de tela em HTTPS** (ou em `localhost`). Então, para os amigos acessarem, o servidor precisa estar em HTTPS. Algumas opções:

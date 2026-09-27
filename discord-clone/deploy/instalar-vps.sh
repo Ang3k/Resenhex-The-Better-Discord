@@ -60,8 +60,13 @@ else
   fi
   [[ "$PUBLIC_IP" =~ ^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$ ]] || { echo "IP inválido: $PUBLIC_IP"; exit 1; }
   echo
-  read -rsp "Senha do servidor (seus amigos usam para criar conta): " ACCESS_PASSWORD
-  echo
+  if [ -n "${RESENHEX_PASSWORD_FILE:-}" ]; then
+    [ -r "$RESENHEX_PASSWORD_FILE" ] || { echo 'Arquivo da senha não pode ser lido.'; exit 1; }
+    ACCESS_PASSWORD="$(head -n 1 "$RESENHEX_PASSWORD_FILE")"
+  else
+    read -rsp "Senha do servidor (seus amigos usam para criar conta): " ACCESS_PASSWORD
+    echo
+  fi
   [ -n "$ACCESS_PASSWORD" ] || { echo "A senha não pode ser vazia."; exit 1; }
   echo "Se você tem um domínio (ex.: resenha.seudominio.com), aponte ele para $PUBLIC_IP e digite abaixo."
   read -rp "Domínio (Enter para usar um endereço gratuito automático): " DOMAIN
