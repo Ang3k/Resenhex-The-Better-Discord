@@ -1,0 +1,105 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Resenha — clone do Discord</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 32 32%22%3E%3Crect width=%2232%22 height=%2232%22 rx=%2210%22 fill=%22%235865f2%22/%3E%3Ctext x=%2216%22 y=%2222%22 font-size=%2218%22 font-family=%22sans-serif%22 font-weight=%22bold%22 fill=%22white%22 text-anchor=%22middle%22%3ER%3C/text%3E%3C/svg%3E">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <!-- Tela de entrada -->
+  <div id="login" class="modal">
+    <form id="login-form" class="card">
+      <h1>Bem-vindo de volta!</h1>
+      <p>Escolha um nome para entrar no servidor.</p>
+      <label>NOME DE USUÁRIO
+        <input id="login-name" maxlength="32" required autocomplete="off">
+      </label>
+      <label id="login-password-label" class="hidden">SENHA DO SERVIDOR
+        <input id="login-password" type="password" autocomplete="current-password">
+      </label>
+      <label>COR
+        <input id="login-color" type="color" value="#5865f2">
+      </label>
+      <button type="submit">Entrar</button>
+    </form>
+  </div>
+
+  <div id="app" class="hidden">
+    <nav id="servers">
+      <div class="server-icon active" title="Resenha">R</div>
+    </nav>
+
+    <aside id="sidebar">
+      <header class="server-name">Resenha</header>
+      <div class="channels">
+        <div class="category">CANAIS DE TEXTO</div>
+        <ul id="text-channels"></ul>
+        <div class="category">CANAIS DE VOZ</div>
+        <ul id="voice-channels"></ul>
+      </div>
+
+      <div id="voice-panel" class="hidden">
+        <div>
+          <div class="voice-status">Voz conectada</div>
+          <div id="voice-room-name" class="muted-text"></div>
+        </div>
+        <div class="voice-buttons">
+          <button id="btn-share" title="Compartilhar tela">🖥️</button>
+          <button id="btn-leave" class="danger" title="Desconectar">📞</button>
+        </div>
+      </div>
+
+      <div id="user-panel">
+        <div class="avatar" id="me-avatar"></div>
+        <div class="me-name" id="me-name"></div>
+        <button id="btn-mute" title="Microfone">🎤</button>
+        <button id="btn-deafen" title="Fone de ouvido">🎧</button>
+        <button id="btn-settings" title="Dispositivos">⚙️</button>
+      </div>
+    </aside>
+
+    <main id="main">
+      <header id="main-header"></header>
+
+      <section id="chat-view">
+        <div id="messages"></div>
+        <div id="typing" class="muted-text"></div>
+        <form id="chat-form">
+          <input id="chat-input" autocomplete="off" maxlength="2000">
+        </form>
+      </section>
+
+      <section id="voice-view" class="hidden">
+        <div id="stage"></div>
+      </section>
+    </main>
+
+    <aside id="members">
+      <div class="category">ONLINE — <span id="online-count">0</span></div>
+      <ul id="member-list"></ul>
+    </aside>
+  </div>
+
+  <!-- Configurações de dispositivos -->
+  <div id="settings" class="modal hidden">
+    <div class="card">
+      <h2>Voz e vídeo</h2>
+      <label>MICROFONE
+        <select id="mic-select"></select>
+      </label>
+      <label>SAÍDA DE ÁUDIO
+        <select id="speaker-select"></select>
+      </label>
+      <label class="row"><input type="checkbox" id="noise-toggle" checked> Supressão de ruído / cancelamento de eco</label>
+      <button id="settings-close" type="button">Fechar</button>
+    </div>
+  </div>
+
+  <div id="toast" class="hidden"></div>
+
+  <script src="/socket.io/socket.io.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>

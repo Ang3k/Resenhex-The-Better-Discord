@@ -1,0 +1,17 @@
+{
+  "name": "resenha-discord-clone",
+  "version": "1.0.0",
+  "description": "Clone simples do Discord: chat de texto, chamadas de voz e compartilhamento de tela (WebRTC)",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "express": "^5.2.1",
+    "socket.io": "^4.8.4"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "private": true
+}
