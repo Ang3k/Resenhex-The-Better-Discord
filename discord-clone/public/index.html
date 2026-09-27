@@ -132,8 +132,10 @@
         <div id="stage"></div>
         <div id="stage-controls">
           <button type="button" id="sc-mic" class="sc-btn" aria-label="Microfone"></button>
+          <button type="button" id="sc-deaf" class="sc-btn" aria-label="Ensurdecer"></button>
           <button type="button" id="sc-cam" class="sc-btn" aria-label="Câmera"></button>
           <button type="button" id="sc-screen" class="sc-btn" aria-label="Compartilhar tela"></button>
+          <button type="button" id="sc-sounds" class="sc-btn" aria-label="Efeitos sonoros"></button>
           <button type="button" id="sc-leave" class="sc-btn hangup" data-icon="phone" data-tip="Desconectar" aria-label="Desconectar"></button>
         </div>
       </section>
@@ -169,9 +171,14 @@
         <label class="row"><input type="checkbox" id="echo-toggle" checked> Cancelamento de eco (deixe ligado se não usa fone)</label>
         <div class="mic-test">
           <button type="button" id="mic-test" class="secondary">Testar microfone</button>
-          <div class="mic-meter"><div id="mic-meter-fill"></div></div>
+          <div class="mic-meter"><div id="mic-meter-fill"></div><div id="sens-mark"></div></div>
         </div>
-        <span class="hint">No teste você ouve a própria voz já com a supressão. Use fone para não dar microfonia.</span>
+        <label>SENSIBILIDADE DE ENTRADA
+          <input type="range" id="sens-range" min="-80" max="0" step="1">
+          <span class="hint">O microfone só abre quando o som passa da marca branca na barra acima. Verde = abrindo; cinza = fechado.</span>
+        </label>
+        <label class="row"><input type="checkbox" id="sens-auto" checked> Ajustar sensibilidade automaticamente</label>
+        <span class="hint">No teste você ouve a própria voz já com a supressão e fica mudo na chamada. Use fone para não dar microfonia.</span>
         <label>MODO DE ENTRADA
           <select id="input-mode">
             <option value="voice">Detecção de voz</option>
@@ -195,6 +202,10 @@
           <span class="hint">Quem transmite a tela envia uma cópia para cada pessoa. Coloque aqui o upload do seu teste de velocidade para a qualidade ser dividida sem travar.</span>
         </label>
         <div class="section-title">NOTIFICAÇÕES</div>
+        <label class="row"><input type="checkbox" id="sb-toggle" checked> Ouvir efeitos sonoros (soundboard) dos outros</label>
+        <label>VOLUME DOS EFEITOS SONOROS
+          <input type="range" id="sb-volume" min="0" max="100">
+        </label>
         <label class="row"><input type="checkbox" id="sounds-toggle"> Sons (entrar/sair da sala, mutar, menções)</label>
         <label class="row"><input type="checkbox" id="notify-toggle"> Notificações na área de trabalho quando me mencionarem</label>
       </div>

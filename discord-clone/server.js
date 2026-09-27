@@ -44,7 +44,10 @@ const PERMS = {
   CONNECT: 'Entrar em canais de voz',
   SPEAK: 'Falar na voz',
   STREAM: 'Vídeo (câmera e compartilhar tela)',
+  SOUNDBOARD: 'Usar efeitos sonoros',
 };
+// Efeitos sonoros que podem ser tocados na chamada (o som é gerado no navegador de cada um).
+const SOUNDBOARD = ['grilo', 'trovao', 'aplausos', 'badumtss', 'buzina', 'fail', 'vitoria', 'suspense'];
 const ALL_PERMS = Object.keys(PERMS);
 
 // Servidores STUN/TURN entregues ao navegador. TURN é opcional, mas necessário
@@ -73,7 +76,7 @@ function defaultDb() {
     sessions: {},
     // A posição no array é a hierarquia: índice maior = cargo mais alto.
     roles: [
-      { id: 'everyone', name: '@everyone', color: '', hoist: false, perms: ['SEND_MESSAGES', 'CONNECT', 'SPEAK', 'STREAM'] },
+      { id: 'everyone', name: '@everyone', color: '', hoist: false, perms: ['SEND_MESSAGES', 'CONNECT', 'SPEAK', 'STREAM', 'SOUNDBOARD'] },
       { id: newId(), name: 'Moderador', color: '#3498db', hoist: true, perms: ['KICK', 'TIMEOUT', 'MUTE_MEMBERS', 'MOVE_MEMBERS', 'MANAGE_MESSAGES', 'MENTION_EVERYONE'] },
       { id: newId(), name: 'Admin', color: '#e74c3c', hoist: true, perms: ['ADMIN'] },
     ],
@@ -123,6 +126,12 @@ function loadDb() {
 
 const db = loadDb();
 db.uploads ||= {};
+// Servidores criados antes dos efeitos sonoros: libera para @everyone uma única vez.
+if (!db.soundboardMigrated) {
+  const everyone = db.roles.find((r) => r.id === 'everyone');
+  if (everyone && !everyone.perms.includes('SOUNDBOARD')) everyone.perms.push('SOUNDBOARD');
+  db.soundboardMigrated = true;
+}
 
 // Grava na hora ao desligar o servidor (Ctrl+C), para não perder o que estava pendente.
 function saveNow() {
@@ -687,6 +696,17 @@ io.on('connection', (socket) => {
     s.paused = s.sharing && !!paused;
     s.camera = !!camera && video;
     broadcastState();
+  });
+
+  // Efeito sonoro: todo mundo da sala toca o mesmo som.
+  on('sound:play', (acc, { sound }) => {
+    const s = online.get(socket.id);
+    if (!SOUNDBOARD.includes(sound)) fail('Som desconhecido');
+    if (!s.voice) fail('Entre numa sala de voz para usar efeitos sonoros.');
+    if (!can(acc, 'SOUNDBOARD')) fail('Você não tem permissão para usar efeitos sonoros.');
+    if (timedOut(acc)) fail('Você está de castigo.');
+    if (!allow('sound:' + acc.id, 4, 10000)) fail('Calma! Muitos efeitos sonoros seguidos.');
+    io.to('voice:' + s.voice).emit('sound', { sound, from: acc.id });
   });
 
   // Repassa ofertas/respostas/ICE entre dois participantes da mesma sala.

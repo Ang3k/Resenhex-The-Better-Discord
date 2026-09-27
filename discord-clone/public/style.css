@@ -232,6 +232,15 @@ a { color: var(--link); }
 .card .mic-test button { flex-shrink: 0; }
 .mic-meter { flex: 1; height: 8px; border-radius: 4px; background: var(--bg-rail); overflow: hidden; }
 #mic-meter-fill { height: 100%; width: 0; background: var(--green); transition: width .05s linear; }
+#mic-meter-fill.closed { background: #80848e; }
+.mic-meter { position: relative; }
+#sens-mark { position: absolute; top: -3px; bottom: -3px; width: 3px; margin-left: -1px; background: #fff; border-radius: 2px; }
+.card input[type=range] { accent-color: var(--brand); padding: 0; }
+.sb-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; padding: 4px; }
+.sb-btn { display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 8px 2px; border: 0; border-radius: 6px; background: #2b2d31; color: var(--text); font-size: 11px; font-weight: 500; }
+.sb-btn:hover:not(:disabled) { background: var(--brand); color: #fff; }
+.sb-btn:disabled { opacity: .4; }
+.sb-emoji { font-size: 22px; }
 .icon-btn.hangup:hover { background: var(--hover-strong); color: var(--red); }
 .icon-btn.active { color: var(--text-strong); }
 

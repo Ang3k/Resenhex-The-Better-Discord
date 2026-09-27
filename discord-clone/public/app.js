@@ -48,6 +48,12 @@
     noiseMode: NOISE_MODES[localStorage.getItem('noiseMode')] ? localStorage.getItem('noiseMode') : localStorage.getItem('noiseSuppression') === 'false' ? 'off' : 'ai',
     lastAiMode: localStorage.getItem('lastAiMode') === 'ai-lite' ? 'ai-lite' : 'ai',
     echoCancellation: localStorage.getItem('echoCancellation') !== 'false',
+    // Sensibilidade de entrada: abaixo do limite (em dB) o microfone fica fechado.
+    sensAuto: localStorage.getItem('sensAuto') !== 'false',
+    sensThreshold: Number(localStorage.getItem('sensThreshold') || -50),
+    // Efeitos sonoros (soundboard) tocados pelos outros
+    sbMuted: localStorage.getItem('sbMuted') === 'true',
+    sbVolume: Number(localStorage.getItem('sbVolume') ?? 0.6),
     ptt: JSON.parse(localStorage.getItem('ptt') || '{"enabled":false,"code":"Backquote","label":"`"}'),
     pttHeld: false,
     notify: localStorage.getItem('notify') !== 'false',
@@ -1157,7 +1163,7 @@
           video.srcObject = src;
           setSinkId(video);
         }
-        tile.querySelector('.label').replaceChildren(Icon('screen', 16), self ? 'Sua transmissão' : 'Tela de ' + m.name);
+        tile.querySelector('.label').replaceChildren(Icon('screen', 16), self ? `Sua transmissão · ${SHARE_PRESETS[state.sharePreset].label}` : 'Tela de ' + m.name);
         tile.querySelector('.label .ico').style.color = '#fff';
         renderTileControls(tile, { kind: 'screen', self, sid: v.sid, accountId: m.id, hidden });
       }
@@ -1273,6 +1279,9 @@
       items.push(el('div', { class: 'tc-volume' },
         btn(muted ? 'Ativar som da transmissão' : 'Silenciar transmissão', muted ? 'volumeX' : 'volume', () => toggleStreamMute(o.accountId), 'tc-mute' + (muted ? ' off' : '')), slider));
     }
+    if (o.kind === 'screen' && o.self) {
+      items.push(btn('Qualidade / trocar tela', 'settings', (e) => openShareMenu(e.currentTarget), 'tc-quality'));
+    }
     items.push(btn(pinned ? 'Desafixar' : 'Fixar', pinned ? 'pinOff' : 'pin', () => togglePin(tile.dataset.key), 'tc-pin' + (pinned ? ' active' : '')));
     if ((o.kind === 'screen' && !o.hidden) || o.camera) {
       if (document.pictureInPictureEnabled) items.push(btn('Abrir em janela flutuante', 'pip', () => togglePip(video), 'tc-pip'));
@@ -1369,6 +1378,16 @@
     nb.classList.toggle('active', aiOn);
     nb.dataset.tip = aiOn ? 'Supressão de ruído por IA: ligada' : 'Supressão de ruído por IA: desligada';
     refreshTip(nb);
+    const scDeaf = $('#sc-deaf');
+    scDeaf.replaceChildren(Icon(deaf ? 'headphonesOff' : 'headphones', 24));
+    scDeaf.classList.toggle('off', deaf);
+    scDeaf.dataset.tip = deafen.dataset.tip;
+    refreshTip(scDeaf);
+    const scSb = $('#sc-sounds');
+    scSb.replaceChildren(Icon(state.sbMuted ? 'volumeX' : 'music', 24));
+    scSb.classList.toggle('off', state.sbMuted);
+    scSb.dataset.tip = state.sbMuted ? 'Efeitos sonoros (silenciados)' : 'Efeitos sonoros';
+    refreshTip(scSb);
     const scMic = $('#sc-mic');
     scMic.replaceChildren(Icon(micOff ? 'micOff' : 'mic', 24));
     scMic.classList.toggle('off', micOff);
@@ -1846,6 +1865,7 @@
       if (sender) await sender.replaceTrack(track);
     }
     releaseMic(old);
+    attachGate(state.micStream);
     applyAudio();
     unwatchSpeaking(state.me.sid);
     watchSpeaking(state.me.sid, state.micStream);
@@ -1872,8 +1892,60 @@
   // Estou impedido de falar agora? (mudo, surdo, servidor, castigo ou push-to-talk solto)
   function selfSilent() {
     const me = meMember();
-    return state.muted || state.deafened || !!me?.serverDeafened || !!me?.serverMuted || timedOut(me) || !hasPerm('SPEAK') || (state.ptt.enabled && !state.pttHeld);
+    return state.muted || state.deafened || !!me?.serverDeafened || !!me?.serverMuted || timedOut(me) || !hasPerm('SPEAK')
+      || (state.ptt.enabled && !state.pttHeld)
+      || !!micTest // testando o microfone: os outros não te ouvem
+      || (!state.ptt.enabled && !gate.open); // abaixo da sensibilidade de entrada
   }
+
+  // ---------------- sensibilidade de entrada ----------------
+  // Mede o microfone por uma cópia da trilha (a original é desligada quando o "portão" fecha).
+  const gate = { open: true, meter: null, level: -100, floor: -60, lastLoud: 0 };
+  function levelMeter(stream) {
+    const track = stream.getAudioTracks()[0];
+    if (!track) return null;
+    const copy = track.clone();
+    const ctx = getAudioCtx();
+    const source = ctx.createMediaStreamSource(new MediaStream([copy]));
+    const analyser = ctx.createAnalyser();
+    analyser.fftSize = 1024;
+    source.connect(analyser);
+    const data = new Float32Array(analyser.fftSize);
+    return {
+      read() {
+        analyser.getFloatTimeDomainData(data);
+        let sum = 0;
+        for (const x of data) sum += x * x;
+        return 20 * Math.log10(Math.sqrt(sum / data.length) + 1e-6);
+      },
+      stop() { source.disconnect(); copy.stop(); },
+    };
+  }
+  function attachGate(stream) {
+    gate.meter?.stop();
+    // Mede o microfone bruto (antes da IA), como a sensibilidade do Discord: a fala abre o
+    // corte mesmo quando a supressão já limpou o ruído.
+    gate.meter = stream ? levelMeter(noise.pipes.get(stream)?.raw || stream) : null;
+    gate.open = true;
+    gate.lastLoud = performance.now();
+  }
+  // Limite automático: acompanha o ruído de fundo e abre ~12 dB acima dele.
+  const gateThreshold = () => (state.sensAuto ? Math.min(-25, Math.max(-65, gate.floor + 12)) : state.sensThreshold);
+  function updateGate() {
+    if (!gate.meter) return;
+    const now = performance.now();
+    const level = gate.meter.read();
+    gate.level = level;
+    gate.floor = level < gate.floor ? gate.floor * 0.7 + level * 0.3 : gate.floor + 0.02; // sobe devagar, desce rápido
+    // No mínimo manual (-80 dB) o corte fica desligado: microfone sempre aberto.
+    if (level > gateThreshold() || (!state.sensAuto && state.sensThreshold <= -80)) gate.lastLoud = now;
+    const open = now - gate.lastLoud < 400; // segura aberto um pouco depois da fala
+    if (open !== gate.open) {
+      gate.open = open;
+      applyAudio();
+    }
+  }
+  setInterval(updateGate, 50);
 
   // Aplica mudo/surdo (meu, do servidor e local) em tudo que toca ou transmite.
   function applyAudio() {
@@ -1991,6 +2063,7 @@
     if (!opts.keepView) state.view = 'voice';
     Sounds.play('join');
     watchSpeaking(state.me.sid, state.micStream);
+    attachGate(state.micStream);
     applyAudio();
     // Quem entra inicia a conexão com todos que já estavam na sala.
     for (const sid of peers) getPeer(sid);
@@ -2005,6 +2078,7 @@
     for (const sid of [...state.peers.keys()]) closePeer(sid);
     releaseMic(state.micStream);
     state.micStream = null;
+    attachGate(null);
     unwatchSpeaking(state.me.sid);
     state.voiceChannel = null;
     state.voiceSnapshot = null;
@@ -2153,6 +2227,42 @@
     }
   });
 
+  socket.on('sound', ({ sound, from }) => {
+    if (!state.voiceChannel || state.deafened || meMember()?.serverDeafened || state.sbMuted || state.localMuted.has(from)) return;
+    Sounds.playBoard(sound, state.sbVolume);
+    const b = Sounds.board[sound];
+    if (b && from !== state.me.accountId) toast(`${member(from)?.name || 'Alguém'} tocou ${b.emoji} ${b.label}`, 'info');
+  });
+
+  function setSbMuted(v) {
+    state.sbMuted = v;
+    localStorage.setItem('sbMuted', v);
+    renderControls();
+  }
+
+  function openSoundboard(anchor) {
+    const menu = $('#context-menu');
+    const allowed = hasPerm('SOUNDBOARD') && !timedOut(meMember());
+    const grid = el('div', { class: 'sb-grid' }, Object.entries(Sounds.board).map(([id, s]) => el('button', {
+      class: 'sb-btn', disabled: !allowed, tip: allowed ? 'Tocar para a sala' : 'Sem permissão para efeitos sonoros',
+      onclick: () => call('sound:play', { sound: id }),
+    }, el('span', { class: 'sb-emoji', textContent: s.emoji }), el('span', { textContent: s.label }))));
+    const vol = el('input', { type: 'range', min: 0, max: 100, value: Math.round(state.sbVolume * 100) });
+    const volLabel = el('span', { textContent: `Volume dos efeitos: ${vol.value}%` });
+    vol.oninput = () => {
+      state.sbVolume = vol.value / 100;
+      volLabel.textContent = `Volume dos efeitos: ${vol.value}%`;
+      localStorage.setItem('sbVolume', state.sbVolume);
+    };
+    menu.replaceChildren(el('div', { class: 'menu-section', textContent: 'EFEITOS SONOROS' }), grid,
+      el('div', { class: 'menu-sep' }), el('div', { class: 'menu-range' }, volLabel, vol),
+      menuItem(state.sbMuted ? 'Ativar efeitos sonoros dos outros' : 'Silenciar efeitos sonoros', state.sbMuted ? 'volume' : 'volumeX', () => setSbMuted(!state.sbMuted)));
+    menu.style.width = '320px';
+    const r = anchor.getBoundingClientRect();
+    menu.classList.remove('hidden');
+    showMenuAt(r.left + r.width / 2 - 160, r.top - menu.getBoundingClientRect().height - 8);
+  }
+
   socket.on('voice:peer-left', ({ id }) => {
     closePeer(id);
     if (state.view === 'voice') renderStage();
@@ -2271,11 +2381,79 @@
         },
       }, el('div', { textContent: p.label }), el('div', { class: 'muted-text', textContent: p.desc }))),
       ...(live
-        ? [el('div', { class: 'menu-sep' }), el('button', { class: 'menu-item danger', textContent: '⏹ Parar transmissão', onclick: () => { closeMenu(); stopVideo('screen'); } })]
+        ? [el('div', { class: 'menu-sep' }),
+          menuItem('Trocar tela/aplicativo', 'refresh', () => switchScreen()),
+          el('button', { class: 'menu-item danger', textContent: '⏹ Parar transmissão', onclick: () => { closeMenu(); stopVideo('screen'); } })]
         : [el('div', { class: 'menu-tip', textContent: 'Dica: para jogos, escolha "Tela inteira" e use o jogo em modo janela sem bordas. Se você compartilhar só uma janela e minimizá-la, a transmissão pausa.' })]));
     const rect = anchor.getBoundingClientRect();
     menu.classList.remove('hidden');
     showMenuAt(rect.left, rect.top - menu.getBoundingClientRect().height - 8);
+  }
+
+  function captureScreen() {
+    const preset = SHARE_PRESETS[state.sharePreset];
+    return navigator.mediaDevices.getDisplayMedia({
+      video: { width: { ideal: preset.width }, height: { ideal: preset.height }, frameRate: { ideal: preset.fps, max: preset.fps } },
+      // Áudio da aba/sistema sem os filtros de voz, que estragam música e som de jogo.
+      audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false },
+      selfBrowserSurface: 'exclude', // não mostra a própria aba do Resenhex (efeito "espelho infinito")
+      surfaceSwitching: 'include', // botão "compartilhar esta guia em vez disso"
+      systemAudio: 'include',
+      monitorTypeSurfaces: 'include',
+    });
+  }
+
+  // Liga os avisos da trilha de vídeo da tela (fim, janela minimizada).
+  function watchScreenTrack(video) {
+    const preset = SHARE_PRESETS[state.sharePreset];
+    video.contentHint = preset.hint;
+    video.onended = () => stopVideo('screen');
+    // O navegador "muta" a captura quando a janela compartilhada é minimizada.
+    video.onmute = () => {
+      state.sharePaused = true;
+      sendVoiceState();
+      toast('A janela que você compartilha foi minimizada, então a transmissão pausou. Restaure a janela ou compartilhe a "Tela inteira".', 'info');
+    };
+    video.onunmute = () => {
+      state.sharePaused = false;
+      sendVoiceState();
+    };
+    if (video.getSettings().displaySurface === 'window') {
+      toast('Você está compartilhando uma janela: se minimizá-la, a transmissão pausa. Para jogos, prefira "Tela inteira".', 'info');
+    }
+  }
+
+  // Troca a tela/aplicativo sem parar a live: as trilhas novas substituem as antigas
+  // em cada conexão (replaceTrack), então quem assiste não perde a transmissão.
+  async function switchScreen() {
+    const stream = state.local.screen;
+    if (!stream) return;
+    let next;
+    try {
+      next = await captureScreen();
+    } catch {
+      return; // cancelou: continua transmitindo o que estava
+    }
+    if (state.local.screen !== stream) return next.getTracks().forEach((t) => t.stop());
+    const old = stream.getTracks();
+    old.forEach((t) => { t.onended = null; t.onmute = null; t.onunmute = null; });
+    for (const kind of ['video', 'audio']) {
+      const track = next.getTracks().find((t) => t.kind === kind) || null;
+      for (const peer of state.peers.values()) {
+        const kindOf = (s) => s.track?.kind || peer.pc.getTransceivers().find((t) => t.sender === s)?.receiver.track.kind;
+        const sender = peer.senders.screen.find((s) => kindOf(s) === kind);
+        if (sender) await sender.replaceTrack(track).catch(() => {});
+        else if (track) peer.senders.screen.push(peer.pc.addTrack(track, stream));
+      }
+    }
+    old.forEach((t) => { stream.removeTrack(t); t.stop(); });
+    next.getTracks().forEach((t) => stream.addTrack(t));
+    state.sharePaused = false;
+    watchScreenTrack(stream.getVideoTracks()[0]);
+    applySharePreset();
+    sendVoiceState();
+    toast('Transmissão trocada.', 'info');
+    renderStage();
   }
 
   async function startVideo(kind) {
@@ -2283,15 +2461,7 @@
     try {
       if (kind === 'screen') {
         if (!navigator.mediaDevices.getDisplayMedia) return toast('Seu navegador não suporta compartilhamento de tela.');
-        state.local.screen = await navigator.mediaDevices.getDisplayMedia({
-          video: { width: { ideal: preset.width }, height: { ideal: preset.height }, frameRate: { ideal: preset.fps, max: preset.fps } },
-          // Áudio da aba/sistema sem os filtros de voz, que estragam música e som de jogo.
-          audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false },
-          selfBrowserSurface: 'exclude', // não mostra a própria aba do Resenhex (efeito "espelho infinito")
-          surfaceSwitching: 'include', // botão "compartilhar esta guia em vez disso"
-          systemAudio: 'include',
-          monitorTypeSurfaces: 'include',
-        });
+        state.local.screen = await captureScreen();
       } else {
         state.local.camera = await navigator.mediaDevices.getUserMedia({ video: { width: { ideal: 1280 }, height: { ideal: 720 }, frameRate: { ideal: 30 } } });
       }
@@ -2300,25 +2470,13 @@
       return; // usuário cancelou ou sem permissão
     }
     const video = state.local[kind].getVideoTracks()[0];
-    // Botão "Parar compartilhamento" do navegador, ou câmera desconectada.
-    video.onended = () => stopVideo(kind);
     if (kind === 'screen') {
-      video.contentHint = preset.hint;
       state.sharePaused = false;
-      // O navegador "muta" a captura quando a janela compartilhada é minimizada.
-      video.onmute = () => {
-        state.sharePaused = true;
-        sendVoiceState();
-        toast('A janela que você compartilha foi minimizada, então a transmissão pausou. Restaure a janela ou compartilhe a "Tela inteira".', 'info');
-      };
-      video.onunmute = () => {
-        state.sharePaused = false;
-        sendVoiceState();
-      };
-      if (video.getSettings().displaySurface === 'window') {
-        toast('Você está compartilhando uma janela: se minimizá-la, a transmissão pausa. Para jogos, prefira "Tela inteira".', 'info');
-      }
+      watchScreenTrack(video);
+    } else {
+      video.onended = () => stopVideo(kind); // câmera desconectada
     }
+    void preset;
     for (const peer of state.peers.values()) addVideoTracks(peer, kind);
     if (kind === 'screen') Sounds.play('stream');
     sendVoiceState();
@@ -2419,6 +2577,8 @@
   $('#btn-leave').onclick = () => leaveVoice();
   $('#sc-leave').onclick = () => leaveVoice();
   $('#sc-mic').onclick = () => $('#btn-mute').click();
+  $('#sc-deaf').onclick = () => $('#btn-deafen').click();
+  $('#sc-sounds').onclick = (e) => openSoundboard(e.currentTarget);
   $('#sc-cam').onclick = () => $('#btn-camera').click();
   $('#sc-screen').onclick = (e) => {
     if (!canVideo() && !state.local.screen) return;
@@ -2514,6 +2674,12 @@
     $('#upload-select').value = String(state.uploadMbps);
     $('#noise-mode').value = state.noiseMode;
     $('#echo-toggle').checked = state.echoCancellation;
+    $('#sens-auto').checked = state.sensAuto;
+    $('#sens-range').value = state.sensThreshold;
+    $('#sens-range').disabled = state.sensAuto;
+    $('#sb-toggle').checked = !state.sbMuted;
+    $('#sb-volume').value = Math.round(state.sbVolume * 100);
+    drawMeter(-100, false);
     // Abre na hora; a lista de dispositivos é preenchida logo em seguida.
     $('#settings').classList.remove('hidden');
     const devices = await navigator.mediaDevices.enumerateDevices().catch(() => []);
@@ -2533,6 +2699,37 @@
     localStorage.setItem('uploadMbps', state.uploadMbps);
     tuneSenders();
   };
+
+  // Barra de nível do microfone com a marca da sensibilidade (escala de -80 a 0 dB).
+  const dbToPct = (db) => Math.max(0, Math.min(100, ((db + 80) / 80) * 100));
+  function drawMeter(db, open) {
+    const threshold = state.sensAuto && !$('#settings').classList.contains('hidden') ? gateThreshold() : Number($('#sens-range').value);
+    const fill = $('#mic-meter-fill');
+    fill.style.width = dbToPct(db) + '%';
+    fill.classList.toggle('closed', !open);
+    $('#sens-mark').style.left = dbToPct(threshold) + '%';
+  }
+  $('#sens-auto').onchange = () => {
+    state.sensAuto = $('#sens-auto').checked;
+    $('#sens-range').disabled = state.sensAuto;
+    localStorage.setItem('sensAuto', state.sensAuto);
+    drawMeter(-100, false);
+  };
+  $('#sens-range').oninput = () => {
+    state.sensThreshold = Number($('#sens-range').value);
+    localStorage.setItem('sensThreshold', state.sensThreshold);
+    drawMeter(-100, false);
+  };
+  $('#sb-toggle').onchange = () => setSbMuted(!$('#sb-toggle').checked);
+  $('#sb-volume').oninput = () => {
+    state.sbVolume = $('#sb-volume').value / 100;
+    localStorage.setItem('sbVolume', state.sbVolume);
+  };
+  // Na chamada (sem teste rodando), a barra mostra o nível real do microfone.
+  setInterval(() => {
+    if (micTest || $('#settings').classList.contains('hidden') || !gate.meter) return;
+    drawMeter(gate.level, gate.open);
+  }, 100);
 
   $('#sounds-toggle').onchange = () => {
     Sounds.enabled = $('#sounds-toggle').checked;
@@ -2593,6 +2790,7 @@
   let micTest = null;
   function stopMicTest() {
     if (!micTest) return;
+    const wasInCall = !!state.voiceChannel;
     cancelAnimationFrame(micTest.raf);
     micTest.audio.srcObject = null;
     micTest.analyserSource.disconnect();
@@ -2600,6 +2798,8 @@
     micTest = null;
     $('#mic-test').textContent = 'Testar microfone';
     $('#mic-meter-fill').style.width = '0%';
+    applyAudio();
+    if (wasInCall) toast('Teste encerrado: seu microfone voltou na chamada.', 'info');
   }
   $('#mic-test').onclick = async () => {
     if (micTest) return stopMicTest();
@@ -2622,12 +2822,16 @@
     const data = new Uint8Array(analyser.fftSize);
     micTest = { stream, audio, analyserSource, raf: 0 };
     $('#mic-test').textContent = 'Parar teste';
+    applyAudio();
+    if (state.voiceChannel) toast('Durante o teste você fica mudo na chamada.', 'info');
+    const fdata = new Float32Array(analyser.fftSize);
     const tick = () => {
       if (!micTest) return;
-      analyser.getByteTimeDomainData(data);
+      analyser.getFloatTimeDomainData(fdata);
       let sum = 0;
-      for (const x of data) sum += (x - 128) ** 2;
-      $('#mic-meter-fill').style.width = Math.min(100, Math.sqrt(sum / data.length) * 3) + '%';
+      for (const x of fdata) sum += x * x;
+      const db = 20 * Math.log10(Math.sqrt(sum / fdata.length) + 1e-6);
+      drawMeter(db, db > (state.sensAuto ? gateThreshold() : Number($('#sens-range').value)));
       micTest.raf = requestAnimationFrame(tick);
     };
     tick();

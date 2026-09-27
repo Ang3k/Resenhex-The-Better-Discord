@@ -12,7 +12,8 @@ Plataforma própria de chat e voz para você e seus amigos, inspirada no Discord
 - **Formatação**: `**negrito**`, `*itálico*`, `__sublinhado__`, `~~riscado~~`, `` `código` ``, blocos ```` ``` ````, `> citação` e `||spoiler||`
 - **Chamadas de voz** em salas, com indicador verde de quem está falando e **sons** de entrar e sair
 - **Câmera** e **compartilhamento de tela** com perfis de qualidade (720p 30 fps, 1080p 30 fps e 1080p 60 fps), áudio do sistema e estatísticas ao vivo; dá para usar câmera e tela ao mesmo tempo; clique na tela para abrir em tela cheia
-- **Mutar / ensurdecer** (também pelos atalhos `Ctrl+Shift+M` / `Ctrl+Shift+D`) e **push-to-talk** (apertar uma tecla para falar)
+- **Efeitos sonoros (soundboard)**: botão 🎵 na barra da chamada toca grilo 🦗, trovão ⛈️, aplausos, ba dum tss e outros para todos da sala. Tem permissão própria ("Usar efeitos sonoros") e limite contra spam. Quem não quiser ouvir silencia no menu do 🎵 ou em ⚙️ Configurações, onde também ajusta o volume
+- **Mutar / ensurdecer** (botões na barra da chamada e no painel do usuário, também pelos atalhos `Ctrl+Shift+M` / `Ctrl+Shift+D`) e **push-to-talk** (apertar uma tecla para falar)
 - **Volume individual** e **mutar para mim** (só afeta o que você ouve)
 - **Cargos e permissões** estilo Discord, com hierarquia
 - **Moderação**: silenciar e ensurdecer no servidor, mover e desconectar da voz, castigo (timeout), expulsar e banir
@@ -79,7 +80,8 @@ Seu microfone passa por uma rede neural **antes** de ir para a chamada: barulho 
   - **IA leve**: usa o [RNNoise](https://github.com/xiph/rnnoise), para computadores mais fracos;
   - **Padrão do navegador**;
   - **Desligada**.
-- **Testar microfone** (nas configurações): você se ouve já com a supressão e vê o nível do som. Use fone.
+- **Testar microfone** (nas configurações): você se ouve já com a supressão e vê o nível do som. Use fone. Durante o teste você fica mudo na chamada, e o microfone volta sozinho ao parar.
+- **Sensibilidade de entrada**: com "Ajustar automaticamente" o microfone só abre acima do ruído de fundo. Desmarcando, você arrasta a barra e vê no medidor onde fica o corte (no mínimo, o microfone fica sempre aberto).
 - O cancelamento de eco é uma opção separada. Deixe ligado se você não usa fone.
 
 Medido nos testes, com um áudio de chiado mais zumbido de ventilador: a IA avançada reduziu o ruído em cerca de **46 dB** (vira silêncio) e manteve o volume da voz igual. A IA leve ajuda bem menos com ruído forte.
@@ -88,7 +90,7 @@ Modelos: pacote [`@sapphi-red/web-noise-suppressor`](https://github.com/sapphi-r
 
 ## Compartilhamento de tela: qualidade e problemas comuns
 
-Ao clicar em 🖥️, você escolhe um perfil. Dá para trocar no meio da transmissão, clicando em 🖥️ de novo.
+Ao clicar em 🖥️, você escolhe um perfil. Dá para trocar a qualidade no meio da transmissão, clicando em 🖥️ de novo ou no botão ⚙️ da sua própria transmissão. No mesmo menu, **Trocar tela/aplicativo** escolhe outro monitor, janela ou aba sem parar a live: quem assiste continua vendo, sem cair.
 
 | Perfil | Para quê |
 |---|---|
