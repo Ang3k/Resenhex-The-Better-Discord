@@ -9,7 +9,7 @@ command -v cloudflared >/dev/null || {
   echo "(Mac: brew install cloudflared)"
   exit 1
 }
-[ -d node_modules ] || npm install
+npm install --no-audit --no-fund --loglevel=error
 
 read -rp "Escolha a senha do servidor (seus amigos usam para criar conta): " ACCESS_PASSWORD
 [ -n "$ACCESS_PASSWORD" ] || { echo "A senha não pode ser vazia."; exit 1; }

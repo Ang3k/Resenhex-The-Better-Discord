@@ -3,6 +3,7 @@
 Plataforma própria de chat e voz para você e seus amigos, inspirada no Discord. Vem com o servidor **Resenha** pronto para usar, com:
 
 - **Contas** com usuário e senha (login automático depois da primeira vez)
+- **Reconexão automática**: se a internet ou o servidor cair, o app volta sozinho, sem recarregar a página, busca as mensagens perdidas e te coloca de volta na chamada
 - **Chat de texto** em canais, com histórico salvo, "fulano está digitando…", **editar** (✏️ ou seta ↑) e **apagar** mensagens
 - **Imagens e arquivos**: botão ＋, **Ctrl+V** para colar um print, ou arrastar para o chat. Imagens e vídeos aparecem no chat.
 - **Menções** `@nome`, `@cargo` e `@everyone`, com autocompletar ao digitar `@`
@@ -135,7 +136,14 @@ Depois é só preencher `TURN_URL`, `TURN_USERNAME` e `TURN_CREDENTIAL`.
 
 - Canais e cargos: pela ⚙️ de configurações do servidor, direto no app
 - Nome do servidor ("Resenha") e cores do tema: `public/index.html` e `public/style.css` (as cores ficam no topo do CSS, em `:root`)
-- **Backup:** tudo fica em `data.json`, e os arquivos enviados ficam na pasta `uploads/`. Copie os dois para guardar. Se você apagar o `data.json`, o servidor começa do zero e a próxima conta criada vira a dona.
+- **Backup:** tudo fica em `data.json`, e os arquivos enviados ficam na pasta `uploads/`. Copie os dois para guardar. A cada início o servidor também guarda uma cópia em `data.json.bak`. Se o `data.json` estiver corrompido (ex.: o PC desligou enquanto salvava), ele é guardado como `data.json.corrompido-…` e os dados são recuperados dessa cópia automaticamente. Se você apagar o `data.json`, o servidor começa do zero e a próxima conta criada vira a dona.
+
+## Proteções
+
+- **Força bruta:** depois de 5 senhas erradas seguidas, aquele nome fica bloqueado por 30 segundos para aquele IP. O tempo dobra a cada nova tentativa errada, até 10 minutos.
+- **Flood:** no máximo 10 mensagens a cada 5 segundos por pessoa, 20 reações a cada 5 segundos e 20 arquivos por minuto.
+- **Cadastros:** no máximo 20 contas por hora vindas do mesmo IP.
+- **Voz em primeiro lugar:** quando a internet aperta, o vídeo e a tela perdem qualidade antes da voz. A voz também usa redundância (RED), então não "picota" quando se perdem pacotes.
 
 ## Estrutura
 

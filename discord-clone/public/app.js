@@ -259,11 +259,16 @@
     });
   });
 
-  function authenticate(payload) {
-    if (!socket.connected) socket.connect();
+  // opts.reconnect: a conexão caiu e voltou; entra de novo em silêncio, busca o que
+  // chegou nesse meio tempo e volta para a chamada em que a pessoa estava.
+  function authenticate(payload, opts = {}) {
+    // "active" = o Socket.IO já está conectando/reconectando; chamar connect() de novo
+    // mandaria um segundo pedido de conexão e o servidor derrubaria a sessão.
+    if (!socket.connected && !socket.active) socket.connect();
     socket.emit('auth', payload, (res) => {
       if (res.error) {
         if (payload.token) localStorage.removeItem('token');
+        setConnBanner(null);
         showLogin();
         return toast(res.error);
       }
@@ -277,13 +282,29 @@
       $('#server-password').value = '';
       $('#login').classList.add('hidden');
       $('#app').classList.remove('hidden');
+      if (opts.reconnect) {
+        // Descarta o histórico em cache: as mensagens perdidas vêm na próxima leitura.
+        state.messages = {};
+        $('#messages').dataset.channel = '';
+        setConnBanner(null);
+        toast('Reconectado!', 'info');
+        if (opts.rejoin) joinVoice(opts.rejoin, { keepView: opts.view !== 'voice' });
+      }
       call('chat:unread').then((r) => {
         if (!r) return;
         state.unread = r.unread;
+        // O canal aberto na tela não conta como "não lido".
+        if (state.view === 'chat' && state.unread[state.textChannel]) markRead(state.textChannel);
         if (state.server) render();
       });
       if (state.server) render();
     });
+  }
+
+  function setConnBanner(text) {
+    const banner = $('#conn-banner');
+    banner.textContent = text || '';
+    banner.classList.toggle('hidden', !text);
   }
 
   fetch('/config').then((r) => r.json()).then((c) => {
@@ -301,13 +322,24 @@
     showLogin(reason);
   });
 
+  // Se a conexão cair, o app tenta voltar sozinho, sem recarregar a página.
+  let reconnecting = false;
+  let rejoinVoice = null;
   socket.on('disconnect', (reason) => {
-    if (reason === 'io client disconnect' || state.removed) return;
-    toast('Conexão perdida. Reconectando…');
-    leaveVoice(false);
+    if (reason === 'io client disconnect' || state.removed || !state.me) return;
+    reconnecting = true;
+    if (state.voiceChannel) rejoinVoice = { channel: state.voiceChannel, view: state.view };
+    leaveVoice(false, false);
+    setConnBanner('Conexão perdida. Tentando reconectar…');
   });
-  // Ao reconectar, recarrega a página: o token salvo faz o login automático.
-  socket.io.on('reconnect', () => { if (!state.removed) location.reload(); });
+  socket.on('connect', () => {
+    const token = localStorage.getItem('token');
+    if (!reconnecting || state.removed || !token) return;
+    reconnecting = false;
+    const rejoin = rejoinVoice;
+    rejoinVoice = null;
+    authenticate({ token }, { reconnect: true, rejoin: rejoin?.channel, view: rejoin?.view });
+  });
 
   socket.on('notice', (text) => toast(text, 'info'));
 
@@ -345,6 +377,16 @@
   }
 
   // ---------------- renderização ----------------
+  // Devolve true se o valor mudou desde a última chamada com a mesma chave. Usado para
+  // pular o redesenho de listas que não mudaram (o estado chega a cada mute/unmute).
+  const lastRender = new Map();
+  function changed(key, value) {
+    const sig = JSON.stringify(value);
+    if (lastRender.get(key) === sig) return false;
+    lastRender.set(key, sig);
+    return true;
+  }
+
   function render() {
     if (!state.server || !state.me || !meMember()) return;
     const me = meMember();
@@ -390,6 +432,9 @@
   }
 
   function renderChannels() {
+    const s = state.server;
+    if (!changed('channels', [s.channels, s.voice, s.members.map((m) => [m.id, m.name, m.color, m.serverMuted, m.serverDeafened, m.timeoutUntil]),
+      state.unread, state.textChannel, state.view, state.voiceChannel, [...state.collapsed], [...state.localMuted], s.myPerms])) return;
     const canManage = hasPerm('MANAGE_CHANNELS');
     const gear = () => canManage ? el('button', {
       class: 'channel-gear', tip: 'Editar canal', ariaLabel: 'Editar canal',
@@ -446,6 +491,8 @@
   }
 
   function renderMembers() {
+    const s = state.server;
+    if (!changed('members', [s.members, s.roles, s.ownerId, s.voice.map((v) => [v.accountId, v.channel, v.sharing]), s.channels.map((c) => [c.id, c.name])])) return;
     const list = $('#member-list');
     list.innerHTML = '';
     const groups = new Map(); // chave -> { title, pos, members }
@@ -968,7 +1015,7 @@
 
   function markRead(channel) {
     if (!channel) return;
-    if (state.unread[channel]) {
+    if (state.unread[channel] && socket.connected) {
       delete state.unread[channel];
       renderChannels();
       updateTitle();
@@ -1184,7 +1231,18 @@
     $('#emoji-picker').classList.add('hidden');
     $('#lightbox').classList.add('hidden');
     $('#create-channel').classList.add('hidden');
+    if (!$('#server-settings').classList.contains('hidden')) $('#server-settings').classList.add('hidden');
+    else if (!$('#settings').classList.contains('hidden')) $('#settings-close').click();
   });
+
+  // Clicar no fundo escuro fecha a janela (as configurações de usuário são salvas).
+  for (const id of ['#settings', '#server-settings', '#create-channel']) {
+    $(id).addEventListener('mousedown', (e) => {
+      if (e.target !== e.currentTarget) return;
+      if (id === '#settings') $('#settings-close').click();
+      else $(id).classList.add('hidden');
+    });
+  }
 
   const menuItem = (label, icon, onclick, cls = '') => el('button', { class: 'menu-item ' + cls, onclick: async () => { closeMenu(); await onclick(); } },
     el('span', { textContent: label }), icon ? Icon(icon, 18) : null);
@@ -1424,7 +1482,8 @@
   function rolesTab() {
     const roles = state.server.roles;
     const myTop = topPos(meMember());
-    if (!roles.some((r) => r.id === selectedRole)) selectedRole = roles[roles.length - 1].id;
+    // Se o cargo escolhido ainda não chegou (acabou de ser criado), mostra o mais alto sem esquecer a escolha.
+    const shownRole = roles.some((r) => r.id === selectedRole) ? selectedRole : roles[roles.length - 1].id;
     const list = el('div', { class: 'role-list' },
       el('button', {
         type: 'button', class: 'secondary', textContent: '+ Criar cargo',
@@ -1440,13 +1499,13 @@
         const count = state.server.members.filter((m) => m.roles.includes(r.id)).length;
         return el('button', {
           type: 'button',
-          class: 'role-row' + (r.id === selectedRole ? ' active' : ''),
+          class: 'role-row' + (r.id === shownRole ? ' active' : ''),
           onclick: () => { selectedRole = r.id; renderServerSettings(); },
         }, el('span', { class: 'dot', style: { background: r.color || '#99aab5' } }), el('span', { class: 'grow', textContent: r.name }),
         r.id === 'everyone' ? null : el('span', { class: 'muted-text', textContent: String(count) }));
       }));
 
-    const i = roleIdx(selectedRole);
+    const i = roleIdx(shownRole);
     const role = roles[i];
     const editable = i < myTop;
     const everyone = role.id === 'everyone';
@@ -1620,12 +1679,16 @@
   function unwatchSpeaking(sid) {
     analysers.get(sid)?.source.disconnect();
     analysers.delete(sid);
+    lastLoud.delete(sid);
     state.speaking.delete(sid);
   }
 
+  // Mantém o círculo verde por um instante depois da última sílaba, para não piscar entre palavras.
+  const lastLoud = new Map(); // sid -> hora do último som
   setInterval(() => {
-    if (!state.server) return;
+    if (!state.server || !analysers.size) return;
     let changed = false;
+    const now = performance.now();
     for (const [sid, { analyser, data }] of analysers) {
       analyser.getByteTimeDomainData(data);
       let sum = 0;
@@ -1635,7 +1698,8 @@
       const muted = sid === state.me?.sid
         ? selfSilent()
         : !v || v.muted || v.silenced || state.localMuted.has(v.accountId);
-      const speaking = rms > 4 && !muted;
+      if (rms > 4 && !muted) lastLoud.set(sid, now);
+      const speaking = !muted && now - (lastLoud.get(sid) || 0) < 300;
       if (speaking !== state.speaking.has(sid)) {
         speaking ? state.speaking.add(sid) : state.speaking.delete(sid);
         changed = true;
@@ -1648,23 +1712,35 @@
   }, 100);
 
   // ---------------- voz (WebRTC) ----------------
-  async function joinVoice(channel) {
-    if (state.voiceChannel) leaveVoice(true, false);
-    state.micStream = await getMicStream();
-    const res = await call('voice:join', { channel });
-    if (!res) {
-      state.micStream.getTracks().forEach((t) => t.stop());
-      state.micStream = null;
-      return;
+  let joining = false;
+  // opts.keepView: entra na chamada sem trocar a tela (usado ao reconectar).
+  async function joinVoice(channel, opts = {}) {
+    if (joining) return; // clique duplo ou entrada já em andamento
+    joining = true;
+    try {
+      if (state.voiceChannel) leaveVoice(true, false);
+      state.micStream = await getMicStream();
+      const res = await call('voice:join', { channel });
+      if (!res) {
+        state.micStream.getTracks().forEach((t) => t.stop());
+        state.micStream = null;
+        return;
+      }
+      startVoice(channel, res.peers, opts);
+    } finally {
+      joining = false;
     }
+  }
+
+  function startVoice(channel, peers, opts = {}) {
     state.voiceChannel = channel;
     state.voiceSnapshot = null;
-    state.view = 'voice';
+    if (!opts.keepView) state.view = 'voice';
     Sounds.play('join');
     watchSpeaking(state.me.sid, state.micStream);
     applyAudio();
     // Quem entra inicia a conexão com todos que já estavam na sala.
-    for (const sid of res.peers) getPeer(sid);
+    for (const sid of peers) getPeer(sid);
     sendVoiceState();
     render();
   }
@@ -1724,7 +1800,7 @@
     };
     state.peers.set(sid, peer);
 
-    for (const track of state.micStream.getTracks()) pc.addTrack(track, state.micStream);
+    for (const track of state.micStream.getTracks()) preferAudioCodecs(pc, pc.addTrack(track, state.micStream));
     for (const kind of ['screen', 'camera']) if (state.local[kind]) addVideoTracks(peer, kind);
 
     pc.onnegotiationneeded = async () => {
@@ -1832,6 +1908,20 @@
   // ---------------- câmera e compartilhamento de tela ----------------
   // Codec preferido para cada tipo: VP9 tem ferramentas para conteúdo de tela (texto nítido
   // com pouca banda); H.264 costuma ter codificação por hardware (leve para quem está jogando).
+  // Voz: RED manda cada pedacinho de áudio duas vezes, então a fala não "picota" quando
+  // a internet perde pacotes. Se o outro lado não suportar, a negociação cai para Opus.
+  function preferAudioCodecs(pc, sender) {
+    const transceiver = pc.getTransceivers().find((t) => t.sender === sender);
+    const caps = window.RTCRtpReceiver?.getCapabilities?.('audio');
+    if (!transceiver?.setCodecPreferences || !caps) return;
+    const red = caps.codecs.filter((c) => c.mimeType.toLowerCase() === 'audio/red');
+    const opus = caps.codecs.filter((c) => c.mimeType.toLowerCase() === 'audio/opus');
+    if (!opus.length) return;
+    try {
+      transceiver.setCodecPreferences([...red, ...opus, ...caps.codecs.filter((c) => !red.includes(c) && !opus.includes(c))]);
+    } catch {}
+  }
+
   // Usa o primeiro codec da lista que o navegador suportar (nem todo Chromium tem H.264).
   function preferCodec(pc, sender, mimes) {
     const transceiver = pc.getTransceivers().find((t) => t.sender === sender);
@@ -1870,24 +1960,30 @@
     };
   }
 
+  // Ajusta os codificadores de cada conexão. Só chama setParameters quando algo muda:
+  // isso roda a cada atualização de estado e reconfigurar à toa custa processamento.
   function tuneSenders() {
-    if (!state.local.screen && !state.local.camera) return;
     const rates = videoBitrates();
     const preset = SHARE_PRESETS[state.sharePreset];
+    const apply = (sender, encoding, degradation) => {
+      const params = sender.getParameters();
+      if (!params.encodings?.length) return; // ainda negociando; tenta de novo depois
+      const enc = params.encodings[0];
+      const same = Object.entries(encoding).every(([k, v]) => enc[k] === v) && (!degradation || params.degradationPreference === degradation);
+      if (same) return;
+      Object.assign(enc, encoding);
+      if (degradation) params.degradationPreference = degradation;
+      sender.setParameters(params).catch(() => {});
+    };
     for (const peer of state.peers.values()) {
+      // Voz tem prioridade na rede: se a internet apertar, o vídeo perde qualidade antes da fala.
+      const mic = peer.pc.getSenders().find((s) => s.track && s.track.kind === 'audio' && !peer.senders.screen.includes(s));
+      if (mic) apply(mic, { maxBitrate: 64_000, priority: 'high', networkPriority: 'high' });
       for (const kind of ['screen', 'camera']) {
         for (const sender of peer.senders[kind]) {
           if (sender.track?.kind !== 'video') continue;
-          const params = sender.getParameters();
-          if (!params.encodings?.length) continue; // ainda negociando; tenta de novo depois
-          params.encodings[0].maxBitrate = rates[kind];
-          if (kind === 'screen') {
-            params.encodings[0].maxFramerate = preset.fps;
-            params.degradationPreference = preset.degradation;
-          } else {
-            params.degradationPreference = 'balanced';
-          }
-          sender.setParameters(params).catch(() => {});
+          if (kind === 'screen') apply(sender, { maxBitrate: rates.screen, maxFramerate: preset.fps }, preset.degradation);
+          else apply(sender, { maxBitrate: rates.camera }, 'balanced');
         }
       }
     }
@@ -2006,6 +2102,7 @@
   const mbps = (bps) => (bps == null ? '' : ` · ${(bps / 1e6).toFixed(1).replace('.', ',')} Mbps`);
 
   async function updateStreamStats() {
+    if (!state.voiceChannel) statsPrev.clear();
     if (state.view !== 'voice' || !state.voiceChannel) return;
     for (const tile of document.querySelectorAll('#stage .tile.screen')) {
       const sid = tile.dataset.key.slice('screen-'.length);
@@ -2161,6 +2258,10 @@
     $('#notify-toggle').checked = state.notify && 'Notification' in window && Notification.permission === 'granted';
     $('#notify-toggle').disabled = !('Notification' in window) || Notification.permission === 'denied';
     renderPttSettings();
+    $('#upload-select').value = String(state.uploadMbps);
+    $('#noise-toggle').checked = state.noiseSuppression;
+    // Abre na hora; a lista de dispositivos é preenchida logo em seguida.
+    $('#settings').classList.remove('hidden');
     const devices = await navigator.mediaDevices.enumerateDevices().catch(() => []);
     const fill = (select, kind, current) => {
       select.innerHTML = '<option value="">Padrão</option>';
@@ -2171,9 +2272,6 @@
     fill($('#mic-select'), 'audioinput', state.micDeviceId);
     fill($('#speaker-select'), 'audiooutput', state.speakerDeviceId);
     $('#speaker-select').disabled = !('setSinkId' in HTMLMediaElement.prototype);
-    $('#noise-toggle').checked = state.noiseSuppression;
-    $('#upload-select').value = String(state.uploadMbps);
-    $('#settings').classList.remove('hidden');
   };
 
   $('#upload-select').onchange = () => {

@@ -566,6 +566,11 @@ blockquote { margin: 2px 0; padding: 0 8px 0 12px; border-left: 4px solid #4e505
   font-size: 14px; font-weight: 500; box-shadow: var(--shadow-float); animation: pop .15s ease-out;
 }
 #toast.info { background: var(--bg-floating); }
+#conn-banner {
+  position: fixed; top: 0; left: 50%; transform: translateX(-50%); z-index: 45;
+  background: var(--yellow); color: #1e1f22; font-size: 14px; font-weight: 600; padding: 6px 16px; border-radius: 0 0 8px 8px;
+  box-shadow: var(--shadow-float);
+}
 
 /* ---------- Telas menores ---------- */
 @media (max-width: 1000px) {

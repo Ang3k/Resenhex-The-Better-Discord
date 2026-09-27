@@ -16,9 +16,11 @@ if errorlevel 1 (
   exit /b 1
 )
 
-if not exist node_modules (
-  echo Instalando dependencias...
-  call npm install
+rem Sempre confere as dependencias: e rapido quando ja esta tudo instalado,
+rem e garante que atualizacoes do Resenhex funcionem.
+(
+  echo Verificando dependencias...
+  call npm install --no-audit --no-fund --loglevel=error
   if errorlevel 1 (
     echo [ERRO] Falha no npm install.
     pause

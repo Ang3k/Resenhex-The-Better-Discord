@@ -4,7 +4,6 @@ const path = require('path');
 const fs = require('fs');
 const http = require('http');
 const crypto = require('crypto');
-const { promisify } = require('util');
 const express = require('express');
 const { Server } = require('socket.io');
 
@@ -83,8 +82,13 @@ function defaultDb() {
   };
 }
 
-function parseDbFile(file) {
-  const raw = JSON.parse(fs.readFileSync(file, 'utf8'));
+function loadDb() {
+  let raw;
+  try {
+    raw = JSON.parse(fs.readFileSync(DATA_FILE, 'utf8'));
+  } catch {
+    return defaultDb();
+  }
   if (raw.accounts) return raw;
   // Formato antigo (só mensagens por nome de canal): mantém o histórico.
   const db = defaultDb();
@@ -93,29 +97,6 @@ function parseDbFile(file) {
     db.messages[channel] = list.map((m) => ({ id: m.id, authorId: null, authorName: m.author, authorColor: m.color, text: m.text, ts: m.ts }));
   }
   return db;
-}
-
-// Carrega os dados. A cada início guarda uma cópia (data.json.bak); se o arquivo
-// principal estiver corrompido, ele é preservado com outro nome e a cópia é usada.
-function loadDb() {
-  if (!fs.existsSync(DATA_FILE)) return defaultDb();
-  try {
-    const db = parseDbFile(DATA_FILE);
-    fs.copyFileSync(DATA_FILE, DATA_FILE + '.bak');
-    return db;
-  } catch (err) {
-    const broken = `${DATA_FILE}.corrompido-${Date.now()}`;
-    fs.renameSync(DATA_FILE, broken);
-    console.error(`[!] ${DATA_FILE} estava corrompido (${err.message}). Guardado como ${broken}.`);
-    try {
-      const db = parseDbFile(DATA_FILE + '.bak');
-      console.error('[!] Dados recuperados do backup data.json.bak.');
-      return db;
-    } catch {
-      console.error('[!] Sem backup válido: começando do zero.');
-      return defaultDb();
-    }
-  }
 }
 
 const db = loadDb();
@@ -146,53 +127,14 @@ function save() {
 }
 
 // ---------------- senhas e sessões ----------------
-// scrypt assíncrono: calcular o hash leva ~70 ms e não pode travar o servidor
-// (chat e voz de todo mundo param enquanto o processo está ocupado).
-const scrypt = promisify(crypto.scrypt);
-
-async function hashPassword(password, salt = crypto.randomBytes(16).toString('hex')) {
-  return { salt, hash: (await scrypt(password, salt, 64)).toString('hex') };
+function hashPassword(password, salt = crypto.randomBytes(16).toString('hex')) {
+  return { salt, hash: crypto.scryptSync(password, salt, 64).toString('hex') };
 }
 
-async function checkPassword(acc, password) {
-  const { hash } = await hashPassword(password, acc.salt);
+function checkPassword(acc, password) {
+  const { hash } = hashPassword(password, acc.salt);
   return crypto.timingSafeEqual(Buffer.from(hash, 'hex'), Buffer.from(acc.hash, 'hex'));
 }
-
-// ---------------- limites contra abuso ----------------
-// Janela deslizante: no máximo "max" ações em "ms" milissegundos por chave.
-const hits = new Map();
-function allow(key, max, ms) {
-  const now = Date.now();
-  const list = (hits.get(key) || []).filter((t) => now - t < ms);
-  if (list.length >= max) {
-    hits.set(key, list);
-    return false;
-  }
-  list.push(now);
-  hits.set(key, list);
-  return true;
-}
-setInterval(() => {
-  const now = Date.now();
-  for (const [key, list] of hits) if (!list.length || now - list[list.length - 1] > 60 * 60 * 1000) hits.delete(key);
-}, 60 * 1000).unref();
-
-// Senha errada várias vezes seguidas bloqueia aquele nome, naquele IP, por um tempo crescente.
-const loginFailures = new Map(); // ip|nome -> { count, until }
-function loginLocked(key) {
-  const f = loginFailures.get(key);
-  return f && f.until > Date.now() ? Math.ceil((f.until - Date.now()) / 1000) : 0;
-}
-function loginFailed(key) {
-  const f = loginFailures.get(key) || { count: 0, until: 0 };
-  f.count++;
-  if (f.count >= 5) f.until = Date.now() + Math.min(30_000 * 2 ** (f.count - 5), 10 * 60 * 1000);
-  loginFailures.set(key, f);
-}
-
-// IP real de quem conecta (atrás do Cloudflare Tunnel todo mundo chega como 127.0.0.1).
-const clientIp = (headers, address) => String(headers['cf-connecting-ip'] || address || '');
 
 function createSession(accountId) {
   const token = crypto.randomBytes(32).toString('hex');
@@ -276,7 +218,6 @@ app.post('/upload', express.raw({ type: () => true, limit: MAX_UPLOAD_MB * 1024 
   const acc = db.accounts[db.sessions[req.get('x-token')]];
   if (!acc || acc.banned) return res.status(401).json({ error: 'Não autenticado' });
   if (!can(acc, 'SEND_MESSAGES') || timedOut(acc)) return res.status(403).json({ error: 'Você não pode enviar arquivos agora.' });
-  if (!allow('upload:' + acc.id, 20, 60 * 1000)) return res.status(429).json({ error: 'Muitos arquivos seguidos. Espere um pouco.' });
   if (!Buffer.isBuffer(req.body) || !req.body.length) return res.status(400).json({ error: 'Arquivo vazio' });
   let name;
   try {
@@ -328,26 +269,25 @@ function socketsOf(accountId) {
   return [...online].filter(([, s]) => s.accountId === accountId).map(([sid]) => io.sockets.sockets.get(sid)).filter(Boolean);
 }
 
-function publicMember(a, onlineIds) {
+function publicMember(a) {
   return {
     id: a.id,
     name: a.name,
     color: a.color,
     roles: a.roles,
-    online: onlineIds.has(a.id),
+    online: [...online.values()].some((s) => s.accountId === a.id),
     serverMuted: !!a.serverMuted,
     serverDeafened: !!a.serverDeafened,
     timeoutUntil: a.timeoutUntil || 0,
   };
 }
 
-// Partes do estado que são iguais para todo mundo: calculadas uma vez por envio.
-function sharedState() {
-  const onlineIds = new Set([...online.values()].map((s) => s.accountId));
-  const accounts = Object.values(db.accounts);
+function stateFor(acc) {
   return {
-    members: accounts.filter((a) => !a.banned).map((a) => publicMember(a, onlineIds)),
-    bans: accounts.filter((a) => a.banned).map((a) => ({ id: a.id, name: a.name })),
+    ownerId: db.ownerId,
+    roles: db.roles,
+    channels: db.channels.filter((c) => canView(acc, c)),
+    members: Object.values(db.accounts).filter((a) => !a.banned).map(publicMember),
     voice: [...online].filter(([, s]) => s.voice).map(([sid, s]) => {
       const a = db.accounts[s.accountId];
       return {
@@ -363,19 +303,8 @@ function sharedState() {
         silenced: !!a.serverMuted || timedOut(a) || !can(a, 'SPEAK'),
       };
     }),
-  };
-}
-
-function stateFor(acc, shared = sharedState()) {
-  const perms = permsOf(acc);
-  return {
-    ownerId: db.ownerId,
-    roles: db.roles,
-    channels: db.channels.filter((c) => canView(acc, c)),
-    members: shared.members,
-    voice: shared.voice,
-    myPerms: [...perms],
-    bans: perms.has('BAN') ? shared.bans : [],
+    myPerms: [...permsOf(acc)],
+    bans: can(acc, 'BAN') ? Object.values(db.accounts).filter((a) => a.banned).map((a) => ({ id: a.id, name: a.name })) : [],
   };
 }
 
@@ -409,22 +338,11 @@ function enforceVoice() {
   }
 }
 
-// Várias mudanças seguidas (ex.: entrar na sala e já mutar) viram um único envio.
-let broadcastQueued = false;
 function broadcastState() {
-  if (broadcastQueued) return;
-  broadcastQueued = true;
-  setImmediate(flushBroadcast);
-}
-
-function flushBroadcast() {
-  if (!broadcastQueued) return;
-  broadcastQueued = false;
   enforceVoice();
-  const shared = sharedState();
   for (const [sid, s] of online) {
     const acc = db.accounts[s.accountId];
-    if (acc) io.sockets.sockets.get(sid)?.emit('state', stateFor(acc, shared));
+    io.sockets.sockets.get(sid)?.emit('state', stateFor(acc));
   }
 }
 
@@ -461,8 +379,6 @@ io.on('connection', (socket) => {
       if (!acc) return reply({ error: 'Não autenticado' });
       try {
         const result = handler(acc, payload || {});
-        // Quem fez a ação recebe o estado novo antes da confirmação.
-        flushBroadcast();
         reply(result || { ok: true });
       } catch (err) {
         reply({ error: err.message });
@@ -471,19 +387,9 @@ io.on('connection', (socket) => {
   };
   const fail = (msg) => { throw new Error(msg); };
 
-  const ip = clientIp(socket.handshake.headers, socket.handshake.address);
-
   socket.on('auth', async (payload, ack) => {
-    if (typeof ack !== 'function' || online.has(socket.id) || socket.data.authing) return;
-    socket.data.authing = true;
-    try {
-      await authenticate(payload || {}, ack);
-    } finally {
-      socket.data.authing = false;
-    }
-  });
-
-  async function authenticate(payload, ack) {
+    if (typeof ack !== 'function' || online.has(socket.id)) return;
+    payload ||= {};
     let acc;
     if (payload.token) {
       acc = db.accounts[db.sessions[payload.token]];
@@ -497,24 +403,15 @@ io.on('connection', (socket) => {
         if (name.length < 2) return ack({ error: 'Nome muito curto' });
         if (password.length < 4) return ack({ error: 'A senha precisa ter pelo menos 4 caracteres' });
         if (existing) return ack({ error: 'Esse nome já está em uso' });
-        if (!allow('register:' + ip, 20, 60 * 60 * 1000)) return ack({ error: 'Muitas contas criadas daqui. Tente mais tarde.' });
-        const secret = await hashPassword(password);
-        // Outra pessoa pode ter pegado o nome enquanto o hash era calculado.
-        if (Object.values(db.accounts).some((a) => a.name.toLowerCase() === name.toLowerCase())) return ack({ error: 'Esse nome já está em uso' });
-        acc = { id: newId(), name, color: cleanColor(payload.color), roles: [], createdAt: Date.now(), ...secret };
+        acc = { id: newId(), name, color: cleanColor(payload.color), roles: [], createdAt: Date.now(), ...hashPassword(password) };
         db.accounts[acc.id] = acc;
         // A primeira conta criada vira dona do servidor.
         if (!db.ownerId) db.ownerId = acc.id;
       } else {
-        const key = ip + '|' + name.toLowerCase();
-        const locked = loginLocked(key);
-        if (locked) return ack({ error: `Muitas tentativas erradas. Tente de novo em ${locked} s.` });
-        if (!existing || !(await checkPassword(existing, password))) {
-          loginFailed(key);
+        if (!existing || !checkPassword(existing, password)) {
           await new Promise((r) => setTimeout(r, 800)); // atrasa tentativas de adivinhar senha
           return ack({ error: 'Nome ou senha incorretos' });
         }
-        loginFailures.delete(key);
         acc = existing;
       }
     }
@@ -524,7 +421,7 @@ io.on('connection', (socket) => {
     save();
     ack({ token, accountId: acc.id, sid: socket.id, iceServers: iceServers(), permNames: PERMS, maxUploadMb: MAX_UPLOAD_MB });
     broadcastState();
-  }
+  });
 
   on('logout', (acc, { token }) => {
     if (db.sessions[token] === acc.id) delete db.sessions[token];
@@ -559,7 +456,6 @@ io.on('connection', (socket) => {
     text = String(text || '').trim().slice(0, 4000);
     if (!can(acc, 'SEND_MESSAGES')) fail('Você não tem permissão para enviar mensagens.');
     if (timedOut(acc)) fail('Você está de castigo.');
-    if (!allow('chat:' + acc.id, 10, 5000)) fail('Você está enviando mensagens rápido demais. Espere um pouco.');
     const ids = [...new Set(Array.isArray(attachments) ? attachments : [])].slice(0, MAX_ATTACHMENTS);
     const ups = ids.map((id) => db.uploads[id]);
     if (ups.some((up) => !up || up.uploaderId !== acc.id || up.messageId)) fail('Anexo inválido, envie o arquivo de novo.');
@@ -607,7 +503,6 @@ io.on('connection', (socket) => {
     emoji = String(emoji || '');
     if (!emoji || emoji.length > 16 || /[\s<>]/.test(emoji)) fail('Emoji inválido');
     if (timedOut(acc)) fail('Você está de castigo.');
-    if (!allow('react:' + acc.id, 20, 5000)) fail('Calma! Reações rápidas demais.');
     const reactions = (msg.reactions ||= {});
     const users = reactions[emoji] || [];
     if (users.includes(acc.id)) reactions[emoji] = users.filter((u) => u !== acc.id);
@@ -641,7 +536,6 @@ io.on('connection', (socket) => {
   });
 
   on('typing', (acc, { channel }) => {
-    if (!allow('typing:' + acc.id, 3, 3000)) return;
     const c = db.channels.find((ch) => ch.id === channel);
     if (c) for (const [sid, s] of online) {
       if (sid !== socket.id && canView(db.accounts[s.accountId], c)) io.to(sid).emit('typing', { channel, name: acc.name });
