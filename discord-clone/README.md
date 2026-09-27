@@ -11,7 +11,7 @@ Plataforma própria de chat e voz para você e seus amigos, inspirada no Discord
 - **Responder** mensagens (↩️) e **reagir** com emoji (😀)
 - **Formatação**: `**negrito**`, `*itálico*`, `__sublinhado__`, `~~riscado~~`, `` `código` ``, blocos ```` ``` ````, `> citação` e `||spoiler||`
 - **Chamadas de voz** em salas, com indicador verde de quem está falando e **sons** de entrar e sair
-- **Câmera** e **compartilhamento de tela** com perfis de qualidade (Texto, Equilibrado, Jogos a 60 fps), áudio do sistema e estatísticas ao vivo; dá para usar câmera e tela ao mesmo tempo; clique na tela para abrir em tela cheia
+- **Câmera** e **compartilhamento de tela** com perfis de qualidade (720p 30 fps, 1080p 30 fps e 1080p 60 fps), áudio do sistema e estatísticas ao vivo; dá para usar câmera e tela ao mesmo tempo; clique na tela para abrir em tela cheia
 - **Mutar / ensurdecer** (também pelos atalhos `Ctrl+Shift+M` / `Ctrl+Shift+D`) e **push-to-talk** (apertar uma tecla para falar)
 - **Volume individual** e **mutar para mim** (só afeta o que você ouve)
 - **Cargos e permissões** estilo Discord, com hierarquia
