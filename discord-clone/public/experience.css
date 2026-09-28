@@ -84,8 +84,9 @@ button[hidden] { display: none !important; }
 .settings-callout > span { color: #b6afff; }
 .settings-callout strong { font-size: 13px; }
 .settings-callout p { font-size: 12px; margin-top: 6px; line-height: 1.6; }
-.profile-preview { border: 1px solid var(--divider); border-radius: 12px; overflow: hidden; background: var(--bg-panel); }
-.profile-cover { height: 80px; background: radial-gradient(ellipse at 85% 10%,#8c70d777,transparent 65%),linear-gradient(120deg,#443c78,#252e52); }
+.profile-preview { border: 1px solid var(--divider); border-radius: 12px; overflow: hidden; background: var(--bg-panel); max-width: 300px; }
+/* Mesmas medidas e cor do cartão de perfil, para a prévia mostrar o que os outros vão ver. */
+.profile-cover { height: 96px; background: linear-gradient(160deg, color-mix(in srgb, var(--pc-color, #5865f2) 85%, #fff 15%), color-mix(in srgb, var(--pc-color, #5865f2) 55%, #000 45%)) center / cover no-repeat; }
 .profile-preview-body { padding: 0 22px 22px; display: flex; gap: 14px; align-items: center; }
 .profile-preview-body .avatar { margin-top: -20px; width: 64px; height: 64px; border: 5px solid var(--bg-panel); font-size: 23px; }
 .profile-preview-body > div:last-child { display: grid; padding-top: 12px; gap: 5px; }

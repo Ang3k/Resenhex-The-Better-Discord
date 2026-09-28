@@ -3,6 +3,22 @@
 // Para uma versão nova: adicione um item no começo da lista e atualize a versão no package.json.
 window.CHANGELOG = [
   {
+    version: '0.8',
+    date: '2026-09-28',
+    name: 'Banner do perfil',
+    summary: 'Troque a faixa colorida do seu cartão de perfil por uma imagem ou um GIF animado.',
+    sections: [
+      { kind: 'new', items: [
+        'Banner do perfil: em Configurações → Meu perfil, clique em "Mudar banner" e escolha uma imagem PNG, JPG ou WebP, ou um GIF animado de até 5 MB.',
+        'A prévia nas configurações tem o mesmo tamanho do cartão de perfil, então você vê exatamente o que os outros vão ver.',
+        '"Remover banner" volta para a faixa colorida, que usa a cor do seu avatar.',
+      ] },
+      { kind: 'improved', items: [
+        'Imagens comuns são recortadas no centro na proporção do banner; GIFs são enviados inteiros para não perder a animação (até 1500 × 1500 px).',
+      ] },
+    ],
+  },
+  {
     version: '0.7',
     date: '2026-09-28',
     name: 'Papo reservado',

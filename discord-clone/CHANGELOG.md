@@ -3,6 +3,19 @@
 Histórico de versões. A mesma lista aparece dentro do app em **Novidades** (menu do servidor ou rodapé das Configurações).
 O Resenhex ainda está antes da 1.0.
 
+## v0.8 — Banner do perfil
+_28/09/2026_
+
+Troque a faixa colorida do seu cartão de perfil por uma imagem ou um GIF animado.
+
+### Novidades
+- Banner do perfil: em Configurações → Meu perfil, clique em "Mudar banner" e escolha uma imagem PNG, JPG ou WebP, ou um GIF animado de até 5 MB.
+- A prévia nas configurações tem o mesmo tamanho do cartão de perfil, então você vê exatamente o que os outros vão ver.
+- "Remover banner" volta para a faixa colorida, que usa a cor do seu avatar.
+
+### Melhorias
+- Imagens comuns são recortadas no centro na proporção do banner; GIFs são enviados inteiros para não perder a animação (até 1500 × 1500 px).
+
 ## v0.7 — Papo reservado
 _28/09/2026_
 

@@ -34,6 +34,7 @@ window.SettingsPanel = function ({ read, apply, preview, onOpen, onClose }) {
       output.textContent = field.value + (output.dataset.suffix || '');
     }
     root.querySelector('#profile-preview-avatar').style.background = root.querySelector('#profile-color').value;
+    root.querySelector('.profile-preview').style.setProperty('--pc-color', root.querySelector('#profile-color').value);
     preview(values());
   }
   function select(section, focus = false) {

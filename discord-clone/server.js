@@ -7,7 +7,7 @@ const crypto = require('crypto');
 const { promisify } = require('util');
 const express = require('express');
 const { Server } = require('socket.io');
-const { decodeAvatar } = require('./avatar');
+const { decodeAvatar, decodeBanner } = require('./avatar');
 
 const PORT = process.env.PORT || 3000;
 const HOST = process.env.HOST || '0.0.0.0';
@@ -344,9 +344,10 @@ app.get('/config', (_req, res) => {
 
 // Profile pictures are shared with the server, independent of chat attachments.
 // Uma imagem pode ser foto de alguém e ícone do servidor ao mesmo tempo (mesmo conteúdo, mesmo arquivo).
-const imageInUse = (file) => db.serverIcon === file || Object.values(db.accounts).some((account) => account.avatar === file);
+const IMAGE_FILE = /^[a-f0-9]{64}\.(png|gif)$/;
+const imageInUse = (file) => db.serverIcon === file || Object.values(db.accounts).some((account) => account.avatar === file || account.banner === file);
 function removeImageIfUnused(file) {
-  if (!file || !/^[a-f0-9]{64}\.png$/.test(file) || imageInUse(file)) return;
+  if (!file || !IMAGE_FILE.test(file) || imageInUse(file)) return;
   try { fs.unlinkSync(path.join(AVATAR_DIR, file)); } catch (error) { if (error.code !== 'ENOENT') console.warn('Não foi possível remover uma imagem antiga.'); }
 }
 function storeImage(dataUrl) {
@@ -357,9 +358,49 @@ function storeImage(dataUrl) {
 }
 
 app.get('/avatars/:file', (req, res) => {
-  if (!/^[a-f0-9]{64}\.png$/.test(req.params.file) || !imageInUse(req.params.file)) return res.status(404).end();
-  res.set({ 'Content-Type': 'image/png', 'X-Content-Type-Options': 'nosniff', 'Cache-Control': 'public, max-age=31536000, immutable' });
+  if (!IMAGE_FILE.test(req.params.file) || !imageInUse(req.params.file)) return res.status(404).end();
+  res.set({
+    'Content-Type': req.params.file.endsWith('.gif') ? 'image/gif' : 'image/png',
+    'X-Content-Type-Options': 'nosniff',
+    'Content-Security-Policy': "default-src 'none'; sandbox",
+    'Cache-Control': 'public, max-age=31536000, immutable',
+  });
   res.sendFile(path.join(AVATAR_DIR, req.params.file));
+});
+
+// Banner do perfil: imagem PNG (já recortada pelo navegador) ou GIF, enviada como bytes puros.
+const MAX_BANNER_UPLOAD = 5 * 1024 * 1024;
+const authFromToken = (req) => {
+  const acc = db.accounts[db.sessions[req.get('x-token')]];
+  return acc && !acc.banned ? acc : null;
+};
+app.post('/profile/banner', express.raw({ type: () => true, limit: MAX_BANNER_UPLOAD }), (req, res) => {
+  const acc = authFromToken(req);
+  if (!acc) return res.status(401).json({ error: 'Não autenticado' });
+  if (!allow('banner:' + acc.id, 10, 60 * 1000)) return res.status(429).json({ error: 'Muitas trocas de banner. Aguarde um minuto.' });
+  try {
+    const { ext, data } = decodeBanner(req.body);
+    const file = crypto.createHash('sha256').update(data).digest('hex') + '.' + ext;
+    fs.writeFileSync(path.join(AVATAR_DIR, file), data);
+    const previous = acc.banner;
+    acc.banner = file;
+    save();
+    broadcastState();
+    if (previous !== file) removeImageIfUnused(previous);
+    res.json({ ok: true, bannerUrl: '/avatars/' + file });
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
+app.delete('/profile/banner', (req, res) => {
+  const acc = authFromToken(req);
+  if (!acc) return res.status(401).json({ error: 'Não autenticado' });
+  const previous = acc.banner;
+  acc.banner = null;
+  save();
+  broadcastState();
+  removeImageIfUnused(previous);
+  res.json({ ok: true, bannerUrl: null });
 });
 
 app.post('/upload', express.raw({ type: () => true, limit: MAX_UPLOAD_MB * 1024 * 1024 }), (req, res) => {
@@ -405,8 +446,10 @@ app.get('/uploads/:file', (req, res) => {
 });
 
 // Upload maior que o limite ou outro erro de corpo da requisição.
-app.use((err, _req, res, _next) => {
-  if (err.type === 'entity.too.large') return res.status(413).json({ error: `Arquivo maior que ${MAX_UPLOAD_MB} MB` });
+app.use((err, req, res, _next) => {
+  if (err.type === 'entity.too.large') {
+    return res.status(413).json({ error: req.path === '/profile/banner' ? 'O banner deve ter até 5 MB.' : `Arquivo maior que ${MAX_UPLOAD_MB} MB` });
+  }
   console.error(err);
   res.status(500).json({ error: 'Erro no servidor' });
 });
@@ -424,6 +467,7 @@ function publicMember(a, onlineIds) {
     name: a.name,
     color: a.color,
     avatarUrl: a.avatar ? '/avatars/' + a.avatar : null,
+    bannerUrl: a.banner ? '/avatars/' + a.banner : null,
     since: a.createdAt || null,
     roles: a.roles,
     online: onlineIds.has(a.id),

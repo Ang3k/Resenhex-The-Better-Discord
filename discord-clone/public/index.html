@@ -312,7 +312,7 @@
 <button id="btn-logout" type="button">Sair da conta <span data-icon="phone" data-size="16">
 </span>
 </button>
-<button id="settings-version" type="button" class="settings-version">Resenhex v0.7 · <u>Novidades</u></button>
+<button id="settings-version" type="button" class="settings-version">Resenhex v0.8 · <u>Novidades</u></button>
 </div>
 </aside>
     <div class="settings-main">
@@ -327,7 +327,7 @@
 <h1>Meu perfil</h1>
 <p class="section-description">Um toque seu em cada conversa.</p>
 <div class="profile-preview">
-<div class="profile-cover">
+<div id="profile-preview-banner" class="profile-cover">
 </div>
 <div class="profile-preview-body">
 <div id="profile-preview-avatar" class="avatar">
@@ -348,6 +348,13 @@
   <input id="profile-avatar" type="hidden">
 </div>
 <p id="profile-photo-status" class="hint" role="status">PNG, JPG ou WebP de até 8 MB. A foto será recortada no centro. Salve para aplicar.</p>
+<div class="profile-photo-actions">
+  <button id="profile-banner-choose" type="button" data-draft-action>Mudar banner</button>
+  <button id="profile-banner-remove" type="button" class="secondary" data-draft-action>Remover banner</button>
+  <input id="profile-banner-file" type="file" accept="image/png,image/jpeg,image/webp,image/gif" data-draft-action hidden>
+  <input id="profile-banner" type="hidden">
+</div>
+<p id="profile-banner-status" class="hint" role="status">Imagem PNG, JPG ou WebP (recortada no centro) ou GIF animado de até 5 MB. Salve para aplicar.</p>
 <label>Cor do avatar<input id="profile-color" type="color">
 <span class="hint">Usada como fundo quando você não tem uma foto de perfil.</span>
 </label>

@@ -174,6 +174,34 @@
 
   // Ícone do servidor na faixa lateral e na aba do navegador.
   const DEFAULT_FAVICON = document.querySelector('link[rel=icon]')?.href;
+  // Banner do perfil. Imagens comuns são recortadas no centro na proporção 5:2 (600×240) e viram PNG.
+  // GIF vai inteiro, sem recorte, para não perder a animação; o servidor confere o arquivo de novo.
+  const BANNER_MAX_GIF = 5 * 1024 * 1024;
+  async function prepareBanner(file) {
+    const isGif = file.type === 'image/gif';
+    if (!['image/png', 'image/jpeg', 'image/webp', 'image/gif'].includes(file.type) || file.size > (isGif ? BANNER_MAX_GIF : 8 * 1024 * 1024)) throw new Error('type');
+    const bitmap = await createImageBitmap(file);
+    try {
+      if (!bitmap.width || !bitmap.height || bitmap.width * bitmap.height > 40_000_000) throw new Error('image-size');
+      if (isGif) {
+        if (bitmap.width > 1500 || bitmap.height > 1500) throw new Error('gif-size');
+        return file;
+      }
+      const canvas = document.createElement('canvas');
+      canvas.width = 600;
+      canvas.height = 240;
+      const ratio = 600 / 240;
+      const w = bitmap.width / bitmap.height > ratio ? bitmap.height * ratio : bitmap.width;
+      const h = bitmap.width / bitmap.height > ratio ? bitmap.height : bitmap.width / ratio;
+      const ctx = canvas.getContext('2d');
+      ctx.imageSmoothingQuality = 'high';
+      ctx.drawImage(bitmap, (bitmap.width - w) / 2, (bitmap.height - h) / 2, w, h, 0, 0, 600, 240);
+      return await new Promise((resolve, reject) => canvas.toBlob((blob) => (blob ? resolve(blob) : reject(new Error('encode'))), 'image/png'));
+    } finally {
+      bitmap.close();
+    }
+  }
+
   function renderServerIcon() {
     const url = state.server?.serverIcon || '';
     const key = url + ':' + serverName();
@@ -2198,10 +2226,18 @@
     }
 
     card.style.setProperty('--pc-color', color);
-    card.replaceChildren(
-      el('div', { class: 'pc-banner' },
+    // O banner é reaproveitado enquanto for o mesmo: refazê-lo reiniciaria a animação de um GIF a cada atualização.
+    let banner = card.querySelector(':scope > .pc-banner');
+    const bannerKey = m.id + '|' + (m.bannerUrl || '');
+    if (!banner || banner.dataset.key !== bannerKey) {
+      banner = el('div', { class: 'pc-banner', data: { key: bannerKey }, style: m.bannerUrl ? { backgroundImage: `url("${m.bannerUrl}")` } : {} },
         el('div', { class: 'pc-top-actions' },
-          el('button', { type: 'button', class: 'pc-icon-btn', tip: 'Mais', ariaLabel: 'Mais ações', onclick: (e) => { const r = e.currentTarget.getBoundingClientRect(); openMemberMenu(m.id, { preventDefault() {}, stopPropagation() {}, clientX: r.left, clientY: r.bottom + 6 }); } }, el('span', { class: 'kebab', textContent: '⋯' })))),
+          el('button', { type: 'button', class: 'pc-icon-btn', tip: 'Mais', ariaLabel: 'Mais ações', onclick: (e) => { const r = e.currentTarget.getBoundingClientRect(); openMemberMenu(m.id, { preventDefault() {}, stopPropagation() {}, clientX: r.left, clientY: r.bottom + 6 }); } }, el('span', { class: 'kebab', textContent: '⋯' }))));
+    }
+    // Só o que vem depois do banner é refeito; o banner nunca sai da tela enquanto for o mesmo.
+    for (const child of [...card.children]) if (child !== banner) child.remove();
+    if (banner.parentNode !== card) card.prepend(banner);
+    card.append(
       el('div', { class: 'pc-avatar-row' },
         el('div', { class: 'pc-avatar' }, avatar(m), el('span', { class: 'pc-status ' + presence[0], tip: presence[1] }))),
       el('div', { class: 'pc-body' },
@@ -3487,8 +3523,29 @@
   let cameraTestEpoch = 0;
   let cameraPreview = null;
   let avatarReadEpoch = 0;
+  let bannerReadEpoch = 0;
+  const BANNER_HINT = 'Imagem PNG, JPG ou WebP (recortada no centro) ou GIF animado de até 5 MB. Salve para aplicar.';
+  let pendingBanner = null; // { blob, url }: banner escolhido e ainda não enviado
+  function setPendingBanner(blob) {
+    if (pendingBanner) URL.revokeObjectURL(pendingBanner.url);
+    pendingBanner = blob ? { blob, url: URL.createObjectURL(blob) } : null;
+    return pendingBanner?.url || '';
+  }
+  // O banner é enviado por HTTP (imagens são maiores que o limite das mensagens do socket).
+  async function saveBanner(value) {
+    const headers = { 'x-token': localStorage.getItem('token') };
+    if (value && !pendingBanner) throw new Error('Escolha o banner de novo antes de salvar.');
+    let res;
+    try {
+      res = await fetch('/profile/banner', value ? { method: 'POST', headers, body: pendingBanner.blob } : { method: 'DELETE', headers });
+    } catch { throw new Error('Não foi possível enviar o banner. Verifique a conexão e tente novamente.'); }
+    const body = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(body.error || 'O banner não foi salvo. Tente novamente.');
+    $('#profile-banner').value = body.bannerUrl || '';
+    setPendingBanner(null);
+  }
   const settingFields = {
-    'profile-color': 'color', 'profile-avatar': 'avatar', 'mic-select': 'micDeviceId', 'speaker-select': 'speakerDeviceId',
+    'profile-color': 'color', 'profile-avatar': 'avatar', 'profile-banner': 'banner', 'mic-select': 'micDeviceId', 'speaker-select': 'speakerDeviceId',
     'camera-select': 'cameraDeviceId', 'noise-mode': 'noiseMode', 'echo-toggle': 'echoCancellation',
     'sens-auto': 'sensAuto', 'sens-range': 'sensThreshold', 'input-mode': 'inputMode',
     'ptt-code': 'pttCode', 'ptt-label': 'pttLabel', 'upload-select': 'uploadMbps',
@@ -3507,7 +3564,7 @@
   for (const id of ['mic-select', 'speaker-select', 'camera-select']) document.getElementById(id).replaceChildren(new Option('Padrão do sistema', ''));
 
   function readPreferences() {
-    return { ...state, color: meMember()?.color || '#5865f2', avatar: meMember()?.avatarUrl || '', sounds: Sounds.enabled,
+    return { ...state, color: meMember()?.color || '#5865f2', avatar: meMember()?.avatarUrl || '', banner: meMember()?.bannerUrl || '', sounds: Sounds.enabled,
       soundboard: !state.sbMuted, sbVolume: Math.round(state.sbVolume * 100),
       inputMode: state.ptt.enabled ? 'ptt' : 'voice', pttCode: state.ptt.code, pttLabel: state.ptt.label };
   }
@@ -3517,6 +3574,10 @@
     if (values.avatar !== undefined) {
       setAvatarContents($('#profile-preview-avatar'), values.avatar, meMember()?.name);
       $('#profile-photo-remove').disabled ||= !values.avatar || $('#profile-avatar').disabled;
+    }
+    if (values.banner !== undefined) {
+      $('#profile-preview-banner').style.backgroundImage = values.banner ? `url("${values.banner}")` : '';
+      $('#profile-banner-remove').disabled ||= !values.banner || $('#profile-banner').disabled;
     }
   }
   previewAppearance(state);
@@ -3547,6 +3608,9 @@
     preferences.setProcessing(false);
     $('#profile-photo-file').value = '';
     $('#profile-photo-status').textContent = 'PNG, JPG ou WebP de até 8 MB. A foto será recortada no centro. Salve para aplicar.';
+    bannerReadEpoch++;
+    $('#profile-banner-file').value = '';
+    $('#profile-banner-status').textContent = BANNER_HINT;
     stopMicTest();
     stopCameraPreview();
     if (captureKeyHandler) document.removeEventListener('keydown', captureKeyHandler, true);
@@ -3575,6 +3639,13 @@
       }
       $('#profile-avatar').value = result.avatarUrl || '';
     }
+    if (values.banner !== (meMember().bannerUrl || '')) {
+      try { await saveBanner(values.banner); }
+      catch (error) {
+        if (micChanged) await restartMic(state).catch(() => mediaNotice('Confira o microfone antes de continuar.'));
+        throw error;
+      }
+    }
     for (const key of ['micDeviceId', 'speakerDeviceId', 'cameraDeviceId', 'noiseMode', 'echoCancellation', 'sensAuto', 'sensThreshold', 'uploadMbps', 'shareAudio', 'showStreamStats', 'outputVolume', 'notify']) {
       state[key] = values[key]; localStorage.setItem(key, state[key]);
     }
@@ -3600,13 +3671,14 @@
     onOpen: async () => {
       $('#profile-preview-name').textContent = meMember().name;
       setAvatarContents($('#profile-preview-avatar'), $('#profile-avatar').value, meMember().name);
+      $('#profile-preview-banner').style.backgroundImage = $('#profile-banner').value ? `url("${$('#profile-banner').value}")` : '';
       $('#ptt-key').textContent = state.ptt.label;
       $('#settings-server-link').classList.toggle('hidden', !canAdmin());
       notificationHelp();
       renderDiagnostics();
       drawMeter(-100, false);
       await fillDevices();
-    }, onClose: stopSettingsTests });
+    }, onClose: () => { stopSettingsTests(); setPendingBanner(null); } });
   $('#btn-settings').onclick = () => { closePanels(); preferences.open(); };
   $('#profile-photo-choose').onclick = () => $('#profile-photo-file').click();
   $('#profile-photo-remove').onclick = () => {
@@ -3636,6 +3708,39 @@
       if (epoch === avatarReadEpoch) $('#profile-photo-status').textContent = 'Não foi possível abrir essa imagem. Tente outra foto (até 40 megapixels).';
     } finally {
       if (epoch === avatarReadEpoch) preferences.setProcessing(false);
+    }
+  };
+  $('#profile-banner-choose').onclick = () => $('#profile-banner-file').click();
+  $('#profile-banner-remove').onclick = () => {
+    bannerReadEpoch++;
+    setPendingBanner(null);
+    $('#profile-banner').value = '';
+    $('#profile-banner-status').textContent = 'Banner removido da prévia. Salve para aplicar ou descarte para manter o banner anterior.';
+    preferences.refresh();
+  };
+  $('#profile-banner-file').onchange = async (event) => {
+    const file = event.target.files[0];
+    event.target.value = '';
+    if (!file) return;
+    const epoch = ++bannerReadEpoch;
+    const status = $('#profile-banner-status');
+    if (!['image/png', 'image/jpeg', 'image/webp', 'image/gif'].includes(file.type)) { status.textContent = 'Escolha uma imagem PNG, JPG, WebP ou GIF.'; return; }
+    if (file.size > (file.type === 'image/gif' ? BANNER_MAX_GIF : 8 * 1024 * 1024)) {
+      status.textContent = file.type === 'image/gif' ? 'O GIF do banner deve ter até 5 MB.' : 'Escolha uma imagem de até 8 MB.';
+      return;
+    }
+    preferences.setProcessing(true);
+    status.textContent = 'Preparando seu banner…';
+    try {
+      const blob = await prepareBanner(file);
+      if (epoch !== bannerReadEpoch || !preferences.isOpen()) return;
+      $('#profile-banner').value = setPendingBanner(blob);
+      status.textContent = 'Banner pronto na prévia. Clique em Salvar alterações para usar no seu perfil.';
+      preferences.refresh();
+    } catch (error) {
+      if (epoch === bannerReadEpoch) status.textContent = error.message === 'gif-size' ? 'Esse GIF é grande demais. Use até 1500 × 1500 px.' : 'Não foi possível abrir essa imagem. Tente outra (até 40 megapixels).';
+    } finally {
+      if (epoch === bannerReadEpoch) preferences.setProcessing(false);
     }
   };
   $('#settings-server-link').onclick = () => { if (preferences.close()) openServerSettings(); };
