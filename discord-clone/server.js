@@ -400,6 +400,7 @@ function stateFor(acc, shared = sharedState()) {
   const perms = permsOf(acc);
   return {
     ownerId: db.ownerId,
+    serverName: db.serverName || 'Resenha',
     roles: db.roles,
     channels: db.channels.filter((c) => canView(acc, c)),
     members: shared.members,
@@ -894,6 +895,16 @@ io.on('connection', (socket) => {
     } else {
       fail('Ação desconhecida');
     }
+    save();
+    broadcastState();
+  });
+
+  // --- Servidor ---
+  on('server:update', (acc, { name }) => {
+    if (!can(acc, 'ADMIN')) fail('Só administradores podem mudar o nome do servidor.');
+    const clean = cleanName(name, 32);
+    if (clean.length < 2) fail('O nome do servidor precisa ter pelo menos 2 caracteres.');
+    db.serverName = clean;
     save();
     broadcastState();
   });
