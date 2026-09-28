@@ -7,6 +7,14 @@ const vm = require('node:vm');
 const { spawn } = require('node:child_process');
 const { io } = require('socket.io-client');
 const policy = require('../public/media-policy');
+const { PNG } = require('pngjs');
+
+test('stream overlay includes resolution, FPS, Mbps and codec for every viewer count', () => {
+  const first = { width: 1920, height: 1080, fps: 30, bitrate: 2_000_000, codec: 'VP8' };
+  assert.equal(policy.formatVideoStats([first]), '1920×1080 · 30 fps · 2,0 Mbps · VP8');
+  assert.equal(policy.formatVideoStats([first, { width: 1280, height: 720, fps: 24, bitrate: 1_000_000, codec: 'VP8' }], true), '720–1080p · 24–30 fps · 3,0 Mbps total · VP8');
+  assert.match(policy.formatVideoStats([{ ...first, bitrate: null }]), /Medindo Mbps/);
+});
 
 test('upload budget counts actual viewers, reserves voice, and stays within the cap', () => {
   const rates = policy.budget(10, 2, 5, true, true);
@@ -126,6 +134,26 @@ test('server validates viewers and cleans subscriptions on stop, leave and disco
       return socket;
     }
     const host = await connect('Host'), viewer = await connect('Viewer'), outsider = await connect('Elsewhere');
+    const avatar = 'data:image/png;base64,' + PNG.sync.write({ width: 32, height: 32, data: Buffer.alloc(4096, 200) }).toString('base64');
+    assert.ok((await emit(host, 'profile', { avatar: 'data:image/svg+xml;base64,PHN2Zz4=' })).error);
+    const profile = await emit(host, 'profile', { color: '#123456', avatar });
+    assert.match(profile.avatarUrl, /^\/avatars\/[a-f0-9]{64}\.png$/);
+    await until(() => viewer.snapshot.members.some((m) => m.name === 'Host' && m.avatarUrl === profile.avatarUrl));
+    const response = await fetch(base + profile.avatarUrl);
+    assert.equal(response.status, 200);
+    assert.match(response.headers.get('content-type'), /^image\/png/);
+    assert.equal(PNG.sync.read(Buffer.from(await response.arrayBuffer())).width, 32);
+    // Another account can use the same image; removing one must not break the other.
+    assert.equal((await emit(viewer, 'profile', { avatar })).avatarUrl, profile.avatarUrl);
+    const edited = await emit(host, 'profile', { color: '#654321' });
+    assert.equal(edited.avatarUrl, profile.avatarUrl);
+    await until(() => {
+      try { return Object.values(JSON.parse(fs.readFileSync(path.join(dir, 'data.json'), 'utf8')).accounts).some((account) => account.name === 'Host' && '/avatars/' + account.avatar === profile.avatarUrl); } catch { return false; }
+    });
+    assert.equal((await emit(host, 'profile', { avatar: null })).avatarUrl, null);
+    assert.equal((await fetch(base + profile.avatarUrl)).status, 200);
+    assert.equal((await emit(viewer, 'profile', { avatar: null })).avatarUrl, null);
+    assert.equal((await fetch(base + profile.avatarUrl)).status, 404);
     const rooms = host.snapshot.channels.filter((c) => c.type === 'voice');
     const room = rooms[0].id;
     await emit(host, 'voice:join', { channel: room });
