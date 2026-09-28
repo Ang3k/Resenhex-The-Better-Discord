@@ -19,7 +19,13 @@ async function startServer(t) {
     proc.on('exit', reject);
   });
   const clients = [];
-  t.after(() => { clients.forEach((c) => c.disconnect()); proc.kill(); fs.rmSync(dir, { recursive: true, force: true }); });
+  t.after(async () => {
+    clients.forEach((c) => c.disconnect());
+    const exited = new Promise((resolve) => proc.once('exit', resolve));
+    proc.kill();
+    await exited; // só apaga a pasta depois que o servidor terminou de gravar
+    fs.rmSync(dir, { recursive: true, force: true });
+  });
   return async (name) => {
     const socket = io('http://127.0.0.1:' + port, { forceNew: true, transports: ['websocket'] });
     clients.push(socket);
@@ -44,4 +50,28 @@ test('only administrators can rename the server, and everyone sees the new name'
   assert.ok(!(await owner.call('server:update', { name: '  Resenha   dos Crias  ' })).error);
   await new Promise((r) => setTimeout(r, 100));
   assert.equal(member.last.serverName, 'Resenha dos Crias');
+});
+
+test('server icon: only administrators, validated PNG, served while in use and removed after', async (t) => {
+  const { PNG } = require('pngjs');
+  const connect = await startServer(t);
+  const owner = await connect('Dono');
+  const member = await connect('Ana');
+  const png = 'data:image/png;base64,' + PNG.sync.write({ width: 16, height: 16, data: Buffer.alloc(16 * 16 * 4, 200) }).toString('base64');
+
+  assert.match((await member.call('server:update', { icon: png })).error, /administradores/);
+  assert.match((await owner.call('server:update', { icon: 'data:image/svg+xml;base64,PHN2Zz4=' })).error, /inválida/);
+
+  assert.ok(!(await owner.call('server:update', { icon: png })).error);
+  await new Promise((r) => setTimeout(r, 100));
+  const url = member.last.serverIcon;
+  assert.match(url, /^\/avatars\/[a-f0-9]{64}\.png$/);
+  assert.equal(member.last.serverName, 'Resenha', 'trocar só o ícone mantém o nome');
+  const base = member.io.uri;
+  assert.equal((await fetch(base + url)).status, 200);
+
+  assert.ok(!(await owner.call('server:update', { icon: null })).error);
+  await new Promise((r) => setTimeout(r, 100));
+  assert.equal(member.last.serverIcon, null);
+  assert.equal((await fetch(base + url)).status, 404);
 });

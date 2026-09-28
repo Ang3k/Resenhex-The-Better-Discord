@@ -3,6 +3,24 @@
 // Para uma versão nova: adicione um item no começo da lista e atualize a versão no package.json.
 window.CHANGELOG = [
   {
+    version: '0.6',
+    date: '2026-09-28',
+    name: 'Do seu jeito',
+    summary: 'O servidor ganhou cara própria e clicar em alguém agora mostra um perfil de verdade.',
+    sections: [
+      { kind: 'new', items: [
+        'Ícone do servidor: envie uma imagem em Configurações do servidor → Visão geral. Ela aparece na faixa de servidores e na aba do navegador.',
+        'Cartão de perfil ao clicar em alguém (na lista de membros, no nome de uma mensagem ou numa menção): foto, status, "membro desde" e cargos.',
+        'Dar e tirar cargos direto no cartão de perfil, com o botão + e o × em cada cargo.',
+        'Em chamada, o cartão tem o volume da pessoa e "Mutar para mim".',
+      ] },
+      { kind: 'improved', items: [
+        'Menu do clique direito redesenhado, com ícones, marcação de ligado/desligado e submenus para Castigar, Mover e Cargos.',
+        'Expulsar e banir pedem confirmação dentro do app.',
+      ] },
+    ],
+  },
+  {
     version: '0.5',
     date: '2026-09-28',
     name: 'Cara de app de verdade',
