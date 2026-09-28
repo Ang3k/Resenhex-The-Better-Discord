@@ -6,11 +6,12 @@
   "scripts": {
     "start": "node server.js",
     "test": "node --test",
-    "check": "node --check server.js && node --check public/app.js && node --check public/settings.js && node --check public/media-policy.js && node --check public/media-session.js"
+    "check": "node --check server.js && node --check avatar.js && node --check public/app.js && node --check public/settings.js && node --check public/media-policy.js && node --check public/media-session.js"
   },
   "dependencies": {
     "@sapphi-red/web-noise-suppressor": "^0.4.1",
     "express": "^5.2.1",
+    "pngjs": "7.0.0",
     "socket.io": "^4.8.4"
   },
   "engines": {

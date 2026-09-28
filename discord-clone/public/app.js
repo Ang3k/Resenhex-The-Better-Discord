@@ -44,12 +44,11 @@
     cameraDeviceId: localStorage.getItem('cameraDeviceId') || '',
     outputVolume: Math.min(100, Math.max(0, Number(localStorage.getItem('outputVolume') ?? 100))),
     shareAudio: localStorage.getItem('shareAudio') !== 'false',
-    showStreamStats: localStorage.getItem('showStreamStats') === 'true',
+    showStreamStats: localStorage.getItem('showStreamStatsDefault') !== 'visible-v2' || localStorage.getItem('showStreamStats') !== 'false',
     theme: ['dark', 'midnight', 'contrast'].includes(appearance.theme) ? appearance.theme : 'dark',
     density: appearance.density === 'compact' ? 'compact' : 'comfortable',
     fontSize: Math.min(20, Math.max(14, Number(appearance.fontSize) || 16)),
     reduceMotion: appearance.reduceMotion === true,
-    stageLayout: 'focus',
     mediaHealth: '',
     captureBusy: false,
     peers: new Map(), // sid -> conexão WebRTC com cada participante da sala
@@ -129,12 +128,24 @@
   const initials = (name) => name.split(/\s+/).map((p) => p[0]).join('').slice(0, 2).toUpperCase();
 
   function avatar(member, cls = '', sid = '') {
-    return el('div', {
+    const node = el('div', {
       class: 'avatar ' + cls,
       style: { background: member.color || '#5865f2' },
-      textContent: initials(member.name || '?'),
       data: sid ? { sid } : {},
     });
+    setAvatarContents(node, member.avatarUrl, member.name);
+    return node;
+  }
+
+  function setAvatarContents(node, url, name) {
+    const key = (url || '') + ':' + (name || '');
+    if (node.dataset.avatarKey === key) return;
+    node.dataset.avatarKey = key;
+    if (url) {
+      const image = el('img', { src: url, alt: '', decoding: 'async', draggable: false });
+      image.onerror = () => { if (image.parentNode === node) node.replaceChildren(initials(name || '?')); };
+      node.replaceChildren(image);
+    } else node.replaceChildren(initials(name || '?'));
   }
 
   const formatUntil = (ts) => new Date(ts).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' });
@@ -468,7 +479,7 @@
 
   function renderChannels() {
     const s = state.server;
-    if (!changed('channels', [s.channels, s.voice, s.members.map((m) => [m.id, m.name, m.color, m.serverMuted, m.serverDeafened, m.timeoutUntil]),
+    if (!changed('channels', [s.channels, s.voice, s.members.map((m) => [m.id, m.name, m.color, m.avatarUrl, m.serverMuted, m.serverDeafened, m.timeoutUntil]),
       state.unread, state.textChannel, state.view, state.voiceChannel, [...state.collapsed], [...state.localMuted], s.myPerms])) return;
     const canManage = hasPerm('MANAGE_CHANNELS');
     const gear = () => canManage ? el('button', {
@@ -632,7 +643,7 @@
       scrollToEnd = true;
     }
     const list = state.messages[state.textChannel] || [];
-    const epoch = JSON.stringify([state.server.members.map((m) => [m.id, m.name, m.color, m.roles]), state.server.roles.map((r) => [r.id, r.name, r.color]),
+    const epoch = JSON.stringify([state.server.members.map((m) => [m.id, m.name, m.color, m.avatarUrl, m.roles]), state.server.roles.map((r) => [r.id, r.name, r.color]),
       hasPerm('MANAGE_MESSAGES'), canSend(), state.replyTo?.id, dayKey(Date.now())]);
     const nodes = [welcomeNode(channel)];
     let prev = null;
@@ -1208,6 +1219,8 @@
       const camStream = v.camera ? remote.camera : null;
       if (cam.srcObject !== camStream) cam.srcObject = camStream;
       cam.classList.toggle('hidden', !camStream);
+      setAvatarContents(tile.querySelector('.avatar'), m.avatarUrl, m.name);
+      tile.querySelector('.avatar').style.background = m.color;
       tile.querySelector('.avatar').classList.toggle('hidden', !!camStream);
       tile.classList.toggle('speaking', state.speaking.has(v.sid));
       const silenced = m.serverMuted || timedOut(m);
@@ -1223,12 +1236,11 @@
     }
 
     // Destaque: o bloco fixado; sem fixar, as telas compartilhadas ficam em destaque.
-    stage.classList.toggle('gallery', state.stageLayout === 'gallery');
     if (state.pinned && !wanted.has(state.pinned)) state.pinned = null;
     const tiles = [...stage.children];
     for (const t of tiles) {
       t.classList.toggle('pinned', t.dataset.key === state.pinned);
-      t.classList.toggle('focus', state.stageLayout === 'focus' && (state.pinned ? t.dataset.key === state.pinned : t.classList.contains('screen')));
+      t.classList.toggle('focus', state.pinned ? t.dataset.key === state.pinned : t.classList.contains('screen'));
     }
     const order = [...tiles.filter((t) => t.classList.contains('focus')), ...tiles.filter((t) => !t.classList.contains('focus'))];
     order.forEach((t, i) => { if (stage.children[i] !== t) stage.insertBefore(t, stage.children[i] || null); });
@@ -2456,8 +2468,9 @@
   let micTestEpoch = 0;
   let cameraTestEpoch = 0;
   let cameraPreview = null;
+  let avatarReadEpoch = 0;
   const settingFields = {
-    'profile-color': 'color', 'mic-select': 'micDeviceId', 'speaker-select': 'speakerDeviceId',
+    'profile-color': 'color', 'profile-avatar': 'avatar', 'mic-select': 'micDeviceId', 'speaker-select': 'speakerDeviceId',
     'camera-select': 'cameraDeviceId', 'noise-mode': 'noiseMode', 'echo-toggle': 'echoCancellation',
     'sens-auto': 'sensAuto', 'sens-range': 'sensThreshold', 'input-mode': 'inputMode',
     'ptt-code': 'pttCode', 'ptt-label': 'pttLabel', 'upload-select': 'uploadMbps',
@@ -2476,13 +2489,17 @@
   for (const id of ['mic-select', 'speaker-select', 'camera-select']) document.getElementById(id).replaceChildren(new Option('Padrão do sistema', ''));
 
   function readPreferences() {
-    return { ...state, color: meMember()?.color || '#5865f2', sounds: Sounds.enabled,
+    return { ...state, color: meMember()?.color || '#5865f2', avatar: meMember()?.avatarUrl || '', sounds: Sounds.enabled,
       soundboard: !state.sbMuted, sbVolume: Math.round(state.sbVolume * 100),
       inputMode: state.ptt.enabled ? 'ptt' : 'voice', pttCode: state.ptt.code, pttLabel: state.ptt.label };
   }
   function previewAppearance(values) {
     Object.assign(document.documentElement.dataset, { theme: values.theme, density: values.density, reduceMotion: String(values.reduceMotion), streamStats: String(values.showStreamStats) });
     document.documentElement.style.setProperty('--chat-size', values.fontSize + 'px');
+    if (values.avatar !== undefined) {
+      setAvatarContents($('#profile-preview-avatar'), values.avatar, meMember()?.name);
+      $('#profile-photo-remove').disabled ||= !values.avatar || $('#profile-avatar').disabled;
+    }
   }
   previewAppearance(state);
 
@@ -2508,6 +2525,10 @@
     $('#camera-test').textContent = 'Testar câmera';
   }
   function stopSettingsTests() {
+    avatarReadEpoch++;
+    preferences.setProcessing(false);
+    $('#profile-photo-file').value = '';
+    $('#profile-photo-status').textContent = 'PNG, JPG ou WebP de até 8 MB. A foto será recortada no centro. Salve para aplicar.';
     stopMicTest();
     stopCameraPreview();
     if (captureKeyHandler) document.removeEventListener('keydown', captureKeyHandler, true);
@@ -2527,16 +2548,19 @@
       try { await restartMic({ ...state, ...values }); }
       catch { throw new Error('Não foi possível trocar o microfone. A chamada e o dispositivo anterior foram preservados.'); }
     }
-    if (values.color !== meMember().color) {
-      const result = await call('profile', { color: values.color });
+    const avatarChanged = values.avatar !== (meMember().avatarUrl || '');
+    if (values.color !== meMember().color || avatarChanged) {
+      const result = await call('profile', { color: values.color, ...(avatarChanged ? { avatar: values.avatar || null } : {}) });
       if (!result) {
         if (micChanged) await restartMic(state).catch(() => mediaNotice('Confira o microfone antes de continuar.'));
         throw new Error('O perfil não foi salvo. Verifique a conexão e tente novamente.');
       }
+      $('#profile-avatar').value = result.avatarUrl || '';
     }
     for (const key of ['micDeviceId', 'speakerDeviceId', 'cameraDeviceId', 'noiseMode', 'echoCancellation', 'sensAuto', 'sensThreshold', 'uploadMbps', 'shareAudio', 'showStreamStats', 'outputVolume', 'notify']) {
       state[key] = values[key]; localStorage.setItem(key, state[key]);
     }
+    localStorage.setItem('showStreamStatsDefault', 'visible-v2');
     state.ptt = { enabled: values.inputMode === 'ptt', code: values.pttCode, label: values.pttLabel };
     state.pttHeld = false;
     localStorage.setItem('ptt', JSON.stringify(state.ptt));
@@ -2557,7 +2581,7 @@
   const preferences = SettingsPanel({ read: readPreferences, apply: applyPreferences, preview: previewAppearance,
     onOpen: async () => {
       $('#profile-preview-name').textContent = meMember().name;
-      $('#profile-preview-avatar').textContent = initials(meMember().name);
+      setAvatarContents($('#profile-preview-avatar'), $('#profile-avatar').value, meMember().name);
       $('#ptt-key').textContent = state.ptt.label;
       $('#settings-server-link').classList.toggle('hidden', !['MANAGE_ROLES', 'MANAGE_CHANNELS', 'BAN'].some(hasPerm));
       notificationHelp();
@@ -2566,7 +2590,43 @@
       await fillDevices();
     }, onClose: stopSettingsTests });
   $('#btn-settings').onclick = () => { closePanels(); preferences.open(); };
-  $('#stage-diagnostics').onclick = () => preferences.open('diagnostics');
+  $('#profile-photo-choose').onclick = () => $('#profile-photo-file').click();
+  $('#profile-photo-remove').onclick = () => {
+    avatarReadEpoch++;
+    $('#profile-avatar').value = '';
+    $('#profile-photo-status').textContent = 'Foto removida da prévia. Salve para aplicar ou descarte para manter a foto anterior.';
+    preferences.refresh();
+  };
+  $('#profile-photo-file').onchange = async (event) => {
+    const file = event.target.files[0];
+    event.target.value = '';
+    if (!file) return;
+    const epoch = ++avatarReadEpoch;
+    if (!['image/png', 'image/jpeg', 'image/webp'].includes(file.type) || file.size > 8 * 1024 * 1024) {
+      $('#profile-photo-status').textContent = 'Escolha uma imagem PNG, JPG ou WebP de até 8 MB.';
+      return;
+    }
+    preferences.setProcessing(true);
+    $('#profile-photo-status').textContent = 'Preparando sua foto…';
+    let bitmap;
+    try {
+      bitmap = await createImageBitmap(file);
+      if (!bitmap.width || !bitmap.height || bitmap.width * bitmap.height > 40_000_000) throw new Error('image-size');
+      if (epoch !== avatarReadEpoch || !preferences.isOpen()) return;
+      const canvas = document.createElement('canvas');
+      canvas.width = canvas.height = 256;
+      const size = Math.min(bitmap.width, bitmap.height);
+      canvas.getContext('2d').drawImage(bitmap, (bitmap.width - size) / 2, (bitmap.height - size) / 2, size, size, 0, 0, 256, 256);
+      $('#profile-avatar').value = canvas.toDataURL('image/png');
+      $('#profile-photo-status').textContent = 'Foto pronta na prévia. Clique em Salvar alterações para usar no seu perfil.';
+      preferences.refresh();
+    } catch {
+      if (epoch === avatarReadEpoch) $('#profile-photo-status').textContent = 'Não foi possível abrir essa imagem. Tente outra foto (até 40 megapixels).';
+    } finally {
+      bitmap?.close();
+      if (epoch === avatarReadEpoch) preferences.setProcessing(false);
+    }
+  };
   $('#settings-server-link').onclick = () => { if (preferences.close()) openServerSettings(); };
   $('#btn-logout').onclick = async () => { if (!preferences.close()) return; const result = await call('logout', { token: localStorage.getItem('token') }); if (result) { localStorage.removeItem('token'); location.reload(); } };
   $('#notification-permission').onclick = async () => { if ('Notification' in window) { await Notification.requestPermission(); notificationHelp(); } };
@@ -2625,7 +2685,6 @@
     else { state.showMembers = !state.showMembers; localStorage.setItem('showMembers', state.showMembers); render(); }
   };
   $('#btn-return-call').onclick = () => { state.view = 'voice'; render(); };
-  $('#stage-layout').onchange = () => { state.stageLayout = $('#stage-layout').value; renderStage(); };
   document.addEventListener('keydown', (event) => { if (event.key === 'Escape') closePanels(); });
   // Existing rows contain a separate edit button. Keep their actions keyboard-accessible.
   function keyboardRows() {

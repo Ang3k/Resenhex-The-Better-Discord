@@ -278,6 +278,14 @@ window.MediaSession = function ({ state, socket, call, el, toast, voiceEntry, me
     }));
   }
 
+  function videoMeasurement(sid, report, r, bytes) {
+    const key = sid + ':' + r.id;
+    const previous = samples.get(key);
+    samples.set(key, { bytes, time: r.timestamp });
+    const bitrate = previous && r.timestamp > previous.time && bytes >= previous.bytes ? (bytes - previous.bytes) * 8000 / (r.timestamp - previous.time) : null;
+    return { width: r.frameWidth, height: r.frameHeight, fps: r.framesPerSecond, bitrate, codec: report.get(r.codecId)?.mimeType?.split('/')[1] || '' };
+  }
+
   async function updateStreamStats() {
     if (statsBusy) return;
     if (!state.voiceChannel) { samples.clear(); return; }
@@ -289,6 +297,7 @@ window.MediaSession = function ({ state, socket, call, el, toast, voiceEntry, me
         if (!active(peer)) return;
         const stats = {};
         let outbound;
+        let outboundReport = report;
         report.forEach((r) => {
           if (r.type === 'candidate-pair' && r.state === 'succeeded' && r.nominated) {
             stats.rtt = r.currentRoundTripTime;
@@ -303,14 +312,14 @@ window.MediaSession = function ({ state, socket, call, el, toast, voiceEntry, me
         });
         // Sender reports distinguish screen from camera even on browsers without mediaSourceId.
         const screenSender = peer.senders.screen.find((s) => s.track?.kind === 'video');
-        if (!outbound && screenSender) (await screenSender.getStats()).forEach((r) => { if (r.type === 'outbound-rtp' && (r.kind === 'video' || r.mediaType === 'video')) outbound = r; });
+        if (!outbound && screenSender) {
+          outboundReport = await screenSender.getStats();
+          outboundReport.forEach((r) => { if (r.type === 'outbound-rtp' && (r.kind === 'video' || r.mediaType === 'video')) outbound = r; });
+        }
         if (outbound && viewers().includes(sid)) {
           const r = outbound;
-          const key = sid + ':' + r.id;
-          const previous = samples.get(key);
-          samples.set(key, { bytes: r.bytesSent, time: r.timestamp });
-          const bitrate = previous && r.timestamp > previous.time && r.bytesSent >= previous.bytes ? (r.bytesSent - previous.bytes) * 8000 / (r.timestamp - previous.time) : null;
-          stats.video = `${r.frameWidth || '?'}×${r.frameHeight || '?'} · ${Math.round(r.framesPerSecond || 0)} fps${bitrate == null ? '' : ' · ' + (bitrate / 1e6).toFixed(1) + ' Mbps'}`;
+          stats.screen = videoMeasurement(sid, outboundReport, r, r.bytesSent);
+          stats.video = MediaPolicy.formatVideoStats([stats.screen]);
           const remote = report.get(r.remoteId);
           peer.adaptation = MediaPolicy.adapt(peer.adaptation, { active: !!r.framesSent, reason: r.qualityLimitationReason, rtt: remote?.roundTripTime ?? stats.rtt, loss: remote?.fractionLost || 0 }, now);
         }
@@ -319,9 +328,12 @@ window.MediaSession = function ({ state, socket, call, el, toast, voiceEntry, me
         if (tile && isWatching(sid)) {
           const track = peer.remote.screen?.getVideoTracks()[0];
           const receiver = track && peer.pc.getReceivers().find((r) => r.track === track);
-          if (receiver) (await receiver.getStats()).forEach((r) => {
-            if (r.type === 'inbound-rtp' && (r.kind === 'video' || r.mediaType === 'video')) tile.querySelector('.stats').textContent = `${r.frameWidth || '?'}×${r.frameHeight || '?'} · ${Math.round(r.framesPerSecond || 0)} fps`;
-          });
+          if (receiver) {
+            const incoming = await receiver.getStats();
+            incoming.forEach((r) => {
+              if (r.type === 'inbound-rtp' && (r.kind === 'video' || r.mediaType === 'video')) tile.querySelector('.stats').textContent = MediaPolicy.formatVideoStats([videoMeasurement(sid, incoming, r, r.bytesReceived)]);
+            });
+          }
         }
       }));
       const own = document.querySelector(`[data-key="screen-${state.me?.sid}"]`);
@@ -329,7 +341,8 @@ window.MediaSession = function ({ state, socket, call, el, toast, voiceEntry, me
         const connections = viewers().map((sid) => state.peers.get(sid)).filter(Boolean);
         const reduced = state.sharePreset === 'auto' && connections.some((peer) => peer.adaptation.level > 0);
         own.querySelector('.stream-health').textContent = connections.length ? `${connections.length} assistindo${reduced ? ' · Qualidade adaptada' : ''}` : 'Pronto · Aguardando espectadores';
-        own.querySelector('.stats').textContent = connections.length === 1 ? connections[0].stats?.video || 'Medindo qualidade…' : `${presets[state.sharePreset].label} · Detalhes por pessoa em Conexão`;
+        const measured = connections.map((peer) => peer.stats?.screen).filter(Boolean);
+        own.querySelector('.stats').textContent = !connections.length ? 'Sem espectadores · 0,0 Mbps' : measured.length !== connections.length ? 'Medindo qualidade…' : MediaPolicy.formatVideoStats(measured, connections.length > 1);
       }
       syncScreenSubscriptions();
       tuneSenders();

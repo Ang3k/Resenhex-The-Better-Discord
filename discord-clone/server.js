@@ -7,6 +7,7 @@ const crypto = require('crypto');
 const { promisify } = require('util');
 const express = require('express');
 const { Server } = require('socket.io');
+const { decodeAvatar } = require('./avatar');
 
 const PORT = process.env.PORT || 3000;
 const HOST = process.env.HOST || '0.0.0.0';
@@ -20,6 +21,8 @@ const UPLOAD_DIR = process.env.UPLOAD_DIR || path.join(__dirname, 'uploads');
 const MAX_UPLOAD_MB = Number(process.env.MAX_UPLOAD_MB) || 25;
 const MAX_ATTACHMENTS = 10;
 fs.mkdirSync(UPLOAD_DIR, { recursive: true });
+const AVATAR_DIR = path.join(UPLOAD_DIR, 'avatars');
+fs.mkdirSync(AVATAR_DIR, { recursive: true });
 
 // Tipos que o navegador pode exibir direto. Todo o resto é servido como download,
 // para que um arquivo enviado (ex.: .html, .svg) nunca rode código neste site.
@@ -290,6 +293,13 @@ app.get('/config', (_req, res) => {
   res.json({ passwordRequired: !!ACCESS_PASSWORD, hasOwner: !!db.ownerId, maxUploadMb: MAX_UPLOAD_MB });
 });
 
+// Profile pictures are shared with the server, independent of chat attachments.
+app.get('/avatars/:file', (req, res) => {
+  if (!/^[a-f0-9]{64}\.png$/.test(req.params.file) || !Object.values(db.accounts).some((account) => account.avatar === req.params.file)) return res.status(404).end();
+  res.set({ 'Content-Type': 'image/png', 'X-Content-Type-Options': 'nosniff', 'Cache-Control': 'public, max-age=31536000, immutable' });
+  res.sendFile(path.join(AVATAR_DIR, req.params.file));
+});
+
 app.post('/upload', express.raw({ type: () => true, limit: MAX_UPLOAD_MB * 1024 * 1024 }), (req, res) => {
   const acc = db.accounts[db.sessions[req.get('x-token')]];
   if (!acc || acc.banned) return res.status(401).json({ error: 'Não autenticado' });
@@ -351,6 +361,7 @@ function publicMember(a, onlineIds) {
     id: a.id,
     name: a.name,
     color: a.color,
+    avatarUrl: a.avatar ? '/avatars/' + a.avatar : null,
     roles: a.roles,
     online: onlineIds.has(a.id),
     serverMuted: !!a.serverMuted,
@@ -557,10 +568,26 @@ io.on('connection', (socket) => {
     save();
   });
 
-  on('profile', (acc, { color }) => {
+  on('profile', (acc, { color, avatar }) => {
+    const previousAvatar = acc.avatar;
+    let nextAvatar = previousAvatar;
+    if (avatar !== undefined) {
+      if (!allow('avatar:' + acc.id, 10, 60 * 1000)) fail('Muitas trocas de foto. Aguarde um minuto.');
+      if (avatar === null) nextAvatar = null;
+      else {
+        const image = decodeAvatar(avatar);
+        nextAvatar = crypto.createHash('sha256').update(image).digest('hex') + '.png';
+        fs.writeFileSync(path.join(AVATAR_DIR, nextAvatar), image);
+      }
+    }
+    acc.avatar = nextAvatar || null;
     acc.color = cleanColor(color, acc.color);
     save();
     broadcastState();
+    if (previousAvatar && previousAvatar !== nextAvatar && /^[a-f0-9]{64}\.png$/.test(previousAvatar) && !Object.values(db.accounts).some((account) => account.avatar === previousAvatar)) {
+      try { fs.unlinkSync(path.join(AVATAR_DIR, previousAvatar)); } catch (error) { if (error.code !== 'ENOENT') console.warn('Não foi possível remover a foto antiga.'); }
+    }
+    return { ok: true, avatarUrl: acc.avatar ? '/avatars/' + acc.avatar : null };
   });
 
   // --- Chat ---

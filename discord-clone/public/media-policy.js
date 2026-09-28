@@ -56,5 +56,19 @@
     peer.mediaQueue = result.catch(() => {}); // caller handles the error; queue remains usable
     return result;
   }
-  return { presets, budget, adapt, encoding, enqueue };
+  function formatVideoStats(measurements, total = false) {
+    if (!measurements.length) return 'Medindo qualidade…';
+    const range = (key) => {
+      const values = measurements.map((item) => item[key]).filter(Number.isFinite).map(Math.round);
+      if (!values.length) return '?';
+      const min = Math.min(...values), max = Math.max(...values);
+      return min === max ? String(min) : `${min}–${max}`;
+    };
+    const size = measurements.length === 1 ? `${range('width')}×${range('height')}` : `${range('height')}p`;
+    const bitrates = measurements.map((item) => item.bitrate).filter(Number.isFinite);
+    const rate = bitrates.length === measurements.length ? `${(bitrates.reduce((sum, value) => sum + value, 0) / 1e6).toFixed(1).replace('.', ',')} Mbps${total ? ' total' : ''}` : 'Medindo Mbps…';
+    const codecs = [...new Set(measurements.map((item) => item.codec).filter(Boolean))].join('/');
+    return [size, `${range('fps')} fps`, rate, codecs].filter(Boolean).join(' · ');
+  }
+  return { presets, budget, adapt, encoding, enqueue, formatVideoStats };
 });

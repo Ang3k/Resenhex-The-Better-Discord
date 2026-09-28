@@ -5,6 +5,7 @@ window.SettingsPanel = function ({ read, apply, preview, onOpen, onClose }) {
   const nav = [...root.querySelectorAll('[data-section]')];
   let initial = null;
   let saving = false;
+  let processing = false;
   let returnFocus = null;
   let active = 'profile';
   const values = () => Object.fromEntries(fields.map((field) => [field.dataset.setting,
@@ -23,8 +24,9 @@ window.SettingsPanel = function ({ read, apply, preview, onOpen, onClose }) {
   const status = (text) => { root.querySelector('#settings-status').textContent = text; };
   function refresh() {
     root.querySelector('#settings-savebar').classList.toggle('hidden', !dirty() && !saving);
-    root.querySelector('#settings-save').disabled = saving;
-    root.querySelector('#settings-discard').disabled = saving;
+    root.querySelector('#settings-save').disabled = saving || processing;
+    root.querySelector('#settings-discard').disabled = saving || processing;
+    root.querySelectorAll('[data-draft-action]').forEach((button) => { button.disabled = saving || processing; });
     root.querySelector('#sens-range').disabled = saving || root.querySelector('#sens-auto').checked;
     root.querySelector('#ptt-row').classList.toggle('hidden', root.querySelector('#input-mode').value !== 'ptt');
     for (const output of root.querySelectorAll('[data-output]')) {
@@ -65,14 +67,14 @@ window.SettingsPanel = function ({ read, apply, preview, onOpen, onClose }) {
   root.addEventListener('input', () => { if (!saving) { status(''); refresh(); } });
   root.addEventListener('change', () => { if (!saving) refresh(); });
   root.querySelector('#settings-discard').onclick = () => {
-    if (saving) return;
+    if (saving || processing) return;
     write(initial);
     onClose(); // also releases test microphone/camera when discarding
     refresh();
     status('Alterações descartadas.');
   };
   root.querySelector('#settings-save').onclick = async () => {
-    if (saving || !dirty()) return;
+    if (saving || processing || !dirty()) return;
     saving = true;
     const draft = values();
     fields.forEach((field) => { field.dataset.wasDisabled = String(field.disabled); field.disabled = true; });
@@ -135,6 +137,7 @@ window.SettingsPanel = function ({ read, apply, preview, onOpen, onClose }) {
     close,
     refresh,
     values,
+    setProcessing(value) { processing = value; refresh(); },
     isOpen: () => !root.classList.contains('hidden'),
   };
 };
