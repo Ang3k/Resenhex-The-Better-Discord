@@ -1,0 +1,87 @@
+/* Amigos e mensagens diretas: Início, lista de conversas e tela de amigos */
+
+/* ---------- Barra lateral do Início ---------- */
+#home-nav { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+#home-nav .channels { flex: 1; min-height: 0; overflow-y: auto; }
+#home-nav .server-name { cursor: default; }
+#home-nav .server-name:hover { background: transparent; }
+#home-nav .category { padding: 16px 8px 4px; font-size: 12px; font-weight: 600; letter-spacing: .02em; color: var(--text-muted); }
+#home-nav ul { list-style: none; margin: 0; padding: 0; }
+#nav-friends .badge { margin-left: auto; }
+.rail-alt { display: none; }
+.channel.dm { height: 42px; gap: 10px; }
+.channel.dm .avatar-wrap { --ring: var(--bg-sidebar); }
+.channel.dm:hover .avatar-wrap, .channel.dm.active .avatar-wrap { --ring: #35373c; }
+.channel.dm .avatar.small { width: 30px; height: 30px; font-size: 12px; }
+.channel.dm .status { width: 10px; height: 10px; }
+.channel.dm .badge { margin-left: auto; }
+.dm-close { display: none; margin-left: auto; width: 22px; height: 22px; padding: 0; border: 0; border-radius: 4px; background: transparent; color: var(--text-muted); place-items: center; flex-shrink: 0; }
+.dm-close:hover { color: var(--text-strong); background: var(--hover-strong); }
+.channel.dm:hover .dm-close, .channel.dm:focus-within .dm-close { display: grid; }
+.channel.dm:hover .badge, .channel.dm:focus-within .badge { display: none; }
+.dm-empty { margin: 8px; font-size: 13px; line-height: 1.4; color: var(--text-muted); }
+.rail-item.home.active .brand-icon { background: var(--brand-gradient); color: #fff; --logo-cut: #8a58f4; }
+.rail-item.home .rail-badge { right: 8px; bottom: -2px; }
+
+/* ---------- Cabeçalho e boas-vindas de uma conversa privada ---------- */
+#header-title .avatar-wrap { --ring: var(--bg-main); }
+#header-title .avatar.small { width: 26px; height: 26px; font-size: 11px; }
+.dm-welcome-avatar .avatar { width: 80px; height: 80px; font-size: 30px; }
+
+/* ---------- Tela de Amigos ---------- */
+#friends-view { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+#friends-tabs { display: flex; align-items: center; gap: 8px; padding: 12px 18px; border-bottom: 1px solid var(--divider); flex-wrap: wrap; }
+.ft-tab { display: inline-flex; align-items: center; gap: 6px; height: 30px; padding: 0 10px; border: 0; border-radius: 6px; background: transparent; color: var(--interactive); font: inherit; font-size: 14px; font-weight: 500; cursor: pointer; }
+.ft-tab:hover { background: var(--hover); color: var(--text); }
+.ft-tab.active { background: var(--hover-strong); color: var(--text-strong); }
+.ft-tab.add { background: var(--green); color: #fff; margin-left: 4px; }
+.ft-tab.add:hover { background: #1e8f4e; color: #fff; }
+.ft-tab.add.active { background: transparent; color: #57d28a; outline: 1px solid #57d28a55; }
+#friends-body { flex: 1; min-height: 0; overflow-y: auto; padding: 0 0 24px; }
+.friends-search { position: relative; margin: 16px 18px 4px; }
+.friends-search input { width: 100%; height: 36px; padding: 0 38px 0 12px; border: 0; border-radius: 6px; background: var(--bg-rail); color: var(--text); font: inherit; font-size: 14px; outline: none; }
+.friends-search input:focus-visible { box-shadow: 0 0 0 2px var(--brand); }
+.friends-search .ico { position: absolute; right: 10px; top: 9px; color: var(--text-muted); pointer-events: none; }
+.friends-list { padding: 0 18px; }
+.friends-section { padding: 16px 0 8px; font-size: 12px; font-weight: 700; letter-spacing: .02em; color: var(--text-muted); }
+.friend-row { display: flex; align-items: center; gap: 12px; min-height: 60px; padding: 8px 10px; border-top: 1px solid var(--divider); border-radius: 8px; --ring: var(--bg-main); }
+.friend-row.clickable { cursor: pointer; }
+.friend-row:hover { background: var(--hover); --ring: #3a3d47; border-top-color: transparent; }
+.friend-row:hover + .friend-row { border-top-color: transparent; }
+.friend-row .avatar { width: 36px; height: 36px; }
+.friend-info { flex: 1; min-width: 0; }
+.friend-name { font-size: 15px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text-strong); }
+.friend-sub { font-size: 13px; color: var(--text-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.friend-actions { display: flex; gap: 8px; flex-shrink: 0; }
+.friend-btn { width: 36px; height: 36px; display: grid; place-items: center; border: 0; border-radius: 50%; background: var(--bg-sidebar); color: var(--interactive); cursor: pointer; }
+.friend-btn:hover { color: var(--text-strong); background: var(--bg-rail); }
+.friend-btn.accept:hover { color: var(--green); }
+.friend-btn.decline:hover { color: var(--red); }
+.friend-text-btn { height: 32px; padding: 0 14px; border: 0; border-radius: 6px; background: var(--hover-strong); color: var(--text-strong); font: inherit; font-size: 14px; font-weight: 600; cursor: pointer; }
+.friend-text-btn:hover { background: var(--brand); color: #fff; }
+.friends-empty { display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 72px 24px; text-align: center; color: var(--text-muted); }
+.friends-empty strong { color: var(--text-strong); font-size: 18px; }
+.friends-empty-icon { display: grid; place-items: center; width: 96px; height: 96px; border-radius: 50%; background: var(--hover); color: var(--channel); margin-bottom: 8px; }
+.friends-empty span { max-width: 420px; line-height: 1.45; }
+
+/* Adicionar amigo */
+.friends-add { padding: 24px 18px 0; max-width: 720px; }
+.friends-add h2 { margin: 0 0 6px; font-size: 18px; color: var(--text-strong); }
+.friends-add p { margin: 0 0 16px; color: var(--text-muted); line-height: 1.45; font-size: 14px; }
+.friends-add-box { display: flex; gap: 12px; align-items: center; padding: 8px 8px 8px 14px; border-radius: 10px; background: var(--bg-rail); border: 1px solid var(--divider); }
+.friends-add-box:focus-within { border-color: var(--brand); }
+.friends-add-box input { flex: 1; min-width: 0; border: 0; background: transparent; color: var(--text); font: inherit; font-size: 15px; outline: none; }
+.friends-add-submit { flex-shrink: 0; height: 36px; padding: 0 16px; border: 0; border-radius: 6px; background: var(--brand); color: #fff; font: inherit; font-size: 14px; font-weight: 600; cursor: pointer; }
+.friends-add-submit:hover:not(:disabled) { background: var(--brand-hover); }
+.friends-add-submit:disabled { opacity: .5; cursor: not-allowed; }
+.friends-add-note { min-height: 22px; margin-top: 10px; font-size: 14px; color: var(--text-muted); }
+.friends-add-note.ok { color: var(--green); }
+
+@media (max-width: 640px) {
+  .rail-alt { display: flex; }
+  #friends-tabs { padding: 10px 12px; gap: 6px; }
+  .friends-list, .friends-add { padding-inline: 12px; }
+  .friends-search { margin-inline: 12px; }
+  .friends-add-box { flex-wrap: wrap; }
+  .friends-add-submit { flex: 1 0 100%; }
+}

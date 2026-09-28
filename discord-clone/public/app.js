@@ -81,6 +81,13 @@
     streamMuted: new Set(savedJson('streamMuted', [])),
     hiddenStreams: new Set(), // sids das transmissões que parei de assistir
     collapsed: new Set(savedJson('collapsed', [])), // categorias recolhidas
+    home: false, // true = tela Início (amigos e mensagens diretas)
+    serverChannel: null, // último canal do servidor aberto, para voltar do Início
+    social: { friends: [], incoming: [], outgoing: [], blocked: [], dms: [] }, // enviado pelo servidor
+    friendsTab: 'online', // 'online' | 'all' | 'pending' | 'blocked' | 'add'
+    friendsSearch: '',
+    friendsAdd: '',
+    friendsNote: '', // resultado do último pedido enviado na aba "Adicionar amigo"
   };
 
   let audioCtx = null;
@@ -279,7 +286,23 @@
 
   const voiceEntries = (channel) => state.server.voice.filter((v) => v.channel === channel);
   const voiceEntry = (sid) => state.server.voice.find((v) => v.sid === sid);
-  const channelById = (id) => state.server.channels.find((c) => c.id === id);
+  // Conversa privada: id "dm-<conta>-<conta>". Aparece como um canal de texto, com a outra pessoa em "peer".
+  const isDm = (id) => typeof id === 'string' && id.startsWith('dm-');
+  const dmPeerId = (id) => id.slice(3).split('-').find((x) => x !== state.me?.accountId);
+  function channelById(id) {
+    const c = state.server.channels.find((ch) => ch.id === id);
+    if (c || !isDm(id)) return c;
+    const peer = member(dmPeerId(id));
+    return peer ? { id, type: 'dm', name: peer.name, allowedRoles: [], peer } : undefined;
+  }
+  const inDm = () => isDm(state.textChannel);
+  // 'friend' | 'incoming' | 'outgoing' | 'blocked' | 'none'
+  function relation(id) {
+    const s = state.social;
+    return s.friends.includes(id) ? 'friend' : s.incoming.includes(id) ? 'incoming' : s.outgoing.includes(id) ? 'outgoing' : s.blocked.includes(id) ? 'blocked' : 'none';
+  }
+  // Pode escrever no chat aberto? Num canal depende do cargo; numa conversa privada, de ainda serem amigos.
+  const canWrite = () => (inDm() ? !!member(dmPeerId(state.textChannel)) && state.social.friends.includes(dmPeerId(state.textChannel)) : canSend());
 
   const fmtCtx = { member: (id) => member(id), role: (id) => roleById(id), onUser: (id, e) => (e.type === 'contextmenu' ? openMemberMenu(id, e) : (e.stopPropagation(), openProfile(id, e.currentTarget || e.target))) };
 
@@ -425,7 +448,7 @@
     state.server = s;
     if (!state.me) return;
     const textChannels = s.channels.filter((c) => c.type === 'text');
-    if (!textChannels.some((c) => c.id === state.textChannel)) state.textChannel = textChannels[0]?.id || null;
+    if (!state.home && !textChannels.some((c) => c.id === state.textChannel)) state.textChannel = textChannels[0]?.id || null;
     // Fecha conexões com quem saiu da nossa sala.
     for (const sid of state.peers.keys()) {
       const v = voiceEntry(sid);
@@ -472,11 +495,20 @@
     $('#me-name').style.color = nameColor(me);
     $('#me-avatar').replaceWith(Object.assign(avatar(me), { id: 'me-avatar' }));
     $('#me-sub').textContent = state.voiceChannel ? 'Em chamada' : 'Online';
-    $('#app').classList.toggle('hide-members', !state.showMembers);
+    // Entrar numa chamada a partir do Início leva de volta para o servidor.
+    if (state.home && state.view === 'voice' && state.voiceChannel) leaveHome();
+    $('#app').classList.toggle('hide-members', !state.showMembers || state.home);
+    $('#btn-members').classList.toggle('hidden', state.home);
     $('#btn-members').classList.toggle('active', state.showMembers);
+    $('#rail-home').classList.toggle('active', state.home);
+    $('#rail-server').classList.toggle('active', !state.home);
+    $('#server-header').classList.toggle('hidden', state.home);
+    $('#server-nav').classList.toggle('hidden', state.home);
+    $('#home-nav').classList.toggle('hidden', !state.home);
     $('#btn-members').dataset.tip = state.showMembers ? 'Ocultar lista de membros' : 'Mostrar lista de membros';
     for (const btn of document.querySelectorAll('.cat-add')) btn.classList.toggle('hidden', !hasPerm('MANAGE_CHANNELS'));
     renderChannels();
+    renderHomeNav();
     renderMembers();
     renderMain();
     renderControls();
@@ -493,12 +525,23 @@
 
   function updateTitle() {
     const entries = Object.entries(state.unread).filter(([id]) => channelById(id));
-    const mentions = entries.reduce((n, [, u]) => n + u.mentions, 0);
+    const serverMentions = entries.filter(([id]) => !isDm(id)).reduce((n, [, u]) => n + u.mentions, 0);
+    const dmMessages = entries.filter(([id]) => isDm(id)).reduce((n, [, u]) => n + u.mentions, 0);
     const badge = $('#server-badge');
-    badge.textContent = mentions > 99 ? '99+' : String(mentions);
-    badge.classList.toggle('hidden', !mentions);
-    const where = state.view === 'voice' && state.voiceChannel ? channelById(state.voiceChannel)?.name : '#' + (channelById(state.textChannel)?.name || '');
-    document.title = (mentions ? `(${mentions}) ` : entries.length ? '• ' : '') + `${where} | ${serverName()} | Resenhex`;
+    badge.textContent = serverMentions > 99 ? '99+' : String(serverMentions);
+    badge.classList.toggle('hidden', !serverMentions);
+    // No Início, a bolinha soma mensagens diretas novas e pedidos de amizade.
+    const homeCount = dmMessages + state.social.incoming.length;
+    const homeBadge = $('#home-badge');
+    homeBadge.textContent = homeCount > 99 ? '99+' : String(homeCount);
+    homeBadge.classList.toggle('hidden', !homeCount);
+    $('#nav-home-badge').textContent = homeBadge.textContent;
+    $('#nav-home-badge').classList.toggle('hidden', !homeCount);
+    const mentions = serverMentions + dmMessages;
+    const peer = state.home && channelById(state.textChannel)?.name;
+    const where = state.home ? (peer ? '@' + peer : 'Amigos')
+      : state.view === 'voice' && state.voiceChannel ? channelById(state.voiceChannel)?.name : '#' + (channelById(state.textChannel)?.name || '');
+    document.title = (mentions ? `(${mentions}) ` : entries.length ? '• ' : '') + (state.home ? `${where} | Resenhex` : `${where} | ${serverName()} | Resenhex`);
   }
 
   function openTextChannel(id) {
@@ -506,12 +549,103 @@
       state.editing = null;
       state.replyTo = null;
     }
+    state.home = false;
     state.textChannel = id;
     state.view = 'chat';
     markRead(id);
     render();
     closePanels();
     $('#chat-input').focus();
+  }
+
+  // Início: a tela de amigos (sem conversa aberta) e a lista de mensagens diretas.
+  function goHome() {
+    if (!state.home) state.serverChannel = state.textChannel;
+    state.home = true;
+    state.textChannel = null;
+    state.editing = null;
+    state.replyTo = null;
+    if (state.view === 'voice') state.view = 'chat';
+    render();
+    closePanels();
+  }
+
+  function leaveHome() {
+    const texts = state.server.channels.filter((c) => c.type === 'text');
+    state.home = false;
+    state.textChannel = texts.some((c) => c.id === state.serverChannel) ? state.serverChannel : texts[0]?.id || null;
+    state.editing = null;
+    state.replyTo = null;
+  }
+
+  function goServer() {
+    if (!state.home) return;
+    leaveHome();
+    markRead(state.textChannel);
+    render();
+    closePanels();
+  }
+
+  function openDm(id) {
+    if (state.textChannel !== id) {
+      state.editing = null;
+      state.replyTo = null;
+    }
+    if (!state.home) state.serverChannel = state.textChannel;
+    state.home = true;
+    state.textChannel = id;
+    state.view = 'chat';
+    markRead(id);
+    render();
+    closePanels();
+    $('#chat-input').focus();
+  }
+
+  const openChat = (id) => (isDm(id) ? openDm(id) : openTextChannel(id));
+
+  // Abre (ou cria) a conversa privada com um amigo.
+  async function messageUser(userId) {
+    const res = await call('dm:open', { userId });
+    if (res) openDm(res.id);
+  }
+
+  async function closeDm(id) {
+    if (state.textChannel === id) goHome();
+    await call('dm:close', { id });
+  }
+
+  $('#rail-home').onclick = goHome;
+  $('#rail-server').onclick = goServer;
+  $('#nav-friends').onclick = goHome;
+  $('#nav-to-home').onclick = goHome;
+  $('#nav-to-server').onclick = goServer;
+  for (const node of [$('#rail-home'), $('#rail-server')]) { node.tabIndex = 0; node.setAttribute('role', 'button'); node.onkeydown = (e) => { if (['Enter', ' '].includes(e.key)) { e.preventDefault(); node.click(); } }; }
+
+  // Lista de conversas privadas na lateral do Início.
+  function renderHomeNav() {
+    const s = state.server;
+    if (!changed('home-nav', [state.social, state.unread, state.home, state.textChannel, s.members.map((m) => [m.id, m.name, m.color, m.avatarUrl, m.online])])) return;
+    $('#nav-friends').classList.toggle('active', state.home && !state.textChannel);
+    const pending = state.social.incoming.length;
+    $('#friends-badge').textContent = String(pending);
+    $('#friends-badge').classList.toggle('hidden', !pending);
+    const dms = state.social.dms.slice();
+    if (inDm() && !dms.some((d) => d.id === state.textChannel)) dms.unshift({ id: state.textChannel, userId: dmPeerId(state.textChannel) });
+    const rows = dms.map((dm) => {
+      const peer = member(dm.userId);
+      if (!peer) return null;
+      const u = state.unread[dm.id];
+      return el('li', {
+        class: 'channel dm' + (state.home && state.textChannel === dm.id ? ' active' : '') + (u ? ' unread' : ''),
+        onclick: () => openDm(dm.id),
+        oncontextmenu: (e) => openMemberMenu(peer.id, e),
+      }, el('div', { class: 'avatar-wrap' }, avatar(peer, 'small'), el('span', { class: 'status ' + (peer.online ? 'online' : 'offline') })),
+      el('span', { class: 'channel-name', textContent: peer.name }),
+      u?.mentions ? el('span', { class: 'badge', textContent: u.mentions > 99 ? '99+' : String(u.mentions) }) : null,
+      el('button', { type: 'button', class: 'dm-close', tip: 'Fechar conversa', ariaLabel: 'Fechar conversa com ' + peer.name, onclick: (e) => { e.stopPropagation(); closeDm(dm.id); } }, Icon('x', 14)));
+    }).filter(Boolean);
+    $('#dm-list').replaceChildren(...rows);
+    $('#dm-empty').classList.toggle('hidden', rows.length > 0);
   }
 
   function renderChannels() {
@@ -618,9 +752,16 @@
 
   function renderMain() {
     const inVoiceView = state.view === 'voice' && state.voiceChannel;
+    const friendsPage = state.home && !state.textChannel;
     $('#btn-return-call').classList.toggle('hidden', !state.voiceChannel || !!inVoiceView);
-    $('#chat-view').classList.toggle('hidden', !!inVoiceView);
+    $('#chat-view').classList.toggle('hidden', !!inVoiceView || friendsPage);
+    $('#friends-view').classList.toggle('hidden', !friendsPage);
     $('#voice-view').classList.toggle('hidden', !inVoiceView);
+    if (friendsPage) {
+      setHeader('users', 'Amigos');
+      renderFriends();
+      return;
+    }
     if (inVoiceView) {
       const n = voiceEntries(state.voiceChannel).length;
       setHeader('volume', channelById(state.voiceChannel)?.name || '', `${n} ${n === 1 ? 'pessoa' : 'pessoas'} na chamada`);
@@ -629,7 +770,12 @@
     }
     const c = channelById(state.textChannel);
     if (!c) return $('#header-title').replaceChildren();
-    setHeader('hash', c.name, c.allowedRoles.length ? 'Canal privado' : '');
+    if (c.type === 'dm') {
+      $('#header-title').replaceChildren(
+        el('div', { class: 'avatar-wrap' }, avatar(c.peer, 'small'), el('span', { class: 'status ' + (c.peer.online ? 'online' : 'offline') })),
+        el('span', { class: 'title-text', textContent: c.peer.name }),
+        el('span', { class: 'title-sub', textContent: c.peer.online ? 'Online' : 'Offline' }));
+    } else setHeader('hash', c.name, c.allowedRoles.length ? 'Canal privado' : '');
     if (!state.messages[c.id]) {
       state.messages[c.id] = [];
       call('chat:history', { channel: c.id }).then((res) => {
@@ -652,10 +798,15 @@
     return extraNodes.get(key);
   }
 
-  const welcomeNode = (c) => cachedNode('welcome:' + c.id + ':' + c.name, () => el('div', { class: 'welcome' },
-    el('div', { class: 'welcome-icon' }, Icon('hash', 42)),
-    el('h2', { textContent: `Bem-vindo(a) a #${c.name}!` }),
-    el('p', { textContent: `Este é o começo do canal #${c.name}.` })));
+  const welcomeNode = (c) => cachedNode('welcome:' + c.id + ':' + c.name, () => (c.type === 'dm'
+    ? el('div', { class: 'welcome' },
+      el('div', { class: 'dm-welcome-avatar' }, avatar(c.peer)),
+      el('h2', { textContent: c.name }),
+      el('p', { textContent: `Este é o começo da sua conversa privada com ${c.name}.` }))
+    : el('div', { class: 'welcome' },
+      el('div', { class: 'welcome-icon' }, Icon('hash', 42)),
+      el('h2', { textContent: `Bem-vindo(a) a #${c.name}!` }),
+      el('p', { textContent: `Este é o começo do canal #${c.name}.` }))));
 
   const dayNode = (ts) => cachedNode('day:' + dayKey(ts), () => el('div', { class: 'day-divider' }, el('span', { textContent: formatDay(ts) })));
   let stickToBottom = true;
@@ -681,7 +832,7 @@
     }
     const list = state.messages[state.textChannel] || [];
     const epoch = JSON.stringify([state.server.members.map((m) => [m.id, m.name, m.color, m.avatarUrl, m.roles]), state.server.roles.map((r) => [r.id, r.name, r.color]),
-      hasPerm('MANAGE_MESSAGES'), canSend(), state.replyTo?.id, dayKey(Date.now())]);
+      hasPerm('MANAGE_MESSAGES'), canWrite(), inDm(), state.replyTo?.id, dayKey(Date.now())]);
     const nodes = [welcomeNode(channel)];
     let prev = null;
     for (const msg of list) {
@@ -714,7 +865,7 @@
     const name = author?.name || msg.authorName || 'Usuário removido';
     const mine = msg.authorId === state.me.accountId;
     const row = el('div', {
-      class: 'msg' + (continued ? ' continued' : '') + (mentionsMe(msg) ? ' mentioned' : '') + (state.replyTo?.id === msg.id ? ' replying' : ''),
+      class: 'msg' + (continued ? ' continued' : '') + (mentionsMe(msg) && !inDm() ? ' mentioned' : '') + (state.replyTo?.id === msg.id ? ' replying' : ''),
       data: { id: msg.id },
     });
     const openMenu = (e) => author && (e.type === 'contextmenu' ? openMemberMenu(author.id, e) : (e.stopPropagation(), openProfile(author.id, e.currentTarget)));
@@ -773,18 +924,18 @@
           tip: users.map((id) => member(id)?.name || '?').join(', '),
           onclick: () => react(msg.id, emoji),
         }, emoji, el('span', { textContent: String(users.length) }))),
-        canSend() ? el('button', { class: 'reaction add', tip: 'Adicionar reação', ariaLabel: 'Adicionar reação', onclick: (e) => openEmojiPicker(e.currentTarget, (em) => react(msg.id, em)) }, Icon('smilePlus', 16)) : null));
+        canWrite() ? el('button', { class: 'reaction add', tip: 'Adicionar reação', ariaLabel: 'Adicionar reação', onclick: (e) => openEmojiPicker(e.currentTarget, (em) => react(msg.id, em)) }, Icon('smilePlus', 16)) : null));
     }
     row.append(body);
 
     const actions = el('div', { class: 'msg-actions' });
     const action = (label, icon, onclick, cls = '') => el('button', { class: cls, tip: label, ariaLabel: label, onclick }, Icon(icon, 20));
-    if (canSend()) {
+    if (canWrite()) {
       actions.append(action('Adicionar reação', 'smilePlus', (e) => openEmojiPicker(e.currentTarget, (em) => react(msg.id, em))));
       actions.append(action('Responder', 'reply', () => startReply(msg)));
     }
-    if (mine && canSend()) actions.append(action('Editar', 'pencil', () => { state.editing = msg.id; renderMessages(); }));
-    if (mine || hasPerm('MANAGE_MESSAGES')) {
+    if (mine && canWrite()) actions.append(action('Editar', 'pencil', () => { state.editing = msg.id; renderMessages(); }));
+    if (mine || (!inDm() && hasPerm('MANAGE_MESSAGES'))) {
       actions.append(action('Apagar (Shift+clique apaga sem perguntar)', 'trash', (e) => {
         if (e.shiftKey || confirm('Apagar esta mensagem?')) call('chat:delete', { channel: state.textChannel, id: msg.id });
       }, 'danger'));
@@ -843,7 +994,10 @@
     const c = channelById(state.textChannel);
     const input = $('#chat-input');
     const me = meMember();
-    if (timedOut(me)) {
+    if (inDm()) {
+      input.disabled = !canWrite();
+      input.placeholder = input.disabled ? 'Você só pode conversar em privado com amigos.' : 'Conversar com @' + (c?.name || '');
+    } else if (timedOut(me)) {
       input.disabled = true;
       input.placeholder = '⏳ Você está de castigo até ' + formatUntil(me.timeoutUntil);
     } else if (!hasPerm('SEND_MESSAGES')) {
@@ -879,7 +1033,7 @@
   }
 
   async function uploadFiles(files) {
-    if (!canSend()) return toast('Você não pode enviar arquivos agora.');
+    if (!canWrite()) return toast('Você não pode enviar arquivos agora.');
     for (const file of files) {
       if (state.pending.length >= 10) return toast('No máximo 10 arquivos por mensagem.');
       if (file.size > state.maxUploadMb * 1024 * 1024) {
@@ -996,10 +1150,10 @@
     for (const mem of state.server.members) {
       if (mem.name.toLowerCase().includes(q)) items.push({ insert: '@' + mem.name, label: mem.name, color: nameColor(mem), member: mem });
     }
-    for (const r of state.server.roles.slice(1)) {
+    for (const r of inDm() ? [] : state.server.roles.slice(1)) {
       if (r.name.toLowerCase().includes(q)) items.push({ insert: '@' + r.name, label: '@' + r.name, color: r.color, note: 'cargo' });
     }
-    if (hasPerm('MENTION_EVERYONE')) {
+    if (hasPerm('MENTION_EVERYONE') && !inDm()) {
       if ('everyone'.startsWith(q)) items.push({ insert: '@everyone', label: '@everyone', note: 'avisa todo mundo' });
       if ('here'.startsWith(q)) items.push({ insert: '@here', label: '@here', note: 'avisa todo mundo' });
     }
@@ -1102,6 +1256,7 @@
     if (state.unread[channel] && socket.connected) {
       delete state.unread[channel];
       renderChannels();
+      renderHomeNav();
       updateTitle();
     }
     socket.emit('chat:read', { channel }, () => {});
@@ -1116,14 +1271,14 @@
     if (!state.notify || !('Notification' in window) || Notification.permission !== 'granted') return;
     if (document.visibilityState === 'visible' && document.hasFocus()) return;
     const author = member(msg.authorId)?.name || 'Alguém';
-    const n = new Notification(`${author} em #${channelById(channel)?.name || ''}`, {
+    const n = new Notification(isDm(channel) ? `${author} (mensagem direta)` : `${author} em #${channelById(channel)?.name || ''}`, {
       body: Format.plain(msg.text, fmtCtx).slice(0, 200) || '📎 Anexo',
       tag: channel,
       silent: true,
     });
     n.onclick = () => {
       window.focus();
-      openTextChannel(channel);
+      openChat(channel);
       n.close();
     };
   }
@@ -1153,8 +1308,16 @@
           notify(msg, channel);
         }
         renderChannels();
+        renderHomeNav();
         updateTitle();
       }
+    }
+    // A conversa que acabou de receber mensagem sobe para o topo da lista.
+    const dm = isDm(channel) && state.social.dms.find((d) => d.id === channel);
+    if (dm) {
+      dm.last = msg.ts;
+      state.social.dms.sort((a, b) => b.last - a.last);
+      renderHomeNav();
     }
     if (channel === state.textChannel) renderMessages(msg.authorId === state.me?.accountId);
   });
@@ -1467,6 +1630,166 @@
     refreshTip(scMic);
   }
 
+  // ---------------- amigos ----------------
+  socket.on('social', (social) => {
+    state.social = social;
+    if (state.me && state.server) render();
+  });
+
+  async function friendRequest(payload) {
+    const res = await call('friend:request', payload);
+    if (res) toast(res.status === 'friends' ? `Você e ${res.name} agora são amigos!` : `Pedido de amizade enviado para ${res.name}.`, 'info');
+    return res;
+  }
+  const acceptFriend = (m) => call('friend:accept', { id: m.id }).then((res) => res && toast(`Você e ${m.name} agora são amigos!`, 'info'));
+  const declineFriend = (m) => call('friend:decline', { id: m.id });
+  const unblockUser = (m) => call('friend:unblock', { id: m.id });
+  async function removeFriend(m) {
+    if (await confirmDialog({ title: `Remover ${m.name}`, text: `${m.name} sai da sua lista de amigos. A conversa continua salva, mas vocês só voltam a trocar mensagens privadas depois de serem amigos de novo.`, confirm: 'Remover amigo' })) call('friend:remove', { id: m.id });
+  }
+  async function blockUser(m) {
+    if (await confirmDialog({ title: `Bloquear ${m.name}`, text: 'Vocês deixam de ser amigos, e a pessoa não poderá mais enviar pedidos de amizade nem mensagens privadas para você. Você pode desbloquear quando quiser.', confirm: 'Bloquear' })) call('friend:block', { id: m.id });
+  }
+
+  // Ações sociais de uma pessoa, usadas no menu do clique direito e no botão "⋯" da lista de amigos.
+  function socialMenuItems(m) {
+    const rel = relation(m.id);
+    return [
+      rel === 'friend' ? menuAction('Enviar mensagem', 'message', () => messageUser(m.id)) : null,
+      rel === 'none' ? menuAction('Adicionar amigo', 'userPlus', () => friendRequest({ id: m.id })) : null,
+      rel === 'incoming' ? menuAction('Aceitar pedido de amizade', 'check', () => acceptFriend(m)) : null,
+      rel === 'incoming' ? menuAction('Recusar pedido de amizade', 'x', () => declineFriend(m)) : null,
+      rel === 'outgoing' ? menuAction('Cancelar pedido de amizade', 'x', () => declineFriend(m)) : null,
+      rel === 'friend' ? menuAction('Remover amigo', 'userMinus', () => removeFriend(m), 'danger') : null,
+      rel === 'blocked' ? menuAction('Desbloquear', 'ban', () => unblockUser(m)) : menuAction('Bloquear', 'ban', () => blockUser(m), 'danger'),
+    ];
+  }
+
+  const FRIEND_TABS = [['online', 'Online'], ['all', 'Todos'], ['pending', 'Pendentes'], ['blocked', 'Bloqueados']];
+  const friendStatus = (m) => {
+    const v = voiceOf(m);
+    return !m.online ? 'Offline' : v ? 'Em ' + (channelById(v.channel)?.name || 'um canal de voz') : 'Online';
+  };
+
+  function friendButton(icon, label, onclick, cls = '') {
+    return el('button', { type: 'button', class: 'friend-btn ' + cls, tip: label, ariaLabel: label, onclick: (e) => { e.stopPropagation(); onclick(e); } }, Icon(icon, 20));
+  }
+
+  function friendRow(m, sub, actions, onclick) {
+    return el('div', { class: 'friend-row' + (onclick ? ' clickable' : ''), onclick, oncontextmenu: (e) => openMemberMenu(m.id, e) },
+      el('div', { class: 'avatar-wrap' }, avatar(m), el('span', { class: 'status ' + (m.online ? 'online' : 'offline') })),
+      el('div', { class: 'friend-info' },
+        el('div', { class: 'friend-name', style: { color: nameColor(m) || '' }, textContent: m.name }),
+        el('div', { class: 'friend-sub', textContent: sub })),
+      el('div', { class: 'friend-actions' }, actions));
+  }
+
+  function friendMoreButton(m) {
+    return friendButton('moreHorizontal', 'Mais', (e) => {
+      const r = e.currentTarget.getBoundingClientRect();
+      openMemberMenu(m.id, { preventDefault() {}, stopPropagation() {}, clientX: r.left, clientY: r.bottom + 6 });
+    });
+  }
+
+  function friendsSection(title, rows) {
+    return [el('div', { class: 'friends-section', textContent: `${title} — ${rows.length}` }), ...rows];
+  }
+
+  function friendsEmpty(title, text) {
+    return el('div', { class: 'friends-empty' }, el('div', { class: 'friends-empty-icon' }, Icon('users', 44)), el('strong', { textContent: title }), el('span', { textContent: text }));
+  }
+
+  // Monta a lista da aba atual (a caixa de busca fica fora, para não perder o foco ao digitar).
+  function friendsList() {
+    const { friends, incoming, outgoing, blocked } = state.social;
+    const byName = (a, b) => a.name.localeCompare(b.name);
+    const people = (ids) => ids.map(member).filter(Boolean).sort(byName);
+    const q = state.friendsSearch.trim().toLowerCase();
+    const search = (list) => (q ? list.filter((m) => m.name.toLowerCase().includes(q)) : list);
+    const tab = state.friendsTab;
+    if (tab === 'online' || tab === 'all') {
+      const all = people(friends);
+      const list = search(tab === 'online' ? all.filter((m) => m.online) : all);
+      if (!list.length) {
+        if (q) return [friendsEmpty('Ninguém encontrado', 'Nenhum amigo com esse nome.')];
+        return [tab === 'online'
+          ? friendsEmpty('Ninguém online agora', all.length ? 'Seus amigos aparecem aqui quando entrarem.' : 'Você ainda não tem amigos. Use "Adicionar amigo" ou clique em alguém na lista de membros.')
+          : friendsEmpty('Nenhum amigo ainda', 'Use "Adicionar amigo" ou clique em alguém na lista de membros do servidor.')];
+      }
+      return friendsSection(tab === 'online' ? 'ONLINE' : 'TODOS OS AMIGOS', list.map((m) => friendRow(m, friendStatus(m),
+        [friendButton('message', 'Enviar mensagem', () => messageUser(m.id)), friendMoreButton(m)], () => messageUser(m.id))));
+    }
+    if (tab === 'pending') {
+      const inRows = people(incoming).map((m) => friendRow(m, 'Pedido de amizade recebido',
+        [friendButton('check', 'Aceitar', () => acceptFriend(m), 'accept'), friendButton('x', 'Recusar', () => declineFriend(m), 'decline')]));
+      const outRows = people(outgoing).map((m) => friendRow(m, 'Pedido de amizade enviado', [friendButton('x', 'Cancelar pedido', () => declineFriend(m), 'decline')]));
+      if (!inRows.length && !outRows.length) return [friendsEmpty('Nenhum pedido pendente', 'Pedidos de amizade enviados e recebidos aparecem aqui.')];
+      return [...(inRows.length ? friendsSection('RECEBIDOS', inRows) : []), ...(outRows.length ? friendsSection('ENVIADOS', outRows) : [])];
+    }
+    const rows = people(blocked).map((m) => friendRow(m, 'Bloqueado', [el('button', { type: 'button', class: 'friend-text-btn', textContent: 'Desbloquear', onclick: (e) => { e.stopPropagation(); unblockUser(m); } })]));
+    return rows.length ? friendsSection('BLOQUEADOS', rows) : [friendsEmpty('Ninguém bloqueado', 'Quem você bloquear aparece aqui, e você pode desbloquear quando quiser.')];
+  }
+
+  function friendsAddForm() {
+    const input = el('input', { id: 'friends-add-input', type: 'text', maxLength: 32, autocomplete: 'off', placeholder: 'Digite o nome de usuário', value: state.friendsAdd, ariaLabel: 'Nome de usuário' });
+    const submit = el('button', { type: 'submit', class: 'friends-add-submit', textContent: 'Enviar pedido de amizade', disabled: !state.friendsAdd.trim() });
+    const note = el('div', { class: 'friends-add-note' + (state.friendsNote ? ' ok' : ''), role: 'status', textContent: state.friendsNote });
+    input.oninput = () => { state.friendsAdd = input.value; state.friendsNote = ''; submit.disabled = !input.value.trim(); note.textContent = ''; note.className = 'friends-add-note'; };
+    const form = el('form', { class: 'friends-add', onsubmit: async (e) => {
+      e.preventDefault();
+      const name = input.value.trim();
+      if (!name) return;
+      submit.disabled = true;
+      const res = await friendRequest({ name });
+      if (res) {
+        state.friendsAdd = '';
+        state.friendsNote = res.status === 'friends' ? `Você e ${res.name} agora são amigos!` : `Pedido enviado para ${res.name}.`;
+      }
+      // A lista de amigos já foi redesenhada quando o servidor respondeu: refaz o formulário com o estado novo.
+      renderFriends(true);
+      document.getElementById('friends-add-input')?.focus();
+    } },
+    el('h2', { textContent: 'Adicionar amigo' }),
+    el('p', { textContent: 'Digite o nome de usuário da pessoa. Você também pode clicar em alguém na lista de membros e escolher "Adicionar amigo".' }),
+    el('div', { class: 'friends-add-box' }, input, submit), note);
+    return form;
+  }
+
+  function renderFriends(force = false) {
+    const { incoming } = state.social;
+    const s = state.server;
+    if (!changed('friends', [state.friendsTab, state.social, s.members.map((m) => [m.id, m.name, m.color, m.avatarUrl, m.online, m.roles]), s.roles.map((r) => [r.id, r.color]),
+      s.voice.map((v) => [v.accountId, v.channel]), s.channels.map((c) => [c.id, c.name])]) && !force) return;
+    const focused = document.activeElement?.id;
+    const tabs = $('#friends-tabs');
+    tabs.replaceChildren(
+      ...FRIEND_TABS.map(([key, label]) => el('button', {
+        type: 'button', role: 'tab', ariaSelected: String(state.friendsTab === key), class: 'ft-tab' + (state.friendsTab === key ? ' active' : ''),
+        onclick: () => { state.friendsTab = key; renderFriends(); },
+      }, label, key === 'pending' && incoming.length ? el('span', { class: 'badge', textContent: String(incoming.length) }) : null)),
+      el('button', {
+        type: 'button', role: 'tab', ariaSelected: String(state.friendsTab === 'add'), class: 'ft-tab add' + (state.friendsTab === 'add' ? ' active' : ''),
+        onclick: () => { state.friendsTab = 'add'; renderFriends(); },
+      }, 'Adicionar amigo'));
+
+    const body = $('#friends-body');
+    if (state.friendsTab === 'add') body.replaceChildren(friendsAddForm());
+    else {
+      const list = el('div', { class: 'friends-list' }, friendsList());
+      const parts = [list];
+      if (['online', 'all'].includes(state.friendsTab)) {
+        const box = el('input', { id: 'friends-search', type: 'search', placeholder: 'Buscar amigo', value: state.friendsSearch, autocomplete: 'off', ariaLabel: 'Buscar amigo' });
+        box.oninput = () => { state.friendsSearch = box.value; list.replaceChildren(...friendsList()); };
+        parts.unshift(el('div', { class: 'friends-search' }, box, Icon('search', 18)));
+      }
+      body.replaceChildren(...parts);
+    }
+    if (focused === 'friends-search' || focused === 'friends-add-input') {
+      const field = document.getElementById(focused);
+      if (field) { field.focus(); field.setSelectionRange(field.value.length, field.value.length); }
+    }
+  }
+
   // ---------------- menu de membro (clique direito) ----------------
   function closeMenu() {
     const menu = $('#context-menu');
@@ -1659,6 +1982,7 @@
   }
   function mention(m) {
     if (state.view !== 'chat') { state.view = 'chat'; render(); }
+    if (state.home && !state.textChannel) return messageUser(m.id);
     insertAtCursor('@' + m.name + ' ');
   }
   async function kickMember(m) {
@@ -1720,8 +2044,9 @@
 
     groups.push([
       menuAction('Perfil', 'userCog', () => openProfile(m.id, { x: e.clientX, y: e.clientY })),
-      !self && canSend() ? menuAction('Mencionar', 'at', () => mention(m)) : null,
+      !self && canSend() && !state.home ? menuAction('Mencionar', 'at', () => mention(m)) : null,
     ]);
+    if (!self) groups.push(socialMenuItems(m));
 
     if (!self) {
       const local = [];
@@ -1860,7 +2185,14 @@
     const actions = [];
     if (self) actions.push(el('button', { type: 'button', class: 'pc-btn primary', onclick: () => { closeProfile(); $('#btn-settings').click(); } }, Icon('pencil', 16), 'Editar perfil'));
     else {
-      if (canSend()) actions.push(el('button', { type: 'button', class: 'pc-btn primary', onclick: () => { closeProfile(); mention(m); } }, Icon('at', 16), 'Mencionar'));
+      const rel = relation(m.id);
+      const social = (icon, label, run, primary = true) => actions.push(el('button', { type: 'button', class: 'pc-btn' + (primary ? ' primary' : ''), onclick: () => { closeProfile(); run(); } }, Icon(icon, 16), label));
+      if (rel === 'friend') social('message', 'Enviar mensagem', () => messageUser(m.id));
+      else if (rel === 'none') social('userPlus', 'Adicionar amigo', () => friendRequest({ id: m.id }));
+      else if (rel === 'incoming') social('check', 'Aceitar pedido', () => acceptFriend(m));
+      else if (rel === 'outgoing') social('x', 'Cancelar pedido', () => declineFriend(m), false);
+      else social('ban', 'Desbloquear', () => unblockUser(m), false);
+      if (canSend() && !state.home) actions.push(el('button', { type: 'button', class: 'pc-btn', onclick: () => { closeProfile(); mention(m); } }, Icon('at', 16), 'Mencionar'));
       if (!sameCall(m)) actions.push(el('button', { type: 'button', class: 'pc-btn', onclick: () => { setLocalMute(m, !state.localMuted.has(m.id)); renderProfile(); } },
         Icon(state.localMuted.has(m.id) ? 'volume' : 'volumeX', 16), state.localMuted.has(m.id) ? 'Desmutar para mim' : 'Mutar para mim'));
     }
@@ -3365,7 +3697,7 @@
     if (matchMedia('(max-width:1100px)').matches) { const open = !$('#app').classList.contains('members-open'); closePanels(); $('#app').classList.toggle('members-open', open); $('#sidebar-backdrop').classList.toggle('hidden', !open); }
     else { state.showMembers = !state.showMembers; localStorage.setItem('showMembers', state.showMembers); render(); }
   };
-  $('#btn-return-call').onclick = () => { state.view = 'voice'; render(); };
+  $('#btn-return-call').onclick = () => { if (state.home) leaveHome(); state.view = 'voice'; render(); };
   document.addEventListener('keydown', (event) => { if (event.key === 'Escape') closePanels(); });
   // Existing rows contain a separate edit button. Keep their actions keyboard-accessible.
   function keyboardRows() {

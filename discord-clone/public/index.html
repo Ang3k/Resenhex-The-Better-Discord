@@ -12,6 +12,7 @@
   <link rel="stylesheet" href="polish.css">
   <link rel="stylesheet" href="changelog.css">
   <link rel="stylesheet" href="profile.css">
+  <link rel="stylesheet" href="friends.css">
 </head>
 <body>
   <!-- Tela de entrada / cadastro -->
@@ -54,13 +55,17 @@
   <div id="app" class="hidden">
     <!-- Barra de servidores -->
     <nav id="servers">
-      <div class="rail-item home" data-tip="Resenhex" data-tip-pos="right">
+      <div class="rail-item home" id="rail-home" data-tip="Mensagens diretas" data-tip-pos="right">
+        <span class="rail-pill">
+</span>
         <div class="rail-icon brand-icon" data-logo="28">
 </div>
+        <span id="home-badge" class="badge rail-badge hidden">
+</span>
       </div>
       <div class="rail-sep">
 </div>
-      <div class="rail-item active" data-tip="Resenha" data-tip-pos="right">
+      <div class="rail-item active" id="rail-server" data-tip="Resenha" data-tip-pos="right">
         <span class="rail-pill">
 </span>
         <div class="rail-icon server-icon">R</div>
@@ -76,7 +81,10 @@
 <span class="chev" data-icon="chevronDown">
 </span>
       </button>
-      <div class="channels">
+      <div class="channels" id="server-nav">
+        <ul class="rail-alt">
+          <li id="nav-to-home" class="channel"><span class="icon" data-icon="message"></span><span class="channel-name">Mensagens diretas</span><span id="nav-home-badge" class="badge hidden"></span></li>
+        </ul>
         <div class="category" data-cat="text">
           <button type="button" class="cat-toggle">
 <span class="cat-chev" data-icon="chevronDown" data-size="12">
@@ -97,6 +105,19 @@
 </ul>
       </div>
 
+      <!-- Início: amigos e mensagens diretas -->
+      <div id="home-nav" class="hidden">
+        <div class="server-name home-title"><span>Início</span></div>
+        <div class="channels">
+          <ul>
+            <li id="nav-to-server" class="channel rail-alt"><span class="icon" data-icon="hash"></span><span class="channel-name">Voltar ao servidor</span></li>
+            <li id="nav-friends" class="channel"><span class="icon" data-icon="users"></span><span class="channel-name">Amigos</span><span id="friends-badge" class="badge hidden"></span></li>
+          </ul>
+          <div class="category">MENSAGENS DIRETAS</div>
+          <ul id="dm-list"></ul>
+          <p id="dm-empty" class="dm-empty hidden">Nenhuma conversa ainda. Clique num amigo para começar.</p>
+        </div>
+      </div>
     </aside>
 
     <!-- Painel de voz e do usuário: atravessa a faixa dos servidores e a dos canais, como no Discord -->
@@ -210,6 +231,13 @@
         </div>
       </section>
 
+      <section id="friends-view" class="hidden">
+        <div id="friends-tabs" role="tablist" aria-label="Amigos">
+</div>
+        <div id="friends-body">
+</div>
+      </section>
+
       <section id="voice-view" class="hidden">
         <div id="stage">
 </div>
@@ -284,7 +312,7 @@
 <button id="btn-logout" type="button">Sair da conta <span data-icon="phone" data-size="16">
 </span>
 </button>
-<button id="settings-version" type="button" class="settings-version">Resenhex v0.6 · <u>Novidades</u></button>
+<button id="settings-version" type="button" class="settings-version">Resenhex v0.7 · <u>Novidades</u></button>
 </div>
 </aside>
     <div class="settings-main">

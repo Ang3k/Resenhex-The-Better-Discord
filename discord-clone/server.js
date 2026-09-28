@@ -1,5 +1,5 @@
 // Servidor do Resenhex (plataforma de chat e voz inspirada no Discord): contas, cargos e permissões, moderação,
-// chat de texto com anexos, e sinalização WebRTC para voz, câmera e tela.
+// chat de texto com anexos, amigos e mensagens diretas, e sinalização WebRTC para voz, câmera e tela.
 const path = require('path');
 const fs = require('fs');
 const http = require('http');
@@ -129,6 +129,9 @@ function loadDb() {
 
 const db = loadDb();
 db.uploads ||= {};
+db.friendships ||= {}; // "idA-idB" (ids em ordem) -> { status: 'pending' | 'friends', from, ts }
+db.blocks ||= {}; // idDeQuemBloqueou -> [ids bloqueados]
+db.dms ||= {}; // "dm-idA-idB" -> { id, users: [idA, idB], closed: { idDaConta: true } }; as mensagens ficam em db.messages[id]
 // Servidores criados antes dos efeitos sonoros: libera para @everyone uma única vez.
 if (!db.soundboardMigrated) {
   const everyone = db.roles.find((r) => r.id === 'everyone');
@@ -250,6 +253,42 @@ function canView(acc, channel) {
   return !channel.allowedRoles.length || can(acc, 'ADMIN') || channel.allowedRoles.some((r) => acc.roles.includes(r));
 }
 
+// ---------------- amigos e mensagens diretas ----------------
+const MAX_FRIENDS = 200;
+const MAX_PENDING_REQUESTS = 100;
+const MAX_BLOCKS = 500;
+const pairKey = (a, b) => [a, b].sort().join('-');
+const dmIdOf = (a, b) => 'dm-' + pairKey(a, b);
+const isDmId = (id) => typeof id === 'string' && id.startsWith('dm-');
+const friendshipOf = (a, b) => db.friendships[pairKey(a, b)];
+const areFriends = (a, b) => friendshipOf(a, b)?.status === 'friends';
+const hasBlocked = (blocker, target) => (db.blocks[blocker] || []).includes(target);
+const presentAccount = (id) => {
+  const a = db.accounts[id];
+  return a && !a.banned ? a : null;
+};
+
+// Amigos, pedidos e conversas abertas de uma conta (o navegador só recebe o que é dele).
+function socialFor(acc) {
+  const friends = [];
+  const incoming = [];
+  const outgoing = [];
+  for (const [key, f] of Object.entries(db.friendships)) {
+    const [a, b] = key.split('-');
+    if (a !== acc.id && b !== acc.id) continue;
+    const other = a === acc.id ? b : a;
+    if (!presentAccount(other)) continue;
+    if (f.status === 'friends') friends.push(other);
+    else (f.from === acc.id ? outgoing : incoming).push(other);
+  }
+  const dms = Object.values(db.dms)
+    .filter((dm) => dm.users.includes(acc.id) && !dm.closed?.[acc.id])
+    .map((dm) => ({ id: dm.id, userId: dm.users.find((u) => u !== acc.id), last: (db.messages[dm.id] || []).at(-1)?.ts || 0 }))
+    .filter((dm) => presentAccount(dm.userId))
+    .sort((x, y) => y.last - x.last);
+  return { friends, incoming, outgoing, blocked: (db.blocks[acc.id] || []).filter((id) => db.accounts[id]), dms };
+}
+
 // ---------------- menções e anexos ----------------
 // Menções ficam no texto como <@idDaConta> e <@&idDoCargo>; @everyone/@here só contam com permissão.
 function parseMentions(acc, text, replyAuthorId) {
@@ -284,6 +323,16 @@ setInterval(() => {
 // ---------------- sessões conectadas ----------------
 // socket.id -> { accountId, voice: idDoCanal|null, muted, deafened, sharing, paused, camera }
 const online = new Map();
+
+// Manda a lista de amigos/conversas atualizada para quem está conectado.
+function pushSocial(...accountIds) {
+  for (const id of new Set(accountIds)) {
+    const acc = db.accounts[id];
+    if (!acc) continue;
+    const payload = socialFor(acc);
+    for (const [sid, s] of online) if (s.accountId === id) io.sockets.sockets.get(sid)?.emit('social', payload);
+  }
+}
 
 const app = express();
 app.use(express.static(path.join(__dirname, 'public')));
@@ -576,6 +625,7 @@ io.on('connection', (socket) => {
     online.set(socket.id, { accountId: acc.id, voice: null, muted: false, deafened: false, sharing: false, camera: false });
     save();
     ack({ token, accountId: acc.id, sid: socket.id, iceServers: iceServers(), permNames: PERMS, maxUploadMb: MAX_UPLOAD_MB });
+    socket.emit('social', socialFor(acc));
     broadcastState();
   }
 
@@ -607,10 +657,37 @@ io.on('connection', (socket) => {
     return c;
   };
 
-  on('chat:history', (acc, { channel }) => ({ messages: db.messages[textChannel(acc, channel).id] || [] }));
+  // Um canal do servidor ou uma conversa privada (id "dm-…"): o chat funciona igual nos dois.
+  const chatTarget = (acc, id) => {
+    if (!isDmId(id)) return textChannel(acc, id);
+    const dm = db.dms[id];
+    if (!dm || !dm.users.includes(acc.id)) fail('Conversa não encontrada');
+    return { id: dm.id, dm };
+  };
+
+  // Mensagem direta só entre amigos. Não revela quem bloqueou quem.
+  const dmPeer = (acc, dm) => {
+    const peer = presentAccount(dm.users.find((u) => u !== acc.id));
+    if (!peer) fail('Essa pessoa não está mais no servidor.');
+    if (hasBlocked(acc.id, peer.id) || hasBlocked(peer.id, acc.id)) fail('Não foi possível enviar a mensagem.');
+    if (!areFriends(acc.id, peer.id)) fail('Vocês não são mais amigos. Adicione de novo para voltar a conversar.');
+    return peer;
+  };
+
+  const emitToChat = (c, event, payload) => {
+    if (!c.dm) return emitToViewers(c, event, payload);
+    for (const id of c.dm.users) for (const s of socketsOf(id)) s.emit(event, payload);
+  };
+
+  // Numa conversa privada, toda mensagem da outra pessoa conta como menção (badge vermelho).
+  const mentionsFor = (acc, c, text, replyAuthorId) => (c.dm
+    ? { users: c.dm.users.filter((u) => u !== acc.id), roles: [], everyone: false }
+    : parseMentions(acc, text, replyAuthorId));
+
+  on('chat:history', (acc, { channel }) => ({ messages: db.messages[chatTarget(acc, channel).id] || [] }));
 
   const findMessage = (acc, channel, id) => {
-    const c = textChannel(acc, channel);
+    const c = chatTarget(acc, channel);
     const list = db.messages[c.id] || [];
     const i = list.findIndex((m) => m.id === id);
     if (i < 0) fail('Mensagem não encontrada');
@@ -618,10 +695,11 @@ io.on('connection', (socket) => {
   };
 
   on('chat:send', (acc, { channel, text, attachments, replyTo }) => {
-    const c = textChannel(acc, channel);
+    const c = chatTarget(acc, channel);
     text = String(text || '').trim().slice(0, 4000);
-    if (!can(acc, 'SEND_MESSAGES')) fail('Você não tem permissão para enviar mensagens.');
-    if (timedOut(acc)) fail('Você está de castigo.');
+    const peer = c.dm ? dmPeer(acc, c.dm) : null;
+    if (!c.dm && !can(acc, 'SEND_MESSAGES')) fail('Você não tem permissão para enviar mensagens.');
+    if (!c.dm && timedOut(acc)) fail('Você está de castigo.');
     if (!allow('chat:' + acc.id, 10, 5000)) fail('Você está enviando mensagens rápido demais. Espere um pouco.');
     const ids = [...new Set(Array.isArray(attachments) ? attachments : [])].slice(0, MAX_ATTACHMENTS);
     const ups = ids.map((id) => db.uploads[id]);
@@ -635,11 +713,15 @@ io.on('connection', (socket) => {
       ups.forEach((up) => (up.messageId = msg.id));
     }
     if (replied) msg.replyTo = replied.id;
-    msg.mentions = parseMentions(acc, text, replied?.authorId);
+    msg.mentions = mentionsFor(acc, c, text, replied?.authorId);
     list.push(msg);
     while (list.length > MAX_MESSAGES) deleteAttachments(list.shift());
     (acc.lastRead ||= {})[c.id] = msg.ts;
-    emitToViewers(c, 'chat:message', { channel: c.id, msg });
+    // A conversa aparece na lista de quem recebe a primeira mensagem e volta para quem a tinha fechado.
+    const listChanged = c.dm && (list.length === 1 || c.dm.closed?.[peer.id] || c.dm.closed?.[acc.id]);
+    if (c.dm) c.dm.closed = {};
+    emitToChat(c, 'chat:message', { channel: c.id, msg });
+    if (listChanged) pushSocial(acc.id, peer.id);
     save();
   });
 
@@ -647,21 +729,23 @@ io.on('connection', (socket) => {
     const { c, list, msg } = findMessage(acc, channel, id);
     text = String(text || '').trim().slice(0, 4000);
     if (msg.authorId !== acc.id) fail('Só dá para editar suas mensagens.');
-    if (timedOut(acc)) fail('Você está de castigo.');
+    if (c.dm) dmPeer(acc, c.dm);
+    else if (timedOut(acc)) fail('Você está de castigo.');
     if (!text && !msg.attachments?.length) return;
     msg.text = text;
     msg.edited = Date.now();
-    msg.mentions = parseMentions(acc, text, list.find((m) => m.id === msg.replyTo)?.authorId);
-    emitToViewers(c, 'chat:update', { channel: c.id, msg });
+    msg.mentions = mentionsFor(acc, c, text, list.find((m) => m.id === msg.replyTo)?.authorId);
+    emitToChat(c, 'chat:update', { channel: c.id, msg });
     save();
   });
 
   on('chat:delete', (acc, { channel, id }) => {
     const { c, list, i, msg } = findMessage(acc, channel, id);
-    if (msg.authorId !== acc.id && !can(acc, 'MANAGE_MESSAGES')) fail('Sem permissão para apagar essa mensagem.');
+    // Numa conversa privada, ninguém (nem a moderação) apaga a mensagem do outro.
+    if (msg.authorId !== acc.id && (c.dm || !can(acc, 'MANAGE_MESSAGES'))) fail('Sem permissão para apagar essa mensagem.');
     list.splice(i, 1);
     deleteAttachments(msg);
-    emitToViewers(c, 'chat:delete', { channel: c.id, id });
+    emitToChat(c, 'chat:delete', { channel: c.id, id });
     save();
   });
 
@@ -669,7 +753,8 @@ io.on('connection', (socket) => {
     const { c, msg } = findMessage(acc, channel, id);
     emoji = String(emoji || '');
     if (!emoji || emoji.length > 16 || /[\s<>]/.test(emoji)) fail('Emoji inválido');
-    if (timedOut(acc)) fail('Você está de castigo.');
+    if (c.dm) dmPeer(acc, c.dm);
+    else if (timedOut(acc)) fail('Você está de castigo.');
     if (!allow('react:' + acc.id, 20, 5000)) fail('Calma! Reações rápidas demais.');
     const reactions = (msg.reactions ||= {});
     const users = reactions[emoji] || [];
@@ -679,12 +764,12 @@ io.on('connection', (socket) => {
       reactions[emoji] = [...users, acc.id];
     }
     if (!reactions[emoji].length) delete reactions[emoji];
-    emitToViewers(c, 'chat:update', { channel: c.id, msg });
+    emitToChat(c, 'chat:update', { channel: c.id, msg });
     save();
   });
 
   on('chat:read', (acc, { channel }) => {
-    const c = textChannel(acc, channel);
+    const c = chatTarget(acc, channel);
     (acc.lastRead ||= {})[c.id] = Date.now();
     save();
   });
@@ -699,16 +784,151 @@ io.on('connection', (socket) => {
       const fresh = (db.messages[c.id] || []).filter((m) => m.ts > lastRead[c.id] && m.authorId !== acc.id);
       if (fresh.length) result[c.id] = { unread: true, mentions: fresh.filter((m) => mentionsAccount(m, acc)).length };
     }
+    // Conversas privadas: quem nunca abriu a conversa tem tudo como não lido.
+    for (const dm of Object.values(db.dms)) {
+      if (!dm.users.includes(acc.id) || dm.closed?.[acc.id]) continue;
+      const fresh = (db.messages[dm.id] || []).filter((m) => m.ts > (lastRead[dm.id] ?? 0) && m.authorId !== acc.id);
+      if (fresh.length) result[dm.id] = { unread: true, mentions: fresh.length };
+    }
     save();
     return { unread: result };
   });
 
   on('typing', (acc, { channel }) => {
     if (!allow('typing:' + acc.id, 3, 3000)) return;
+    if (isDmId(channel)) {
+      const dm = db.dms[channel];
+      if (dm?.users.includes(acc.id)) for (const s of socketsOf(dm.users.find((u) => u !== acc.id))) s.emit('typing', { channel, name: acc.name });
+      return;
+    }
     const c = db.channels.find((ch) => ch.id === channel);
     if (c) for (const [sid, s] of online) {
       if (sid !== socket.id && canView(db.accounts[s.accountId], c)) io.to(sid).emit('typing', { channel, name: acc.name });
     }
+  });
+
+  // --- Amigos e mensagens diretas ---
+  const cleanId = (id) => (typeof id === 'string' && /^[0-9a-f]{16}$/.test(id) ? id : '');
+  const relationCount = (id) => {
+    let friends = 0;
+    let pending = 0;
+    for (const [key, f] of Object.entries(db.friendships)) {
+      if (!key.split('-').includes(id)) continue;
+      if (f.status === 'friends') friends++;
+      else pending++;
+    }
+    return { friends, pending };
+  };
+  const tellOthers = (id, text) => socketsOf(id).forEach((s) => s.emit('notice', text));
+
+  function makeFriends(a, b) {
+    if (relationCount(a.id).friends >= MAX_FRIENDS || relationCount(b.id).friends >= MAX_FRIENDS) fail(`O limite é de ${MAX_FRIENDS} amigos.`);
+    db.friendships[pairKey(a.id, b.id)] = { status: 'friends', from: a.id, ts: Date.now() };
+  }
+
+  // Pede amizade pelo nome de usuário (aba "Adicionar amigo") ou pelo id (cartão de perfil).
+  on('friend:request', (acc, { name, id }) => {
+    if (!allow('friend:' + acc.id, 10, 60 * 1000)) fail('Muitos pedidos seguidos. Espere um pouco.');
+    const wanted = cleanName(name).toLowerCase();
+    const target = cleanId(id)
+      ? presentAccount(id)
+      : wanted && Object.values(db.accounts).find((a) => !a.banned && a.name.toLowerCase() === wanted);
+    if (!target) fail('Não encontramos ninguém com esse nome.');
+    if (target.id === acc.id) fail('Você não pode adicionar a si mesmo.');
+    if (hasBlocked(acc.id, target.id)) fail('Você bloqueou essa pessoa. Desbloqueie para adicioná-la.');
+    if (hasBlocked(target.id, acc.id)) fail('Não foi possível enviar o pedido para essa pessoa.');
+    const current = friendshipOf(acc.id, target.id);
+    if (current?.status === 'friends') fail('Vocês já são amigos.');
+    if (current?.status === 'pending' && current.from === acc.id) fail('Você já enviou um pedido para essa pessoa.');
+    if (current?.status === 'pending') {
+      // Ela já tinha pedido a sua amizade: o pedido cruzado vira amizade na hora.
+      makeFriends(acc, target);
+      tellOthers(target.id, `${acc.name} aceitou seu pedido de amizade.`);
+      pushSocial(acc.id, target.id);
+      save();
+      return { status: 'friends', name: target.name };
+    }
+    if (relationCount(acc.id).pending >= MAX_PENDING_REQUESTS || relationCount(target.id).pending >= MAX_PENDING_REQUESTS) fail('Há pedidos pendentes demais. Tente mais tarde.');
+    db.friendships[pairKey(acc.id, target.id)] = { status: 'pending', from: acc.id, ts: Date.now() };
+    tellOthers(target.id, `${acc.name} quer ser seu amigo.`);
+    pushSocial(acc.id, target.id);
+    save();
+    return { status: 'pending', name: target.name };
+  });
+
+  on('friend:accept', (acc, { id }) => {
+    const f = friendshipOf(acc.id, cleanId(id));
+    if (!f || f.status !== 'pending' || f.from === acc.id || !presentAccount(id)) fail('Esse pedido não existe mais.');
+    makeFriends(acc, db.accounts[id]);
+    tellOthers(id, `${acc.name} aceitou seu pedido de amizade.`);
+    pushSocial(acc.id, id);
+    save();
+  });
+
+  // Recusa um pedido recebido ou cancela um pedido enviado.
+  on('friend:decline', (acc, { id }) => {
+    const f = friendshipOf(acc.id, cleanId(id));
+    if (f?.status === 'pending') {
+      delete db.friendships[pairKey(acc.id, id)];
+      pushSocial(acc.id, id);
+      save();
+    }
+  });
+
+  on('friend:remove', (acc, { id }) => {
+    const f = friendshipOf(acc.id, cleanId(id));
+    if (f?.status === 'friends') {
+      delete db.friendships[pairKey(acc.id, id)];
+      pushSocial(acc.id, id);
+      save();
+    }
+  });
+
+  // Bloquear desfaz a amizade e impede pedidos e mensagens privadas nos dois sentidos.
+  on('friend:block', (acc, { id }) => {
+    if (!cleanId(id) || !db.accounts[id] || id === acc.id) fail('Pessoa não encontrada.');
+    const list = (db.blocks[acc.id] ||= []);
+    if (!list.includes(id)) {
+      if (list.length >= MAX_BLOCKS) fail('Você bloqueou gente demais. Desbloqueie alguém primeiro.');
+      list.push(id);
+    }
+    delete db.friendships[pairKey(acc.id, id)];
+    pushSocial(acc.id, id);
+    save();
+  });
+
+  on('friend:unblock', (acc, { id }) => {
+    db.blocks[acc.id] = (db.blocks[acc.id] || []).filter((b) => b !== id);
+    if (!db.blocks[acc.id].length) delete db.blocks[acc.id];
+    pushSocial(acc.id);
+    save();
+  });
+
+  // Abre (ou cria) a conversa privada com um amigo.
+  on('dm:open', (acc, { userId }) => {
+    const other = presentAccount(cleanId(userId));
+    if (!other || other.id === acc.id) fail('Pessoa não encontrada.');
+    const id = dmIdOf(acc.id, other.id);
+    if (!db.dms[id]) {
+      if (!areFriends(acc.id, other.id) || hasBlocked(acc.id, other.id) || hasBlocked(other.id, acc.id)) fail('Só dá para conversar em privado com amigos.');
+      db.dms[id] = { id, users: [acc.id, other.id].sort(), closed: {} };
+      db.messages[id] ||= [];
+    }
+    delete db.dms[id].closed?.[acc.id];
+    (acc.lastRead ||= {})[id] ??= 0;
+    pushSocial(acc.id);
+    save();
+    return { id };
+  });
+
+  // Tira a conversa da lista. O histórico continua e ela volta quando chegar mensagem nova.
+  on('dm:close', (acc, { id }) => {
+    const dm = isDmId(id) && db.dms[id];
+    if (!dm || !dm.users.includes(acc.id)) return;
+    (dm.closed ||= {})[acc.id] = true;
+    (acc.lastRead ||= {})[id] = Date.now();
+    pushSocial(acc.id);
+    save();
   });
 
   // --- Voz ---
@@ -829,7 +1049,10 @@ io.on('connection', (socket) => {
         need(action === 'kick' ? 'KICK' : 'BAN');
         if (self) fail('Você não pode fazer isso consigo mesmo.');
         needRank();
-        if (action === 'ban') t.banned = true;
+        if (action === 'ban') {
+          t.banned = true;
+          pushSocial(...[...online.values()].map((s) => s.accountId));
+        }
         revokeSessions(t.id);
         for (const s of socketsOf(t.id)) {
           s.emit('removed', { reason: action === 'ban' ? `Você foi banido por ${acc.name}.` : `Você foi expulso por ${acc.name}.` });
@@ -839,6 +1062,7 @@ io.on('connection', (socket) => {
       case 'unban':
         need('BAN');
         t.banned = false;
+        pushSocial(...[...online.values()].map((s) => s.accountId));
         break;
       case 'setRoles': {
         need('MANAGE_ROLES');

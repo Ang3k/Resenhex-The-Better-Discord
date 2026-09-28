@@ -1,6 +1,6 @@
 # Resenhex
 
-**Versão 0.6** · veja o que mudou em cada versão no [CHANGELOG.md](CHANGELOG.md) ou em **Novidades**, dentro do app.
+**Versão 0.7** · veja o que mudou em cada versão no [CHANGELOG.md](CHANGELOG.md) ou em **Novidades**, dentro do app.
 
 Plataforma própria de chat e voz para você e seus amigos, inspirada no Discord. Vem com o servidor **Resenha** pronto para usar, com:
 
@@ -12,6 +12,7 @@ Plataforma própria de chat e voz para você e seus amigos, inspirada no Discord
 - **Não lidas**: canal em negrito, bolinha vermelha com o número de menções, contador no título da aba e **notificação na área de trabalho**
 - **Responder** mensagens (↩️) e **reagir** com emoji (😀)
 - **Formatação**: `**negrito**`, `*itálico*`, `__sublinhado__`, `~~riscado~~`, `` `código` ``, blocos ```` ``` ````, `> citação` e `||spoiler||`
+- **Amigos e mensagens diretas**: botão Início na faixa da esquerda. Adicione amigos pelo nome de usuário (ou pelo cartão de perfil), aceite pedidos na aba Pendentes e converse em particular com o mesmo chat dos canais: formatação, arquivos, responder, reagir, editar e apagar. Também dá **bloquear** alguém. Mensagens diretas só existem entre amigos e, pelo app, ninguém mais as lê ou apaga, nem a administração (elas ficam no arquivo de dados de quem hospeda o servidor, sem criptografia)
 - **Chamadas de voz** em salas, com indicador verde de quem está falando e **sons** de entrar e sair
 - **Câmera** e **compartilhamento de tela** com perfis de qualidade (720p 30 fps, 1080p 30 fps e 1080p 60 fps), áudio do sistema e estatísticas ao vivo; dá para usar câmera e tela ao mesmo tempo; clique na tela para abrir em tela cheia
 - **Efeitos sonoros (soundboard)**: botão 🎵 na barra da chamada toca grilo 🦗, trovão ⛈️, aplausos, ba dum tss e outros para todos da sala. Tem permissão própria ("Usar efeitos sonoros") e limite contra spam. Quem não quiser ouvir silencia no menu do 🎵 ou em ⚙️ Configurações, onde também ajusta o volume
