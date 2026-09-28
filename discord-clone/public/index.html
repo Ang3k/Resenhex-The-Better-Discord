@@ -9,6 +9,7 @@
   <link rel="stylesheet" href="style.css">
   <link rel="stylesheet" href="experience.css">
   <link rel="stylesheet" href="admin.css">
+  <link rel="stylesheet" href="polish.css">
 </head>
 <body>
   <!-- Tela de entrada / cadastro -->
@@ -94,50 +95,56 @@
 </ul>
       </div>
 
-      <div id="voice-panel" class="hidden">
-        <div class="vp-row">
-          <div class="vp-info">
-            <div class="voice-status" id="vp-status" data-tip="Conectando…">
-<span data-icon="signal" data-size="16">
-</span>Voz conectada</div>
-            <div id="voice-room-name" class="muted-text">
-</div>
-          </div>
-          <button type="button" id="btn-noise" class="icon-btn noise" aria-label="Supressão de ruído por IA">
-</button>
-          <button type="button" id="btn-leave" class="icon-btn hangup" data-icon="phone" data-tip="Desconectar" aria-label="Desconectar">
-</button>
-        </div>
-        <div class="vp-actions">
-          <button type="button" id="btn-camera" class="vp-btn" aria-label="Câmera">
-</button>
-          <button type="button" id="btn-share" class="vp-btn" aria-label="Compartilhar tela">
-</button>
-        </div>
-      </div>
-
-      <div id="user-panel">
-        <div class="me-card">
-          <div class="avatar-wrap">
-<div class="avatar" id="me-avatar">
-</div>
-<span class="status online">
-</span>
-</div>
-          <div class="me-text">
-            <div class="me-name" id="me-name">
-</div>
-            <div class="me-sub" id="me-sub">Online</div>
-          </div>
-        </div>
-        <button type="button" id="btn-mute" class="icon-btn" aria-label="Microfone">
-</button>
-        <button type="button" id="btn-deafen" class="icon-btn" aria-label="Fone de ouvido">
-</button>
-        <button type="button" id="btn-settings" class="icon-btn" data-icon="settings" data-tip="Configurações de usuário" aria-label="Configurações de usuário">
-</button>
-      </div>
     </aside>
+
+    <!-- Painel de voz e do usuário: atravessa a faixa dos servidores e a dos canais, como no Discord -->
+    <div id="dock">
+      <div class="dock-card">
+        <div id="voice-panel" class="hidden">
+          <div class="vp-row">
+            <div class="vp-info">
+              <div class="voice-status" id="vp-status" data-tip="Conectando…">
+  <span data-icon="signal" data-size="16">
+  </span>Voz conectada</div>
+              <div id="voice-room-name" class="muted-text">
+  </div>
+            </div>
+            <button type="button" id="btn-noise" class="icon-btn noise" aria-label="Supressão de ruído por IA">
+  </button>
+            <button type="button" id="btn-leave" class="icon-btn hangup" data-icon="phone" data-tip="Desconectar" aria-label="Desconectar">
+  </button>
+          </div>
+          <div class="vp-actions">
+            <button type="button" id="btn-camera" class="vp-btn" aria-label="Câmera">
+  </button>
+            <button type="button" id="btn-share" class="vp-btn" aria-label="Compartilhar tela">
+  </button>
+          </div>
+        </div>
+
+        <div id="user-panel">
+          <div class="me-card">
+            <div class="avatar-wrap">
+  <div class="avatar" id="me-avatar">
+  </div>
+  <span class="status online">
+  </span>
+  </div>
+            <div class="me-text">
+              <div class="me-name" id="me-name">
+  </div>
+              <div class="me-sub" id="me-sub">Online</div>
+            </div>
+          </div>
+          <button type="button" id="btn-mute" class="icon-btn" aria-label="Microfone">
+  </button>
+          <button type="button" id="btn-deafen" class="icon-btn" aria-label="Fone de ouvido">
+  </button>
+          <button type="button" id="btn-settings" class="icon-btn" data-icon="settings" data-tip="Configurações de usuário" aria-label="Configurações de usuário">
+  </button>
+        </div>
+      </div>
+    </div>
 
     <!-- Conteúdo -->
     <main id="main">

@@ -3090,6 +3090,8 @@
     $('#btn-channels').setAttribute('aria-expanded', String(open));
   };
   $('#sidebar-backdrop').onclick = closePanels;
+  // No celular o dock fica por cima da gaveta dos canais: a lista reserva a altura dele.
+  new ResizeObserver(([entry]) => document.documentElement.style.setProperty('--dock-h', Math.ceil(entry.borderBoxSize?.[0]?.blockSize ?? entry.target.offsetHeight) + 'px')).observe($('#dock'));
   $('#btn-members').onclick = () => {
     if (matchMedia('(max-width:1100px)').matches) { const open = !$('#app').classList.contains('members-open'); closePanels(); $('#app').classList.toggle('members-open', open); $('#sidebar-backdrop').classList.toggle('hidden', !open); }
     else { state.showMembers = !state.showMembers; localStorage.setItem('showMembers', state.showMembers); render(); }
