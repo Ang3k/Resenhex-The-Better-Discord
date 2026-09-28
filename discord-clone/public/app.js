@@ -326,6 +326,7 @@
       $('#server-password').value = '';
       $('#login').classList.add('hidden');
       $('#app').classList.remove('hidden');
+      if (!opts.reconnect) setTimeout(showChangelogIfNew, 600);
       if (opts.reconnect) {
         // Descarta o histórico em cache: as mensagens perdidas vêm na próxima leitura.
         state.messages = {};
@@ -1451,6 +1452,7 @@
     $('#lightbox').classList.add('hidden');
     if (!$('#create-channel').classList.contains('hidden')) return $('#create-channel').classList.add('hidden');
     if (document.querySelector('.confirm-overlay')) return;
+    if (!$('#changelog').classList.contains('hidden')) return closeChangelog();
     if (adminOpen()) closeServerSettings();
     else if (!$('#settings').classList.contains('hidden')) $('#settings-close').click();
   });
@@ -1467,6 +1469,58 @@
   const menuItem = (label, icon, onclick, cls = '') => el('button', { class: 'menu-item ' + cls, onclick: async () => { closeMenu(); await onclick(); } },
     el('span', { textContent: label }), icon ? Icon(icon, 18) : null);
 
+  // ---------------- novidades (changelog) ----------------
+  // Janela no estilo do "Novidades" do Discord: versões à esquerda, detalhes à direita.
+  // Abre sozinha uma vez quando chega uma versão nova (guardado neste navegador).
+  const CHANGE_KINDS = {
+    new: { label: 'NOVIDADES', cls: 'new' },
+    improved: { label: 'MELHORIAS', cls: 'improved' },
+    fixed: { label: 'CORREÇÕES', cls: 'fixed' },
+  };
+  const formatReleaseDate = (iso) => new Date(iso + 'T12:00:00').toLocaleDateString('pt-BR', { day: 'numeric', month: 'long', year: 'numeric' });
+
+  function openChangelog(version = window.APP_VERSION) {
+    const list = window.CHANGELOG || [];
+    const release = list.find((r) => r.version === version) || list[0];
+    if (!release) return;
+    try { localStorage.setItem('seenVersion', window.APP_VERSION); } catch {}
+    const box = $('#changelog');
+    const nav = el('nav', { class: 'cl-versions', ariaLabel: 'Versões' },
+      el('div', { class: 'cl-versions-title', textContent: 'VERSÕES' }),
+      list.map((r, i) => el('button', {
+        type: 'button', class: 'cl-version' + (r === release ? ' active' : ''), onclick: () => openChangelog(r.version),
+      }, el('span', { class: 'cl-dot' + (i === 0 ? ' current' : '') }),
+      el('span', { class: 'cl-version-text' },
+        el('strong', {}, 'v' + r.version, i === 0 ? el('span', { class: 'cl-badge', textContent: 'ATUAL' }) : null),
+        el('small', { textContent: r.name })))));
+    const body = el('div', { class: 'cl-body' },
+      el('div', { class: 'cl-hero' },
+        el('div', { class: 'cl-hero-glow' }),
+        el('div', { class: 'cl-hero-top' },
+          el('span', { class: 'cl-pill', textContent: 'v' + release.version }),
+          el('span', { class: 'cl-date', textContent: formatReleaseDate(release.date) })),
+        el('h2', { id: 'changelog-title', textContent: release.name }),
+        el('p', { textContent: release.summary })),
+      release.sections.map((sec) => el('section', { class: 'cl-section ' + CHANGE_KINDS[sec.kind].cls },
+        el('h3', {}, el('span', { textContent: CHANGE_KINDS[sec.kind].label })),
+        el('ul', {}, sec.items.map((item) => el('li', { textContent: item }))))),
+      release === list[list.length - 1] ? null : el('p', { class: 'cl-footnote', textContent: 'Resenhex ainda está antes da versão 1.0: ideias e bugs são bem-vindos no chat.' }));
+    box.querySelector('.cl-card').replaceChildren(
+      el('button', { type: 'button', class: 'cl-close', ariaLabel: 'Fechar novidades', tip: 'Fechar', onclick: closeChangelog }, Icon('x', 20)),
+      nav, body);
+    box.classList.remove('hidden');
+    body.scrollTop = 0;
+  }
+  function closeChangelog() { $('#changelog').classList.add('hidden'); }
+  function showChangelogIfNew() {
+    let seen = null;
+    try { seen = localStorage.getItem('seenVersion'); } catch {}
+    if (seen !== window.APP_VERSION && $('#settings').classList.contains('hidden') && !adminOpen()) openChangelog();
+  }
+  $('#changelog').addEventListener('mousedown', (e) => e.target === e.currentTarget && closeChangelog());
+  $('#settings-version').replaceChildren(`Resenhex v${window.APP_VERSION} · `, el('u', { textContent: 'Novidades' }));
+  $('#settings-version').onclick = () => openChangelog();
+
   // Menu do servidor (clicar no nome "Resenha").
   $('#server-header').onclick = () => {
     const header = $('#server-header');
@@ -1475,6 +1529,7 @@
     if (canAdmin()) items.push(menuItem('Configurações do servidor', 'settings', () => openServerSettings()));
     if (hasPerm('MANAGE_CHANNELS')) items.push(menuItem('Criar canal', 'plusCircle', () => openCreateChannel('text')));
     items.push(menuItem('Copiar link de convite', 'link', copyInvite));
+    items.push(menuItem(`Novidades · v${window.APP_VERSION}`, 'sparkles', () => openChangelog()));
     items.push(el('div', { class: 'menu-sep' }), menuItem('Configurações de usuário', 'userCog', () => $('#btn-settings').click()));
     const menu = $('#context-menu');
     menu.replaceChildren(...items);
