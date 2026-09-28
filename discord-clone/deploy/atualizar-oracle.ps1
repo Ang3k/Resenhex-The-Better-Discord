@@ -1,6 +1,8 @@
 param(
     [string]$Server = '168.138.227.230',
     [string]$KeyPath = (Join-Path $env:USERPROFILE '.ssh\resenhex-oracle-ed25519'),
+    # Troca o endereço do site, ex.: -Domain resenhex.dev (o domínio precisa apontar para o servidor).
+    [string]$Domain = '',
     [switch]$ValidateOnly
 )
 
@@ -25,6 +27,10 @@ if (-not (Test-Path -LiteralPath $KeyPath -PathType Leaf)) {
 if ($Server -notmatch '^\d{1,3}(\.\d{1,3}){3}$' -or
     @($Server.Split('.') | Where-Object { [int]$_ -gt 255 }).Count -ne 0) {
     throw 'Informe um IPv4 válido em -Server.'
+}
+$Domain = $Domain.Trim().ToLowerInvariant()
+if ($Domain -and ($Domain.Length -gt 253 -or $Domain -notmatch '^([a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,63}$')) {
+    throw 'Domínio inválido em -Domain. Exemplo: -Domain resenhex.dev'
 }
 
 $untracked = @(& git -C $repoRoot ls-files --others --exclude-standard -- discord-clone)
@@ -65,10 +71,14 @@ try {
 
     Write-Host 'Salvando os dados e atualizando o site...'
     $backup = "/var/backups/resenhex/data-before-$stamp.tar.gz"
-    $update = "sudo mkdir -p /var/backups/resenhex && sudo tar -czf $backup -C /var/lib/resenhex data.json uploads && sudo bash $remoteStage/discord-clone/deploy/instalar-vps.sh --oracle && systemctl is-active resenhex caddy coturn"
+    $setDomain = ''
+    if ($Domain) { $setDomain = "RESENHEX_SET_DOMAIN=$Domain " }
+    $update = "sudo mkdir -p /var/backups/resenhex && sudo tar -czf $backup -C /var/lib/resenhex data.json uploads && sudo ${setDomain}bash $remoteStage/discord-clone/deploy/instalar-vps.sh --oracle && systemctl is-active resenhex caddy coturn"
     Run 'ssh.exe' ($sshArgs + @($update))
 
-    $url = "https://$($Server.Replace('.', '-')).sslip.io"
+    $siteDomain = (& ssh.exe @sshArgs "sed -n 's/^RESENHEX_DOMAIN=//p' /etc/resenhex.env | tail -n 1" | Out-String).Trim()
+    if ($siteDomain -notmatch '^[a-z0-9.-]+$') { $siteDomain = "$($Server.Replace('.', '-')).sslip.io" }
+    $url = "https://$siteDomain"
     Run 'curl.exe' @('-fLsS', '--max-time', '20', '--output', 'NUL', "$url/config")
     Run 'ssh.exe' ($sshArgs + @("rm -f $remoteArchive && rm -rf $remoteStage"))
     Write-Host "Site atualizado: $url"
