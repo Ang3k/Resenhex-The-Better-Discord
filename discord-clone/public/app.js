@@ -449,7 +449,9 @@
     renderControls();
     updateTitle();
     // Só redesenha as configurações se algo delas mudou; senão perderia o que está sendo editado.
-    const settingsKey = JSON.stringify([state.server.roles, state.server.channels, state.server.bans, state.server.myPerms, state.server.members.map((m) => m.roles)]);
+    $('#server-header span').textContent = serverName();
+    const settingsKey = JSON.stringify([state.server.serverName, state.server.roles, state.server.channels, state.server.bans, state.server.myPerms,
+      state.server.members.map((m) => [m.id, m.name, m.color, m.avatarUrl, m.roles, m.online])]);
     if (!$('#server-settings').classList.contains('hidden') && settingsKey !== render.settingsKey) renderServerSettings();
     render.settingsKey = settingsKey;
   }
@@ -461,7 +463,7 @@
     badge.textContent = mentions > 99 ? '99+' : String(mentions);
     badge.classList.toggle('hidden', !mentions);
     const where = state.view === 'voice' && state.voiceChannel ? channelById(state.voiceChannel)?.name : '#' + (channelById(state.textChannel)?.name || '');
-    document.title = (mentions ? `(${mentions}) ` : entries.length ? '• ' : '') + `${where} | Resenha | Resenhex`;
+    document.title = (mentions ? `(${mentions}) ` : entries.length ? '• ' : '') + `${where} | ${serverName()} | Resenhex`;
   }
 
   function openTextChannel(id) {
@@ -482,9 +484,9 @@
     if (!changed('channels', [s.channels, s.voice, s.members.map((m) => [m.id, m.name, m.color, m.avatarUrl, m.serverMuted, m.serverDeafened, m.timeoutUntil]),
       state.unread, state.textChannel, state.view, state.voiceChannel, [...state.collapsed], [...state.localMuted], s.myPerms])) return;
     const canManage = hasPerm('MANAGE_CHANNELS');
-    const gear = () => canManage ? el('button', {
+    const gear = (c) => canManage ? el('button', {
       class: 'channel-gear', tip: 'Editar canal', ariaLabel: 'Editar canal',
-      onclick: (e) => { e.stopPropagation(); openServerSettings('channels'); },
+      onclick: (e) => { e.stopPropagation(); openChannelSettings(c.id); },
     }, Icon('settings', 16)) : null;
     for (const cat of document.querySelectorAll('.category[data-cat]')) cat.classList.toggle('collapsed', state.collapsed.has(cat.dataset.cat));
 
@@ -501,7 +503,7 @@
       }, el('span', { class: 'icon' }, Icon('hash')), el('span', { class: 'channel-name', textContent: c.name }),
       c.allowedRoles.length ? el('span', { class: 'lock', tip: 'Canal privado' }, Icon('lock', 14)) : null,
       u?.mentions ? el('span', { class: 'badge', textContent: u.mentions > 99 ? '99+' : String(u.mentions) }) : null,
-      gear()));
+      gear(c)));
     }
 
     const vl = $('#voice-channels');
@@ -531,7 +533,7 @@
           class: 'channel' + (state.view === 'voice' && state.voiceChannel === c.id ? ' active' : ''),
           onclick: () => (state.voiceChannel === c.id ? (state.view = 'voice', render()) : joinVoice(c.id)),
         }, el('span', { class: 'icon' }, Icon('volume')), el('span', { class: 'channel-name', textContent: c.name }),
-        c.allowedRoles.length ? el('span', { class: 'lock', tip: 'Canal privado' }, Icon('lock', 14)) : null, gear()),
+        c.allowedRoles.length ? el('span', { class: 'lock', tip: 'Canal privado' }, Icon('lock', 14)) : null, gear(c)),
         el('ul', { class: 'voice-users' }, users)));
     }
   }
@@ -1375,7 +1377,7 @@
     const micOff = state.muted || state.deafened || forcedMute;
     const deaf = state.deafened || me.serverDeafened;
     $('#voice-panel').classList.toggle('hidden', !inVoice);
-    $('#voice-room-name').textContent = inVoice ? `${channelById(state.voiceChannel)?.name || ''} / Resenha` : '';
+    $('#voice-room-name').textContent = inVoice ? `${channelById(state.voiceChannel)?.name || ''} / ${serverName()}` : '';
 
     const mute = $('#btn-mute');
     mute.replaceChildren(Icon(micOff ? 'micOff' : 'mic'));
@@ -1447,8 +1449,9 @@
     closeMenu();
     $('#emoji-picker').classList.add('hidden');
     $('#lightbox').classList.add('hidden');
-    $('#create-channel').classList.add('hidden');
-    if (!$('#server-settings').classList.contains('hidden')) $('#server-settings').classList.add('hidden');
+    if (!$('#create-channel').classList.contains('hidden')) return $('#create-channel').classList.add('hidden');
+    if (document.querySelector('.confirm-overlay')) return;
+    if (adminOpen()) closeServerSettings();
     else if (!$('#settings').classList.contains('hidden')) $('#settings-close').click();
   });
 
@@ -1456,7 +1459,8 @@
   for (const id of ['#server-settings', '#create-channel']) {
     $(id).addEventListener('mousedown', (e) => {
       if (e.target !== e.currentTarget) return;
-      $(id).classList.add('hidden');
+      if (id === '#server-settings') closeServerSettings();
+      else $(id).classList.add('hidden');
     });
   }
 
@@ -1468,7 +1472,7 @@
     const header = $('#server-header');
     if (Date.now() - Number(header.dataset.closedAt || 0) < 300) return; // o clique fechou o menu
     const items = [];
-    if (['MANAGE_ROLES', 'MANAGE_CHANNELS', 'BAN'].some(hasPerm)) items.push(menuItem('Configurações do servidor', 'settings', () => openServerSettings()));
+    if (canAdmin()) items.push(menuItem('Configurações do servidor', 'settings', () => openServerSettings()));
     if (hasPerm('MANAGE_CHANNELS')) items.push(menuItem('Criar canal', 'plusCircle', () => openCreateChannel('text')));
     items.push(menuItem('Copiar link de convite', 'link', copyInvite));
     items.push(el('div', { class: 'menu-sep' }), menuItem('Configurações de usuário', 'userCog', () => $('#btn-settings').click()));
@@ -1659,152 +1663,558 @@
     menu.style.top = Math.max(8, Math.min(y, innerHeight - rect.height - 8)) + 'px';
   }
 
-  // ---------------- configurações do servidor ----------------
-  let settingsTab = 'roles';
-  let selectedRole = null;
-  let creatingRole = false;
-
-  function openServerSettings(tab) {
-    const tabs = { roles: 'MANAGE_ROLES', channels: 'MANAGE_CHANNELS', bans: 'BAN' };
-    if (tab) settingsTab = tab;
-    if (!hasPerm(tabs[settingsTab])) settingsTab = Object.keys(tabs).find((t) => hasPerm(tabs[t]));
-    $('#server-settings').classList.remove('hidden');
-    renderServerSettings();
-  }
-  $('#server-settings-close').onclick = () => $('#server-settings').classList.add('hidden');
-  $('#settings-tabs').onclick = (e) => {
-    if (!e.target.dataset.tab) return;
-    settingsTab = e.target.dataset.tab;
-    renderServerSettings();
+  // ---------------- configurações do servidor e do canal (estilo Discord) ----------------
+  // Uma tela cheia com menu lateral. Edições de nome, cor, permissões e acesso ficam num
+  // rascunho: a barra "alterações não salvas" aparece e só "Salvar alterações" envia.
+  const PERM_INFO = {
+    ADMIN: ['Administrador', 'Dá todas as permissões e ignora as restrições dos canais. Cuidado: é uma permissão perigosa.'],
+    MANAGE_ROLES: ['Gerenciar cargos', 'Permite criar, editar e apagar cargos abaixo do cargo mais alto do membro, e dar ou tirar esses cargos.'],
+    MANAGE_CHANNELS: ['Gerenciar canais', 'Permite criar, renomear, tornar privados e excluir canais.'],
+    KICK: ['Expulsar membros', 'Permite remover membros do servidor. Eles podem entrar de novo.'],
+    BAN: ['Banir membros', 'Permite banir membros de forma permanente e ver a lista de banimentos.'],
+    TIMEOUT: ['Castigar membros', 'Quem está de castigo não envia mensagens, não fala e não transmite por um tempo.'],
+    SEND_MESSAGES: ['Enviar mensagens', 'Permite enviar mensagens, arquivos e reações nos canais de texto.'],
+    MANAGE_MESSAGES: ['Gerenciar mensagens', 'Permite apagar mensagens de outros membros.'],
+    MENTION_EVERYONE: ['Mencionar @everyone e @here', 'Permite notificar todo mundo do servidor de uma vez.'],
+    CONNECT: ['Conectar', 'Permite entrar nos canais de voz.'],
+    SPEAK: ['Falar', 'Permite falar nos canais de voz. Sem ela, o membro só escuta.'],
+    STREAM: ['Vídeo', 'Permite ligar a câmera e compartilhar a tela nos canais de voz.'],
+    SOUNDBOARD: ['Usar efeitos sonoros', 'Permite tocar os efeitos do soundboard (grilo, trovão…) na chamada.'],
+    MUTE_MEMBERS: ['Silenciar e ensurdecer membros', 'Permite silenciar ou ensurdecer outras pessoas para todo o servidor.'],
+    MOVE_MEMBERS: ['Mover membros', 'Permite mover e desconectar membros entre canais de voz.'],
   };
+  const PERM_GROUPS = [
+    ['Permissões gerais do servidor', ['ADMIN', 'MANAGE_ROLES', 'MANAGE_CHANNELS']],
+    ['Permissões de membros', ['KICK', 'BAN', 'TIMEOUT']],
+    ['Permissões de canais de texto', ['SEND_MESSAGES', 'MANAGE_MESSAGES', 'MENTION_EVERYONE']],
+    ['Permissões de canais de voz', ['CONNECT', 'SPEAK', 'STREAM', 'SOUNDBOARD', 'MUTE_MEMBERS', 'MOVE_MEMBERS']],
+  ];
+  const ROLE_COLORS = ['#1abc9c', '#2ecc71', '#3498db', '#9b59b6', '#e91e63', '#f1c40f', '#e67e22', '#e74c3c', '#95a5a6', '#607d8b',
+    '#11806a', '#1f8b4c', '#206694', '#71368a', '#ad1457', '#c27c0e', '#a84300', '#992d22', '#979c9f', '#546e7a'];
+  const SERVER_PAGES = [
+    { id: 'overview', label: 'Visão geral', icon: 'settings', perm: null },
+    { id: 'roles', label: 'Cargos', icon: 'crown', perm: 'MANAGE_ROLES' },
+    { id: 'channels', label: 'Canais', icon: 'hash', perm: 'MANAGE_CHANNELS' },
+    { id: 'members', label: 'Membros', icon: 'users', perm: null },
+    { id: 'bans', label: 'Banimentos', icon: 'lock', perm: 'BAN', group: 'MODERAÇÃO' },
+  ];
+  const ADMIN_PERMS = ['ADMIN', 'MANAGE_ROLES', 'MANAGE_CHANNELS', 'BAN', 'KICK', 'TIMEOUT'];
+  const admin = { mode: 'server', page: 'overview', channelId: null, roleId: null, roleTab: 'display', draft: null, base: null, draftKey: null, search: {}, busy: false };
+  const serverName = () => state.server?.serverName || 'Resenha';
+  const canAdmin = () => ADMIN_PERMS.some(hasPerm);
+  const adminOpen = () => !$('#server-settings').classList.contains('hidden');
+  const dirty = () => !!admin.draft && JSON.stringify(admin.draft) !== JSON.stringify(admin.base);
 
-  function renderServerSettings() {
-    const tabs = { roles: 'MANAGE_ROLES', channels: 'MANAGE_CHANNELS', bans: 'BAN' };
-    if (!Object.values(tabs).some(hasPerm)) return $('#server-settings').classList.add('hidden');
-    if (creatingRole) return;
-    for (const b of $('#settings-tabs').children) {
-      b.classList.toggle('hidden', !hasPerm(tabs[b.dataset.tab]));
-      b.classList.toggle('active', b.dataset.tab === settingsTab);
+  // Rascunho do editor atual. Se ninguém mexeu, acompanha o que chega do servidor.
+  function useDraft(key, fromServer) {
+    const base = fromServer();
+    if (admin.draftKey !== key || !dirty()) {
+      admin.draftKey = key;
+      admin.base = base;
+      admin.draft = structuredClone(base);
+    } else {
+      admin.base = base;
     }
-    const body = $('#settings-body');
-    // Preserva o que está sendo digitado: só redesenha se o foco não estiver num campo.
-    if (body.contains(document.activeElement) && document.activeElement.matches('input[type=text], input:not([type])')) return;
-    body.innerHTML = '';
-    if (settingsTab === 'roles') body.append(rolesTab());
-    if (settingsTab === 'channels') body.append(channelsTab());
-    if (settingsTab === 'bans') body.append(bansTab());
+    return admin.draft;
+  }
+  function resetDraft() {
+    admin.draft = admin.base ? structuredClone(admin.base) : null;
+    renderServerSettings(true);
+  }
+  // Com alterações pendentes, sair da tela não é permitido: a barra chacoalha, como no Discord.
+  function guardLeave() {
+    if (!dirty()) return true;
+    const bar = $('#admin-savebar');
+    bar.classList.remove('shake');
+    void bar.offsetWidth;
+    bar.classList.add('shake');
+    return false;
+  }
+  function clearDraft() {
+    admin.draft = admin.base = admin.draftKey = null;
+  }
+  function go(update) {
+    if (!guardLeave()) return;
+    clearDraft();
+    Object.assign(admin, update);
+    renderServerSettings(true);
+    $('#settings-body').scrollTop = 0;
   }
 
-  function rolesTab() {
+  function openServerSettings(page) {
+    if (!canAdmin()) return;
+    clearDraft();
+    Object.assign(admin, { mode: 'server', page: page || 'overview', roleId: null, roleTab: 'display', search: {} });
+    $('#server-settings').classList.remove('hidden');
+    renderServerSettings(true);
+  }
+  function openChannelSettings(id, page = 'overview') {
+    if (!hasPerm('MANAGE_CHANNELS')) return;
+    clearDraft();
+    Object.assign(admin, { mode: 'channel', channelId: id, page, search: {} });
+    $('#server-settings').classList.remove('hidden');
+    renderServerSettings(true);
+  }
+  function closeServerSettings() {
+    if (!guardLeave()) return false;
+    clearDraft();
+    $('#server-settings').classList.add('hidden');
+    return true;
+  }
+  $('#server-settings-close').onclick = () => closeServerSettings();
+
+  // Confirmação dentro do app (no lugar do confirm() do navegador).
+  function confirmDialog({ title, text, confirm = 'Confirmar', danger = true }) {
+    return new Promise((resolve) => {
+      const done = (value) => { overlay.remove(); document.removeEventListener('keydown', onKey, true); resolve(value); };
+      const onKey = (e) => {
+        if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); done(false); }
+        if (e.key === 'Enter') { e.preventDefault(); e.stopPropagation(); done(true); }
+      };
+      const overlay = el('div', { class: 'confirm-overlay', onmousedown: (e) => e.target === overlay && done(false) },
+        el('div', { class: 'confirm-card', role: 'alertdialog', ariaModal: 'true' },
+          el('h2', { textContent: title }),
+          el('p', { textContent: text }),
+          el('div', { class: 'confirm-actions' },
+            el('button', { type: 'button', class: 'btn-ghost', textContent: 'Cancelar', onclick: () => done(false) }),
+            el('button', { type: 'button', class: danger ? 'btn-danger' : 'btn-primary', textContent: confirm, onclick: () => done(true) }))));
+      document.body.append(overlay);
+      document.addEventListener('keydown', onKey, true);
+      overlay.querySelector('.confirm-actions button:last-child').focus();
+    });
+  }
+
+  // Interruptor no estilo Discord.
+  function toggle(checked, onchange, disabled = false, label = '') {
+    const input = el('input', { type: 'checkbox', class: 'ds-switch', checked, disabled, ariaLabel: label });
+    input.onchange = () => onchange(input.checked);
+    return input;
+  }
+
+  function pageHead(title, description, ...actions) {
+    return el('div', { class: 'admin-head' },
+      el('div', {}, el('h1', { textContent: title }), description ? el('p', { class: 'section-description', textContent: description }) : null),
+      actions.length ? el('div', { class: 'admin-head-actions' }, actions) : null);
+  }
+  function searchBox(key, placeholder, onInput) {
+    const input = el('input', { type: 'search', class: 'admin-search', placeholder, value: admin.search[key] || '', ariaLabel: placeholder });
+    input.oninput = () => { admin.search[key] = input.value; onInput(); };
+    return input;
+  }
+  const matches = (text, key) => !admin.search[key] || text.toLowerCase().includes(admin.search[key].trim().toLowerCase());
+  const membersWith = (roleId) => state.server.members.filter((m) => m.roles.includes(roleId));
+
+  function renderServerSettings(force = false) {
+    if (!state.server || !adminOpen()) return;
+    if (!canAdmin()) { clearDraft(); return $('#server-settings').classList.add('hidden'); }
+    const body = $('#settings-body');
+    // Não redesenha embaixo de quem está digitando (o rascunho guarda o valor, mas o foco se perderia).
+    if (!force && body.contains(document.activeElement) && document.activeElement.matches('input[type=text], input[type=search], input:not([type])')) return;
+    if (admin.mode === 'channel' && !channelById(admin.channelId)) { admin.mode = 'server'; admin.page = 'channels'; clearDraft(); }
+    if (admin.mode === 'server') {
+      const page = SERVER_PAGES.find((p) => p.id === admin.page);
+      if (!page || (page.perm && !hasPerm(page.perm))) admin.page = 'overview';
+    }
+    const scroll = body.scrollTop;
+    renderAdminNav();
+    const content = admin.mode === 'channel' ? channelPage() : {
+      overview: overviewPage, roles: rolesPage, channels: channelsPage, members: membersPage, bans: bansPage,
+    }[admin.page]();
+    body.replaceChildren(content);
+    body.scrollTop = scroll;
+    renderSavebar();
+  }
+
+  function renderAdminNav() {
+    const nav = $('#admin-nav');
+    const navButton = (label, icon, active, onclick, cls = '') => el('button', { type: 'button', class: (active ? 'active ' : '') + cls, onclick }, icon ? Icon(icon, 18) : null, el('span', { textContent: label }));
+    if (admin.mode === 'channel') {
+      const c = channelById(admin.channelId);
+      nav.replaceChildren(
+        el('div', { class: 'admin-nav-title' }, Icon(c.type === 'text' ? 'hash' : 'volume', 16), el('span', { textContent: c.name })),
+        el('div', { class: 'settings-nav-label', textContent: c.type === 'text' ? 'CANAL DE TEXTO' : 'CANAL DE VOZ' }),
+        el('nav', { ariaLabel: 'Seções do canal' },
+          navButton('Visão geral', 'settings', admin.page === 'overview', () => go({ page: 'overview' })),
+          navButton('Permissões', 'lock', admin.page === 'permissions', () => go({ page: 'permissions' }))),
+        el('div', { class: 'settings-nav-bottom' },
+          canAdmin() ? navButton('Voltar ao servidor', 'chevronDown', false, () => go({ mode: 'server', page: 'channels' }), 'admin-back') : null,
+          navButton('Excluir canal', 'trash', false, () => deleteChannel(c), 'danger')));
+      return;
+    }
+    const items = [];
+    let group = null;
+    for (const p of SERVER_PAGES) {
+      if (p.perm && !hasPerm(p.perm)) continue;
+      if (p.group && p.group !== group) items.push(el('div', { class: 'settings-nav-label', textContent: (group = p.group) }));
+      items.push(navButton(p.label, p.icon, admin.page === p.id, () => go({ page: p.id, roleId: null })));
+    }
+    nav.replaceChildren(
+      el('div', { class: 'admin-nav-title' }, el('span', { textContent: serverName().toUpperCase() })),
+      el('div', { class: 'settings-nav-label', textContent: 'CONFIGURAÇÕES DO SERVIDOR' }),
+      el('nav', { ariaLabel: 'Seções do servidor' }, items));
+  }
+
+  function renderSavebar() {
+    const bar = $('#admin-savebar');
+    const show = dirty();
+    bar.classList.toggle('hidden', !show);
+    bar.querySelector('#admin-save').disabled = admin.busy;
+  }
+  $('#admin-reset').onclick = () => resetDraft();
+  $('#admin-savebar').addEventListener('animationend', (e) => e.animationName === 'savebar-shake' && $('#admin-savebar').classList.remove('shake'));
+  $('#admin-save').onclick = () => saveDraft();
+
+  async function saveDraft() {
+    if (!dirty() || admin.busy) return;
+    const d = admin.draft;
+    admin.busy = true;
+    renderSavebar();
+    let res;
+    try {
+      if (admin.draftKey === 'server') res = await call('server:update', { name: d.name });
+      else if (admin.draftKey.startsWith('role:')) res = await call('role', { action: 'update', id: d.id, name: d.name, color: d.color, hoist: d.hoist, perms: d.perms });
+      else if (admin.draftKey.startsWith('channel:')) res = await call('channel', { action: 'update', id: d.id, name: d.name, allowedRoles: d.private ? d.allowedRoles : [] });
+    } finally {
+      admin.busy = false;
+    }
+    if (!res) return renderSavebar();
+    // O servidor já mandou o estado novo antes da confirmação: o rascunho vira a base.
+    admin.draftKey = null;
+    toast('Alterações salvas', 'info');
+    renderServerSettings(true);
+  }
+
+  // ----- Visão geral -----
+  function overviewPage() {
+    const d = useDraft('server', () => ({ name: serverName() }));
+    const s = state.server;
+    const owner = member(s.ownerId);
+    const name = el('input', { type: 'text', value: d.name, maxLength: 32, disabled: !hasPerm('ADMIN'), ariaLabel: 'Nome do servidor' });
+    name.oninput = () => { d.name = name.value; renderSavebar(); };
+    const stat = (value, label, icon) => el('div', { class: 'admin-stat' }, Icon(icon, 20), el('strong', { textContent: String(value) }), el('span', { textContent: label }));
+    return el('section', {},
+      pageHead('Visão geral do servidor', 'Informações básicas do servidor e de quem está nele.'),
+      el('div', { class: 'admin-overview' },
+        el('div', { class: 'server-icon-big', textContent: initials(d.name || serverName()) }),
+        el('div', { class: 'admin-field grow' },
+          el('label', { class: 'admin-label', textContent: 'NOME DO SERVIDOR' }), name,
+          hasPerm('ADMIN') ? null : el('span', { class: 'hint', textContent: 'Só administradores podem mudar o nome.' }))),
+      el('div', { class: 'admin-stats' },
+        stat(s.members.length, 'membros', 'users'),
+        stat(s.members.filter((m) => m.online).length, 'online agora', 'signal'),
+        stat(s.channels.length, 'canais', 'hash'),
+        stat(s.roles.length - 1, 'cargos', 'crown')),
+      owner ? el('div', { class: 'setting-group admin-owner' },
+        el('h3', { textContent: 'Dono do servidor' }),
+        el('div', { class: 'admin-member-line' }, avatar(owner), el('span', { class: 'grow', textContent: owner.name }), Icon('crown', 16))) : null);
+  }
+
+  // ----- Cargos -----
+  function rolesPage() {
+    if (admin.roleId && roleById(admin.roleId)) return roleEditor();
+    admin.roleId = null;
     const roles = state.server.roles;
     const myTop = topPos(meMember());
-    // Se o cargo escolhido ainda não chegou (acabou de ser criado), mostra o mais alto sem esquecer a escolha.
-    const shownRole = roles.some((r) => r.id === selectedRole) ? selectedRole : roles[roles.length - 1].id;
-    const list = el('div', { class: 'role-list' },
-      el('button', {
-        type: 'button', class: 'secondary', textContent: '+ Criar cargo',
-        onclick: async () => {
-          creatingRole = true;
-          const res = await call('role', { action: 'create', name: 'novo cargo', color: '#99aab5', perms: [] });
-          creatingRole = false;
-          if (res) selectedRole = res.id;
-          renderServerSettings();
-        },
-      }),
-      [...roles].reverse().map((r) => {
-        const count = state.server.members.filter((m) => m.roles.includes(r.id)).length;
-        return el('button', {
-          type: 'button',
-          class: 'role-row' + (r.id === shownRole ? ' active' : ''),
-          onclick: () => { selectedRole = r.id; renderServerSettings(); },
-        }, el('span', { class: 'dot', style: { background: r.color || '#99aab5' } }), el('span', { class: 'grow', textContent: r.name }),
-        r.id === 'everyone' ? null : el('span', { class: 'muted-text', textContent: String(count) }));
-      }));
-
-    const i = roleIdx(shownRole);
-    const role = roles[i];
-    const editable = i < myTop;
-    const everyone = role.id === 'everyone';
-    const name = el('input', { value: role.name, maxLength: 32, disabled: !editable || everyone });
-    const color = el('input', { type: 'color', value: role.color || '#99aab5', disabled: !editable || everyone });
-    const noColor = el('input', { type: 'checkbox', checked: !role.color, disabled: !editable || everyone });
-    const hoist = el('input', { type: 'checkbox', checked: role.hoist, disabled: !editable || everyone });
-    const perms = Object.entries(state.permNames).map(([key, label]) => {
-      const box = el('input', { type: 'checkbox', checked: role.perms.includes(key), disabled: !editable || (!hasPerm(key) && !role.perms.includes(key)) });
-      box.dataset.perm = key;
-      return el('label', { class: 'row' }, box, label);
-    });
-    const save = async () => {
-      const res = await call('role', {
-        action: 'update',
-        id: role.id,
-        name: name.value,
-        color: noColor.checked ? '' : color.value,
-        hoist: hoist.checked,
-        perms: perms.map((l) => l.firstChild).filter((b) => b.checked).map((b) => b.dataset.perm),
-      });
-      if (res) toast('Cargo salvo', 'info');
+    const list = el('div', { class: 'admin-table' });
+    const fill = () => {
+      const rows = [...roles].reverse().filter((r) => r.id !== 'everyone' && matches(r.name, 'roles'));
+      list.replaceChildren(
+        el('div', { class: 'admin-table-head' }, el('span', { class: 'grow', textContent: `CARGOS — ${roles.length - 1}` }), el('span', { class: 'col-members', textContent: 'MEMBROS' }), el('span', { class: 'col-actions' })),
+        ...rows.map((r) => {
+          const count = membersWith(r.id).length;
+          const locked = roleIdx(r.id) >= myTop;
+          return el('div', { class: 'admin-row clickable', tabIndex: 0, onclick: () => go({ roleId: r.id, roleTab: 'display' }), onkeydown: (e) => e.key === 'Enter' && go({ roleId: r.id, roleTab: 'display' }) },
+            el('span', { class: 'role-shield', style: { color: r.color || '#99aab5' } }, Icon('crown', 18)),
+            el('span', { class: 'grow role-name', textContent: r.name }, locked ? el('span', { class: 'admin-badge', textContent: 'acima de você' }) : null),
+            el('span', { class: 'col-members' }, el('span', { textContent: String(count) }), Icon('users', 16)),
+            el('span', { class: 'col-actions' }, el('button', { type: 'button', class: 'icon-btn', tip: 'Editar', ariaLabel: 'Editar ' + r.name, onclick: (e) => { e.stopPropagation(); go({ roleId: r.id, roleTab: 'display' }); } }, Icon('pencil', 16))));
+        }),
+        ...(rows.length ? [] : [el('div', { class: 'admin-empty', textContent: 'Nenhum cargo encontrado.' })]));
     };
-
-    const editor = el('div', { class: 'role-editor' },
-      !editable ? el('div', { class: 'notice', textContent: 'Você só pode editar cargos abaixo do seu cargo mais alto.' }) : null,
-      everyone ? el('div', { class: 'muted-text', textContent: '@everyone vale para todos os membros. Tire uma permissão daqui para restringir todo mundo que não tem outro cargo com ela.' }) : null,
-      el('label', {}, 'NOME DO CARGO', name),
-      everyone ? null : el('div', { class: 'row gap' }, el('label', { class: 'inline' }, 'COR', color), el('label', { class: 'row' }, noColor, 'Sem cor')),
-      everyone ? null : el('label', { class: 'row' }, hoist, 'Mostrar separado na lista de membros'),
-      el('div', { class: 'category', textContent: 'PERMISSÕES' }),
-      el('div', { class: 'perm-list' }, perms),
-      editable ? el('div', { class: 'buttons' },
-        everyone ? null : el('button', { type: 'button', class: 'secondary', textContent: '▲ Subir', title: 'Subir na hierarquia', onclick: () => call('role', { action: 'move', id: role.id, dir: 1 }) }),
-        everyone ? null : el('button', { type: 'button', class: 'secondary', textContent: '▼ Descer', title: 'Descer na hierarquia', onclick: () => call('role', { action: 'move', id: role.id, dir: -1 }) }),
-        everyone ? null : el('button', { type: 'button', class: 'secondary danger-text', textContent: 'Apagar', onclick: () => confirm(`Apagar o cargo ${role.name}?`) && call('role', { action: 'delete', id: role.id }) }),
-        el('button', { type: 'button', textContent: 'Salvar', onclick: save })) : null);
-
-    return el('div', { class: 'split' }, list, editor);
+    fill();
+    const everyone = roleById('everyone');
+    return el('section', {},
+      pageHead('Cargos', 'Use cargos para organizar os membros e definir o que cada um pode fazer. O cargo mais alto da lista manda nos de baixo.'),
+      el('button', { type: 'button', class: 'admin-callout clickable', onclick: () => go({ roleId: 'everyone', roleTab: 'permissions' }) },
+        el('span', { class: 'callout-icon' }, Icon('users', 22)),
+        el('span', { class: 'grow' }, el('strong', { textContent: 'Permissões padrão' }), el('small', { textContent: `@everyone · vale para todos os membros do servidor (${everyone.perms.length} permissões)` })),
+        Icon('chevronDown', 18)),
+      el('div', { class: 'admin-toolbar' },
+        searchBox('roles', 'Pesquisar cargos', fill),
+        el('button', { type: 'button', class: 'btn-primary', textContent: 'Criar cargo', onclick: createRole })),
+      list,
+      el('p', { class: 'hint', textContent: 'Membros usam a cor do cargo mais alto que tiverem.' }));
   }
 
-  function channelsTab() {
-    const roles = state.server.roles.slice(1);
-    const roleBoxes = (selected) => el('div', { class: 'chips' }, roles.map((r) => {
-      const box = el('input', { type: 'checkbox', checked: selected.includes(r.id) });
-      box.dataset.role = r.id;
-      return el('label', { class: 'chip selectable' }, box, el('span', { class: 'dot', style: { background: r.color || '#99aab5' } }), r.name);
-    }));
-    const picked = (container) => [...container.querySelectorAll('input[data-role]')].filter((b) => b.checked).map((b) => b.dataset.role);
+  async function createRole() {
+    if (!guardLeave()) return;
+    const res = await call('role', { action: 'create', name: 'novo cargo', color: '#99aab5', perms: [] });
+    if (res) go({ roleId: res.id, roleTab: 'display' });
+  }
 
-    const rows = state.server.channels.map((c) => {
-      const name = el('input', { value: c.name, maxLength: 32 });
-      const boxes = roleBoxes(c.allowedRoles);
-      return el('div', { class: 'channel-row' },
-        el('div', { class: 'row gap' },
-          el('span', { class: 'icon' }, Icon(c.type === 'text' ? 'hash' : 'volume', 18)), name,
-          el('button', { type: 'button', textContent: 'Salvar', onclick: () => call('channel', { action: 'update', id: c.id, name: name.value, allowedRoles: picked(boxes) }).then((r) => r && toast('Canal salvo', 'info')) }),
-          el('button', { type: 'button', class: 'secondary danger-text', textContent: 'Apagar', onclick: () => confirm(`Apagar o canal ${c.name}?` + (c.type === 'text' ? ' As mensagens serão perdidas.' : '')) && call('channel', { action: 'delete', id: c.id }) })),
-        el('div', { class: 'muted-text', textContent: 'Privado — só estes cargos veem (nenhum marcado = todos veem):' }),
-        boxes);
+  function roleEditor() {
+    const roles = state.server.roles;
+    const role = roleById(admin.roleId);
+    const i = roleIdx(role.id);
+    const editable = i < topPos(meMember());
+    const everyone = role.id === 'everyone';
+    const d = useDraft('role:' + role.id, () => ({ id: role.id, name: role.name, color: role.color || '', hoist: !!role.hoist, perms: [...role.perms] }));
+    if (everyone && admin.roleTab === 'display') admin.roleTab = 'permissions';
+
+    // Coluna com os cargos (como no Discord), para pular de um para outro.
+    const side = el('div', { class: 'role-side' },
+      el('div', { class: 'role-side-head' },
+        el('button', { type: 'button', class: 'link-btn', onclick: () => go({ roleId: null }) }, el('span', { class: 'back-arrow', textContent: '←' }), 'VOLTAR'),
+        el('button', { type: 'button', class: 'icon-btn', tip: 'Criar cargo', ariaLabel: 'Criar cargo', onclick: createRole }, Icon('plus', 16))),
+      [...roles].reverse().map((r) => el('button', {
+        type: 'button', class: 'role-side-item' + (r.id === role.id ? ' active' : ''),
+        onclick: () => r.id !== role.id && go({ roleId: r.id }),
+      }, el('span', { class: 'dot', style: { background: r.color || '#99aab5' } }), el('span', { textContent: r.id === 'everyone' ? '@everyone' : r.name }))));
+
+    const tabs = el('div', { class: 'admin-tabs', role: 'tablist' },
+      [['display', 'Exibição'], ['permissions', 'Permissões'], ['members', `Gerenciar membros (${membersWith(role.id).length})`]]
+        .filter(([id]) => !everyone || id === 'permissions')
+        .map(([id, label]) => el('button', { type: 'button', role: 'tab', class: admin.roleTab === id ? 'active' : '', textContent: label, onclick: () => { admin.roleTab = id; renderServerSettings(true); } })));
+
+    const more = editable && !everyone ? el('div', { class: 'role-hierarchy' },
+      el('button', { type: 'button', class: 'icon-btn', tip: 'Subir na hierarquia', ariaLabel: 'Subir na hierarquia', disabled: i + 1 >= topPos(meMember()), onclick: () => call('role', { action: 'move', id: role.id, dir: 1 }) }, el('span', { textContent: '▲' })),
+      el('button', { type: 'button', class: 'icon-btn', tip: 'Descer na hierarquia', ariaLabel: 'Descer na hierarquia', disabled: i <= 1, onclick: () => call('role', { action: 'move', id: role.id, dir: -1 }) }, el('span', { textContent: '▼' }))) : null;
+
+    let panel;
+    if (admin.roleTab === 'display') panel = roleDisplayTab(role, d, editable);
+    else if (admin.roleTab === 'permissions') panel = rolePermsTab(role, d, editable, everyone);
+    else panel = roleMembersTab(role, editable);
+
+    return el('section', { class: 'role-layout' }, side,
+      el('div', { class: 'role-main' },
+        el('div', { class: 'role-main-head' },
+          el('h2', { textContent: 'EDITAR CARGO — ' + (everyone ? '@everyone' : d.name || role.name).toUpperCase() }), more),
+        !editable ? el('div', { class: 'admin-notice' }, Icon('lock', 16), el('span', { textContent: 'Este cargo está no mesmo nível ou acima do seu cargo mais alto, então você só pode vê-lo.' })) : null,
+        tabs, panel));
+  }
+
+  function roleDisplayTab(role, d, editable) {
+    const name = el('input', { type: 'text', value: d.name, maxLength: 32, disabled: !editable, ariaLabel: 'Nome do cargo' });
+    name.oninput = () => { d.name = name.value; renderSavebar(); };
+    const setColor = (c) => { d.color = c; renderServerSettings(true); };
+    const custom = el('input', { type: 'color', value: d.color || '#99aab5', disabled: !editable, ariaLabel: 'Cor personalizada' });
+    custom.oninput = () => { d.color = custom.value; renderSavebar(); swatches.querySelectorAll('.swatch').forEach((s) => s.classList.remove('selected')); customWrap.classList.add('selected'); };
+    const customWrap = el('label', { class: 'swatch big custom' + (d.color && !ROLE_COLORS.includes(d.color) ? ' selected' : ''), tip: 'Cor personalizada', style: { background: d.color && !ROLE_COLORS.includes(d.color) ? d.color : '' } }, custom, Icon('pencil', 14));
+    const swatches = el('div', { class: 'swatches' },
+      el('button', { type: 'button', class: 'swatch big default' + (!d.color ? ' selected' : ''), tip: 'Padrão (sem cor)', disabled: !editable, onclick: () => setColor('') }),
+      customWrap,
+      el('div', { class: 'swatch-grid' }, ROLE_COLORS.map((c) => el('button', { type: 'button', class: 'swatch' + (d.color === c ? ' selected' : ''), style: { background: c }, ariaLabel: 'Cor ' + c, disabled: !editable, onclick: () => setColor(c) }))));
+    const preview = el('div', { class: 'role-preview' }, avatar(meMember()),
+      el('div', {}, el('strong', { textContent: meMember().name, style: { color: d.color || 'var(--text-strong)' } }), el('span', { textContent: 'É assim que o nome aparece com esse cargo.' })));
+    return el('div', { class: 'admin-panel' },
+      el('div', { class: 'admin-field' }, el('label', { class: 'admin-label', textContent: 'NOME DO CARGO *' }), name),
+      el('div', { class: 'admin-divider' }),
+      el('div', { class: 'admin-field' }, el('label', { class: 'admin-label', textContent: 'COR DO CARGO *' }),
+        el('span', { class: 'hint', textContent: 'Membros usam a cor do cargo mais alto que tiverem.' }), swatches, preview),
+      el('div', { class: 'admin-divider' }),
+      el('label', { class: 'admin-switch-row' },
+        el('span', {}, el('strong', { textContent: 'Exibir membros deste cargo separadamente dos outros membros online' }),
+          el('small', { textContent: 'Cria um grupo próprio para o cargo na lista de membros.' })),
+        toggle(d.hoist, (v) => { d.hoist = v; renderSavebar(); }, !editable, 'Exibir separadamente')),
+      editable ? el('div', { class: 'admin-danger-zone' },
+        el('div', {}, el('strong', { textContent: 'Excluir cargo' }), el('small', { textContent: 'Tira o cargo de todos os membros e dos canais privados.' })),
+        el('button', { type: 'button', class: 'btn-danger-outline', textContent: 'Excluir cargo', onclick: () => deleteRole(role) })) : null);
+  }
+
+  async function deleteRole(role) {
+    const ok = await confirmDialog({ title: `Excluir o cargo "${role.name}"`, text: `Tem certeza? ${membersWith(role.id).length} membro(s) vão perder esse cargo. Não dá para desfazer.`, confirm: 'Excluir cargo' });
+    if (!ok) return;
+    if (await call('role', { action: 'delete', id: role.id })) { clearDraft(); admin.roleId = null; renderServerSettings(true); }
+  }
+
+  function rolePermsTab(role, d, editable, everyone) {
+    const box = el('div', { class: 'perm-groups' });
+    const fill = () => {
+      box.replaceChildren(...PERM_GROUPS.map(([title, keys]) => {
+        const rows = keys.filter((k) => state.permNames[k] && matches(PERM_INFO[k][0] + ' ' + PERM_INFO[k][1], 'perms'));
+        if (!rows.length) return null;
+        return el('div', { class: 'perm-group' }, el('h3', { class: 'admin-label', textContent: title.toUpperCase() }),
+          rows.map((k) => {
+            const has = d.perms.includes(k);
+            const cantGive = !has && !hasPerm(k);
+            return el('label', { class: 'admin-switch-row perm-row' + (k === 'ADMIN' ? ' dangerous' : '') },
+              el('span', {}, el('strong', { textContent: PERM_INFO[k][0] }), el('small', { textContent: PERM_INFO[k][1] }),
+                cantGive && editable ? el('small', { class: 'perm-lock', textContent: 'Você não pode dar uma permissão que não tem.' }) : null),
+              toggle(has, (v) => {
+                d.perms = v ? [...d.perms, k] : d.perms.filter((p) => p !== k);
+                renderSavebar();
+              }, !editable || cantGive, PERM_INFO[k][0]));
+          }));
+      }).filter(Boolean));
+      if (!box.childElementCount) box.append(el('div', { class: 'admin-empty', textContent: 'Nenhuma permissão encontrada.' }));
+    };
+    fill();
+    return el('div', { class: 'admin-panel' },
+      everyone ? el('div', { class: 'admin-notice info' }, Icon('users', 16), el('span', { textContent: 'Isso vale para todos os membros. Tire uma permissão daqui para restringir quem não tem outro cargo com ela.' })) : null,
+      el('div', { class: 'admin-toolbar' },
+        searchBox('perms', 'Pesquisar permissões', fill),
+        editable ? el('button', { type: 'button', class: 'link-btn', textContent: 'Limpar permissões', onclick: () => { d.perms = []; fill(); renderSavebar(); } }) : null),
+      box);
+  }
+
+  function roleMembersTab(role, editable) {
+    const withRole = membersWith(role.id);
+    const setRole = (m, on) => call('mod', { action: 'setRoles', target: m.id, value: on ? [...m.roles, role.id] : m.roles.filter((r) => r !== role.id) });
+    const list = el('div', { class: 'admin-list' });
+    const fill = () => list.replaceChildren(...withRole.filter((m) => matches(m.name, 'roleMembers')).map((m) => el('div', { class: 'admin-member-line' },
+      avatar(m), el('span', { class: 'grow', textContent: m.name, style: { color: nameColor(m) } }),
+      editable ? el('button', { type: 'button', class: 'icon-btn', tip: 'Remover membro', ariaLabel: 'Tirar o cargo de ' + m.name, onclick: () => setRole(m, false) }, Icon('x', 16)) : null)),
+    ...(withRole.length ? [] : [el('div', { class: 'admin-empty', textContent: 'Ninguém tem este cargo ainda.' })]));
+    fill();
+    const others = state.server.members.filter((m) => !m.roles.includes(role.id)).sort((a, b) => a.name.localeCompare(b.name));
+    const pick = el('select', { ariaLabel: 'Membro para adicionar' }, el('option', { value: '', textContent: 'Escolha um membro…' }), others.map((m) => el('option', { value: m.id, textContent: m.name })));
+    return el('div', { class: 'admin-panel' },
+      el('div', { class: 'admin-toolbar' },
+        searchBox('roleMembers', 'Pesquisar membros', fill),
+        editable && others.length ? el('div', { class: 'admin-add' }, pick,
+          el('button', { type: 'button', class: 'btn-primary', textContent: 'Adicionar membro', onclick: () => pick.value && setRole(member(pick.value), true) })) : null),
+      list);
+  }
+
+  // ----- Canais -----
+  function channelsPage() {
+    const roleNames = (c) => c.allowedRoles.map((id) => roleById(id)?.name).filter(Boolean).join(', ');
+    const section = (type, title) => {
+      const channels = state.server.channels.filter((c) => c.type === type && matches(c.name, 'channels'));
+      return el('div', { class: 'admin-table' },
+        el('div', { class: 'admin-table-head' }, el('span', { class: 'grow', textContent: `${title} — ${channels.length}` }),
+          el('button', { type: 'button', class: 'icon-btn', tip: 'Criar canal', ariaLabel: 'Criar ' + title.toLowerCase(), onclick: () => openCreateChannel(type) }, Icon('plus', 16))),
+        channels.map((c) => el('div', { class: 'admin-row clickable', tabIndex: 0, onclick: () => go({ mode: 'channel', channelId: c.id, page: 'overview' }), onkeydown: (e) => e.key === 'Enter' && go({ mode: 'channel', channelId: c.id, page: 'overview' }) },
+          el('span', { class: 'channel-ico' }, Icon(type === 'text' ? 'hash' : 'volume', 18)),
+          el('span', { class: 'grow' }, el('span', { class: 'role-name', textContent: c.name }),
+            c.allowedRoles.length ? el('span', { class: 'admin-badge private' }, Icon('lock', 12), el('span', { textContent: 'Privado · ' + roleNames(c) })) : null),
+          el('span', { class: 'col-actions' },
+            el('button', { type: 'button', class: 'icon-btn', tip: 'Editar canal', ariaLabel: 'Editar ' + c.name, onclick: (e) => { e.stopPropagation(); go({ mode: 'channel', channelId: c.id, page: 'overview' }); } }, Icon('pencil', 16)),
+            el('button', { type: 'button', class: 'icon-btn danger', tip: 'Excluir canal', ariaLabel: 'Excluir ' + c.name, onclick: (e) => { e.stopPropagation(); deleteChannel(c); } }, Icon('trash', 16))))),
+        channels.length ? null : el('div', { class: 'admin-empty', textContent: 'Nenhum canal.' }));
+    };
+    const wrap = el('div', { class: 'admin-stack' });
+    const fill = () => wrap.replaceChildren(section('text', 'CANAIS DE TEXTO'), section('voice', 'CANAIS DE VOZ'));
+    fill();
+    return el('section', {},
+      pageHead('Canais', 'Crie, renomeie e escolha quem pode ver cada canal.'),
+      el('div', { class: 'admin-toolbar' },
+        searchBox('channels', 'Pesquisar canais', fill),
+        el('button', { type: 'button', class: 'btn-primary', textContent: 'Criar canal', onclick: () => openCreateChannel('text') })),
+      wrap);
+  }
+
+  async function deleteChannel(c) {
+    if (!guardLeave()) return;
+    const ok = await confirmDialog({
+      title: `Excluir ${c.type === 'text' ? '#' : ''}${c.name}`,
+      text: c.type === 'text' ? 'Tem certeza? Todas as mensagens e arquivos deste canal serão apagados para sempre.' : 'Tem certeza? Quem estiver no canal será desconectado.',
+      confirm: 'Excluir canal',
     });
-
-    const type = el('select', {}, el('option', { value: 'text', textContent: 'Texto' }), el('option', { value: 'voice', textContent: 'Voz' }));
-    const newName = el('input', { placeholder: 'nome do canal', maxLength: 32 });
-    const newRoles = roleBoxes([]);
-    const create = el('div', { class: 'channel-row new' },
-      el('div', { class: 'category', textContent: 'CRIAR CANAL' }),
-      el('div', { class: 'row gap' }, type, newName,
-        el('button', {
-          type: 'button', textContent: 'Criar',
-          onclick: () => call('channel', { action: 'create', type: type.value, name: newName.value, allowedRoles: picked(newRoles) }).then((r) => r && renderServerSettings()),
-        })),
-      el('div', { class: 'muted-text', textContent: 'Privado para (opcional):' }), newRoles);
-
-    return el('div', {}, create, ...rows);
+    if (!ok) return;
+    if (await call('channel', { action: 'delete', id: c.id })) {
+      clearDraft();
+      if (admin.mode === 'channel') {
+        if (canAdmin() && hasPerm('MANAGE_CHANNELS')) Object.assign(admin, { mode: 'server', page: 'channels' });
+        else return $('#server-settings').classList.add('hidden');
+      }
+      renderServerSettings(true);
+      toast('Canal excluído', 'info');
+    }
   }
 
-  function bansTab() {
+  // ----- Configurações de um canal -----
+  function channelPage() {
+    const c = channelById(admin.channelId);
+    const d = useDraft('channel:' + c.id, () => ({ id: c.id, name: c.name, private: c.allowedRoles.length > 0, allowedRoles: [...c.allowedRoles] }));
+    if (admin.page === 'permissions') {
+      const roles = state.server.roles.slice(1).reverse();
+      const roleList = d.private ? el('div', { class: 'setting-group' },
+        el('h3', { textContent: 'Quem pode acessar este canal?' }),
+        el('span', { class: 'hint', textContent: 'Escolha os cargos. Administradores sempre veem todos os canais.' }),
+        el('div', { class: 'admin-list' }, roles.map((r) => {
+          const box = el('input', { type: 'checkbox', class: 'ds-check', checked: d.allowedRoles.includes(r.id) });
+          box.onchange = () => { d.allowedRoles = box.checked ? [...d.allowedRoles, r.id] : d.allowedRoles.filter((id) => id !== r.id); renderSavebar(); };
+          return el('label', { class: 'admin-member-line clickable' }, box,
+            el('span', { class: 'dot', style: { background: r.color || '#99aab5' } }),
+            el('span', { class: 'grow', textContent: r.name }),
+            el('span', { class: 'muted-text', textContent: `${membersWith(r.id).length} membro(s)` }));
+        })),
+        d.allowedRoles.length ? null : el('div', { class: 'admin-notice' }, Icon('lock', 16), el('span', { textContent: 'Nenhum cargo escolhido: só administradores vão ver este canal. Marque pelo menos um cargo ou desligue "Canal privado".' }))) : null;
+      return el('section', {},
+        pageHead('Permissões do canal', 'Controle quem pode ver este canal.'),
+        el('div', { class: 'setting-group' },
+          el('label', { class: 'admin-switch-row' },
+            el('span', {}, el('strong', {}, Icon('lock', 16), ' Canal privado'),
+              el('small', { textContent: 'Ao tornar o canal privado, só os cargos escolhidos (e administradores) conseguem ver e entrar nele.' })),
+            toggle(d.private, (v) => { d.private = v; renderServerSettings(true); }, false, 'Canal privado'))),
+        roleList);
+    }
+    const name = el('input', { type: 'text', value: d.name, maxLength: 32, ariaLabel: 'Nome do canal' });
+    // Canais de texto viram minúsculas com hífens, como no Discord: mostra o resultado enquanto digita.
+    const preview = el('span', { class: 'hint' });
+    const showPreview = () => {
+      const shown = d.name.trim().toLowerCase().replace(/\s+/g, '-');
+      preview.textContent = c.type === 'text' && shown !== d.name ? `Vai aparecer como #${shown}` : '';
+    };
+    name.oninput = () => { d.name = name.value; showPreview(); renderSavebar(); };
+    showPreview();
+    return el('section', {},
+      pageHead('Visão geral', c.type === 'text' ? 'Canal de texto: mensagens, imagens, arquivos e reações.' : 'Canal de voz: voz, câmera e compartilhamento de tela.'),
+      el('div', { class: 'admin-field' }, el('label', { class: 'admin-label', textContent: 'NOME DO CANAL' }),
+        el('div', { class: 'input-prefix' }, Icon(c.type === 'text' ? 'hash' : 'volume', 18), name),
+        preview),
+      el('div', { class: 'admin-divider' }),
+      el('div', { class: 'admin-field' }, el('label', { class: 'admin-label', textContent: 'ACESSO' }),
+        el('button', { type: 'button', class: 'admin-callout clickable', onclick: () => go({ page: 'permissions' }) },
+          el('span', { class: 'callout-icon' }, Icon(c.allowedRoles.length ? 'lock' : 'users', 20)),
+          el('span', { class: 'grow' }, el('strong', { textContent: c.allowedRoles.length ? 'Canal privado' : 'Todos os membros podem ver' }),
+            el('small', { textContent: c.allowedRoles.length ? 'Visível para: ' + c.allowedRoles.map((id) => roleById(id)?.name).filter(Boolean).join(', ') : 'Clique para tornar este canal privado.' })),
+          Icon('chevronDown', 18))));
+  }
+
+  // ----- Membros -----
+  function membersPage() {
+    const list = el('div', { class: 'admin-table' });
+    const fill = () => {
+      const rows = [...state.server.members].sort((a, b) => (b.online - a.online) || topPos(b) - topPos(a) || a.name.localeCompare(b.name)).filter((m) => matches(m.name, 'members'));
+      list.replaceChildren(
+        el('div', { class: 'admin-table-head' }, el('span', { class: 'grow', textContent: `MEMBROS — ${rows.length}` }), el('span', { class: 'col-roles', textContent: 'CARGOS' }), el('span', { class: 'col-actions' })),
+        ...rows.map((m) => el('div', { class: 'admin-row', oncontextmenu: (e) => openMemberMenu(m.id, e) },
+          el('span', { class: 'member-cell' }, avatar(m),
+            el('span', { class: 'member-cell-text' },
+              el('span', { class: 'role-name', textContent: m.name, style: { color: nameColor(m) } }, isOwner(m.id) ? Icon('crown', 14) : null),
+              el('small', { textContent: m.online ? 'Online' : 'Offline' }))),
+          el('span', { class: 'col-roles' }, m.roles.length
+            ? [...m.roles].sort((a, b) => roleIdx(b) - roleIdx(a)).map((id) => roleById(id)).filter(Boolean).map((r) => el('span', { class: 'role-pill' }, el('span', { class: 'dot', style: { background: r.color || '#99aab5' } }), r.name))
+            : el('span', { class: 'muted-text', textContent: 'Sem cargos' })),
+          el('span', { class: 'col-actions' },
+            m.id === state.me.accountId ? null : el('button', { type: 'button', class: 'icon-btn', tip: 'Ações', ariaLabel: 'Ações para ' + m.name, onclick: (e) => openMemberMenu(m.id, e) }, el('span', { class: 'kebab', textContent: '⋯' }))))));
+    };
+    fill();
+    return el('section', {},
+      pageHead('Membros', 'Veja quem está no servidor, os cargos de cada um e as ações de moderação (clique em ⋯).'),
+      el('div', { class: 'admin-toolbar' }, searchBox('members', 'Pesquisar membros', fill)),
+      list);
+  }
+
+  // ----- Banimentos -----
+  function bansPage() {
     const bans = state.server.bans;
-    if (!bans.length) return el('p', { class: 'muted-text', textContent: 'Ninguém banido.' });
-    return el('div', {}, bans.map((b) => el('div', { class: 'row gap ban-row' },
-      el('span', { class: 'grow', textContent: b.name }),
-      el('button', { type: 'button', class: 'secondary', textContent: 'Desbanir', onclick: () => call('mod', { action: 'unban', target: b.id }) }))));
+    const list = el('div', { class: 'admin-table' });
+    const fill = () => {
+      const rows = bans.filter((b) => matches(b.name, 'bans'));
+      list.replaceChildren(...rows.map((b) => el('div', { class: 'admin-row' },
+        el('span', { class: 'member-cell' }, el('div', { class: 'avatar', style: { background: '#4e5058' }, textContent: initials(b.name) }), el('span', { class: 'role-name', textContent: b.name })),
+        el('span', { class: 'col-actions wide' }, el('button', { type: 'button', class: 'btn-danger-outline', textContent: 'Revogar banimento',
+          onclick: async () => { if (await confirmDialog({ title: `Revogar o banimento de ${b.name}?`, text: 'A pessoa vai poder entrar no servidor de novo.', confirm: 'Revogar', danger: false })) call('mod', { action: 'unban', target: b.id }); } })))),
+      ...(rows.length ? [] : [el('div', { class: 'admin-empty', textContent: 'Nenhum banimento encontrado.' })]));
+    };
+    fill();
+    return el('section', {},
+      pageHead('Banimentos', 'Quem foi banido não consegue mais entrar no servidor com a própria conta.'),
+      bans.length ? el('div', { class: 'admin-toolbar' }, searchBox('bans', 'Pesquisar banimentos', fill)) : null,
+      bans.length ? list : el('div', { class: 'admin-empty big' }, Icon('lock', 40), el('strong', { textContent: 'Nenhum banimento' }), el('span', { textContent: 'Quando alguém for banido, vai aparecer aqui.' })));
   }
 
   // ---------------- áudio local ----------------
@@ -2583,7 +2993,7 @@
       $('#profile-preview-name').textContent = meMember().name;
       setAvatarContents($('#profile-preview-avatar'), $('#profile-avatar').value, meMember().name);
       $('#ptt-key').textContent = state.ptt.label;
-      $('#settings-server-link').classList.toggle('hidden', !['MANAGE_ROLES', 'MANAGE_CHANNELS', 'BAN'].some(hasPerm));
+      $('#settings-server-link').classList.toggle('hidden', !canAdmin());
       notificationHelp();
       renderDiagnostics();
       drawMeter(-100, false);

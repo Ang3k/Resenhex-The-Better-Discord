@@ -536,7 +536,6 @@ blockquote { margin: 2px 0; padding: 0 8px 0 12px; border-left: 4px solid #4e505
 .card .tabs button { background: transparent; color: var(--interactive); border-radius: 4px; padding: 6px 10px; font-size: 15px; }
 .card .tabs button:hover { background: var(--hover); color: var(--text); }
 .card .tabs button.active { background: var(--hover-strong); color: #fff; }
-#settings-body { overflow-y: auto; min-height: 0; flex: 1; padding-right: 4px; }
 .split { display: grid; grid-template-columns: 220px 1fr; gap: 20px; }
 .role-list { display: flex; flex-direction: column; gap: 2px; }
 .card .role-row { display: flex; align-items: center; gap: 8px; background: transparent; color: var(--text); padding: 8px 10px; font-weight: 500; text-align: left; border-radius: 4px; }
