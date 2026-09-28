@@ -3,6 +3,21 @@
 Histórico de versões. A mesma lista aparece dentro do app em **Novidades** (menu do servidor ou rodapé das Configurações).
 O Resenhex ainda está antes da 1.0.
 
+## v0.6 — Do seu jeito
+_28/09/2026_
+
+O servidor ganhou cara própria e clicar em alguém agora mostra um perfil de verdade.
+
+### Novidades
+- Ícone do servidor: envie uma imagem em Configurações do servidor → Visão geral. Ela aparece na faixa de servidores e na aba do navegador.
+- Cartão de perfil ao clicar em alguém (na lista de membros, no nome de uma mensagem ou numa menção): foto, status, "membro desde" e cargos.
+- Dar e tirar cargos direto no cartão de perfil, com o botão + e o × em cada cargo.
+- Em chamada, o cartão tem o volume da pessoa e "Mutar para mim".
+
+### Melhorias
+- Menu do clique direito redesenhado, com ícones, marcação de ligado/desligado e submenus para Castigar, Mover e Cargos.
+- Expulsar e banir pedem confirmação dentro do app.
+
 ## v0.5 — Cara de app de verdade
 _28/09/2026_
 

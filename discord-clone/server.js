@@ -294,8 +294,21 @@ app.get('/config', (_req, res) => {
 });
 
 // Profile pictures are shared with the server, independent of chat attachments.
+// Uma imagem pode ser foto de alguém e ícone do servidor ao mesmo tempo (mesmo conteúdo, mesmo arquivo).
+const imageInUse = (file) => db.serverIcon === file || Object.values(db.accounts).some((account) => account.avatar === file);
+function removeImageIfUnused(file) {
+  if (!file || !/^[a-f0-9]{64}\.png$/.test(file) || imageInUse(file)) return;
+  try { fs.unlinkSync(path.join(AVATAR_DIR, file)); } catch (error) { if (error.code !== 'ENOENT') console.warn('Não foi possível remover uma imagem antiga.'); }
+}
+function storeImage(dataUrl) {
+  const image = decodeAvatar(dataUrl);
+  const file = crypto.createHash('sha256').update(image).digest('hex') + '.png';
+  fs.writeFileSync(path.join(AVATAR_DIR, file), image);
+  return file;
+}
+
 app.get('/avatars/:file', (req, res) => {
-  if (!/^[a-f0-9]{64}\.png$/.test(req.params.file) || !Object.values(db.accounts).some((account) => account.avatar === req.params.file)) return res.status(404).end();
+  if (!/^[a-f0-9]{64}\.png$/.test(req.params.file) || !imageInUse(req.params.file)) return res.status(404).end();
   res.set({ 'Content-Type': 'image/png', 'X-Content-Type-Options': 'nosniff', 'Cache-Control': 'public, max-age=31536000, immutable' });
   res.sendFile(path.join(AVATAR_DIR, req.params.file));
 });
@@ -362,6 +375,7 @@ function publicMember(a, onlineIds) {
     name: a.name,
     color: a.color,
     avatarUrl: a.avatar ? '/avatars/' + a.avatar : null,
+    since: a.createdAt || null,
     roles: a.roles,
     online: onlineIds.has(a.id),
     serverMuted: !!a.serverMuted,
@@ -401,6 +415,7 @@ function stateFor(acc, shared = sharedState()) {
   return {
     ownerId: db.ownerId,
     serverName: db.serverName || 'Resenha',
+    serverIcon: db.serverIcon ? '/avatars/' + db.serverIcon : null,
     roles: db.roles,
     channels: db.channels.filter((c) => canView(acc, c)),
     members: shared.members,
@@ -575,19 +590,13 @@ io.on('connection', (socket) => {
     if (avatar !== undefined) {
       if (!allow('avatar:' + acc.id, 10, 60 * 1000)) fail('Muitas trocas de foto. Aguarde um minuto.');
       if (avatar === null) nextAvatar = null;
-      else {
-        const image = decodeAvatar(avatar);
-        nextAvatar = crypto.createHash('sha256').update(image).digest('hex') + '.png';
-        fs.writeFileSync(path.join(AVATAR_DIR, nextAvatar), image);
-      }
+      else nextAvatar = storeImage(avatar);
     }
     acc.avatar = nextAvatar || null;
     acc.color = cleanColor(color, acc.color);
     save();
     broadcastState();
-    if (previousAvatar && previousAvatar !== nextAvatar && /^[a-f0-9]{64}\.png$/.test(previousAvatar) && !Object.values(db.accounts).some((account) => account.avatar === previousAvatar)) {
-      try { fs.unlinkSync(path.join(AVATAR_DIR, previousAvatar)); } catch (error) { if (error.code !== 'ENOENT') console.warn('Não foi possível remover a foto antiga.'); }
-    }
+    if (previousAvatar !== nextAvatar) removeImageIfUnused(previousAvatar);
     return { ok: true, avatarUrl: acc.avatar ? '/avatars/' + acc.avatar : null };
   });
 
@@ -900,13 +909,25 @@ io.on('connection', (socket) => {
   });
 
   // --- Servidor ---
-  on('server:update', (acc, { name }) => {
-    if (!can(acc, 'ADMIN')) fail('Só administradores podem mudar o nome do servidor.');
-    const clean = cleanName(name, 32);
-    if (clean.length < 2) fail('O nome do servidor precisa ter pelo menos 2 caracteres.');
+  // Nome e ícone do servidor (ícone: imagem PNG já recortada no navegador, conferida de novo aqui).
+  on('server:update', (acc, { name, icon }) => {
+    if (!can(acc, 'ADMIN')) fail('Só administradores podem mudar o servidor.');
+    let clean = db.serverName;
+    if (name !== undefined) {
+      clean = cleanName(name, 32);
+      if (clean.length < 2) fail('O nome do servidor precisa ter pelo menos 2 caracteres.');
+    }
+    const previousIcon = db.serverIcon || null;
+    let nextIcon = previousIcon;
+    if (icon !== undefined) {
+      if (!allow('server-icon:' + acc.id, 10, 60 * 1000)) fail('Muitas trocas de ícone. Aguarde um minuto.');
+      nextIcon = icon === null ? null : storeImage(icon);
+    }
     db.serverName = clean;
+    db.serverIcon = nextIcon;
     save();
     broadcastState();
+    if (previousIcon !== nextIcon) removeImageIfUnused(previousIcon);
   });
 
   // --- Canais ---

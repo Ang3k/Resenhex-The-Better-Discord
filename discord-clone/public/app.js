@@ -148,6 +148,38 @@
     } else node.replaceChildren(initials(name || '?'));
   }
 
+  // Recorta o centro da imagem num quadrado de 256 px e devolve um PNG (data URL).
+  // Usado na foto de perfil e no ícone do servidor; o servidor confere o arquivo de novo.
+  async function cropToSquarePng(file, size = 256) {
+    if (!['image/png', 'image/jpeg', 'image/webp', 'image/gif'].includes(file.type) || file.size > 8 * 1024 * 1024) throw new Error('type');
+    const bitmap = await createImageBitmap(file);
+    try {
+      if (!bitmap.width || !bitmap.height || bitmap.width * bitmap.height > 40_000_000) throw new Error('image-size');
+      const canvas = document.createElement('canvas');
+      canvas.width = canvas.height = size;
+      const side = Math.min(bitmap.width, bitmap.height);
+      canvas.getContext('2d').drawImage(bitmap, (bitmap.width - side) / 2, (bitmap.height - side) / 2, side, side, 0, 0, size, size);
+      return canvas.toDataURL('image/png');
+    } finally {
+      bitmap.close();
+    }
+  }
+
+  // Ícone do servidor na faixa lateral e na aba do navegador.
+  const DEFAULT_FAVICON = document.querySelector('link[rel=icon]')?.href;
+  function renderServerIcon() {
+    const url = state.server?.serverIcon || '';
+    const key = url + ':' + serverName();
+    if (renderServerIcon.key === key) return;
+    renderServerIcon.key = key;
+    const node = document.querySelector('.rail-icon.server-icon');
+    node.classList.toggle('has-image', !!url);
+    setAvatarContents(node, url, serverName());
+    node.closest('.rail-item').dataset.tip = serverName();
+    const link = document.querySelector('link[rel=icon]');
+    if (link) link.href = url || DEFAULT_FAVICON;
+  }
+
   const formatUntil = (ts) => new Date(ts).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' });
 
   function formatSize(bytes) {
@@ -249,7 +281,7 @@
   const voiceEntry = (sid) => state.server.voice.find((v) => v.sid === sid);
   const channelById = (id) => state.server.channels.find((c) => c.id === id);
 
-  const fmtCtx = { member: (id) => member(id), role: (id) => roleById(id), onUser: (id, e) => openMemberMenu(id, e) };
+  const fmtCtx = { member: (id) => member(id), role: (id) => roleById(id), onUser: (id, e) => (e.type === 'contextmenu' ? openMemberMenu(id, e) : (e.stopPropagation(), openProfile(id, e.currentTarget || e.target))) };
 
   function mentionsMe(msg) {
     const m = msg.mentions;
@@ -451,6 +483,8 @@
     updateTitle();
     // Só redesenha as configurações se algo delas mudou; senão perderia o que está sendo editado.
     $('#server-header span').textContent = serverName();
+    renderServerIcon();
+    if (profileFor) renderProfile();
     const settingsKey = JSON.stringify([state.server.serverName, state.server.roles, state.server.channels, state.server.bans, state.server.myPerms,
       state.server.members.map((m) => [m.id, m.name, m.color, m.avatarUrl, m.roles, m.online])]);
     if (!$('#server-settings').classList.contains('hidden') && settingsKey !== render.settingsKey) renderServerSettings();
@@ -525,7 +559,7 @@
         else if (v.deafened) flags.append(el('span', { tip: 'Ensurdecido' }, Icon('headphonesOff', 16)));
         return el('li', {
           class: 'voice-user',
-          onclick: (e) => openMemberMenu(m.id, e),
+          onclick: (e) => { e.stopPropagation(); openProfile(m.id, e.currentTarget); },
           oncontextmenu: (e) => openMemberMenu(m.id, e),
         }, avatar(m, 'small' + (state.speaking.has(v.sid) ? ' speaking' : ''), v.sid), el('span', { class: 'name', textContent: m.name }), flags);
       });
@@ -566,7 +600,7 @@
         else if (v) sub = (v.sharing ? 'Transmitindo em ' : 'Em ') + (channelById(v.channel)?.name || 'um canal de voz');
         list.append(el('div', {
           class: 'member' + (m.online ? '' : ' offline'),
-          onclick: (e) => openMemberMenu(m.id, e),
+          onclick: (e) => { e.stopPropagation(); openProfile(m.id, e.currentTarget); },
           oncontextmenu: (e) => openMemberMenu(m.id, e),
         }, el('div', { class: 'avatar-wrap' }, avatar(m), el('span', { class: 'status ' + (m.online ? 'online' : 'offline') })),
         el('div', { class: 'member-info' },
@@ -683,7 +717,7 @@
       class: 'msg' + (continued ? ' continued' : '') + (mentionsMe(msg) ? ' mentioned' : '') + (state.replyTo?.id === msg.id ? ' replying' : ''),
       data: { id: msg.id },
     });
-    const openMenu = (e) => author && openMemberMenu(author.id, e);
+    const openMenu = (e) => author && (e.type === 'contextmenu' ? openMemberMenu(author.id, e) : (e.stopPropagation(), openProfile(author.id, e.currentTarget)));
 
     if (replied || replyMissing) {
       const ra = replied && member(replied.authorId);
@@ -1438,11 +1472,13 @@
     const menu = $('#context-menu');
     if (!menu.classList.contains('hidden') && $('#server-header').classList.contains('open')) $('#server-header').dataset.closedAt = Date.now();
     menu.classList.add('hidden');
+    menu.classList.remove('member-menu');
     menu.style.width = '';
+    closeSubmenu();
     $('#server-header').classList.remove('open');
   }
   document.addEventListener('click', (e) => {
-    if (!e.target.closest('#context-menu')) closeMenu();
+    if (!e.target.closest('#context-menu, #context-submenu')) closeMenu();
     if (!e.target.closest('#emoji-picker')) $('#emoji-picker').classList.add('hidden');
   }, true);
   document.addEventListener('keydown', (e) => {
@@ -1602,113 +1638,262 @@
     if (type === 'text') openTextChannel(res.id);
   };
 
+  // ---------------- perfil e ações de um membro (estilo Discord) ----------------
+  // Clique: cartão de perfil. Clique direito ou "⋯": menu de ações com submenus.
+  const TIMEOUTS = [['60 segundos', 1], ['5 minutos', 5], ['10 minutos', 10], ['1 hora', 60], ['1 dia', 1440], ['1 semana', 10080]];
+  const modAction = (m, action, value) => call('mod', { action, target: m.id, value });
+  const voiceOf = (m) => state.server.voice.find((x) => x.accountId === m.id);
+  const sameCall = (m) => { const v = voiceOf(m); return !!v && !!state.voiceChannel && v.channel === state.voiceChannel; };
+  const sortedRoles = (m) => m.roles.map((id) => roleById(id)).filter(Boolean).sort((a, b) => roleIdx(b.id) - roleIdx(a.id));
+
+  function setLocalMute(m, on) {
+    on ? state.localMuted.add(m.id) : state.localMuted.delete(m.id);
+    localStorage.setItem('localMuted', JSON.stringify([...state.localMuted]));
+    applyAudio();
+    render();
+  }
+  function setLocalVolume(m, value) {
+    state.localVolume[m.id] = value;
+    localStorage.setItem('localVolume', JSON.stringify(state.localVolume));
+    applyAudio();
+  }
+  function mention(m) {
+    if (state.view !== 'chat') { state.view = 'chat'; render(); }
+    insertAtCursor('@' + m.name + ' ');
+  }
+  async function kickMember(m) {
+    if (await confirmDialog({ title: `Expulsar ${m.name}`, text: `${m.name} vai sair do servidor, mas pode entrar de novo com a mesma conta.`, confirm: 'Expulsar' })) modAction(m, 'kick');
+  }
+  async function banMember(m) {
+    if (await confirmDialog({ title: `Banir ${m.name}`, text: `${m.name} não vai conseguir entrar mais no servidor. Dá para desfazer em Configurações do servidor → Banimentos.`, confirm: 'Banir' })) modAction(m, 'ban');
+  }
+
+  // ----- Submenu (fica fora do menu principal para não ser cortado pela rolagem) -----
+  let submenuTimer = null;
+  function closeSubmenu() {
+    clearTimeout(submenuTimer);
+    $('#context-submenu').classList.add('hidden');
+    document.querySelectorAll('#context-menu .menu-item.sub-open').forEach((n) => n.classList.remove('sub-open'));
+  }
+  function menuSub(label, icon, build) {
+    const item = el('button', { type: 'button', class: 'menu-item has-sub' },
+      el('span', { class: 'mi-label' }, icon ? Icon(icon, 18) : null, el('span', { textContent: label })), el('span', { class: 'mi-chev' }, Icon('chevronDown', 16)));
+    const open = () => {
+      clearTimeout(submenuTimer);
+      const sub = $('#context-submenu');
+      if (item.classList.contains('sub-open') && !sub.classList.contains('hidden')) return;
+      closeSubmenu();
+      item.classList.add('sub-open');
+      sub.replaceChildren(...build());
+      sub.classList.remove('hidden');
+      const r = item.getBoundingClientRect();
+      const w = sub.offsetWidth, h = sub.offsetHeight;
+      const left = r.right + 6 + w > innerWidth - 8 ? r.left - w - 6 : r.right + 6;
+      sub.style.left = Math.max(8, left) + 'px';
+      sub.style.top = Math.max(8, Math.min(r.top - 6, innerHeight - h - 8)) + 'px';
+    };
+    item.addEventListener('mouseenter', open);
+    item.addEventListener('mouseleave', () => { submenuTimer = setTimeout(closeSubmenu, 250); });
+    item.addEventListener('click', (e) => { e.stopPropagation(); open(); });
+    return item;
+  }
+  $('#context-submenu').addEventListener('mouseenter', () => clearTimeout(submenuTimer));
+  $('#context-submenu').addEventListener('mouseleave', () => { submenuTimer = setTimeout(closeSubmenu, 250); });
+
+  // Item com marcação à direita (como "Silenciar no servidor ✓" no Discord).
+  const menuToggle = (label, icon, on, onclick, cls = '') => el('button', { type: 'button', class: 'menu-item toggle ' + cls, role: 'menuitemcheckbox', ariaChecked: String(on), onclick: async () => { closeMenu(); await onclick(); } },
+    el('span', { class: 'mi-label' }, icon ? Icon(icon, 18) : null, el('span', { textContent: label })), el('span', { class: 'mi-check' + (on ? ' on' : '') }));
+  const menuAction = (label, icon, onclick, cls = '') => el('button', { type: 'button', class: 'menu-item ' + cls, onclick: async () => { closeMenu(); await onclick(); } },
+    el('span', { class: 'mi-label' }, icon ? Icon(icon, 18) : null, el('span', { textContent: label })));
+
   function openMemberMenu(accountId, e) {
     e.preventDefault();
     e.stopPropagation();
     const m = member(accountId);
     if (!m) return;
+    closeProfile();
     const menu = $('#context-menu');
-    menu.innerHTML = '';
     const self = m.id === state.me.accountId;
-    const v = state.server.voice.find((x) => x.accountId === m.id);
-    const item = (label, onclick, cls = '') => menuItem(label, null, onclick, cls);
-    const section = (title) => el('div', { class: 'menu-section', textContent: title });
+    const v = voiceOf(m);
     const sep = () => el('div', { class: 'menu-sep' });
-    const mod = (action, value) => call('mod', { action, target: m.id, value });
+    const groups = [];
 
-    // Cabeçalho com nome e cargos
-    const roleChips = m.roles.map((id) => roleById(id)).filter(Boolean)
-      .sort((a, b) => roleIdx(b.id) - roleIdx(a.id))
-      .map((r) => el('span', { class: 'chip' }, el('span', { class: 'dot', style: { background: r.color || '#99aab5' } }), r.name));
-    menu.append(el('div', { class: 'menu-head' },
-      avatar(m),
-      el('div', {},
-        el('div', { class: 'member-name', style: { color: nameColor(m) } }, m.name, isOwner(m.id) ? el('span', { class: 'owner-crown' }, Icon('crown', 14)) : ''),
-        timedOut(m) ? el('div', { class: 'sub', textContent: '⏳ Castigo até ' + formatUntil(m.timeoutUntil) }) : null,
-        el('div', { class: 'chips' }, roleChips.length ? roleChips : el('span', { class: 'muted-text', textContent: 'Sem cargos' })))));
+    groups.push([
+      menuAction('Perfil', 'userCog', () => openProfile(m.id, { x: e.clientX, y: e.clientY })),
+      !self && canSend() ? menuAction('Mencionar', 'at', () => mention(m)) : null,
+    ]);
 
-    if (!self && canSend() && state.view === 'chat') {
-      menu.append(item('Mencionar', () => insertAtCursor('@' + m.name + ' ')));
-    }
-
-    // Controles locais (só afetam o que eu ouço)
-    if (!self && v && v.channel === state.voiceChannel) {
-      const vol = Math.round((state.localVolume[m.id] ?? 1) * 100);
-      const label = el('span', { textContent: `Volume do usuário: ${vol}%` });
-      const range = el('input', { type: 'range', min: 0, max: 100, value: vol });
-      range.oninput = () => {
-        label.textContent = `Volume do usuário: ${range.value}%`;
-        state.localVolume[m.id] = range.value / 100;
-        localStorage.setItem('localVolume', JSON.stringify(state.localVolume));
-        applyAudio();
-      };
-      menu.append(sep(), el('div', { class: 'menu-range' }, label, range));
-    }
     if (!self) {
-      const localMuted = state.localMuted.has(m.id);
-      menu.append(item(localMuted ? 'Desmutar para mim' : 'Mutar para mim', () => {
-        localMuted ? state.localMuted.delete(m.id) : state.localMuted.add(m.id);
-        localStorage.setItem('localMuted', JSON.stringify([...state.localMuted]));
-        applyAudio();
-        render();
-      }));
+      const local = [];
+      if (sameCall(m)) {
+        const vol = Math.round((state.localVolume[m.id] ?? 1) * 100);
+        const label = el('span', { textContent: `${vol}%` });
+        const range = el('input', { type: 'range', min: 0, max: 100, value: vol, ariaLabel: 'Volume do usuário' });
+        range.oninput = () => { label.textContent = range.value + '%'; setLocalVolume(m, range.value / 100); };
+        local.push(el('div', { class: 'menu-range' }, el('div', { class: 'menu-range-head' }, el('span', { textContent: 'Volume do usuário' }), label), range));
+      }
+      local.push(menuToggle('Mutar para mim', 'volumeX', state.localMuted.has(m.id), () => setLocalMute(m, !state.localMuted.has(m.id))));
+      groups.push(local);
     }
 
     const actOn = canActOn(m);
-    const modItems = [];
+    const mod = [];
     if (hasPerm('MUTE_MEMBERS') && actOn) {
-      modItems.push(item(m.serverMuted ? 'Remover silêncio do servidor' : 'Silenciar no servidor', () => mod('serverMute', !m.serverMuted)));
-      modItems.push(item(m.serverDeafened ? 'Remover surdez do servidor' : 'Ensurdecer no servidor', () => mod('serverDeafen', !m.serverDeafened)));
+      mod.push(menuToggle('Silenciar no servidor', 'micOff', !!m.serverMuted, () => modAction(m, 'serverMute', !m.serverMuted), 'danger-check'));
+      mod.push(menuToggle('Ensurdecer no servidor', 'headphonesOff', !!m.serverDeafened, () => modAction(m, 'serverDeafen', !m.serverDeafened), 'danger-check'));
     }
     if (hasPerm('MOVE_MEMBERS') && actOn && v) {
-      modItems.push(item('Desconectar da voz', () => mod('disconnect')));
       const others = state.server.channels.filter((c) => c.type === 'voice' && c.id !== v.channel);
-      if (others.length) {
-        modItems.push(section('MOVER PARA'));
-        for (const c of others) modItems.push(item(c.name, () => mod('move', c.id), 'indent'));
-      }
+      if (others.length) mod.push(menuSub('Mover para', 'volume', () => others.map((c) => menuAction(c.name, 'volume', () => modAction(m, 'move', c.id)))));
+      mod.push(menuAction('Desconectar da voz', 'phone', () => modAction(m, 'disconnect'), 'danger'));
     }
-    if (modItems.length) menu.append(sep(), ...modItems);
-
     if (hasPerm('TIMEOUT') && !self && iOutrank(m)) {
-      menu.append(sep());
-      if (timedOut(m)) menu.append(item('Remover castigo', () => mod('timeout', 0)));
-      else {
-        menu.append(section('CASTIGO (não fala nem escreve)'));
-        const options = [['60 segundos', 1], ['5 minutos', 5], ['10 minutos', 10], ['1 hora', 60], ['1 dia', 1440], ['1 semana', 10080]];
-        for (const [label, min] of options) menu.append(item(label, () => mod('timeout', min), 'indent'));
-      }
+      mod.push(timedOut(m)
+        ? menuAction('Remover castigo', 'refresh', () => modAction(m, 'timeout', 0))
+        : menuSub(`Castigar ${m.name}`, 'pause', () => [el('div', { class: 'menu-section', textContent: 'NÃO FALA NEM ESCREVE POR' }), ...TIMEOUTS.map(([label, min]) => menuAction(label, null, () => modAction(m, 'timeout', min)))]));
     }
-
-    if (hasPerm('MANAGE_ROLES') && actOn) {
-      const myTop = topPos(meMember());
-      const roles = state.server.roles.slice(1).map((r, i) => ({ r, i: i + 1 })).reverse();
-      if (roles.length) {
-        menu.append(sep(), section('CARGOS'));
-        for (const { r, i } of roles) {
-          const has = m.roles.includes(r.id);
-          const box = el('input', { type: 'checkbox', checked: has, disabled: i >= myTop });
+    if (hasPerm('MANAGE_ROLES') && actOn && state.server.roles.length > 1) {
+      mod.push(menuSub('Cargos', 'crown', () => {
+        const myTop = topPos(meMember());
+        return state.server.roles.slice(1).map((r, i) => ({ r, i: i + 1 })).reverse().map(({ r, i }) => {
+          const current = member(m.id) || m;
+          const has = current.roles.includes(r.id);
+          const box = el('input', { type: 'checkbox', class: 'ds-check', checked: has, disabled: i >= myTop });
           box.onchange = () => {
-            const next = box.checked ? [...m.roles, r.id] : m.roles.filter((x) => x !== r.id);
-            mod('setRoles', next);
+            const now = member(m.id) || m;
+            modAction(m, 'setRoles', box.checked ? [...now.roles, r.id] : now.roles.filter((x) => x !== r.id));
           };
-          menu.append(el('label', { class: 'menu-check' + (i >= myTop ? ' disabled' : '') }, box,
-            el('span', { class: 'dot', style: { background: r.color || '#99aab5' } }), r.name));
-        }
-      }
+          return el('label', { class: 'menu-check' + (i >= myTop ? ' disabled' : '') }, el('span', { class: 'dot', style: { background: r.color || '#99aab5' } }), el('span', { class: 'grow', textContent: r.name }), box);
+        });
+      }));
     }
+    if (mod.length) groups.push(mod);
 
     const danger = [];
-    if (hasPerm('KICK') && !self && iOutrank(m)) {
-      danger.push(item(`Expulsar ${m.name}`, () => confirm(`Expulsar ${m.name}? A pessoa vai precisar entrar de novo.`) && mod('kick'), 'danger'));
-    }
-    if (hasPerm('BAN') && !self && iOutrank(m)) {
-      danger.push(item(`Banir ${m.name}`, () => confirm(`Banir ${m.name}? A pessoa não vai conseguir entrar mais.`) && mod('ban'), 'danger'));
-    }
-    if (danger.length) menu.append(sep(), ...danger);
+    if (hasPerm('KICK') && !self && iOutrank(m)) danger.push(menuAction(`Expulsar ${m.name}`, 'x', () => kickMember(m), 'danger'));
+    if (hasPerm('BAN') && !self && iOutrank(m)) danger.push(menuAction(`Banir ${m.name}`, 'lock', () => banMember(m), 'danger'));
+    if (danger.length) groups.push(danger);
 
+    const items = [];
+    for (const g of groups.map((list) => list.filter(Boolean)).filter((list) => list.length)) {
+      if (items.length) items.push(sep());
+      items.push(...g);
+    }
+    menu.replaceChildren(...items);
+    menu.classList.add('member-menu');
     showMenuAt(e.clientX, e.clientY);
   }
+
+  // ----- Cartão de perfil -----
+  let profileFor = null;
+  function closeProfile() {
+    profileFor = null;
+    $('#profile-card').classList.add('hidden');
+  }
+  function openProfile(accountId, anchor) {
+    const m = member(accountId);
+    if (!m) return;
+    closeMenu();
+    profileFor = { id: accountId, anchor };
+    renderProfile();
+    placeProfile(anchor);
+  }
+  // Abre ao lado do que foi clicado (à esquerda da lista de membros, à direita do chat).
+  function placeProfile(anchor) {
+    const card = $('#profile-card');
+    const w = card.offsetWidth, h = card.offsetHeight;
+    let x, y;
+    if (anchor instanceof Element) {
+      const r = anchor.getBoundingClientRect();
+      x = r.left > innerWidth / 2 ? r.left - w - 12 : r.right + 12;
+      y = r.top - 12;
+    } else {
+      x = anchor.x + 12;
+      y = anchor.y - 40;
+    }
+    card.style.left = Math.max(8, Math.min(x, innerWidth - w - 8)) + 'px';
+    card.style.top = Math.max(8, Math.min(y, innerHeight - h - 8)) + 'px';
+  }
+  function renderProfile() {
+    const card = $('#profile-card');
+    const m = profileFor && member(profileFor.id);
+    if (!m) return closeProfile();
+    const self = m.id === state.me.accountId;
+    const v = voiceOf(m);
+    const room = v && channelById(v.channel);
+    const color = m.color || '#5865f2';
+    const presence = !m.online ? ['offline', 'Offline'] : room ? ['online', 'Em ' + room.name] : ['online', 'Online'];
+    const canManageRoles = hasPerm('MANAGE_ROLES') && canActOn(m);
+    const myTop = topPos(meMember());
+    const roles = sortedRoles(m);
+    const removeRole = (r) => modAction(m, 'setRoles', m.roles.filter((x) => x !== r.id));
+
+    const roleChips = roles.map((r) => el('span', { class: 'pc-role' },
+      el('span', { class: 'dot', style: { background: r.color || '#99aab5' } }), el('span', { textContent: r.name }),
+      canManageRoles && roleIdx(r.id) < myTop ? el('button', { type: 'button', class: 'pc-role-x', ariaLabel: 'Tirar o cargo ' + r.name, tip: 'Tirar cargo', onclick: () => removeRole(r) }, Icon('x', 12)) : null));
+    const addable = canManageRoles ? state.server.roles.slice(1).filter((r) => !m.roles.includes(r.id) && roleIdx(r.id) < myTop) : [];
+    if (addable.length) {
+      roleChips.push(el('button', { type: 'button', class: 'pc-role add', tip: 'Adicionar cargo', ariaLabel: 'Adicionar cargo', onclick: (e) => {
+        e.stopPropagation();
+        const menu = $('#context-menu');
+        menu.replaceChildren(el('div', { class: 'menu-section', textContent: 'ADICIONAR CARGO' }),
+          ...addable.slice().reverse().map((r) => el('button', { type: 'button', class: 'menu-item', onclick: () => { closeMenu(); modAction(m, 'setRoles', [...m.roles, r.id]); } },
+            el('span', { class: 'mi-label' }, el('span', { class: 'dot', style: { background: r.color || '#99aab5' } }), el('span', { textContent: r.name })))));
+        menu.classList.add('member-menu');
+        const rect = e.currentTarget.getBoundingClientRect();
+        showMenuAt(rect.left, rect.bottom + 6);
+      } }, Icon('plus', 14)));
+    }
+
+    const voiceBox = !self && sameCall(m) ? (() => {
+      const vol = Math.round((state.localVolume[m.id] ?? 1) * 100);
+      const value = el('span', { class: 'pc-vol-value', textContent: vol + '%' });
+      const range = el('input', { type: 'range', min: 0, max: 100, value: vol, ariaLabel: 'Volume de ' + m.name });
+      range.oninput = () => { value.textContent = range.value + '%'; setLocalVolume(m, range.value / 100); };
+      return el('div', { class: 'pc-section' },
+        el('div', { class: 'pc-label', textContent: 'VOLUME PARA VOCÊ' }),
+        el('div', { class: 'pc-volume' }, Icon('volume', 18), range, value),
+        el('label', { class: 'pc-switch' }, el('span', { textContent: 'Mutar para mim' }),
+          (() => { const t = el('input', { type: 'checkbox', class: 'ds-switch', checked: state.localMuted.has(m.id) }); t.onchange = () => setLocalMute(m, t.checked); return t; })()));
+    })() : null;
+
+    const actions = [];
+    if (self) actions.push(el('button', { type: 'button', class: 'pc-btn primary', onclick: () => { closeProfile(); $('#btn-settings').click(); } }, Icon('pencil', 16), 'Editar perfil'));
+    else {
+      if (canSend()) actions.push(el('button', { type: 'button', class: 'pc-btn primary', onclick: () => { closeProfile(); mention(m); } }, Icon('at', 16), 'Mencionar'));
+      if (!sameCall(m)) actions.push(el('button', { type: 'button', class: 'pc-btn', onclick: () => { setLocalMute(m, !state.localMuted.has(m.id)); renderProfile(); } },
+        Icon(state.localMuted.has(m.id) ? 'volume' : 'volumeX', 16), state.localMuted.has(m.id) ? 'Desmutar para mim' : 'Mutar para mim'));
+    }
+
+    card.style.setProperty('--pc-color', color);
+    card.replaceChildren(
+      el('div', { class: 'pc-banner' },
+        el('div', { class: 'pc-top-actions' },
+          el('button', { type: 'button', class: 'pc-icon-btn', tip: 'Mais', ariaLabel: 'Mais ações', onclick: (e) => { const r = e.currentTarget.getBoundingClientRect(); openMemberMenu(m.id, { preventDefault() {}, stopPropagation() {}, clientX: r.left, clientY: r.bottom + 6 }); } }, el('span', { class: 'kebab', textContent: '⋯' })))),
+      el('div', { class: 'pc-avatar-row' },
+        el('div', { class: 'pc-avatar' }, avatar(m), el('span', { class: 'pc-status ' + presence[0], tip: presence[1] }))),
+      el('div', { class: 'pc-body' },
+        el('div', { class: 'pc-name', textContent: m.name, style: { color: nameColor(m) || '' } }),
+        el('div', { class: 'pc-tags' },
+          isOwner(m.id) ? el('span', { class: 'pc-tag owner' }, Icon('crown', 12), 'Dono do servidor') : null,
+          el('span', { class: 'pc-tag ' + presence[0] }, el('span', { class: 'pc-dot ' + presence[0] }), presence[1]),
+          m.serverMuted ? el('span', { class: 'pc-tag warn' }, Icon('micOff', 12), 'Silenciado') : null,
+          m.serverDeafened ? el('span', { class: 'pc-tag warn' }, Icon('headphonesOff', 12), 'Ensurdecido') : null),
+        timedOut(m) ? el('div', { class: 'pc-timeout' }, Icon('pause', 14), el('span', { textContent: 'De castigo até ' + formatUntil(m.timeoutUntil) })) : null,
+        el('div', { class: 'pc-panel' },
+          m.since ? el('div', { class: 'pc-section' }, el('div', { class: 'pc-label', textContent: 'MEMBRO DESDE' }),
+            el('div', { class: 'pc-since' }, el('span', { class: 'pc-server-mini', textContent: initials(serverName()) }), new Date(m.since).toLocaleDateString('pt-BR', { day: 'numeric', month: 'short', year: 'numeric' }))) : null,
+          el('div', { class: 'pc-section' }, el('div', { class: 'pc-label', textContent: roles.length ? `CARGOS — ${roles.length}` : 'CARGOS' }),
+            el('div', { class: 'pc-roles' }, roleChips.length ? roleChips : el('span', { class: 'muted-text', textContent: 'Sem cargos' }))),
+          voiceBox),
+        actions.length ? el('div', { class: 'pc-actions' }, actions) : null));
+    card.classList.remove('hidden');
+  }
+  document.addEventListener('mousedown', (e) => {
+    if (!profileFor || e.target.closest('#profile-card, #context-menu, #context-submenu, .confirm-overlay')) return;
+    closeProfile();
+  }, true);
+  document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && profileFor) closeProfile(); });
 
   function showMenuAt(x, y) {
     const menu = $('#context-menu');
@@ -1926,7 +2111,10 @@
     renderSavebar();
     let res;
     try {
-      if (admin.draftKey === 'server') res = await call('server:update', { name: d.name });
+      if (admin.draftKey === 'server') {
+        const iconChanged = d.icon !== admin.base.icon;
+        res = await call('server:update', { name: d.name, ...(iconChanged ? { icon: d.icon || null } : {}) });
+      }
       else if (admin.draftKey.startsWith('role:')) res = await call('role', { action: 'update', id: d.id, name: d.name, color: d.color, hoist: d.hoist, perms: d.perms });
       else if (admin.draftKey.startsWith('channel:')) res = await call('channel', { action: 'update', id: d.id, name: d.name, allowedRoles: d.private ? d.allowedRoles : [] });
     } finally {
@@ -1941,7 +2129,7 @@
 
   // ----- Visão geral -----
   function overviewPage() {
-    const d = useDraft('server', () => ({ name: serverName() }));
+    const d = useDraft('server', () => ({ name: serverName(), icon: state.server.serverIcon || '' }));
     const s = state.server;
     const owner = member(s.ownerId);
     const name = el('input', { type: 'text', value: d.name, maxLength: 32, disabled: !hasPerm('ADMIN'), ariaLabel: 'Nome do servidor' });
@@ -1949,11 +2137,10 @@
     const stat = (value, label, icon) => el('div', { class: 'admin-stat' }, Icon(icon, 20), el('strong', { textContent: String(value) }), el('span', { textContent: label }));
     return el('section', {},
       pageHead('Visão geral do servidor', 'Informações básicas do servidor e de quem está nele.'),
-      el('div', { class: 'admin-overview' },
-        el('div', { class: 'server-icon-big', textContent: initials(d.name || serverName()) }),
-        el('div', { class: 'admin-field grow' },
-          el('label', { class: 'admin-label', textContent: 'NOME DO SERVIDOR' }), name,
-          hasPerm('ADMIN') ? null : el('span', { class: 'hint', textContent: 'Só administradores podem mudar o nome.' }))),
+      serverIconEditor(d),
+      el('div', { class: 'admin-field' },
+        el('label', { class: 'admin-label', textContent: 'NOME DO SERVIDOR' }), name,
+        hasPerm('ADMIN') ? null : el('span', { class: 'hint', textContent: 'Só administradores podem mudar o nome e o ícone.' })),
       el('div', { class: 'admin-stats' },
         stat(s.members.length, 'membros', 'users'),
         stat(s.members.filter((m) => m.online).length, 'online agora', 'signal'),
@@ -1962,6 +2149,40 @@
       owner ? el('div', { class: 'setting-group admin-owner' },
         el('h3', { textContent: 'Dono do servidor' }),
         el('div', { class: 'admin-member-line' }, avatar(owner), el('span', { class: 'grow', textContent: owner.name }), Icon('crown', 16))) : null);
+  }
+
+  // Ícone grande clicável, como no Discord: "ALTERAR ÍCONE" ao passar o mouse.
+  function serverIconEditor(d) {
+    const canEdit = hasPerm('ADMIN');
+    const preview = el('div', { class: 'server-icon-big' + (d.icon ? ' has-image' : '') });
+    setAvatarContents(preview, d.icon, d.name || serverName());
+    const file = el('input', { type: 'file', accept: 'image/png,image/jpeg,image/webp,image/gif', hidden: true });
+    const status = el('span', { class: 'hint icon-status' });
+    file.onchange = async () => {
+      const chosen = file.files[0];
+      file.value = '';
+      if (!chosen) return;
+      status.textContent = 'Preparando a imagem…';
+      try {
+        d.icon = await cropToSquarePng(chosen);
+        status.textContent = '';
+        renderServerSettings(true);
+      } catch {
+        status.textContent = 'Use uma imagem PNG, JPG, WebP ou GIF de até 8 MB.';
+      }
+    };
+    const pick = () => canEdit && file.click();
+    return el('div', { class: 'server-icon-editor' },
+      el('button', { type: 'button', class: 'server-icon-button', disabled: !canEdit, ariaLabel: 'Alterar ícone do servidor', onclick: pick },
+        preview, canEdit ? el('span', { class: 'server-icon-hover' }, Icon('camera', 20), el('span', { textContent: 'ALTERAR ÍCONE' })) : null),
+      canEdit ? el('div', { class: 'server-icon-actions' },
+        el('strong', { textContent: 'Ícone do servidor' }),
+        el('span', { class: 'hint', textContent: 'Aparece na faixa de servidores e na aba do navegador. Use uma imagem quadrada de pelo menos 256×256; o centro é recortado.' }),
+        el('div', { class: 'row-actions' },
+          el('button', { type: 'button', class: 'btn-primary small', textContent: 'Enviar imagem', onclick: pick }),
+          d.icon ? el('button', { type: 'button', class: 'link-btn', textContent: 'Remover', onclick: () => { d.icon = ''; renderServerSettings(true); } }) : null),
+        status) : null,
+      file);
   }
 
   // ----- Cargos -----
@@ -3073,22 +3294,15 @@
     }
     preferences.setProcessing(true);
     $('#profile-photo-status').textContent = 'Preparando sua foto…';
-    let bitmap;
     try {
-      bitmap = await createImageBitmap(file);
-      if (!bitmap.width || !bitmap.height || bitmap.width * bitmap.height > 40_000_000) throw new Error('image-size');
+      const png = await cropToSquarePng(file);
       if (epoch !== avatarReadEpoch || !preferences.isOpen()) return;
-      const canvas = document.createElement('canvas');
-      canvas.width = canvas.height = 256;
-      const size = Math.min(bitmap.width, bitmap.height);
-      canvas.getContext('2d').drawImage(bitmap, (bitmap.width - size) / 2, (bitmap.height - size) / 2, size, size, 0, 0, 256, 256);
-      $('#profile-avatar').value = canvas.toDataURL('image/png');
+      $('#profile-avatar').value = png;
       $('#profile-photo-status').textContent = 'Foto pronta na prévia. Clique em Salvar alterações para usar no seu perfil.';
       preferences.refresh();
     } catch {
       if (epoch === avatarReadEpoch) $('#profile-photo-status').textContent = 'Não foi possível abrir essa imagem. Tente outra foto (até 40 megapixels).';
     } finally {
-      bitmap?.close();
       if (epoch === avatarReadEpoch) preferences.setProcessing(false);
     }
   };
