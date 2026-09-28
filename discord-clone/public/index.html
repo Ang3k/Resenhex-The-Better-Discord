@@ -7,6 +7,7 @@
   <title>Resenhex</title>
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 32 32%22%3E%3Cdefs%3E%3ClinearGradient id=%22g%22 x1=%220%22 y1=%220%22 x2=%221%22 y2=%221%22%3E%3Cstop offset=%220%22 stop-color=%22%236d5dfc%22/%3E%3Cstop offset=%221%22 stop-color=%22%23c64cf0%22/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width=%2232%22 height=%2232%22 rx=%229%22 fill=%22url(%23g)%22/%3E%3Cpath fill=%22white%22 d=%22M16 6c-5.5 0-10 4-10 8.9 0 2.7 1.3 5 3.4 6.7l-.9 3.6a.6.6 0 0 0 .9.7l4.1-2.1c.8.2 1.6.2 2.5.2 5.5 0 10-4 10-8.9S21.5 6 16 6z%22/%3E%3Cpath stroke=%22%238a55f5%22 stroke-width=%222.2%22 stroke-linecap=%22round%22 d=%22M12.5 11.5l7 6M19.5 11.5l-7 6%22/%3E%3C/svg%3E">
   <link rel="stylesheet" href="style.css">
+  <link rel="stylesheet" href="experience.css">
 </head>
 <body>
   <!-- Tela de entrada / cadastro -->
@@ -97,8 +98,10 @@
     <!-- Conteúdo -->
     <main id="main">
       <header id="main-header">
+        <button type="button" id="btn-channels" class="icon-btn mobile-only" aria-label="Abrir canais" aria-expanded="false" aria-controls="sidebar"><span data-icon="menu"></span></button>
         <div id="header-title"></div>
         <div class="header-tools">
+          <button type="button" id="btn-return-call" class="call-return hidden" title="Voltar à chamada"><span data-icon="phone" data-size="16"></span><span>Em chamada</span></button>
           <button type="button" id="btn-members" class="icon-btn" data-icon="users" aria-label="Lista de membros"></button>
         </div>
       </header>
@@ -129,6 +132,7 @@
       </section>
 
       <section id="voice-view" class="hidden">
+        <div class="stage-toolbar"><span class="stage-title">Sua sala, mais perto.</span><label>Visualização <select id="stage-layout" aria-label="Visualização da chamada"><option value="focus">Foco</option><option value="gallery">Galeria</option></select></label><button id="stage-diagnostics" type="button"><span data-icon="signal" data-size="16"></span>Conexão</button></div>
         <div id="stage"></div>
         <div id="stage-controls">
           <button type="button" id="sc-mic" class="sc-btn" aria-label="Microfone"></button>
@@ -141,24 +145,16 @@
       </section>
     </main>
 
+    <button id="sidebar-backdrop" class="hidden" aria-label="Fechar painel"></button>
     <aside id="members">
       <div id="member-list"></div>
     </aside>
   </div>
 
   <!-- Configurações do usuário -->
-  <div id="settings" class="modal hidden">
-    <div class="card settings-card">
-      <div class="settings-head">
-        <h2>Configurações de usuário</h2>
-      </div>
-      <div class="settings-scroll">
-        <div class="section-title">MINHA CONTA</div>
-        <label>COR DO AVATAR
-          <input id="profile-color" type="color">
-        </label>
-        <div class="section-title">VOZ E VÍDEO</div>
-        <label>MICROFONE
+  <div id="settings" class="settings-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="settings-title">
+    <div class="settings-shell"><aside class="settings-nav"><div class="settings-brand"><span data-logo="24"></span><div><strong>Resenhex</strong><span>DO SEU JEITO</span></div></div><h2 id="settings-title">Configurações</h2><input id="settings-search" type="search" placeholder="Encontrar uma seção" aria-label="Buscar seção de configurações"><div class="settings-nav-label">SUAS PREFERÊNCIAS</div><nav role="tablist" aria-label="Seções de configurações" aria-orientation="vertical"><button id="tab-profile" data-section="profile" data-keywords="conta avatar cor" role="tab" aria-controls="page-profile"><span data-icon="userCog"></span>Meu perfil</button><button id="tab-voice" data-section="voice" data-keywords="microfone câmera áudio ruído sensibilidade" role="tab" aria-controls="page-voice"><span data-icon="mic"></span>Voz e vídeo</button><button id="tab-stream" data-section="stream" data-keywords="tela qualidade upload fps" role="tab" aria-controls="page-stream"><span data-icon="screen"></span>Transmissão</button><button id="tab-appearance" data-section="appearance" data-keywords="tema fonte compacto contraste" role="tab" aria-controls="page-appearance"><span data-icon="eye"></span>Aparência</button><button id="tab-notifications" data-section="notifications" data-keywords="menções volume soundboard" role="tab" aria-controls="page-notifications"><span data-icon="at"></span>Notificações e sons</button><button id="tab-accessibility" data-section="accessibility" data-keywords="teclado falar movimento" role="tab" aria-controls="page-accessibility"><span data-icon="waves"></span>Acessibilidade e atalhos</button><button id="tab-diagnostics" data-section="diagnostics" data-keywords="rede espectadores versão" role="tab" aria-controls="page-diagnostics"><span data-icon="signal"></span>Conexão e diagnóstico</button></nav><p id="settings-search-empty" class="hint hidden">Nenhuma seção encontrada.</p><div class="settings-nav-bottom"><button id="settings-server-link" class="hidden" type="button">Administrar servidor <span data-icon="settings" data-size="16"></span></button><button id="btn-logout" type="button">Sair da conta <span data-icon="phone" data-size="16"></span></button><span>Resenhex · experiência 1.1</span></div></aside>
+    <div class="settings-main"><button id="settings-close" type="button" class="settings-exit" aria-label="Fechar configurações"><span data-icon="x"></span><small>ESC</small></button><div id="settings-content" class="card settings-content"><section id="page-profile" data-settings-page="profile" role="tabpanel" aria-labelledby="tab-profile"><div class="eyebrow">SEU ESPAÇO</div><h1>Meu perfil</h1><p class="section-description">Um toque seu em cada conversa.</p><div class="profile-preview"><div class="profile-cover"></div><div class="profile-preview-body"><div id="profile-preview-avatar" class="avatar"></div><div><strong id="profile-preview-name"></strong><span>Prévia do seu perfil</span></div></div></div><div class="setting-group"><h3>Identidade</h3><label>Cor do avatar<input id="profile-color" type="color"><span class="hint">Essa cor aparece para todas as pessoas do servidor.</span></label><p class="hint">Seu nome de usuário identifica sua conta. As preferências de dispositivos e aparência ficam neste navegador.</p></div></section><section id="page-voice" data-settings-page="voice" role="tabpanel" aria-labelledby="tab-voice"><div class="eyebrow">CADA VOZ IMPORTA</div><h1>Voz e vídeo</h1><p class="section-description">Encontre o som ideal para sua conversa.</p><div class="setting-group"><h3>Dispositivos e clareza da voz</h3>        <label>MICROFONE
           <select id="mic-select"></select>
         </label>
         <label>SAÍDA DE ÁUDIO
@@ -179,7 +175,13 @@
         </label>
         <label class="row"><input type="checkbox" id="sens-auto" checked> Ajustar sensibilidade automaticamente</label>
         <span class="hint">No teste você ouve a própria voz já com a supressão e fica mudo na chamada. Use fone para não dar microfonia.</span>
-        <label>MODO DE ENTRADA
+<p id="device-help" class="hint">Os nomes dos dispositivos aparecem após permitir o microfone.</p><label>Volume de saída <output data-output="output-volume" data-suffix="%"></output><input id="output-volume" type="range" min="0" max="100"></label></div><div class="setting-group"><h3>Câmera</h3><label>Dispositivo de vídeo<select id="camera-select"><option value="">Padrão do sistema</option></select></label><video id="camera-preview" class="camera-preview hidden" autoplay muted playsinline></video><button type="button" id="camera-test" class="secondary">Testar câmera</button><span class="hint">A prévia é só sua e encerra ao fechar as configurações. A seleção é usada na próxima vez que ligar a câmera.</span></div></section><section id="page-stream" data-settings-page="stream" role="tabpanel" aria-labelledby="tab-stream"><div class="eyebrow">COMPARTILHE O MOMENTO</div><h1>Transmissão</h1><p class="section-description">Qualidade para o conteúdo. Fluidez para quem assiste.</p><div class="settings-callout"><span data-icon="screenShare" data-size="28"></span><div><strong>Só recebe quem está assistindo</strong><p>Parar de assistir encerra o recebimento da tela e mantém a conversa de voz.</p></div></div><div class="setting-group"><h3>Qualidade de imagem</h3><label>Perfil padrão<select id="share-preset"></select><span class="hint">Automática ajusta a qualidade para cada espectador. Os perfis manuais são limites desejados; o resultado depende da rede e do computador.</span></label><label>Limite de upload disponível<select id="upload-select"><option value="3">3 Mbps</option><option value="5">5 Mbps</option><option value="10">10 Mbps</option><option value="20">20 Mbps</option><option value="50">50 Mbps</option><option value="100">100 Mbps</option></select><span class="hint">Escolha um valor abaixo do upload da sua conexão. Reservamos espaço para voz e dividimos o restante entre os espectadores.</span></label></div><div class="setting-group"><h3>Ao compartilhar</h3><label class="setting-switch"><span>Solicitar áudio da tela<small>Na próxima captura. Depende da fonte e do navegador.</small></span><input id="share-audio" type="checkbox"></label><label class="setting-switch"><span>Estatísticas sobre o vídeo<small>Resolução, quadros por segundo e taxa de dados.</small></span><input id="stream-stats" type="checkbox"></label></div></section><section id="page-appearance" data-settings-page="appearance" role="tabpanel" aria-labelledby="tab-appearance"><div class="eyebrow">CONFORTO EM CADA DETALHE</div><h1>Aparência</h1><p class="section-description">Ajustes com prévia imediata. Salve para manter.</p><div class="setting-group"><h3>Tema</h3><label>Cores da interface<select id="theme-select"><option value="dark">Escuro · Grafite</option><option value="midnight">Meia-noite · Azul profundo</option><option value="contrast">Alto contraste</option></select></label><div class="theme-preview"><div class="theme-preview-nav"><i></i><i></i><i></i></div><div><span class="preview-tag">PRÉVIA</span><strong>O lugar da sua próxima resenha.</strong><p>Conversas, jogos e bons momentos.</p><span class="preview-message">Tudo pronto para conversar ✨</span></div></div></div><div class="setting-group"><h3>Leitura</h3><label>Densidade das mensagens<select id="density-select"><option value="comfortable">Confortável</option><option value="compact">Compacta</option></select></label><label>Tamanho do texto <output data-output="font-size" data-suffix=" px"></output><input id="font-size" type="range" min="14" max="20" step="1"></label></div></section><section id="page-notifications" data-settings-page="notifications" role="tabpanel" aria-labelledby="tab-notifications"><div class="eyebrow">SEM PERDER A CONVERSA</div><h1>Notificações e sons</h1><p class="section-description">Escolha o que merece sua atenção.</p><div class="setting-group"><h3>Alertas e efeitos da chamada</h3>        <label class="row"><input type="checkbox" id="sb-toggle" checked> Ouvir efeitos sonoros (soundboard) dos outros</label>
+        <label>VOLUME DOS EFEITOS SONOROS
+          <input type="range" id="sb-volume" min="0" max="100">
+        </label>
+        <label class="row"><input type="checkbox" id="sounds-toggle"> Sons (entrar/sair da sala, mutar, menções)</label>
+        <label class="row"><input type="checkbox" id="notify-toggle"> Notificações na área de trabalho quando me mencionarem</label>
+<p class="hint">As notificações de menções funcionam enquanto o Resenhex está aberto.</p><button type="button" id="notification-permission" class="secondary">Permitir notificações no navegador</button><span id="notification-help" class="hint"></span></div></section><section id="page-accessibility" data-settings-page="accessibility" role="tabpanel" aria-labelledby="tab-accessibility"><div class="eyebrow">NO SEU RITMO</div><h1>Acessibilidade e atalhos</h1><p class="section-description">Mais controle e menos distrações.</p><div class="setting-group"><h3>Movimento</h3><label class="setting-switch"><span>Reduzir animações<small>A preferência do sistema também é respeitada.</small></span><input id="reduce-motion" type="checkbox"></label></div><div class="setting-group"><h3>Modo de entrada</h3>        <label>MODO DE ENTRADA
           <select id="input-mode">
             <option value="voice">Detecção de voz</option>
             <option value="ptt">Pressionar para falar</option>
@@ -190,30 +192,7 @@
           <button type="button" id="ptt-key" class="secondary"></button>
           <span class="muted-text">funciona com esta janela em foco</span>
         </div>
-        <label>UPLOAD DA SUA INTERNET
-          <select id="upload-select">
-            <option value="3">3 Mbps</option>
-            <option value="5">5 Mbps</option>
-            <option value="10">10 Mbps</option>
-            <option value="20">20 Mbps</option>
-            <option value="50">50 Mbps</option>
-            <option value="100">100 Mbps ou mais</option>
-          </select>
-          <span class="hint">Quem transmite a tela envia uma cópia para cada pessoa. Coloque aqui o upload do seu teste de velocidade para a qualidade ser dividida sem travar.</span>
-        </label>
-        <div class="section-title">NOTIFICAÇÕES</div>
-        <label class="row"><input type="checkbox" id="sb-toggle" checked> Ouvir efeitos sonoros (soundboard) dos outros</label>
-        <label>VOLUME DOS EFEITOS SONOROS
-          <input type="range" id="sb-volume" min="0" max="100">
-        </label>
-        <label class="row"><input type="checkbox" id="sounds-toggle"> Sons (entrar/sair da sala, mutar, menções)</label>
-        <label class="row"><input type="checkbox" id="notify-toggle"> Notificações na área de trabalho quando me mencionarem</label>
-      </div>
-      <div class="buttons">
-        <button id="btn-logout" type="button" class="secondary danger-text">Sair da conta</button>
-        <button id="settings-close" type="button">Salvar</button>
-      </div>
-    </div>
+<input type="hidden" id="ptt-code"><input type="hidden" id="ptt-label"></div><div class="setting-group"><h3>Atalhos da conversa</h3><div class="shortcut-row"><span>Ativar ou desativar microfone</span><kbd>Ctrl + Shift + M</kbd></div><div class="shortcut-row"><span>Ativar ou desativar áudio</span><kbd>Ctrl + Shift + D</kbd></div><div class="shortcut-row"><span>Fechar configurações ou menus</span><kbd>Esc</kbd></div></div></section><section id="page-diagnostics" data-settings-page="diagnostics" role="tabpanel" aria-labelledby="tab-diagnostics"><div class="eyebrow">ENTENDA SUA CONEXÃO</div><h1>Conexão e diagnóstico</h1><p class="section-description">A qualidade observada, conexão por conexão.</p><div class="setting-group"><h3>Agora</h3><p id="diagnostics-summary">Entre em uma chamada para ver as conexões.</p><div id="diagnostics-peers"></div><p id="media-health" class="hint" role="status"></p></div><div class="settings-callout"><span data-icon="lock"></span><div><strong>Diagnóstico sem gravar sua conversa</strong><p>As estatísticas ficam nesta tela. Áudio, vídeo e conteúdo compartilhado não são gravados para o diagnóstico.</p></div></div></section></div><div class="settings-footer"><p id="settings-status" role="status" aria-live="polite"></p><div id="settings-savebar" class="hidden"><span>Você tem alterações pendentes</span><button id="settings-discard" type="button">Descartar</button><button id="settings-save" type="button" class="btn-primary">Salvar alterações</button></div></div></div></div>
   </div>
 
   <!-- Configurações do servidor -->
@@ -267,12 +246,15 @@
   <div id="lightbox" class="modal hidden"><img alt=""><a target="_blank" rel="noopener noreferrer">Abrir original</a></div>
   <div id="conn-banner" class="hidden" role="status"></div>
   <div id="tooltip" class="hidden"></div>
-  <div id="toast" class="hidden"></div>
+  <div id="toast" class="hidden" role="status" aria-live="polite"></div>
 
   <script src="/socket.io/socket.io.js"></script>
   <script src="icons.js"></script>
   <script src="format.js"></script>
   <script src="sounds.js"></script>
+  <script src="media-policy.js"></script>
+  <script src="settings.js"></script>
+  <script src="media-session.js"></script>
   <script src="app.js"></script>
 </body>
 </html>

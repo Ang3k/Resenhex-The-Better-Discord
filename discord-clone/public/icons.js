@@ -2,6 +2,7 @@
 // Icon('mic') devolve um <svg> pronto para colocar em qualquer botão.
 window.Icon = (() => {
   const P = {
+    menu: '<path d="M4 6h16M4 12h16M4 18h16"/>',
     hash: '<path d="M4 9h16M4 15h16M10 3 8 21M16 3l-2 18"/>',
     volume: '<path d="M11 5 6 9H2v6h4l5 4z"/><path d="M15.5 8.5a5 5 0 0 1 0 7M19 5a10 10 0 0 1 0 14"/>',
     volumeX: '<path d="M11 5 6 9H2v6h4l5 4z"/><path d="m22 9-6 6M16 9l6 6"/>',

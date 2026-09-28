@@ -377,6 +377,7 @@ function sharedState() {
         sharing: s.sharing,
         paused: s.paused,
         camera: s.camera,
+        viewers: [...online].filter(([, viewer]) => viewer.voice === s.voice && viewer.watching?.has(sid)).map(([viewerId]) => viewerId),
         // "silenced": ninguém deve ouvir essa pessoa (mutada pelo servidor, de castigo ou sem permissão de falar).
         silenced: !!a.serverMuted || timedOut(a) || !can(a, 'SPEAK'),
       };
@@ -391,10 +392,14 @@ function stateFor(acc, shared = sharedState()) {
     roles: db.roles,
     channels: db.channels.filter((c) => canView(acc, c)),
     members: shared.members,
-    voice: shared.voice,
+    voice: shared.voice.filter((v) => db.channels.some((c) => c.id === v.channel && canView(acc, c))),
     myPerms: [...perms],
     bans: perms.has('BAN') ? shared.bans : [],
   };
+}
+
+function clearScreenWatchers(sharer) {
+  for (const viewer of online.values()) viewer.watching?.delete(sharer);
 }
 
 function leaveVoice(socket) {
@@ -403,6 +408,8 @@ function leaveVoice(socket) {
   const room = 'voice:' + s.voice;
   socket.to(room).emit('voice:peer-left', { id: socket.id });
   socket.leave(room);
+  clearScreenWatchers(socket.id);
+  s.watching?.clear();
   s.voice = null;
   s.sharing = false;
   s.camera = false;
@@ -420,6 +427,7 @@ function enforceVoice() {
       leaveVoice(socket);
       socket.emit('voice:force-leave', { reason: 'Você foi removido do canal de voz.' });
     } else if ((s.sharing || s.camera) && (!can(acc, 'STREAM') || timedOut(acc))) {
+      clearScreenWatchers(sid);
       s.sharing = false;
       s.camera = false;
       socket.emit('voice:stop-share');
@@ -692,9 +700,27 @@ io.on('connection', (socket) => {
     s.muted = !!muted;
     s.deafened = !!deafened;
     s.sharing = !!sharing && video;
+    if (!s.sharing) clearScreenWatchers(socket.id);
     // Transmissão pausada: a janela compartilhada foi minimizada (o navegador para de capturar).
     s.paused = s.sharing && !!paused;
     s.camera = !!camera && video;
+    broadcastState();
+  });
+
+  // Watching is explicit, ephemeral and limited to the same authorized voice room.
+  on('screen:watch', (acc, { target, watching }) => {
+    const viewer = online.get(socket.id);
+    const source = online.get(target);
+    if (typeof watching !== 'boolean' || typeof target !== 'string' || target === socket.id) fail('Transmissão inválida.');
+    if (!watching) {
+      viewer.watching?.delete(target);
+      broadcastState();
+      return;
+    }
+    const channel = db.channels.find((c) => c.id === source?.voice);
+    if (!viewer.voice || !source?.sharing || viewer.voice !== source.voice || !channel || !canView(acc, channel) || !can(acc, 'CONNECT')) fail('Essa transmissão não está disponível nesta sala.');
+    viewer.watching ||= new Set();
+    viewer.watching.add(target);
     broadcastState();
   });
 

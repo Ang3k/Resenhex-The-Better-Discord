@@ -11,11 +11,7 @@
 
   // Perfis de transmissão de tela. "hint" diz ao codificador o tipo de conteúdo e
   // "degradation" decide o que sacrificar quando falta internet: nitidez ou fluidez.
-  const SHARE_PRESETS = {
-    p720: { label: '720p · 30 fps', desc: 'Leve, bom para internet fraca', width: 1280, height: 720, fps: 30, hint: 'detail', degradation: 'balanced', bitrate: 2_500_000, codecs: ['video/VP9', 'video/VP8'] },
-    p1080: { label: '1080p · 30 fps', desc: 'Nítido, uso geral', width: 1920, height: 1080, fps: 30, hint: 'detail', degradation: 'balanced', bitrate: 4_000_000, codecs: ['video/VP9', 'video/VP8'] },
-    p1080_60: { label: '1080p · 60 fps', desc: 'Fluido, para jogos (usa mais internet)', width: 1920, height: 1080, fps: 60, hint: 'motion', degradation: 'maintain-framerate', bitrate: 6_000_000, codecs: ['video/H264', 'video/VP8'] },
-  };
+  const SHARE_PRESETS = MediaPolicy.presets;
 
   const NOISE_MODES = {
     ai: 'IA avançada (recomendado)',
@@ -24,6 +20,10 @@
     off: 'Desligada',
   };
 
+  function savedJson(key, fallback) {
+    try { const value = JSON.parse(localStorage.getItem(key)); return value ?? fallback; } catch { return fallback; }
+  }
+  const appearance = savedJson('appearance', {});
   const state = {
     me: null, // { accountId, sid }
     server: null, // último 'state' do servidor: roles, channels, members, voice, myPerms, bans, ownerId
@@ -38,9 +38,20 @@
     deafened: false,
     micStream: null,
     local: { screen: null, camera: null }, // meus streams de vídeo
-    sharePreset: SHARE_PRESETS[localStorage.getItem('sharePreset')] ? localStorage.getItem('sharePreset') : 'p1080',
+    sharePreset: SHARE_PRESETS[localStorage.getItem('sharePreset')] ? localStorage.getItem('sharePreset') : 'auto',
     sharePaused: false,
-    uploadMbps: Number(localStorage.getItem('uploadMbps')) || 10,
+    uploadMbps: Math.min(100, Math.max(3, Number(localStorage.getItem('uploadMbps')) || 10)),
+    cameraDeviceId: localStorage.getItem('cameraDeviceId') || '',
+    outputVolume: Math.min(100, Math.max(0, Number(localStorage.getItem('outputVolume') ?? 100))),
+    shareAudio: localStorage.getItem('shareAudio') !== 'false',
+    showStreamStats: localStorage.getItem('showStreamStats') === 'true',
+    theme: ['dark', 'midnight', 'contrast'].includes(appearance.theme) ? appearance.theme : 'dark',
+    density: appearance.density === 'compact' ? 'compact' : 'comfortable',
+    fontSize: Math.min(20, Math.max(14, Number(appearance.fontSize) || 16)),
+    reduceMotion: appearance.reduceMotion === true,
+    stageLayout: 'focus',
+    mediaHealth: '',
+    captureBusy: false,
     peers: new Map(), // sid -> conexão WebRTC com cada participante da sala
     micDeviceId: localStorage.getItem('micDeviceId') || '',
     speakerDeviceId: localStorage.getItem('speakerDeviceId') || '',
@@ -54,11 +65,11 @@
     // Efeitos sonoros (soundboard) tocados pelos outros
     sbMuted: localStorage.getItem('sbMuted') === 'true',
     sbVolume: Number(localStorage.getItem('sbVolume') ?? 0.6),
-    ptt: JSON.parse(localStorage.getItem('ptt') || '{"enabled":false,"code":"Backquote","label":"`"}'),
+    ptt: savedJson('ptt', { enabled: false, code: 'Backquote', label: '`' }),
     pttHeld: false,
     notify: localStorage.getItem('notify') !== 'false',
-    localVolume: JSON.parse(localStorage.getItem('localVolume') || '{}'), // accountId -> 0..1
-    localMuted: new Set(JSON.parse(localStorage.getItem('localMuted') || '[]')),
+    localVolume: savedJson('localVolume', {}), // accountId -> 0..1
+    localMuted: new Set(savedJson('localMuted', [])),
     speaking: new Set(), // sids
     editing: null, // id da mensagem sendo editada
     replyTo: null, // mensagem sendo respondida
@@ -67,10 +78,10 @@
     removed: false,
     showMembers: localStorage.getItem('showMembers') !== 'false',
     pinned: null, // bloco fixado no palco da chamada ('screen-<sid>' ou 'user-<sid>')
-    streamVolume: JSON.parse(localStorage.getItem('streamVolume') || '{}'), // accountId -> 0..1 (áudio da transmissão)
-    streamMuted: new Set(JSON.parse(localStorage.getItem('streamMuted') || '[]')),
+    streamVolume: savedJson('streamVolume', {}), // accountId -> 0..1 (áudio da transmissão)
+    streamMuted: new Set(savedJson('streamMuted', [])),
     hiddenStreams: new Set(), // sids das transmissões que parei de assistir
-    collapsed: new Set(JSON.parse(localStorage.getItem('collapsed') || '[]')), // categorias recolhidas
+    collapsed: new Set(savedJson('collapsed', [])), // categorias recolhidas
   };
 
   let audioCtx = null;
@@ -88,7 +99,9 @@
   // Emite um evento e espera a resposta; mostra o erro, se houver.
   function call(event, payload = {}) {
     return new Promise((resolve) => {
-      socket.emit(event, payload, (res) => {
+      if (!socket.connected) { toast('Você está desconectado. Tente novamente quando a conexão voltar.'); return resolve(null); }
+      socket.timeout(10000).emit(event, payload, (error, res) => {
+        if (error) { toast('A operação demorou mais que o esperado. Verifique a conexão antes de tentar novamente.'); return resolve(null); }
         if (res?.error) {
           toast(res.error);
           return resolve(null);
@@ -376,6 +389,7 @@
     }
     playVoiceSounds();
     applyAudio();
+    syncScreenSubscriptions();
     tuneSenders();
     render();
   });
@@ -448,6 +462,7 @@
     state.view = 'chat';
     markRead(id);
     render();
+    closePanels();
     $('#chat-input').focus();
   }
 
@@ -555,6 +570,7 @@
 
   function renderMain() {
     const inVoiceView = state.view === 'voice' && state.voiceChannel;
+    $('#btn-return-call').classList.toggle('hidden', !state.voiceChannel || !!inVoiceView);
     $('#chat-view').classList.toggle('hidden', !!inVoiceView);
     $('#voice-view').classList.toggle('hidden', !inVoiceView);
     if (inVoiceView) {
@@ -1134,35 +1150,41 @@
       const self = v.sid === state.me.sid;
       const remote = self ? state.local : state.peers.get(v.sid)?.remote || {};
       if (!v.sharing) state.hiddenStreams.delete(v.sid);
-      if (v.sharing && remote.screen) {
+      if (v.sharing) {
         const key = 'screen-' + v.sid;
         wanted.add(key);
         let tile = stage.querySelector(`[data-key="${key}"]`);
         if (!tile) {
           tile = el('div', { class: 'tile screen', data: { key, sid: v.sid } }, el('video', { autoplay: true, playsInline: true }),
             el('div', { class: 'paused-overlay hidden' }, Icon('pause', 44), el('div', { class: 'paused-title', textContent: 'Transmissão pausada' }),
-              el('div', { class: 'muted-text', textContent: 'A janela compartilhada foi minimizada. Ela volta sozinha quando a janela for restaurada.' })),
+              el('div', { class: 'muted-text', textContent: 'A captura foi interrompida temporariamente. Restaure a fonte ou escolha outra tela.' })),
             el('div', { class: 'watch-overlay hidden' }),
-            el('div', { class: 'stats' }), el('div', { class: 'label' }), el('div', { class: 'tile-controls' }));
+            el('div', { class: 'stats' }), el('div', { class: 'stream-health' }), el('div', { class: 'label' }), el('div', { class: 'tile-controls' }));
           setupTile(tile);
           tile.oncontextmenu = (e) => openStreamMenu(tile, e);
           stage.prepend(tile);
         }
-        const hidden = state.hiddenStreams.has(v.sid);
+        const hidden = !self && !isWatching(v.sid);
+        const waiting = !hidden && !self && (!remote.screen || remote.screen.getVideoTracks()[0]?.muted);
         tile.querySelector('.paused-overlay').classList.toggle('hidden', !v.paused || hidden);
         const watch = tile.querySelector('.watch-overlay');
-        watch.classList.toggle('hidden', !hidden);
-        if (hidden && !watch.childElementCount) {
-          watch.append(Icon('screen', 40), el('div', { class: 'paused-title', textContent: 'Tela de ' + m.name }),
-            el('button', { class: 'watch-btn', textContent: 'Assistir transmissão', onclick: (e) => { e.stopPropagation(); state.hiddenStreams.delete(v.sid); renderStage(); } }));
-        } else if (!hidden) watch.replaceChildren();
-        // Parar de assistir desliga o vídeo aqui (economiza processamento); a pessoa continua transmitindo.
+        watch.classList.toggle('hidden', !hidden && !waiting);
+        const watchState = hidden ? 'idle' : waiting ? 'loading' : 'playing';
+        if (watch.dataset.state !== watchState) {
+          watch.dataset.state = watchState;
+          watch.replaceChildren();
+          if (hidden || waiting) watch.append(Icon('screen', 36), el('div', { class: 'paused-title', textContent: hidden ? 'Tela de ' + m.name : 'Conectando à transmissão…' }),
+            el('div', { class: 'muted-text', textContent: hidden ? 'Entre para assistir e ouvir a tela compartilhada.' : 'A voz continua conectada. Você pode parar e tentar novamente.' }),
+            el('button', { class: 'watch-btn', textContent: hidden ? 'Assistir transmissão' : 'Parar de assistir', onclick: (e) => { e.stopPropagation(); setWatching(v.sid, hidden); } }));
+        }
         const video = tile.querySelector('video');
-        const src = hidden ? null : remote.screen;
+        const src = hidden ? null : remote.screen || null;
         if (video.srcObject !== src) {
           video.srcObject = src;
           setSinkId(video);
+          if (src) video.play().catch(() => { if (video.srcObject === src) mediaNotice('O navegador pausou a reprodução. Clique no vídeo para retomar.'); });
         }
+        video.onclick = () => video.play().catch(() => {});
         tile.querySelector('.label').replaceChildren(Icon('screen', 16), self ? `Sua transmissão · ${SHARE_PRESETS[state.sharePreset].label}` : 'Tela de ' + m.name);
         tile.querySelector('.label .ico').style.color = '#fff';
         renderTileControls(tile, { kind: 'screen', self, sid: v.sid, accountId: m.id, hidden });
@@ -1201,11 +1223,12 @@
     }
 
     // Destaque: o bloco fixado; sem fixar, as telas compartilhadas ficam em destaque.
+    stage.classList.toggle('gallery', state.stageLayout === 'gallery');
     if (state.pinned && !wanted.has(state.pinned)) state.pinned = null;
     const tiles = [...stage.children];
     for (const t of tiles) {
       t.classList.toggle('pinned', t.dataset.key === state.pinned);
-      t.classList.toggle('focus', state.pinned ? t.dataset.key === state.pinned : t.classList.contains('screen'));
+      t.classList.toggle('focus', state.stageLayout === 'focus' && (state.pinned ? t.dataset.key === state.pinned : t.classList.contains('screen')));
     }
     const order = [...tiles.filter((t) => t.classList.contains('focus')), ...tiles.filter((t) => !t.classList.contains('focus'))];
     order.forEach((t, i) => { if (stage.children[i] !== t) stage.insertBefore(t, stage.children[i] || null); });
@@ -1288,7 +1311,7 @@
       items.push(btn(document.fullscreenElement ? 'Sair da tela cheia' : 'Tela cheia', document.fullscreenElement ? 'minimize' : 'maximize', () => toggleFullscreen(tile), 'tc-full'));
     }
     if (o.kind === 'screen' && !o.self && !o.hidden) {
-      items.push(btn('Parar de assistir', 'eyeOff', () => { state.hiddenStreams.add(o.sid); if (state.pinned === tile.dataset.key) state.pinned = null; renderStage(); }, 'tc-stop'));
+      items.push(btn('Parar de assistir', 'eyeOff', () => { setWatching(o.sid, false); }, 'tc-stop'));
     }
     box.replaceChildren(...items);
   }
@@ -1302,7 +1325,7 @@
     const m = v && member(v.accountId);
     if (!m) return;
     const self = v.sid === state.me.sid;
-    const hidden = state.hiddenStreams.has(v.sid);
+    const hidden = !self && !isWatching(v.sid);
     const pinned = state.pinned === tile.dataset.key;
     const menu = $('#context-menu');
     const items = [el('div', { class: 'menu-section', textContent: self ? 'SUA TRANSMISSÃO' : 'TRANSMISSÃO DE ' + m.name.toUpperCase() })];
@@ -1326,8 +1349,8 @@
     }
     if (!self) {
       items.push(el('div', { class: 'menu-sep' }), hidden
-        ? menuItem('Assistir transmissão', 'eye', () => { state.hiddenStreams.delete(v.sid); renderStage(); })
-        : menuItem('Parar de assistir', 'eyeOff', () => { state.hiddenStreams.add(v.sid); if (pinned) state.pinned = null; renderStage(); }, 'danger'));
+        ? menuItem('Assistir transmissão', 'eye', () => { setWatching(v.sid, true); })
+        : menuItem('Parar de assistir', 'eyeOff', () => { setWatching(v.sid, false); }, 'danger'));
     }
     menu.replaceChildren(...items);
     showMenuAt(e.clientX, e.clientY);
@@ -1418,11 +1441,10 @@
   });
 
   // Clicar no fundo escuro fecha a janela (as configurações de usuário são salvas).
-  for (const id of ['#settings', '#server-settings', '#create-channel']) {
+  for (const id of ['#server-settings', '#create-channel']) {
     $(id).addEventListener('mousedown', (e) => {
       if (e.target !== e.currentTarget) return;
-      if (id === '#settings') $('#settings-close').click();
-      else $(id).classList.add('hidden');
+      $(id).classList.add('hidden');
     });
   }
 
@@ -1774,15 +1796,15 @@
   }
 
   // ---------------- áudio local ----------------
-  async function getMicStream() {
-    const ai = state.noiseMode === 'ai' || state.noiseMode === 'ai-lite';
+  async function getMicStream(options = state, strict = false) {
+    const ai = options.noiseMode === 'ai' || options.noiseMode === 'ai-lite';
     const constraints = {
       audio: {
-        deviceId: state.micDeviceId ? { exact: state.micDeviceId } : undefined,
+        deviceId: options.micDeviceId ? { exact: options.micDeviceId } : undefined,
         channelCount: 1,
-        echoCancellation: state.echoCancellation,
+        echoCancellation: options.echoCancellation,
         // Com a IA ligada, o filtro do navegador fica desligado: processar duas vezes piora a voz.
-        noiseSuppression: state.noiseMode === 'browser',
+        noiseSuppression: options.noiseMode === 'browser',
         autoGainControl: true,
       },
     };
@@ -1790,12 +1812,13 @@
     try {
       raw = await navigator.mediaDevices.getUserMedia(constraints);
     } catch (err) {
+      if (strict) throw err;
       console.warn('Microfone indisponível:', err);
       toast('Microfone indisponível — você entrou só para ouvir.');
       // Trilha silenciosa para manter a negociação WebRTC igual para todos.
       return getAudioCtx().createMediaStreamDestination().stream;
     }
-    return ai ? suppressNoise(raw, state.noiseMode) : raw;
+    return ai ? suppressNoise(raw, options.noiseMode) : raw;
   }
 
   // ---------------- supressão de ruído por IA (estilo Krisp) ----------------
@@ -1854,21 +1877,32 @@
   }
 
   // Troca o microfone (outro dispositivo ou outra supressão) sem derrubar a chamada.
-  async function restartMic() {
+  async function restartMic(options = state) {
     if (!state.voiceChannel) return;
     const old = state.micStream;
-    const next = await getMicStream();
-    const [track] = next.getAudioTracks();
-    state.micStream = next;
-    for (const p of state.peers.values()) {
-      const sender = p.pc.getSenders().find((s) => s.track && old.getTracks().includes(s.track));
-      if (sender) await sender.replaceTrack(track);
+    const next = await getMicStream(options, true);
+    if (state.micStream !== old || !state.voiceChannel) { releaseMic(next); throw new Error('A chamada mudou durante a troca do microfone. Tente novamente.'); }
+    const replaced = [];
+    try {
+      for (const peer of state.peers.values()) {
+        await MediaPolicy.enqueue(peer, async () => {
+          if (peer.pc.signalingState === 'closed') return;
+          const sender = peer.pc.getSenders().find((item) => old.getTracks().includes(item.track));
+          if (sender) { const track = sender.track; await sender.replaceTrack(next.getAudioTracks()[0]); replaced.push({ sender, track }); }
+        });
+      }
+      if (state.micStream !== old || !state.voiceChannel) throw new Error('A chamada foi encerrada.');
+    } catch (error) {
+      await Promise.allSettled(replaced.map(({ sender, track }) => sender.replaceTrack(state.micStream === old ? track : null)));
+      releaseMic(next);
+      throw error;
     }
+    state.micStream = next;
     releaseMic(old);
-    attachGate(state.micStream);
+    attachGate(next);
     applyAudio();
     unwatchSpeaking(state.me.sid);
-    watchSpeaking(state.me.sid, state.micStream);
+    watchSpeaking(state.me.sid, next);
   }
 
   function setNoiseMode(mode) {
@@ -1961,13 +1995,13 @@
       const volume = v ? state.localVolume[v.accountId] ?? 1 : 1;
       if (p.audioEl) {
         p.audioEl.muted = silent;
-        p.audioEl.volume = volume;
+        p.audioEl.volume = volume * state.outputVolume / 100;
       }
       // Áudio da transmissão tem volume próprio, separado da voz (como no Discord).
       const video = document.querySelector(`[data-key="screen-${sid}"] video`);
       if (video) {
-        video.muted = iCantHear || !v || state.localMuted.has(v.accountId) || state.streamMuted.has(v.accountId) || state.hiddenStreams.has(sid);
-        video.volume = v ? state.streamVolume[v.accountId] ?? 1 : 1;
+        video.muted = iCantHear || !v || state.localMuted.has(v.accountId) || state.streamMuted.has(v.accountId) || !isWatching(sid);
+        video.volume = (v ? state.streamVolume[v.accountId] ?? 1 : 1) * state.outputVolume / 100;
       }
     }
     // O próprio áudio da tela não deve voltar para quem está compartilhando.
@@ -2060,7 +2094,7 @@
   function startVoice(channel, peers, opts = {}) {
     state.voiceChannel = channel;
     state.voiceSnapshot = null;
-    if (!opts.keepView) state.view = 'voice';
+    if (!opts.keepView) { state.view = 'voice'; closePanels(); }
     Sounds.play('join');
     watchSpeaking(state.me.sid, state.micStream);
     attachGate(state.micStream);
@@ -2124,11 +2158,15 @@
       remote: { screen: null, camera: null },
       remoteIds: { screen: null, camera: null },
       senders: { screen: [], camera: [] },
+      sid,
+      adaptation: {},
+      stats: {},
+      recoveryAttempts: 0,
     };
     state.peers.set(sid, peer);
 
     for (const track of state.micStream.getTracks()) preferAudioCodecs(pc, pc.addTrack(track, state.micStream));
-    for (const kind of ['screen', 'camera']) if (state.local[kind]) addVideoTracks(peer, kind);
+    if (state.local.camera) addVideoTracks(peer, 'camera');
 
     pc.onnegotiationneeded = async () => {
       try {
@@ -2147,8 +2185,9 @@
     };
 
     pc.onconnectionstatechange = () => {
-      if (pc.connectionState === 'failed') pc.restartIce();
-      if (pc.connectionState === 'connected') tuneSenders();
+      if (pc.connectionState === 'connected') { peer.recoveryAttempts = 0; clearTimeout(peer.recoveryTimer); tuneSenders(); }
+      else if (['failed', 'disconnected'].includes(pc.connectionState)) scheduleRecovery(peer);
+      renderDiagnostics();
     };
 
     pc.ontrack = ({ track, streams }) => {
@@ -2157,6 +2196,7 @@
         : stream.id === peer.remoteIds.screen || track.kind === 'video' ? 'screen' : 'mic';
       if (kind !== 'mic') {
         peer.remote[kind] = stream;
+        track.onmute = track.onunmute = () => { if (state.view === 'voice') renderStage(); };
         stream.onremovetrack = () => {
           if (!stream.getTracks().length && peer.remote[kind] === stream) {
             peer.remote[kind] = null;
@@ -2185,6 +2225,7 @@
   function closePeer(sid) {
     const peer = state.peers.get(sid);
     if (!peer) return;
+    clearTimeout(peer.recoveryTimer);
     peer.pc.close();
     if (peer.audioEl) peer.audioEl.srcObject = null;
     unwatchSpeaking(sid);
@@ -2302,70 +2343,7 @@
     }
   }
 
-  function addVideoTracks(peer, kind) {
-    const stream = state.local[kind];
-    for (const track of stream.getTracks()) {
-      const sender = peer.pc.addTrack(track, stream);
-      peer.senders[kind].push(sender);
-      if (track.kind === 'video') preferCodec(peer.pc, sender, kind === 'screen' ? SHARE_PRESETS[state.sharePreset].codecs : ['video/VP8']);
-    }
-  }
-
-  // Na malha, quem transmite envia uma cópia para cada pessoa: divide o upload entre
-  // elas, para a transmissão não travar quando tem muita gente assistindo.
-  function videoBitrates() {
-    const viewers = Math.max(1, state.peers.size);
-    const budget = state.uploadMbps * 1e6 * 0.85; // o resto fica para o áudio
-    const both = state.local.screen && state.local.camera;
-    return {
-      screen: Math.round(Math.max(300_000, Math.min(SHARE_PRESETS[state.sharePreset].bitrate, (budget * (both ? 0.8 : 1)) / viewers))),
-      camera: Math.round(Math.max(150_000, Math.min(1_200_000, (budget * (both ? 0.2 : 1)) / viewers))),
-    };
-  }
-
-  // Ajusta os codificadores de cada conexão. Só chama setParameters quando algo muda:
-  // isso roda a cada atualização de estado e reconfigurar à toa custa processamento.
-  function tuneSenders() {
-    const rates = videoBitrates();
-    const preset = SHARE_PRESETS[state.sharePreset];
-    const apply = (sender, encoding, degradation) => {
-      const params = sender.getParameters();
-      if (!params.encodings?.length) return; // ainda negociando; tenta de novo depois
-      const enc = params.encodings[0];
-      const same = Object.entries(encoding).every(([k, v]) => enc[k] === v) && (!degradation || params.degradationPreference === degradation);
-      if (same) return;
-      Object.assign(enc, encoding);
-      if (degradation) params.degradationPreference = degradation;
-      sender.setParameters(params).catch(() => {});
-    };
-    for (const peer of state.peers.values()) {
-      // Voz tem prioridade na rede: se a internet apertar, o vídeo perde qualidade antes da fala.
-      const mic = peer.pc.getSenders().find((s) => s.track && s.track.kind === 'audio' && !peer.senders.screen.includes(s));
-      if (mic) apply(mic, { maxBitrate: 64_000, priority: 'high', networkPriority: 'high' });
-      for (const kind of ['screen', 'camera']) {
-        for (const sender of peer.senders[kind]) {
-          if (sender.track?.kind !== 'video') continue;
-          if (kind === 'screen') apply(sender, { maxBitrate: rates.screen, maxFramerate: preset.fps }, preset.degradation);
-          else apply(sender, { maxBitrate: rates.camera }, 'balanced');
-        }
-      }
-    }
-  }
-
-  function applySharePreset() {
-    const track = state.local.screen?.getVideoTracks()[0];
-    if (!track) return;
-    const p = SHARE_PRESETS[state.sharePreset];
-    track.contentHint = p.hint;
-    track.applyConstraints({ width: { ideal: p.width }, height: { ideal: p.height }, frameRate: { ideal: p.fps, max: p.fps } }).catch(() => {});
-    tuneSenders();
-  }
-
-  function setSharePreset(key) {
-    state.sharePreset = key;
-    localStorage.setItem('sharePreset', key);
-    applySharePreset();
-  }
+  const { isWatching, setWatching, addVideoTracks, syncScreenSubscriptions, videoBitrates, tuneSenders, applySharePreset, setSharePreset, captureScreen, watchScreenTrack, switchScreen, startVideo, stopVideo, scheduleRecovery, renderDiagnostics, updateStreamStats, mediaNotice } = MediaSession({ state, socket, call, el, toast, voiceEntry, member, render, renderStage, sendVoiceState, preferCodec });
 
   function openShareMenu(anchor) {
     const menu = $('#context-menu');
@@ -2389,163 +2367,6 @@
     menu.classList.remove('hidden');
     showMenuAt(rect.left, rect.top - menu.getBoundingClientRect().height - 8);
   }
-
-  function captureScreen() {
-    const preset = SHARE_PRESETS[state.sharePreset];
-    return navigator.mediaDevices.getDisplayMedia({
-      video: { width: { ideal: preset.width }, height: { ideal: preset.height }, frameRate: { ideal: preset.fps, max: preset.fps } },
-      // Áudio da aba/sistema sem os filtros de voz, que estragam música e som de jogo.
-      audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false },
-      selfBrowserSurface: 'exclude', // não mostra a própria aba do Resenhex (efeito "espelho infinito")
-      surfaceSwitching: 'include', // botão "compartilhar esta guia em vez disso"
-      systemAudio: 'include',
-      monitorTypeSurfaces: 'include',
-    });
-  }
-
-  // Liga os avisos da trilha de vídeo da tela (fim, janela minimizada).
-  function watchScreenTrack(video) {
-    const preset = SHARE_PRESETS[state.sharePreset];
-    video.contentHint = preset.hint;
-    video.onended = () => stopVideo('screen');
-    // O navegador "muta" a captura quando a janela compartilhada é minimizada.
-    video.onmute = () => {
-      state.sharePaused = true;
-      sendVoiceState();
-      toast('A janela que você compartilha foi minimizada, então a transmissão pausou. Restaure a janela ou compartilhe a "Tela inteira".', 'info');
-    };
-    video.onunmute = () => {
-      state.sharePaused = false;
-      sendVoiceState();
-    };
-    if (video.getSettings().displaySurface === 'window') {
-      toast('Você está compartilhando uma janela: se minimizá-la, a transmissão pausa. Para jogos, prefira "Tela inteira".', 'info');
-    }
-  }
-
-  // Troca a tela/aplicativo sem parar a live: as trilhas novas substituem as antigas
-  // em cada conexão (replaceTrack), então quem assiste não perde a transmissão.
-  async function switchScreen() {
-    const stream = state.local.screen;
-    if (!stream) return;
-    let next;
-    try {
-      next = await captureScreen();
-    } catch {
-      return; // cancelou: continua transmitindo o que estava
-    }
-    if (state.local.screen !== stream) return next.getTracks().forEach((t) => t.stop());
-    const old = stream.getTracks();
-    old.forEach((t) => { t.onended = null; t.onmute = null; t.onunmute = null; });
-    for (const kind of ['video', 'audio']) {
-      const track = next.getTracks().find((t) => t.kind === kind) || null;
-      for (const peer of state.peers.values()) {
-        const kindOf = (s) => s.track?.kind || peer.pc.getTransceivers().find((t) => t.sender === s)?.receiver.track.kind;
-        const sender = peer.senders.screen.find((s) => kindOf(s) === kind);
-        if (sender) await sender.replaceTrack(track).catch(() => {});
-        else if (track) peer.senders.screen.push(peer.pc.addTrack(track, stream));
-      }
-    }
-    old.forEach((t) => { stream.removeTrack(t); t.stop(); });
-    next.getTracks().forEach((t) => stream.addTrack(t));
-    state.sharePaused = false;
-    watchScreenTrack(stream.getVideoTracks()[0]);
-    applySharePreset();
-    sendVoiceState();
-    toast('Transmissão trocada.', 'info');
-    renderStage();
-  }
-
-  async function startVideo(kind) {
-    const preset = SHARE_PRESETS[state.sharePreset];
-    try {
-      if (kind === 'screen') {
-        if (!navigator.mediaDevices.getDisplayMedia) return toast('Seu navegador não suporta compartilhamento de tela.');
-        state.local.screen = await captureScreen();
-      } else {
-        state.local.camera = await navigator.mediaDevices.getUserMedia({ video: { width: { ideal: 1280 }, height: { ideal: 720 }, frameRate: { ideal: 30 } } });
-      }
-    } catch (err) {
-      if (kind === 'camera') toast('Não consegui acessar a câmera.');
-      return; // usuário cancelou ou sem permissão
-    }
-    const video = state.local[kind].getVideoTracks()[0];
-    if (kind === 'screen') {
-      state.sharePaused = false;
-      watchScreenTrack(video);
-    } else {
-      video.onended = () => stopVideo(kind); // câmera desconectada
-    }
-    void preset;
-    for (const peer of state.peers.values()) addVideoTracks(peer, kind);
-    if (kind === 'screen') Sounds.play('stream');
-    sendVoiceState();
-    state.view = 'voice';
-    render();
-  }
-
-  function stopVideo(kind, notify = true) {
-    if (!state.local[kind]) return;
-    state.local[kind].getTracks().forEach((t) => t.stop());
-    state.local[kind] = null;
-    if (kind === 'screen') state.sharePaused = false;
-    for (const peer of state.peers.values()) {
-      for (const sender of peer.senders[kind]) {
-        try { peer.pc.removeTrack(sender); } catch {}
-      }
-      peer.senders[kind] = [];
-    }
-    if (notify) sendVoiceState();
-    render();
-  }
-
-  // Estatísticas no canto da transmissão: resolução, fps, taxa e o que está limitando.
-  const statsPrev = new Map(); // id do relatório -> { bytes, ts }
-  function rate(key, bytes, ts) {
-    const prev = statsPrev.get(key);
-    statsPrev.set(key, { bytes, ts });
-    if (!prev || ts <= prev.ts || bytes < prev.bytes) return null;
-    return ((bytes - prev.bytes) * 8) / ((ts - prev.ts) / 1000);
-  }
-  // Só avisa de limitação se ela durar alguns segundos: no começo de toda transmissão
-  // o WebRTC ainda está medindo a internet e sempre aparece "limitado".
-  let limitedFor = 0;
-  const mbps = (bps) => (bps == null ? '' : ` · ${(bps / 1e6).toFixed(1).replace('.', ',')} Mbps`);
-
-  async function updateStreamStats() {
-    if (!state.voiceChannel) statsPrev.clear();
-    if (state.view !== 'voice' || !state.voiceChannel) return;
-    for (const tile of document.querySelectorAll('#stage .tile.screen')) {
-      const sid = tile.dataset.key.slice('screen-'.length);
-      const box = tile.querySelector('.stats');
-      try {
-        if (sid === state.me.sid) {
-          const peer = [...state.peers.values()].find((p) => p.senders.screen.some((s) => s.track?.kind === 'video'));
-          if (!peer) { box.textContent = 'Ninguém assistindo ainda'; continue; }
-          const report = await peer.senders.screen.find((s) => s.track?.kind === 'video').getStats();
-          report.forEach((r) => {
-            if (r.type !== 'outbound-rtp' || r.kind !== 'video') return;
-            const codec = report.get(r.codecId)?.mimeType?.split('/')[1] || '';
-            limitedFor = r.qualityLimitationReason && r.qualityLimitationReason !== 'none' ? limitedFor + 1 : 0;
-            const limit = limitedFor >= 5 ? { bandwidth: ' · ⚠️ limitado pela internet', cpu: ' · ⚠️ limitado pelo processador' }[r.qualityLimitationReason] || '' : '';
-            box.textContent = `${r.frameWidth || '?'}×${r.frameHeight || '?'} · ${Math.round(r.framesPerSecond || 0)} fps${mbps(rate(r.id, r.bytesSent, r.timestamp))} por pessoa · ${codec} · ${state.peers.size} assistindo${limit}`;
-          });
-        } else {
-          const peer = state.peers.get(sid);
-          const track = peer?.remote.screen?.getVideoTracks()[0];
-          const receiver = track && peer.pc.getReceivers().find((r) => r.track === track);
-          if (!receiver) continue;
-          const report = await receiver.getStats();
-          report.forEach((r) => {
-            if (r.type !== 'inbound-rtp' || r.kind !== 'video') return;
-            const codec = report.get(r.codecId)?.mimeType?.split('/')[1] || '';
-            box.textContent = `${r.frameWidth || '?'}×${r.frameHeight || '?'} · ${Math.round(r.framesPerSecond || 0)} fps${mbps(rate(sid + r.id, r.bytesReceived, r.timestamp))} · ${codec}`;
-          });
-        }
-      } catch {}
-    }
-  }
-  setInterval(updateStreamStats, 1000);
 
   // ---------------- botões ----------------
   $('#btn-mute').onclick = () => {
@@ -2629,155 +2450,192 @@
     applyAudio();
   });
 
-  // ---------------- configurações do usuário ----------------
+  // ---------------- preferências e navegação ----------------
   let capturingKey = false;
-  const keyLabel = (e) => (e.code === 'Space' ? 'Espaço' : e.key.length === 1 ? e.key.toUpperCase() : e.key);
-
-  function renderPttSettings() {
-    $('#input-mode').value = state.ptt.enabled ? 'ptt' : 'voice';
-    $('#ptt-row').classList.toggle('hidden', !state.ptt.enabled);
-    $('#ptt-key').textContent = capturingKey ? 'Aperte uma tecla…' : state.ptt.label;
+  let captureKeyHandler = null;
+  let micTestEpoch = 0;
+  let cameraTestEpoch = 0;
+  let cameraPreview = null;
+  const settingFields = {
+    'profile-color': 'color', 'mic-select': 'micDeviceId', 'speaker-select': 'speakerDeviceId',
+    'camera-select': 'cameraDeviceId', 'noise-mode': 'noiseMode', 'echo-toggle': 'echoCancellation',
+    'sens-auto': 'sensAuto', 'sens-range': 'sensThreshold', 'input-mode': 'inputMode',
+    'ptt-code': 'pttCode', 'ptt-label': 'pttLabel', 'upload-select': 'uploadMbps',
+    'share-preset': 'sharePreset', 'share-audio': 'shareAudio', 'stream-stats': 'showStreamStats',
+    'sounds-toggle': 'sounds', 'notify-toggle': 'notify', 'sb-toggle': 'soundboard', 'sb-volume': 'sbVolume',
+    'output-volume': 'outputVolume', 'theme-select': 'theme', 'density-select': 'density',
+    'font-size': 'fontSize', 'reduce-motion': 'reduceMotion',
+  };
+  for (const [id, key] of Object.entries(settingFields)) {
+    const field = document.getElementById(id);
+    field.dataset.setting = key;
+    if (field.type === 'range' || key === 'uploadMbps') field.dataset.number = '';
   }
+  $('#noise-mode').replaceChildren(...Object.entries(NOISE_MODES).map(([value, label]) => new Option(label, value)));
+  $('#share-preset').replaceChildren(...Object.entries(SHARE_PRESETS).map(([value, p]) => new Option(p.label, value)));
+  for (const id of ['mic-select', 'speaker-select', 'camera-select']) document.getElementById(id).replaceChildren(new Option('Padrão do sistema', ''));
 
-  $('#input-mode').onchange = () => {
-    state.ptt.enabled = $('#input-mode').value === 'ptt';
+  function readPreferences() {
+    return { ...state, color: meMember()?.color || '#5865f2', sounds: Sounds.enabled,
+      soundboard: !state.sbMuted, sbVolume: Math.round(state.sbVolume * 100),
+      inputMode: state.ptt.enabled ? 'ptt' : 'voice', pttCode: state.ptt.code, pttLabel: state.ptt.label };
+  }
+  function previewAppearance(values) {
+    Object.assign(document.documentElement.dataset, { theme: values.theme, density: values.density, reduceMotion: String(values.reduceMotion), streamStats: String(values.showStreamStats) });
+    document.documentElement.style.setProperty('--chat-size', values.fontSize + 'px');
+  }
+  previewAppearance(state);
+
+  async function fillDevices() {
+    const devices = await navigator.mediaDevices?.enumerateDevices().catch(() => []) || [];
+    for (const [id, kind] of [['mic-select', 'audioinput'], ['speaker-select', 'audiooutput'], ['camera-select', 'videoinput']]) {
+      const select = document.getElementById(id), selected = select.value;
+      const options = [new Option('Padrão do sistema', '')];
+      devices.filter((device) => device.kind === kind).forEach((device, index) => options.push(new Option(device.label || `${kind === 'videoinput' ? 'Câmera' : kind === 'audioinput' ? 'Microfone' : 'Saída'} ${index + 1}`, device.deviceId)));
+      if (selected && !options.some((option) => option.value === selected)) options.push(new Option('Dispositivo salvo (indisponível)', selected));
+      select.replaceChildren(...options);
+      select.value = selected;
+    }
+    $('#speaker-select').disabled = !('setSinkId' in HTMLMediaElement.prototype);
+    $('#device-help').textContent = !('setSinkId' in HTMLMediaElement.prototype) ? 'Este navegador usa a saída de áudio escolhida no sistema.' : 'Dispositivos atualizados. Permita o microfone ou a câmera para ver os nomes completos.';
+  }
+  function stopCameraPreview() {
+    cameraTestEpoch++;
+    cameraPreview?.getTracks().forEach((track) => track.stop());
+    cameraPreview = null;
+    $('#camera-preview').srcObject = null;
+    $('#camera-preview').classList.add('hidden');
+    $('#camera-test').textContent = 'Testar câmera';
+  }
+  function stopSettingsTests() {
+    stopMicTest();
+    stopCameraPreview();
+    if (captureKeyHandler) document.removeEventListener('keydown', captureKeyHandler, true);
+    captureKeyHandler = null;
+    capturingKey = false;
+    $('#ptt-key').textContent = $('#ptt-label').value;
+  }
+  function notificationHelp() {
+    const permission = 'Notification' in window ? Notification.permission : 'unsupported';
+    $('#notification-help').textContent = { granted: 'Permissão concedida. Escolha acima se quer receber menções.', denied: 'Notificações bloqueadas. Você pode liberá-las nas permissões deste site.', default: 'O navegador pedirá sua permissão ao usar o botão acima.', unsupported: 'Este navegador não oferece notificações.' }[permission];
+    $('#notification-permission').disabled = permission !== 'default';
+  }
+  async function applyPreferences(values) {
+    stopSettingsTests();
+    const micChanged = ['micDeviceId', 'noiseMode', 'echoCancellation'].some((key) => values[key] !== state[key]);
+    if (micChanged) {
+      try { await restartMic({ ...state, ...values }); }
+      catch { throw new Error('Não foi possível trocar o microfone. A chamada e o dispositivo anterior foram preservados.'); }
+    }
+    if (values.color !== meMember().color) {
+      const result = await call('profile', { color: values.color });
+      if (!result) {
+        if (micChanged) await restartMic(state).catch(() => mediaNotice('Confira o microfone antes de continuar.'));
+        throw new Error('O perfil não foi salvo. Verifique a conexão e tente novamente.');
+      }
+    }
+    for (const key of ['micDeviceId', 'speakerDeviceId', 'cameraDeviceId', 'noiseMode', 'echoCancellation', 'sensAuto', 'sensThreshold', 'uploadMbps', 'shareAudio', 'showStreamStats', 'outputVolume', 'notify']) {
+      state[key] = values[key]; localStorage.setItem(key, state[key]);
+    }
+    state.ptt = { enabled: values.inputMode === 'ptt', code: values.pttCode, label: values.pttLabel };
     state.pttHeld = false;
     localStorage.setItem('ptt', JSON.stringify(state.ptt));
+    state.sbMuted = !values.soundboard; state.sbVolume = values.sbVolume / 100;
+    localStorage.setItem('sbMuted', state.sbMuted); localStorage.setItem('sbVolume', state.sbVolume);
+    Sounds.enabled = values.sounds;
+    if (values.noiseMode === 'ai' || values.noiseMode === 'ai-lite') localStorage.setItem('lastAiMode', state.lastAiMode = values.noiseMode);
+    for (const key of ['theme', 'density', 'fontSize', 'reduceMotion']) state[key] = values[key];
+    localStorage.setItem('appearance', JSON.stringify({ theme: state.theme, density: state.density, fontSize: state.fontSize, reduceMotion: state.reduceMotion }));
+    previewAppearance(state);
+    setSharePreset(values.sharePreset);
+    for (const peer of state.peers.values()) if (peer.audioEl) setSinkId(peer.audioEl);
+    document.querySelectorAll('#stage video').forEach(setSinkId);
     applyAudio();
-    renderPttSettings();
+    renderControls();
+    if (values.notify && (!('Notification' in window) || Notification.permission !== 'granted')) toast('Preferência salva. Libere as notificações no navegador para receber os avisos.', 'info');
+  }
+  const preferences = SettingsPanel({ read: readPreferences, apply: applyPreferences, preview: previewAppearance,
+    onOpen: async () => {
+      $('#profile-preview-name').textContent = meMember().name;
+      $('#profile-preview-avatar').textContent = initials(meMember().name);
+      $('#ptt-key').textContent = state.ptt.label;
+      $('#settings-server-link').classList.toggle('hidden', !['MANAGE_ROLES', 'MANAGE_CHANNELS', 'BAN'].some(hasPerm));
+      notificationHelp();
+      renderDiagnostics();
+      drawMeter(-100, false);
+      await fillDevices();
+    }, onClose: stopSettingsTests });
+  $('#btn-settings').onclick = () => { closePanels(); preferences.open(); };
+  $('#stage-diagnostics').onclick = () => preferences.open('diagnostics');
+  $('#settings-server-link').onclick = () => { if (preferences.close()) openServerSettings(); };
+  $('#btn-logout').onclick = async () => { if (!preferences.close()) return; const result = await call('logout', { token: localStorage.getItem('token') }); if (result) { localStorage.removeItem('token'); location.reload(); } };
+  $('#notification-permission').onclick = async () => { if ('Notification' in window) { await Notification.requestPermission(); notificationHelp(); } };
+  navigator.mediaDevices?.addEventListener('devicechange', () => { if (preferences.isOpen()) fillDevices(); });
+  $('#camera-test').onclick = async () => {
+    if (cameraPreview) return stopCameraPreview();
+    const epoch = ++cameraTestEpoch;
+    $('#camera-test').disabled = true;
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ video: { deviceId: $('#camera-select').value ? { exact: $('#camera-select').value } : undefined }, audio: false });
+      if (epoch !== cameraTestEpoch || !preferences.isOpen()) return stream.getTracks().forEach((track) => track.stop());
+      cameraPreview = stream;
+      $('#camera-preview').srcObject = stream;
+      $('#camera-preview').classList.remove('hidden');
+      $('#camera-test').textContent = 'Parar prévia';
+      await fillDevices();
+    } catch { toast('Não foi possível acessar essa câmera. Verifique as permissões e tente outro dispositivo.'); }
+    finally { $('#camera-test').disabled = false; }
   };
-
   $('#ptt-key').onclick = () => {
+    if (capturingKey) return;
     capturingKey = true;
-    renderPttSettings();
-    const onKey = (e) => {
-      e.preventDefault();
-      e.stopPropagation();
-      capturingKey = false;
-      document.removeEventListener('keydown', onKey, true);
-      if (e.key !== 'Escape') {
-        state.ptt.code = e.code;
-        state.ptt.label = keyLabel(e);
-        localStorage.setItem('ptt', JSON.stringify(state.ptt));
-      }
-      renderPttSettings();
+    $('#ptt-key').textContent = 'Aperte uma tecla…';
+    captureKeyHandler = (event) => {
+      event.preventDefault(); event.stopImmediatePropagation();
+      document.removeEventListener('keydown', captureKeyHandler, true);
+      captureKeyHandler = null; capturingKey = false;
+      if (event.key !== 'Escape') { $('#ptt-code').value = event.code; $('#ptt-label').value = event.code === 'Space' ? 'Espaço' : event.key.length === 1 ? event.key.toUpperCase() : event.key; }
+      $('#ptt-key').textContent = $('#ptt-label').value;
+      preferences.refresh();
     };
-    document.addEventListener('keydown', onKey, true);
+    document.addEventListener('keydown', captureKeyHandler, true);
   };
-
-  $('#btn-settings').onclick = async () => {
-    $('#profile-color').value = meMember().color;
-    $('#sounds-toggle').checked = Sounds.enabled;
-    $('#notify-toggle').checked = state.notify && 'Notification' in window && Notification.permission === 'granted';
-    $('#notify-toggle').disabled = !('Notification' in window) || Notification.permission === 'denied';
-    renderPttSettings();
-    $('#upload-select').value = String(state.uploadMbps);
-    $('#noise-mode').value = state.noiseMode;
-    $('#echo-toggle').checked = state.echoCancellation;
-    $('#sens-auto').checked = state.sensAuto;
-    $('#sens-range').value = state.sensThreshold;
-    $('#sens-range').disabled = state.sensAuto;
-    $('#sb-toggle').checked = !state.sbMuted;
-    $('#sb-volume').value = Math.round(state.sbVolume * 100);
-    drawMeter(-100, false);
-    // Abre na hora; a lista de dispositivos é preenchida logo em seguida.
-    $('#settings').classList.remove('hidden');
-    const devices = await navigator.mediaDevices.enumerateDevices().catch(() => []);
-    const fill = (select, kind, current) => {
-      select.innerHTML = '<option value="">Padrão</option>';
-      for (const d of devices.filter((d) => d.kind === kind)) {
-        select.append(new Option(d.label || kind, d.deviceId, false, d.deviceId === current));
-      }
-    };
-    fill($('#mic-select'), 'audioinput', state.micDeviceId);
-    fill($('#speaker-select'), 'audiooutput', state.speakerDeviceId);
-    $('#speaker-select').disabled = !('setSinkId' in HTMLMediaElement.prototype);
-  };
-
-  $('#upload-select').onchange = () => {
-    state.uploadMbps = Number($('#upload-select').value);
-    localStorage.setItem('uploadMbps', state.uploadMbps);
-    tuneSenders();
-  };
-
-  // Barra de nível do microfone com a marca da sensibilidade (escala de -80 a 0 dB).
   const dbToPct = (db) => Math.max(0, Math.min(100, ((db + 80) / 80) * 100));
   function drawMeter(db, open) {
-    const threshold = state.sensAuto && !$('#settings').classList.contains('hidden') ? gateThreshold() : Number($('#sens-range').value);
-    const fill = $('#mic-meter-fill');
-    fill.style.width = dbToPct(db) + '%';
-    fill.classList.toggle('closed', !open);
+    const threshold = $('#sens-auto').checked ? gateThreshold() : Number($('#sens-range').value);
+    $('#mic-meter-fill').style.width = dbToPct(db) + '%';
+    $('#mic-meter-fill').classList.toggle('closed', !open);
     $('#sens-mark').style.left = dbToPct(threshold) + '%';
   }
-  $('#sens-auto').onchange = () => {
-    state.sensAuto = $('#sens-auto').checked;
-    $('#sens-range').disabled = state.sensAuto;
-    localStorage.setItem('sensAuto', state.sensAuto);
-    drawMeter(-100, false);
-  };
-  $('#sens-range').oninput = () => {
-    state.sensThreshold = Number($('#sens-range').value);
-    localStorage.setItem('sensThreshold', state.sensThreshold);
-    drawMeter(-100, false);
-  };
-  $('#sb-toggle').onchange = () => setSbMuted(!$('#sb-toggle').checked);
-  $('#sb-volume').oninput = () => {
-    state.sbVolume = $('#sb-volume').value / 100;
-    localStorage.setItem('sbVolume', state.sbVolume);
-  };
-  // Na chamada (sem teste rodando), a barra mostra o nível real do microfone.
-  setInterval(() => {
-    if (micTest || $('#settings').classList.contains('hidden') || !gate.meter) return;
-    drawMeter(gate.level, gate.open);
-  }, 100);
+  setInterval(() => { if (!micTest && preferences.isOpen() && gate.meter) drawMeter(gate.level, gate.open); }, 100);
 
-  $('#sounds-toggle').onchange = () => {
-    Sounds.enabled = $('#sounds-toggle').checked;
-    Sounds.play('message');
+  function closePanels() {
+    $('#app').classList.remove('channels-open', 'members-open');
+    $('#sidebar-backdrop').classList.add('hidden');
+    $('#btn-channels').setAttribute('aria-expanded', 'false');
+  }
+  $('#btn-channels').onclick = () => {
+    const open = !$('#app').classList.contains('channels-open'); closePanels();
+    $('#app').classList.toggle('channels-open', open); $('#sidebar-backdrop').classList.toggle('hidden', !open);
+    $('#btn-channels').setAttribute('aria-expanded', String(open));
   };
-
-  $('#notify-toggle').onchange = async () => {
-    let on = $('#notify-toggle').checked;
-    if (on && Notification.permission !== 'granted') on = (await Notification.requestPermission()) === 'granted';
-    state.notify = on;
-    $('#notify-toggle').checked = on;
-    localStorage.setItem('notify', on);
+  $('#sidebar-backdrop').onclick = closePanels;
+  $('#btn-members').onclick = () => {
+    if (matchMedia('(max-width:1100px)').matches) { const open = !$('#app').classList.contains('members-open'); closePanels(); $('#app').classList.toggle('members-open', open); $('#sidebar-backdrop').classList.toggle('hidden', !open); }
+    else { state.showMembers = !state.showMembers; localStorage.setItem('showMembers', state.showMembers); render(); }
   };
-
-  $('#btn-logout').onclick = async () => {
-    await call('logout', { token: localStorage.getItem('token') });
-    localStorage.removeItem('token');
-    location.reload();
-  };
-
-  $('#settings-close').onclick = async () => {
-    $('#settings').classList.add('hidden');
-    if ($('#profile-color').value !== meMember().color) call('profile', { color: $('#profile-color').value });
-    const mic = $('#mic-select').value;
-    const speaker = $('#speaker-select').value;
-    const mode = $('#noise-mode').value;
-    const echo = $('#echo-toggle').checked;
-    stopMicTest();
-    const micChanged = mic !== state.micDeviceId || mode !== state.noiseMode || echo !== state.echoCancellation;
-    state.micDeviceId = mic;
-    state.speakerDeviceId = speaker;
-    state.echoCancellation = echo;
-    localStorage.setItem('micDeviceId', mic);
-    localStorage.setItem('speakerDeviceId', speaker);
-    localStorage.setItem('echoCancellation', echo);
-    if (mode !== state.noiseMode) {
-      state.noiseMode = mode;
-      if (mode === 'ai' || mode === 'ai-lite') localStorage.setItem('lastAiMode', (state.lastAiMode = mode));
-      localStorage.setItem('noiseMode', mode);
-      renderControls();
+  $('#btn-return-call').onclick = () => { state.view = 'voice'; render(); };
+  $('#stage-layout').onchange = () => { state.stageLayout = $('#stage-layout').value; renderStage(); };
+  document.addEventListener('keydown', (event) => { if (event.key === 'Escape') closePanels(); });
+  // Existing rows contain a separate edit button. Keep their actions keyboard-accessible.
+  function keyboardRows() {
+    for (const node of document.querySelectorAll('.channel, .voice-user, .member')) {
+      node.tabIndex = 0; node.setAttribute('role', 'button');
+      node.onkeydown = (event) => { if (event.target === node && ['Enter', ' '].includes(event.key)) { event.preventDefault(); node.click(); } };
     }
-
-    for (const p of state.peers.values()) if (p.audioEl) setSinkId(p.audioEl);
-    document.querySelectorAll('#stage video').forEach(setSinkId);
-
-    // Troca o microfone sem derrubar a chamada.
-    if (micChanged) await restartMic();
-  };
+  }
+  new MutationObserver(keyboardRows).observe($('#sidebar'), { childList: true, subtree: true });
+  new MutationObserver(keyboardRows).observe($('#member-list'), { childList: true, subtree: true });
 
   // Botão rápido (painel de voz): liga/desliga a supressão por IA, como o do Krisp.
   $('#btn-noise').onclick = () => {
@@ -2789,6 +2647,7 @@
   // "Testar microfone": você se ouve (com a supressão escolhida) e vê o nível do som.
   let micTest = null;
   function stopMicTest() {
+    micTestEpoch++;
     if (!micTest) return;
     const wasInCall = !!state.voiceChannel;
     cancelAnimationFrame(micTest.raf);
@@ -2803,13 +2662,14 @@
   }
   $('#mic-test').onclick = async () => {
     if (micTest) return stopMicTest();
-    const prev = { mode: state.noiseMode, echo: state.echoCancellation, mic: state.micDeviceId };
-    // Testa com o que está escolhido na tela (mesmo antes de salvar).
-    state.noiseMode = $('#noise-mode').value;
-    state.echoCancellation = $('#echo-toggle').checked;
-    state.micDeviceId = $('#mic-select').value;
-    const stream = await getMicStream();
-    Object.assign(state, { noiseMode: prev.mode, echoCancellation: prev.echo, micDeviceId: prev.mic });
+    const epoch = ++micTestEpoch;
+    $('#mic-test').disabled = true;
+    let stream;
+    try { stream = await getMicStream({ ...state, noiseMode: $('#noise-mode').value, echoCancellation: $('#echo-toggle').checked, micDeviceId: $('#mic-select').value }, true); }
+    catch { toast('Não foi possível testar o microfone. Verifique as permissões.'); return; }
+    finally { $('#mic-test').disabled = false; }
+    if (epoch !== micTestEpoch || !preferences.isOpen()) { releaseMic(stream); return; }
+    fillDevices();
     const audio = new Audio();
     audio.srcObject = stream;
     setSinkId(audio);
@@ -2831,7 +2691,7 @@
       let sum = 0;
       for (const x of fdata) sum += x * x;
       const db = 20 * Math.log10(Math.sqrt(sum / fdata.length) + 1e-6);
-      drawMeter(db, db > (state.sensAuto ? gateThreshold() : Number($('#sens-range').value)));
+      drawMeter(db, db > ($('#sens-auto').checked ? gateThreshold() : Number($('#sens-range').value)));
       micTest.raf = requestAnimationFrame(tick);
     };
     tick();

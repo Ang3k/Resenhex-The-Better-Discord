@@ -4,7 +4,9 @@
   "description": "Resenhex: chat de texto, voz, câmera e compartilhamento de tela para você e seus amigos (inspirado no Discord)",
   "main": "server.js",
   "scripts": {
-    "start": "node server.js"
+    "start": "node server.js",
+    "test": "node --test",
+    "check": "node --check server.js && node --check public/app.js && node --check public/settings.js && node --check public/media-policy.js && node --check public/media-session.js"
   },
   "dependencies": {
     "@sapphi-red/web-noise-suppressor": "^0.4.1",
@@ -14,5 +16,8 @@
   "engines": {
     "node": ">=18"
   },
-  "private": true
+  "private": true,
+  "devDependencies": {
+    "socket.io-client": "^4.8.4"
+  }
 }
