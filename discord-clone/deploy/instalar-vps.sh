@@ -76,6 +76,22 @@ else
   ACCESS_PASSWORD_B64="$(printf '%s' "$ACCESS_PASSWORD" | base64 | tr -d '\n')"
 fi
 
+# Troca de domínio (ex.: RESENHEX_SET_DOMAIN=resenhex.dev). O domínio precisa já apontar
+# para este servidor; senão o HTTPS falharia e o site sairia do ar.
+FREE_DOMAIN="$(echo "$PUBLIC_IP" | tr . -).sslip.io"
+if [ -n "${RESENHEX_SET_DOMAIN:-}" ]; then
+  NEW_DOMAIN="$(echo "$RESENHEX_SET_DOMAIN" | tr 'A-Z' 'a-z')"
+  if [ "$NEW_DOMAIN" != "$FREE_DOMAIN" ]; then
+    RESOLVED="$(getent ahostsv4 "$NEW_DOMAIN" 2>/dev/null | awk '{ print $1 }' | sort -u | tr '\n' ' ')"
+    if [[ " $RESOLVED" != *" $PUBLIC_IP "* ]]; then
+      echo "O domínio $NEW_DOMAIN ainda não aponta para $PUBLIC_IP (aponta para: ${RESOLVED:-nada})."
+      echo "Crie o registro A no painel do domínio, espere alguns minutos e rode de novo. Nada foi alterado."
+      exit 1
+    fi
+  fi
+  DOMAIN="$NEW_DOMAIN"
+fi
+
 # Apenas valores validados entram nos arquivos de Caddy, coturn e systemd.
 [[ "$PUBLIC_IP" =~ ^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$ ]] || { echo "IP inválido: $PUBLIC_IP"; exit 1; }
 IFS='.' read -ra IP_OCTETS <<< "$PUBLIC_IP"
@@ -167,6 +183,15 @@ $DOMAIN {
 	reverse_proxy 127.0.0.1:3000
 }
 EOF
+# Com domínio próprio, o endereço gratuito antigo continua funcionando e redireciona para o novo.
+if [ "$DOMAIN" != "$FREE_DOMAIN" ]; then
+  cat >> /etc/caddy/Caddyfile <<EOF
+
+$FREE_DOMAIN {
+	redir https://$DOMAIN{uri} permanent
+}
+EOF
+fi
 
 # ---------- TURN (voz para quem está em rede restrita, 4G etc.) ----------
 say "Configurando o servidor TURN"
