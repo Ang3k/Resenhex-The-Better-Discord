@@ -54,6 +54,15 @@ test('automatic quality steps resolution down after persistent strain and back u
   assert.equal(policy.encoding(policy.presets.auto, 2e6, 1).scaleResolutionDownBy, 1.5);
 });
 
+test('mobile viewers get a hardware-decodable screen codec unless the preset already offers one', () => {
+  assert.deepEqual(policy.screenCodecs(policy.presets.p1080, []), ['video/VP9', 'video/VP8']);
+  assert.deepEqual(policy.screenCodecs(policy.presets.p1080, ['video/H264']), ['video/H264', 'video/VP9', 'video/VP8']);
+  assert.deepEqual(policy.screenCodecs(policy.presets.p1080, ['video/H264', 'video/VP9']), ['video/VP9', 'video/VP8']);
+  assert.deepEqual(policy.screenCodecs(policy.presets.auto, ['video/H264']), ['video/H264', 'video/VP8']);
+  assert.deepEqual(policy.screenCodecs(policy.presets.auto, ['video/evil']), policy.presets.auto.codecs);
+  assert.deepEqual(policy.viewerDemand({ width: 844, height: 390, pixelRatio: 3, codecs: ['video/H264'] }), { mode: 'auto', maxHeight: 1080, background: false, codecs: ['video/H264'] });
+});
+
 test('viewer demand follows the displayed image, pixel density and selected mode', () => {
   assert.deepEqual(policy.viewerDemand({ width: 640, height: 500 }), { mode: 'auto', maxHeight: 360, background: false });
   assert.equal(policy.viewerDemand({ width: 640, height: 500, pixelRatio: 2 }).maxHeight, 720);
@@ -404,6 +413,14 @@ test('server validates viewers and cleans subscriptions on stop, leave and disco
     assert.deepEqual(qualityEvents[1], { viewer: viewer.id, demand: quality });
     await emit(viewer, 'screen:quality', { target: host.id, quality });
     assert.equal(qualityEvents.length, 2);
+    // Celulares informam os codecs que decodificam por hardware; só nomes conhecidos passam.
+    assert.ok((await emit(viewer, 'screen:quality', { target: host.id, quality: { ...quality, codecs: ['video/evil'] } })).error);
+    assert.ok((await emit(viewer, 'screen:quality', { target: host.id, quality: { ...quality, codecs: 'video/H264' } })).error);
+    assert.ok((await emit(viewer, 'screen:quality', { target: host.id, quality: { ...quality, codecs: ['video/H264', 'video/H264'] } })).ok);
+    await until(() => qualityEvents.length === 3);
+    assert.deepEqual(qualityEvents[2].demand, { ...quality, codecs: ['video/H264'] });
+    assert.ok((await emit(viewer, 'screen:quality', { target: host.id, quality })).ok);
+    await until(() => qualityEvents.length === 4);
     assert.equal(outsiderQuality.length, 0);
     await emit(viewer, 'screen:watch', { target: host.id, watching: true });
     assert.equal(host.snapshot.voice.find((v) => v.sid === host.id).viewers.length, 1);

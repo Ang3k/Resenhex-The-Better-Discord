@@ -21,13 +21,16 @@
 
   // Degraus fixos de resolução. Valores estáveis evitam reconfigurar o codificador a cada amostra.
   const STEPS = [1080, 720, 540, 360];
+  const CODECS = ['video/H264', 'video/VP9', 'video/VP8', 'video/AV1'];
   const MAX_LEVEL = STEPS.length - 1;
 
-  function viewerDemand({ mode = 'auto', width = 0, height = 0, pixelRatio = 1, aspect = 16 / 9, background = false } = {}) {
+  function viewerDemand({ mode = 'auto', width = 0, height = 0, pixelRatio = 1, aspect = 16 / 9, background = false, codecs = [] } = {}) {
     if (!watchModes[mode]) mode = 'auto';
     const pixels = Math.min(height, width / aspect) * Math.min(2, Math.max(1, pixelRatio));
     const maxHeight = mode === 'source' || !pixels ? 1080 : [180, 360, 540, 720, 1080].find((h) => h >= pixels) || 1080;
-    return { mode, maxHeight: mode === 'economy' ? Math.min(720, maxHeight) : maxHeight, background: !!background };
+    const demand = { mode, maxHeight: mode === 'economy' ? Math.min(720, maxHeight) : maxHeight, background: !!background };
+    if (codecs.length) demand.codecs = codecs.filter((c) => CODECS.includes(c)).slice(0, 4);
+    return demand;
   }
 
   // Desce "level" degraus a partir do primeiro degrau que cabe na altura pedida.
@@ -121,6 +124,15 @@
     return { maxBitrate: Math.max(10_000, Math.round(bitrate)), maxFramerate: Math.min(preset.fps, [preset.fps, 24, 15][level]), scaleResolutionDownBy: [1, 1.5, 2][level], active: bitrate > 0 };
   }
 
+  // Codec da tela para um espectador. Celulares informam quais codecs decodificam por hardware
+  // (mais fluido e sem esquentar); o perfil escolhido vence se um dos codecs dele estiver nessa lista.
+  function screenCodecs(preset, efficient = []) {
+    const known = (Array.isArray(efficient) ? efficient : []).filter((c) => CODECS.includes(c));
+    if (!known.length) return preset.codecs;
+    const first = preset.codecs.find((c) => known.includes(c)) || known[0];
+    return [first, ...preset.codecs.filter((c) => c !== first)];
+  }
+
   // Todas as mudanças nos senders de uma conexão passam por uma fila (assistir, parar, trocar, ajustar).
   function enqueue(peer, task) {
     const result = (peer.mediaQueue || Promise.resolve()).then(task);
@@ -141,5 +153,5 @@
     const codecs = [...new Set(measurements.map((item) => item.codec).filter(Boolean))].join('/');
     return [size, `${range('fps')} fps`, rate, codecs].filter(Boolean).join(' · ');
   }
-  return { presets, watchModes, viewerDemand, screenTarget, allocate, screenEncoding, strained, adapt, encoding, enqueue, formatVideoStats };
+  return { presets, watchModes, CODECS, viewerDemand, screenTarget, allocate, screenEncoding, screenCodecs, strained, adapt, encoding, enqueue, formatVideoStats };
 });

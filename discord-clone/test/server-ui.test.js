@@ -67,7 +67,7 @@ async function ui(t, invited = false) {
   w.fetch = async (url) => ({ json: async () => url === '/config' ? { hasOwner: true, passwordRequired: false, maxUploadMb: 25 } : { id: 'invited', name: 'Turma convidada', members: 3, icon: null } });
   let copied = '';
   Object.defineProperty(w.navigator, 'clipboard', { value: { writeText: async (text) => { copied = text; } } });
-  for (const file of ['icons.js', 'format.js', 'sounds.js', 'media-policy.js', 'settings.js', 'media-session.js', 'changelog.js', 'channel-navigation.js', 'app.js']) w.eval(fs.readFileSync(path.join(publicDir, file), 'utf8'));
+  for (const file of ['icons.js', 'format.js', 'sounds.js', 'media-policy.js', 'settings.js', 'media-session.js', 'mobile-stream.js', 'changelog.js', 'channel-navigation.js', 'app.js']) w.eval(fs.readFileSync(path.join(publicDir, file), 'utf8'));
   w.localStorage.setItem('seenVersion', w.APP_VERSION);
   t.after(() => { dom.window.close(); assert.deepEqual(errors.map((e) => e.message), []); });
   await settle();

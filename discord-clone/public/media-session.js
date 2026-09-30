@@ -26,7 +26,7 @@ window.MediaSession = function ({ state, socket, call, el, toast, voiceEntry, me
     const size = pip && state.pipSize ? state.pipSize : rect;
     return MediaPolicy.viewerDemand({ mode: getWatchQuality(sid), width: size.width, height: size.height,
       aspect: video?.videoWidth && video.videoHeight ? video.videoWidth / video.videoHeight : 16 / 9,
-      pixelRatio: window.devicePixelRatio || 1, background: !pip && (document.hidden || state.view !== 'voice') });
+      pixelRatio: window.devicePixelRatio || 1, background: !pip && (document.hidden || state.view !== 'voice'), codecs: state.decodeCodecs || [] });
   }
   function setWatchQuality(sid, mode) {
     if (!MediaPolicy.watchModes[mode]) return;
@@ -103,7 +103,7 @@ window.MediaSession = function ({ state, socket, call, el, toast, voiceEntry, me
     for (const track of stream.getTracks()) {
       const sender = peer.pc.addTrack(track, stream);
       peer.senders[kind].push(sender);
-      if (track.kind === 'video') preferCodec(peer.pc, sender, kind === 'screen' ? presets[state.sharePreset].codecs : ['video/VP8']);
+      if (track.kind === 'video') preferCodec(peer.pc, sender, kind === 'screen' ? MediaPolicy.screenCodecs(presets[state.sharePreset], demands.get(peer.sid)?.codecs) : ['video/VP8']);
     }
   }
 

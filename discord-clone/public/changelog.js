@@ -3,6 +3,28 @@
 // Para uma versão nova: adicione um item no começo da lista e atualize a versão no package.json.
 window.CHANGELOG = [
   {
+    version: '0.96',
+    date: '2026-09-30',
+    name: 'Tela no bolso',
+    summary: 'Assistir a uma transmissão de tela no celular ficou nítido, fluido e confortável.',
+    sections: [
+      { kind: 'new', items: [
+        'No celular, toque na transmissão para abrir a tela cheia. Ela gira sozinha para acompanhar a imagem, e o botão Voltar fecha sem sair da chamada.',
+        'Pince para aproximar até 5× e arraste para ler detalhes. Um toque duplo amplia no ponto tocado e outro volta ao normal. Ao aproximar, a transmissão manda mais resolução.',
+        'Controles por toque: som, qualidade e janela flutuante aparecem com um toque e somem sozinhos. A tela do celular não apaga enquanto você assiste.',
+      ] },
+      { kind: 'improved', items: [
+        'O celular informa quais formatos de vídeo decodifica por hardware, e quem transmite passa a usar um deles. A imagem fica mais fluida e o aparelho esquenta menos.',
+        'Um pequeno buffer no celular absorve as oscilações do Wi-Fi e do 4G, com menos engasgos na transmissão.',
+        'Quando a conexão aperta, a transmissão reduz a resolução em degraus (720p, 540p, 360p) e mantém o FPS. Ela volta a subir quando a conexão permite.',
+        'Em telas de toque, os botões dos blocos da chamada ficam sempre visíveis e maiores.',
+      ] },
+      { kind: 'fixed', items: [
+        'No celular, “Compartilhar tela” explica que o navegador não permite transmitir e oferece ligar a câmera, em vez de falhar sem aviso.',
+      ] },
+    ],
+  },
+  {
     version: '0.95',
     date: '2026-09-29',
     name: 'Uma casa para cada turma',

@@ -1,6 +1,6 @@
 # Resenhex
 
-**Versão 0.95** · veja o que mudou em cada versão no [CHANGELOG.md](CHANGELOG.md) ou em **Novidades**, dentro do app.
+**Versão 0.96** · veja o que mudou em cada versão no [CHANGELOG.md](CHANGELOG.md) ou em **Novidades**, dentro do app.
 
 Plataforma própria de chat e voz para você e seus amigos, inspirada no Discord. Vem com o servidor **Resenha** pronto para usar, com:
 
