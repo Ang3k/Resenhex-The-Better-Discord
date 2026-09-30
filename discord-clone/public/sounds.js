@@ -1,6 +1,8 @@
 // Sons curtos gerados na hora com Web Audio (sem arquivos de áudio).
 window.Sounds = (() => {
   let ctx = null;
+  let callBus = null; // saída única da chamada, quando ligada (ver callOutput no app.js)
+  const destination = () => callBus || ctx.destination;
   let enabled = localStorage.getItem('sounds') !== 'false';
   let boardOutput = null;
   let boardEpoch = 0;
@@ -34,7 +36,7 @@ window.Sounds = (() => {
         gain.gain.setValueAtTime(0, now + start);
         gain.gain.linearRampToValueAtTime(0.12, now + start + 0.01);
         gain.gain.exponentialRampToValueAtTime(0.001, now + start + dur);
-        osc.connect(gain).connect(ctx.destination);
+        osc.connect(gain).connect(destination());
         osc.start(now + start);
         osc.stop(now + start + dur + 0.02);
       }
@@ -174,7 +176,7 @@ window.Sounds = (() => {
     compressor.threshold.value = -12; compressor.knee.value = 8; compressor.ratio.value = 12;
     compressor.attack.value = .003; compressor.release.value = .12;
     gain.gain.setValueAtTime(Math.min(1, Math.max(0, Number(volume) || 0)) * .8, ctx.currentTime);
-    filter.connect(compressor).connect(gain).connect(ctx.destination);
+    filter.connect(compressor).connect(gain).connect(destination());
     boardOutput = { gain, filter, compressor };
     return filter;
   }
@@ -253,8 +255,16 @@ window.Sounds = (() => {
     return { blob: new Blob([bytes], { type: 'audio/wav' }), duration: length / rate };
   }
 
+  // Passa a tocar no contexto e na saída do app (a referência que tira o som do Resenhex da
+  // transmissão); route(null, null) volta para a saída normal.
+  function route(context, node) {
+    if (context) ctx = context;
+    callBus = node;
+  }
+
   return {
     play,
+    route,
     board: BOARD,
     playBoard,
     playCustom, prepareFile, stopBoard,

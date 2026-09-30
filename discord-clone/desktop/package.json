@@ -1,7 +1,7 @@
 {
   "name": "resenhex",
   "productName": "Resenhex",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "description": "Resenhex para Windows",
   "author": "Resenhex",
   "main": "main.js",

@@ -4,6 +4,17 @@
 // O título deve destacar as principais funcionalidades ou correções, com termos objetivos.
 window.CHANGELOG = [
   {
+    version: '0.99.2', date: '2026-09-30', name: 'Transmissão sem eco das vozes da chamada',
+    summary: 'O som do computador na transmissão de tela não leva mais junto as vozes de quem está na chamada.',
+    sections: [
+      { kind: 'fixed', items: [
+        'Ao transmitir a tela com o som do computador, as vozes da chamada iam junto e quem assistia se ouvia de volta. Agora o som da transmissão leva só o jogo, o vídeo ou a música.',
+        'No app para Windows, o próprio Windows deixa o som do Resenhex de fora da captura (Windows 10 versão 2004 ou mais novo).',
+        'No navegador, o Chrome e o Edge fazem isso sozinhos no Windows 11. No Windows 10, o Resenhex tira as vozes e os efeitos sonoros da captura; nos primeiros segundos de conversa ele ainda está aprendendo e um pouco pode escapar.',
+      ] },
+    ],
+  },
+  {
     version: '0.99.1', date: '2026-09-30', name: 'Ajuste do banner do perfil',
     summary: 'Enquadre o banner do perfil com zoom e posição, do mesmo jeito que a foto.',
     sections: [

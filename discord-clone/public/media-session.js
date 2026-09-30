@@ -1,4 +1,4 @@
-window.MediaSession = function ({ state, socket, call, el, toast, voiceEntry, member, render, renderStage, sendVoiceState, preferCodec }) {
+window.MediaSession = function ({ state, socket, call, el, toast, voiceEntry, member, render, renderStage, sendVoiceState, preferCodec, ownAudio }) {
   const $ = (selector) => document.querySelector(selector);
   const presets = MediaPolicy.presets;
   const epochs = { screen: 0, camera: 0 };
@@ -249,15 +249,28 @@ window.MediaSession = function ({ state, socket, call, el, toast, voiceEntry, me
     if (state.view === 'voice') renderStage();
   }
 
-  function captureScreen() {
+  async function captureScreen() {
     const preset = presets[state.sharePreset];
     if (!navigator.mediaDevices?.getDisplayMedia) throw new Error('Seu navegador não oferece captura de tela.');
-    return navigator.mediaDevices.getDisplayMedia({
+    const stream = await navigator.mediaDevices.getDisplayMedia({
       video: { width: { ideal: preset.width }, height: { ideal: preset.height }, frameRate: { ideal: preset.fps, max: preset.fps } },
       // restrictOwnAudio: o som do computador vai sem as vozes da própria chamada (evita eco para quem assiste).
       audio: state.shareAudio ? { echoCancellation: false, noiseSuppression: false, autoGainControl: false, restrictOwnAudio: true } : false,
       selfBrowserSurface: 'exclude', surfaceSwitching: 'include', systemAudio: state.shareAudio ? 'include' : 'exclude',
     });
+    // Onde o navegador não sabe deixar o som do Resenhex de fora, o app mesmo o tira.
+    if (includesOwnAudio(stream)) await ownAudio?.clean(stream);
+    return stream;
+  }
+  // O som do computador leva junto o que o próprio Resenhex toca (as vozes da chamada), a menos que
+  // o navegador (restrictOwnAudio, no Windows 11) ou o app de Windows o deixem de fora. O som de
+  // uma aba do navegador é só daquela aba.
+  function includesOwnAudio(stream) {
+    const audio = stream.getAudioTracks?.()[0];
+    if (!audio) return false;
+    const settings = audio.getSettings?.() || {};
+    const surface = stream.getVideoTracks()[0]?.getSettings?.().displaySurface;
+    return surface !== 'browser' && settings.restrictOwnAudio !== true && settings.deviceId !== 'loopbackWithoutChrome';
   }
   function watchScreenTrack(track) {
     track.contentHint = presets[state.sharePreset].hint;
@@ -296,7 +309,10 @@ window.MediaSession = function ({ state, socket, call, el, toast, voiceEntry, me
       render();
       tuneSenders();
     } catch (error) { if (stream && state.local[kind] !== stream) stream.getTracks().forEach((track) => track.stop()); captureError(error); }
-    finally { state.captureBusy = false; }
+    finally {
+      state.captureBusy = false;
+      if (kind === 'screen') ownAudio?.sync(state.local.screen);
+    }
   }
 
   async function switchScreen() {
@@ -340,7 +356,10 @@ window.MediaSession = function ({ state, socket, call, el, toast, voiceEntry, me
       next?.getTracks().forEach((track) => track.stop());
       if (state.local.screen === current) mediaNotice('Não foi possível trocar a fonte. A transmissão anterior foi mantida; tente novamente.');
       syncScreenSubscriptions();
-    } finally { state.captureBusy = false; }
+    } finally {
+      state.captureBusy = false;
+      ownAudio?.sync(state.local.screen);
+    }
   }
 
   function stopVideo(kind, notify = true) {
@@ -349,7 +368,7 @@ window.MediaSession = function ({ state, socket, call, el, toast, voiceEntry, me
     state.local[kind] = null;
     if (!stream) return;
     stream.getTracks().forEach((track) => { track.onended = track.onmute = track.onunmute = null; track.stop(); });
-    if (kind === 'screen') { state.sharePaused = false; syncScreenSubscriptions(); }
+    if (kind === 'screen') { state.sharePaused = false; ownAudio?.sync(null); syncScreenSubscriptions(); }
     else for (const peer of state.peers.values()) {
       for (const sender of peer.senders.camera) { if (active(peer)) peer.pc.removeTrack(sender); }
       peer.senders.camera = [];

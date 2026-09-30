@@ -166,8 +166,9 @@ function mediaHarness() {
     navigator: { mediaDevices: { getDisplayMedia: async () => stream([track('video'), track('audio')]) } }, Sounds: { play() {} } };
   vm.createContext(context);
   vm.runInContext(fs.readFileSync(path.join(__dirname, '../public/media-session.js'), 'utf8'), context);
-  const media = context.window.MediaSession({ state, socket: { on: (event, handler) => events.set(event, handler) }, call: async (event, payload) => { calls.push({ event, payload }); return {}; }, el: () => domNode, toast: (msg) => notices.push(msg), voiceEntry: (sid) => sid === 'self' ? self : { channel: 'room' }, member: () => ({}), render() {}, renderStage() {}, sendVoiceState() {}, preferCodec() {} });
-  return { media, state, self, peer, screen, microphone, notices, context, events, calls, nodes, clock: (value) => { clock = value; } };
+  const ownAudio = { cleaned: [], synced: [], async clean(s) { this.cleaned.push(s); }, sync(s) { this.synced.push(s); } };
+  const media = context.window.MediaSession({ state, socket: { on: (event, handler) => events.set(event, handler) }, call: async (event, payload) => { calls.push({ event, payload }); return {}; }, el: () => domNode, toast: (msg) => notices.push(msg), voiceEntry: (sid) => sid === 'self' ? self : { channel: 'room' }, member: () => ({}), render() {}, renderStage() {}, sendVoiceState() {}, preferCodec() {}, ownAudio });
+  return { media, state, self, peer, screen, microphone, notices, context, events, calls, nodes, ownAudio, track, stream, clock: (value) => { clock = value; } };
 }
 
 async function settle(h) { for (let i = 0; i < 4; i++) { await h.peer.mediaQueue; await Promise.resolve(); } }
@@ -445,5 +446,33 @@ test('server validates viewers and cleans subscriptions on stop, leave and disco
     const exited = new Promise((resolve) => child.once('exit', resolve));
     child.kill(); await exited;
     fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test('screen audio that carries the call is cleaned; excluded system audio and tab audio are not', async () => {
+  const h = mediaHarness();
+  h.media.stopVideo('screen');
+  const capture = (videoSettings, audioSettings) => {
+    const video = h.track('video'), audio = h.track('audio');
+    video.settings = { ...video.settings, ...videoSettings };
+    audio.settings = audioSettings;
+    const stream = h.stream([video, audio]);
+    h.context.navigator.mediaDevices.getDisplayMedia = async () => stream;
+    return stream;
+  };
+  const cases = [
+    [{ displaySurface: 'monitor' }, { deviceId: 'loopback', restrictOwnAudio: false }, true],
+    [{ displaySurface: 'monitor' }, { deviceId: 'loopback', restrictOwnAudio: true }, false],
+    [{ displaySurface: 'monitor' }, { deviceId: 'loopbackWithoutChrome' }, false],
+    [{ displaySurface: 'browser' }, { deviceId: 'tab' }, false],
+  ];
+  for (const [video, audio, cleaned] of cases) {
+    const stream = capture(video, audio);
+    h.ownAudio.cleaned.length = 0;
+    await h.media.startVideo('screen');
+    assert.equal(h.ownAudio.cleaned.includes(stream), cleaned, JSON.stringify({ video, audio }));
+    assert.equal(h.ownAudio.synced.at(-1), stream, 'the filter follows the live capture');
+    h.media.stopVideo('screen');
+    assert.equal(h.ownAudio.synced.at(-1), null, 'stopping the share releases the filter');
   }
 });

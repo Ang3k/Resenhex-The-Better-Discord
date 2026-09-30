@@ -63,3 +63,12 @@ test('o registro grava linhas com data e nível e recomeça quando fica grande',
   assert.match(fs.readFileSync(file, 'utf8'), /^\S+ \[info\] de novo\n$/);
   fs.rmSync(dir, { recursive: true, force: true });
 });
+
+test('o som do computador na transmissão deixa de fora o próprio app a partir do Windows 10 2004', () => {
+  const { systemAudioDevice } = require('../lib/system-audio');
+  assert.equal(systemAudioDevice('win32', '10.0.26100'), 'loopbackWithoutChrome');
+  assert.equal(systemAudioDevice('win32', '10.0.19045'), 'loopbackWithoutChrome');
+  assert.equal(systemAudioDevice('win32', '10.0.19041'), 'loopbackWithoutChrome');
+  assert.equal(systemAudioDevice('win32', '10.0.18363'), 'loopback', 'antes do 2004 só existe a captura de tudo');
+  assert.equal(systemAudioDevice('darwin', '15.0.0'), null);
+});

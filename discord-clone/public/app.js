@@ -3449,6 +3449,81 @@
     return audioCtx;
   }
 
+  // ---------------- saída única da chamada ----------------
+  // Quando a transmissão leva o som do computador e o navegador não sabe deixar o som do Resenhex
+  // de fora (Windows 10, por exemplo), tudo que a chamada toca passa por uma saída única do Web
+  // Audio: vozes, transmissões assistidas, efeitos e sons da interface. Essa saída é a referência
+  // que o OwnAudio subtrai da captura. Os <audio> e <video> continuam tocando, mudos: o Chrome só
+  // entrega o áudio do WebRTC ao Web Audio assim.
+  const callOutput = { bus: null, routes: new Map(), filters: new Map() };
+  function routeAudio(key, element, stream, muted, volume) {
+    const track = callOutput.bus ? stream?.getAudioTracks()[0] : null;
+    let route = callOutput.routes.get(key);
+    if (route && route.track !== track) { dropRoute(key); route = null; }
+    if (!track) { element.muted = muted; element.volume = volume; return; }
+    if (!route) {
+      const ctx = callOutput.bus.context;
+      const source = ctx.createMediaStreamSource(new MediaStream([track]));
+      const gain = ctx.createGain();
+      source.connect(gain).connect(callOutput.bus);
+      callOutput.routes.set(key, route = { track, source, gain });
+    }
+    route.gain.gain.value = muted ? 0 : volume;
+    element.muted = true;
+  }
+  function dropRoute(key) {
+    const route = callOutput.routes.get(key);
+    if (!route) return;
+    route.source.disconnect(); route.gain.disconnect();
+    callOutput.routes.delete(key);
+  }
+  function openCallOutput() {
+    if (callOutput.bus) return true;
+    const ctx = getAudioCtx();
+    // Sem como levar o Web Audio ao alto-falante escolhido, as vozes ficam onde estão; fora da
+    // saída padrão, elas nem chegam à captura do som do computador.
+    if (state.speakerDeviceId && !ctx.setSinkId) return false;
+    if (state.speakerDeviceId) ctx.setSinkId(state.speakerDeviceId).catch(() => {});
+    callOutput.bus = ctx.createGain();
+    callOutput.bus.connect(ctx.destination);
+    Sounds.route(ctx, callOutput.bus);
+    applyAudio();
+    return true;
+  }
+  function closeCallOutput() {
+    const bus = callOutput.bus;
+    if (!bus) return;
+    callOutput.bus = null;
+    Sounds.route(null, null);
+    applyAudio(); // devolve o som aos elementos antes de desligar a saída
+    for (const key of [...callOutput.routes.keys()]) dropRoute(key);
+    bus.disconnect();
+  }
+  const ownAudio = {
+    // Troca o som do computador da transmissão por uma versão sem o som do Resenhex.
+    async clean(stream) {
+      const audio = stream.getAudioTracks()[0];
+      if (!audio || !window.OwnAudio || !window.AudioWorkletNode || !window.Worker || !openCallOutput()) return false;
+      try {
+        const filter = await OwnAudio.create(callOutput.bus.context, callOutput.bus, audio);
+        stream.removeTrack(audio);
+        stream.addTrack(filter.track);
+        callOutput.filters.set(filter.track, filter);
+        return true;
+      } catch {
+        return false; // sem filtro: a captura segue como veio
+      } finally {
+        if (!callOutput.filters.size) closeCallOutput();
+      }
+    },
+    // Desliga os filtros que não estão mais na transmissão atual.
+    sync(stream) {
+      const live = new Set(stream?.getAudioTracks() || []);
+      for (const [track, filter] of callOutput.filters) if (!live.has(track)) { filter.stop(); callOutput.filters.delete(track); }
+      if (!callOutput.filters.size) closeCallOutput();
+    },
+  };
+
   // Estou impedido de falar agora? (mudo, surdo, servidor, castigo ou push-to-talk solto)
   function selfSilent() {
     const me = meMember();
@@ -3520,16 +3595,14 @@
       const v = voiceEntry(sid);
       const silent = iCantHear || !v || v.silenced || state.localMuted.has(v.accountId);
       const volume = v ? state.localVolume[v.accountId] ?? 1 : 1;
-      if (p.audioEl) {
-        p.audioEl.muted = silent;
-        p.audioEl.volume = volume * state.outputVolume / 100;
-      }
+      if (p.audioEl) routeAudio('voice-' + sid, p.audioEl, p.micStream, silent, volume * state.outputVolume / 100);
       // Áudio da transmissão tem volume próprio, separado da voz (como no Discord).
       const video = document.querySelector(`[data-key="screen-${sid}"] video`);
       if (video) {
-        video.muted = iCantHear || !v || state.localMuted.has(v.accountId) || state.streamMuted.has(v.accountId) || !isWatching(sid);
-        video.volume = (v ? state.streamVolume[v.accountId] ?? 1 : 1) * state.outputVolume / 100;
-      }
+        routeAudio('screen-' + sid, video, video.srcObject,
+          iCantHear || !v || state.localMuted.has(v.accountId) || state.streamMuted.has(v.accountId) || !isWatching(sid),
+          (v ? state.streamVolume[v.accountId] ?? 1 : 1) * state.outputVolume / 100);
+      } else dropRoute('screen-' + sid);
     }
     // O próprio áudio da tela não deve voltar para quem está compartilhando.
     const own = document.querySelector(`[data-key="screen-${state.me.sid}"] video`);
@@ -3757,6 +3830,8 @@
     clearTimeout(peer.recoveryTimer);
     peer.pc.close();
     if (peer.audioEl) peer.audioEl.srcObject = null;
+    dropRoute('voice-' + sid);
+    dropRoute('screen-' + sid);
     unwatchSpeaking(sid);
     state.peers.delete(sid);
   }
@@ -3979,7 +4054,7 @@
     }
   }
 
-  const { isWatching, setWatching, getWatchQuality, setWatchQuality, syncViewerQuality, addVideoTracks, syncScreenSubscriptions, videoBitrates, tuneSenders, applySharePreset, setSharePreset, captureScreen, watchScreenTrack, switchScreen, startVideo, stopVideo, scheduleRecovery, renderDiagnostics, updateStreamStats, mediaNotice } = MediaSession({ state, socket, call, el, toast, voiceEntry, member, render, renderStage, sendVoiceState, preferCodec });
+  const { isWatching, setWatching, getWatchQuality, setWatchQuality, syncViewerQuality, addVideoTracks, syncScreenSubscriptions, videoBitrates, tuneSenders, applySharePreset, setSharePreset, captureScreen, watchScreenTrack, switchScreen, startVideo, stopVideo, scheduleRecovery, renderDiagnostics, updateStreamStats, mediaNotice } = MediaSession({ state, socket, call, el, toast, voiceEntry, member, render, renderStage, sendVoiceState, preferCodec, ownAudio });
   const mobileStream = MobileStream({ state, el, Icon, toast, member, voiceEntry, syncViewerQuality, openWatchQualityMenu, toggleStreamMute, togglePip });
 
   function openWatchQualityMenu(sid, anchor) {
@@ -4299,6 +4374,7 @@
     setSharePreset(values.sharePreset);
     for (const peer of state.peers.values()) if (peer.audioEl) setSinkId(peer.audioEl);
     document.querySelectorAll('#stage video').forEach(setSinkId);
+    if (callOutput.bus) audioCtx.setSinkId?.(state.speakerDeviceId || '').catch(() => {});
     applyAudio();
     renderControls();
     if (values.notify && (!('Notification' in window) || Notification.permission !== 'granted')) toast('Preferência salva. Libere as notificações no navegador para receber os avisos.', 'info');
