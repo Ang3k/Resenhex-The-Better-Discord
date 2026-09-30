@@ -1,11 +1,13 @@
 # Resenhex
 
-**Versão 0.97** · veja o que mudou em cada versão no [CHANGELOG.md](CHANGELOG.md) ou em **Novidades**, dentro do app.
+**Versão 0.99** · veja o que mudou em cada versão no [CHANGELOG.md](CHANGELOG.md) ou em **Novidades**, dentro do app.
 
 Plataforma própria de chat e voz para você e seus amigos, inspirada no Discord. Vem com o servidor **Resenha** pronto para usar, com:
 
+- **Página inicial** para quem visita pela primeira vez, com apresentação dos recursos, download para Windows e acesso pelo navegador. Sessões existentes entram automaticamente; convites e o app de desktop continuam abrindo direto no login. Os links `/#entrar` e `/#criar-conta` abrem cada formulário diretamente.
 - **Contas** com nome de usuário, senha e confirmação da senha, sem e-mail (login automático depois da primeira vez)
 - **Vários servidores**: criar e alternar pela barra lateral, entrar por convite e copiar um link exclusivo para seus amigos. Canais, grupos, cargos e chamadas independentes.
+- **Apelidos por servidor**: abra **Editar nome no servidor** no menu do servidor ou em Meu perfil. Escolha até 32 caracteres ou restaure seu nome de usuário; login, amigos e mensagens diretas usam a identidade da conta.
 - **Reconexão automática**: se a internet ou o servidor cair, o app volta sozinho, sem recarregar a página, busca as mensagens perdidas e te coloca de volta na chamada
 - **Chat de texto** em canais, com histórico salvo, "fulano está digitando…", **editar** (✏️ ou seta ↑) e **apagar** mensagens
 - **Imagens e arquivos**: botão ＋, **Ctrl+V** para colar um print, ou arrastar para o chat. Imagens e vídeos aparecem no chat.
@@ -17,7 +19,8 @@ Plataforma própria de chat e voz para você e seus amigos, inspirada no Discord
 - **Banner do perfil**: em ⚙️ Configurações → Meu perfil você troca a faixa colorida do cartão de perfil por uma imagem (PNG, JPG ou WebP, recortada no centro) ou por um **GIF animado** de até 5 MB
 - **Chamadas de voz** em salas, com indicador verde de quem está falando e **sons** de entrar e sair
 - **Câmera** e **compartilhamento de tela** com perfis de qualidade (720p 30 fps, 1080p 30 fps e 1080p 60 fps), áudio do sistema e estatísticas ao vivo; dá para usar câmera e tela ao mesmo tempo; clique na tela para abrir em tela cheia
-- **Efeitos sonoros (soundboard)**: botão 🎵 na barra da chamada toca grilo 🦗, trovão ⛈️, aplausos, ba dum tss e outros para todos da sala. Tem permissão própria ("Usar efeitos sonoros") e limite contra spam. Quem não quiser ouvir silencia no menu do 🎵 ou em ⚙️ Configurações, onde também ajusta o volume
+- **Foto de perfil ajustável**, com arraste, zoom e prévia circular, incluindo GIF animado de até 5 MB e 1024 pixels por lado. Em **Meu perfil**, use **Mudar foto** ou **Ajustar foto** e salve as alterações.
+- **Efeitos sonoros (soundboard)**: botão 🎵 na chamada reúne sons prontos e até 32 sons personalizados por servidor, com pré-escuta. **Adicionar efeito sonoro** abre o envio de um áudio de até 8 segundos e 5 MB. A permissão **Gerenciar efeitos sonoros** controla o envio e a remoção; **Usar efeitos sonoros** controla a reprodução na sala, com limite contra spam. Volume e silenciamento continuam independentes.
 - **Mutar / ensurdecer** (botões na barra da chamada e no painel do usuário, também pelos atalhos `Ctrl+Shift+M` / `Ctrl+Shift+D`) e **push-to-talk** (apertar uma tecla para falar)
 - **Volume individual** e **mutar para mim** (só afeta o que você ouve)
 - **Cargos e permissões** estilo Discord, com hierarquia

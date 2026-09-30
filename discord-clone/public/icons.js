@@ -18,6 +18,7 @@ window.Icon = (() => {
     cameraOff: '<path d="m16 13 5.2 3.5a.5.5 0 0 0 .8-.4V7.9a.5.5 0 0 0-.8-.4L16 10.5"/><rect x="2" y="6" width="14" height="12" rx="2"/><path d="M3 3l18 18" class="slash"/>',
     phone: '<path d="M22 16.9v3a2 2 0 0 1-2.2 2 19.8 19.8 0 0 1-8.6-3.1 19.5 19.5 0 0 1-6-6A19.8 19.8 0 0 1 2.1 4.2 2 2 0 0 1 4.1 2h3a2 2 0 0 1 2 1.7c.1 1 .4 1.9.7 2.8a2 2 0 0 1-.5 2.1L8.1 9.9a16 16 0 0 0 6 6l1.3-1.3a2 2 0 0 1 2.1-.4c.9.3 1.8.6 2.8.7a2 2 0 0 1 1.7 2z"/>',
     plus: '<path d="M12 5v14M5 12h14"/>',
+    upload: '<path d="M12 16V3m-5 5 5-5 5 5M4 16v4a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-4"/>',
     plusCircle: '<circle cx="12" cy="12" r="10"/><path d="M12 8v8M8 12h8"/>',
     smile: '<circle cx="12" cy="12" r="10"/><path d="M8 14s1.5 2 4 2 4-2 4-2M9 9h.01M15 9h.01"/>',
     smilePlus: '<path d="M22 11v1a10 10 0 1 1-9-10"/><path d="M8 14s1.5 2 4 2 4-2 4-2M9 9h.01M15 9h.01M16 5h6M19 2v6"/>',
@@ -78,16 +79,16 @@ window.Icon = (() => {
     return svg;
   }
 
-  // Marca do Resenhex: balão de conversa com um "x" de ondas sonoras.
+  // Marca do ResenhaX, compartilhada pelo site e pela interface do app.
   Icon.logo = (size = 28) => {
-    const svg = document.createElementNS(NS, 'svg');
-    svg.setAttribute('viewBox', '0 0 32 32');
-    svg.setAttribute('width', size);
-    svg.setAttribute('height', size);
-    svg.setAttribute('aria-hidden', 'true');
-    svg.innerHTML = '<path fill="currentColor" d="M16 3C8.8 3 3 8.2 3 14.6c0 3.5 1.7 6.6 4.4 8.7L6.3 28a.8.8 0 0 0 1.1.9l5.4-2.8c1 .2 2.1.3 3.2.3 7.2 0 13-5.2 13-11.6S23.2 3 16 3z"/>'
-      + '<path fill="none" stroke="var(--logo-cut, #1e1f22)" stroke-width="2.6" stroke-linecap="round" d="M11 10.5l10 8.5M21 10.5l-10 8.5"/>';
-    return svg;
+    const image = document.createElement('img');
+    image.src = '/resenhax-logo.png';
+    image.alt = '';
+    image.width = image.height = size;
+    image.className = 'resenhax-logo';
+    image.draggable = false;
+    image.setAttribute('aria-hidden', 'true');
+    return image;
   };
 
   return Icon;

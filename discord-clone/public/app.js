@@ -93,6 +93,7 @@
 
   let audioCtx = null;
   const analysers = new Map(); // sid -> { analyser, source, data }
+  let nicknameDialog = null;
 
   // ---------------- utilidades ----------------
   function toast(text, kind = 'error') {
@@ -143,16 +144,17 @@
       style: { background: member.color || '#5865f2' },
       data: sid ? { sid } : {},
     });
-    setAvatarContents(node, member.avatarUrl, member.name);
+    setAvatarContents(node, member.avatarUrl, member.name, member.avatarCrop);
     return node;
   }
 
-  function setAvatarContents(node, url, name) {
-    const key = (url || '') + ':' + (name || '');
+  function setAvatarContents(node, url, name, crop) {
+    const key = (url || '') + ':' + (name || '') + ':' + JSON.stringify(crop || null);
     if (node.dataset.avatarKey === key) return;
     node.dataset.avatarKey = key;
     if (url) {
       const image = el('img', { src: url, alt: '', decoding: 'async', draggable: false });
+      window.PhotoEditor?.style(image, crop);
       image.onerror = () => { if (image.parentNode === node) node.replaceChildren(initials(name || '?')); };
       node.replaceChildren(image);
     } else node.replaceChildren(initials(name || '?'));
@@ -289,8 +291,15 @@
   const isTyping = (target) => target && (target.matches?.('input, textarea, select') || target.isContentEditable);
 
   // ---------------- cargos e permissões (espelho do servidor) ----------------
-  const member = (id) => state.server?.members.find((m) => m.id === id) || state.server?.people?.find((m) => m.id === id) || state.messageAuthors.get(id);
-  const meMember = () => member(state.me.accountId);
+  const serverMember = (id) => state.server?.members.find((m) => m.id === id);
+  const person = (id) => {
+    const global = state.server?.people?.find((m) => m.id === id) || state.messageAuthors.get(id);
+    if (global) return global;
+    const local = serverMember(id);
+    return local && { ...local, name: local.username || local.name, nickname: null };
+  };
+  const member = (id) => (state.home ? person(id) : serverMember(id)) || person(id);
+  const meMember = () => serverMember(state.me.accountId) || person(state.me.accountId);
   const roleIdx = (id) => state.server.roles.findIndex((r) => r.id === id);
   const roleById = (id) => state.server.roles.find((r) => r.id === id);
   const isOwner = (id) => id === state.server.ownerId;
@@ -337,7 +346,7 @@
   function channelById(id) {
     const c = state.server.channels.find((ch) => ch.id === id);
     if (c || !isDm(id)) return c;
-    const peer = member(dmPeerId(id));
+    const peer = person(dmPeerId(id));
     return peer ? { id, type: 'dm', name: peer.name, allowedRoles: [], peer } : undefined;
   }
   const inDm = () => isDm(state.textChannel);
@@ -381,8 +390,8 @@
     $('#login-password').autocomplete = register ? 'new-password' : 'current-password';
   }
 
-  function showLogin(notice) {
-    setLoginMode('login');
+  function showLogin(notice, mode = 'login') {
+    setLoginMode(mode);
     $('#login-name').value = localStorage.getItem('name') || '';
     $('#app').classList.add('hidden');
     $('#login').classList.remove('hidden');
@@ -394,7 +403,15 @@
   $('#login-switch').onclick = (e) => {
     e.preventDefault();
     setLoginMode(loginMode === 'login' ? 'register' : 'login');
+    if (/^#(entrar|criar-conta)$/.test(location.hash)) {
+      history.replaceState(history.state, '', loginMode === 'register' ? '#criar-conta' : '#entrar');
+    }
   };
+  // A página inicial (landing.js) abre o cartão em "Entrar" ou "Criar conta".
+  window.addEventListener('resenhex:auth-mode', (e) => {
+    setLoginMode(config.hasOwner ? e.detail : 'register');
+    $('#login-name').focus();
+  });
 
   $('#login-form').addEventListener('submit', (e) => {
     e.preventDefault();
@@ -417,7 +434,7 @@
       if (res.error) {
         if (payload.token) localStorage.removeItem('token');
         setConnBanner(null);
-        showLogin();
+        showLogin(undefined, payload.token ? 'login' : payload.mode);
         return toast(res.error);
       }
       localStorage.setItem('token', res.token);
@@ -430,6 +447,9 @@
       $('#login-confirm-password').value = '';
       $('#login').classList.add('hidden');
       $('#app').classList.remove('hidden');
+      document.documentElement.classList.remove('show-landing');
+      delete document.documentElement.dataset.landing;
+      if (/^#(entrar|criar-conta)$/.test(location.hash)) history.replaceState(null, '', location.pathname + location.search);
       if (!opts.reconnect) setTimeout(showChangelogIfNew, 600);
       if (opts.reconnect) {
         // Descarta o histórico em cache: as mensagens perdidas vêm na próxima leitura.
@@ -459,7 +479,8 @@
   Promise.all([fetch('/config').then((r) => r.json()), pendingInviteCode ? fetch('/invites/' + encodeURIComponent(pendingInviteCode)).then((r) => r.json()).catch(() => ({ error: 'Não foi possível consultar o convite. Tente novamente.' })) : null]).then(([c, invite]) => {
     config = c;
     pendingInvitePreview = invite && !invite.error ? invite : null;
-    setLoginMode(c.hasOwner ? 'login' : 'register');
+    const requestedMode = location.hash === '#criar-conta' ? 'register' : location.hash === '#entrar' ? 'login' : loginMode;
+    setLoginMode(c.hasOwner ? requestedMode : 'register');
     if (invite) {
       $('#login-notice').textContent = invite.error || `Convite para ${invite.name}. Entre ou crie sua conta para aceitar.`;
       $('#login-notice').classList.remove('hidden');
@@ -502,6 +523,7 @@
   socket.on('state', (s) => {
     const switching = state.server && state.server.serverId !== s.serverId;
     if (switching) {
+      nicknameDialog?.close(true);
       saveComposerDraft();
       leaveVoice(false, false);
       state.home = !s.serverId;
@@ -516,6 +538,7 @@
       $('#messages').dataset.channel = '';
     }
     state.server = s;
+    if (soundUploadSession && (soundUploadSession.serverId !== s.serverId || !hasPerm('MANAGE_SOUNDBOARD'))) soundUploadSession.close();
     if (!state.me) return;
     if (!s.serverId) state.home = true;
     if (s.serverId) localStorage.setItem('serverId', s.serverId); else localStorage.removeItem('serverId');
@@ -564,11 +587,15 @@
 
   function render() {
     if (!state.server || !state.me || !meMember()) return;
-    const me = meMember();
+    const me = member(state.me.accountId);
     $('#me-name').textContent = me.name;
     $('#me-name').style.color = nameColor(me);
-    $('#me-avatar').replaceWith(Object.assign(avatar(me), { id: 'me-avatar' }));
+    setAvatarContents($('#me-avatar'), me.avatarUrl, me.name, me.avatarCrop);
+    $('#me-avatar').style.background = me.color;
     $('#me-sub').textContent = state.voiceChannel ? 'Em chamada' : 'Online';
+    $('#profile-server-identity').classList.toggle('hidden', !state.server.serverId);
+    $('#profile-server-label').textContent = serverName();
+    $('#profile-server-display').textContent = meMember().name;
     // Entrar numa chamada a partir do Início leva de volta para o servidor.
     if (state.home && state.view === 'voice' && state.voiceChannel) leaveHome();
     $('#app').classList.toggle('hide-members', !state.showMembers || state.home);
@@ -591,7 +618,7 @@
     renderServerIcon();
     if (profileFor) renderProfile();
     const settingsKey = JSON.stringify([state.server.serverName, state.server.roles, state.server.channels, state.server.categories, state.server.bans, state.server.myPerms,
-      state.server.members.map((m) => [m.id, m.name, m.color, m.avatarUrl, m.roles, m.online])]);
+      state.server.members.map((m) => [m.id, m.name, m.color, m.avatarUrl, m.avatarCrop, m.roles, m.online])]);
     if (!$('#server-settings').classList.contains('hidden') && settingsKey !== render.settingsKey) renderServerSettings();
     render.settingsKey = settingsKey;
   }
@@ -974,7 +1001,7 @@
   // Lista de conversas privadas na lateral do Início.
   function renderHomeNav() {
     const s = state.server;
-    if (!changed('home-nav', [state.social, state.unread, state.home, state.textChannel, s.people, s.members.map((m) => [m.id, m.name, m.color, m.avatarUrl, m.online])])) return;
+    if (!changed('home-nav', [state.social, state.unread, state.home, state.textChannel, s.people, s.members.map((m) => [m.id, m.name, m.color, m.avatarUrl, m.avatarCrop, m.online])])) return;
     $('#nav-friends').classList.toggle('active', state.home && !state.textChannel);
     const pending = state.social.incoming.length;
     $('#friends-badge').textContent = String(pending);
@@ -1021,7 +1048,7 @@
     const s = state.server;
     if (!s || channelNavigation.dragging) return;
     if (!changed('channels', [s.channels, s.categories, s.voice, state.me.accountId,
-      s.members.map((m) => [m.id, m.name, m.color, m.avatarUrl, m.serverMuted, m.serverDeafened, m.timeoutUntil]),
+      s.members.map((m) => [m.id, m.name, m.color, m.avatarUrl, m.avatarCrop, m.serverMuted, m.serverDeafened, m.timeoutUntil]),
       state.unread, state.textChannel, state.view, state.voiceChannel, [...state.collapsed], [...state.localMuted], s.myPerms])) return;
     channelNavigation.render();
   }
@@ -1173,7 +1200,7 @@
       scrollToEnd = true;
     }
     const list = state.messages[state.textChannel] || [];
-    const epoch = JSON.stringify([state.server.members.map((m) => [m.id, m.name, m.color, m.avatarUrl, m.roles]), [...new Set(list.map((msg) => msg.authorId))].map((id) => state.messageAuthors.get(id)), state.server.roles.map((r) => [r.id, r.name, r.color]),
+    const epoch = JSON.stringify([state.server.members.map((m) => [m.id, m.name, m.color, m.avatarUrl, m.avatarCrop, m.roles]), [...new Set(list.map((msg) => msg.authorId))].map((id) => state.messageAuthors.get(id)), state.server.roles.map((r) => [r.id, r.name, r.color]),
       hasPerm('MANAGE_MESSAGES'), canWrite(), inDm(), state.replyTo?.id, dayKey(Date.now())]);
     const nodes = [welcomeNode(channel)];
     let prev = null;
@@ -1501,7 +1528,7 @@
     const q = m[2].toLowerCase();
     const items = [];
     for (const mem of state.server.members) {
-      if (mem.name.toLowerCase().includes(q)) items.push({ insert: '@' + mem.name, label: mem.name, color: nameColor(mem), member: mem });
+      if (mem.name.toLowerCase().includes(q) || (mem.username || '').toLowerCase().includes(q)) items.push({ insert: '@' + (mem.username || mem.name), label: mem.name, note: mem.nickname ? '@' + mem.username : '', color: nameColor(mem), member: mem });
     }
     for (const r of inDm() ? [] : state.server.roles.slice(1)) {
       if (r.name.toLowerCase().includes(q)) items.push({ insert: '@' + r.name, label: '@' + r.name, color: r.color, note: 'cargo' });
@@ -1623,7 +1650,7 @@
   function notify(msg, channel) {
     if (!state.notify || !('Notification' in window) || Notification.permission !== 'granted') return;
     if (document.visibilityState === 'visible' && document.hasFocus()) return;
-    const author = member(msg.authorId)?.name || 'Alguém';
+    const author = (isDm(channel) ? person(msg.authorId) : serverMember(msg.authorId) || person(msg.authorId))?.name || 'Alguém';
     const n = new Notification(isDm(channel) ? `${author} (mensagem direta)` : `${author} em #${channelById(channel)?.name || ''}`, {
       body: Format.plain(msg.text, fmtCtx).slice(0, 200) || '📎 Anexo',
       tag: channel,
@@ -1774,7 +1801,7 @@
       const camStream = v.camera ? remote.camera : null;
       if (cam.srcObject !== camStream) cam.srcObject = camStream;
       cam.classList.toggle('hidden', !camStream);
-      setAvatarContents(tile.querySelector('.avatar'), m.avatarUrl, m.name);
+      setAvatarContents(tile.querySelector('.avatar'), m.avatarUrl, m.name, m.avatarCrop);
       tile.querySelector('.avatar').style.background = m.color;
       tile.querySelector('.avatar').classList.toggle('hidden', !!camStream);
       tile.classList.toggle('speaking', state.speaking.has(v.sid));
@@ -2141,7 +2168,7 @@
   function renderFriends(force = false) {
     const { incoming } = state.social;
     const s = state.server;
-    if (!changed('friends', [state.friendsTab, state.social, s.people, s.members.map((m) => [m.id, m.name, m.color, m.avatarUrl, m.online, m.roles]), s.roles.map((r) => [r.id, r.color]),
+    if (!changed('friends', [state.friendsTab, state.social, s.people, s.members.map((m) => [m.id, m.name, m.color, m.avatarUrl, m.avatarCrop, m.online, m.roles]), s.roles.map((r) => [r.id, r.color]),
       s.voice.map((v) => [v.accountId, v.channel]), s.channels.map((c) => [c.id, c.name])]) && !force) return;
     const focused = document.activeElement?.id;
     const tabs = $('#friends-tabs');
@@ -2279,7 +2306,8 @@
     if (Date.now() - Number(header.dataset.closedAt || 0) < 300) return; // o clique fechou o menu
     // Grupos separados como no Discord: convite em destaque, administração, geral e, por último, a ação destrutiva.
     const sep = () => el('div', { class: 'menu-sep' });
-    const items = [menuItem('Convidar amigos', 'userPlus', copyInvite, 'accent'), sep()];
+    const items = [menuItem('Convidar amigos', 'userPlus', copyInvite, 'accent'),
+      menuItem('Editar nome no servidor', 'pencil', openNicknameEditor), sep()];
     if (canAdmin()) items.push(menuItem('Configurações do servidor', 'settings', () => openServerSettings()));
     if (hasPerm('MANAGE_CHANNELS')) items.push(menuItem('Criar canal', 'plusCircle', () => openCreateChannel('text')),
       menuItem('Criar grupo de canais', 'hash', () => channelNavigation.editGroup()));
@@ -2300,6 +2328,62 @@
   async function copyInvite() {
     const invite = await call('server:invite');
     if (invite) openInviteLink(invite);
+  }
+
+  function openNicknameEditor() {
+    const me = serverMember(state.me?.accountId);
+    if (!me || !state.server.serverId) return;
+    nicknameDialog?.close(true); closeMenu(); closeProfile();
+    const serverId = state.server.serverId, username = me.username || me.name, returnFocus = document.activeElement;
+    const roots = [$('#app'), $('#settings'), $('#server-settings')].map((root) => [root, root.inert]);
+    roots.forEach(([root]) => { root.inert = true; });
+    let busy = false, closed = false;
+    const name = el('input', { id: 'server-nickname', type: 'text', maxLength: 32, autocomplete: 'off', value: me.nickname || '', placeholder: username });
+    const display = el('strong', { textContent: me.name });
+    const previewAvatar = avatar(me);
+    const error = el('p', { class: 'nickname-status', role: 'status', ariaLive: 'polite' });
+    const refresh = () => {
+      const value = name.value.trim() || username;
+      display.textContent = value;
+      setAvatarContents(previewAvatar, me.avatarUrl, value, me.avatarCrop);
+    };
+    name.oninput = () => { error.textContent = ''; refresh(); };
+    const close = (force = false) => {
+      if (closed || (busy && !force)) return;
+      closed = true; overlay.remove(); roots.forEach(([root, inert]) => { root.inert = inert; });
+      document.removeEventListener('keydown', onKey, true); nicknameDialog = null; returnFocus?.focus();
+    };
+    const cancel = el('button', { type: 'button', class: 'btn-ghost', textContent: 'Cancelar', onclick: () => close() });
+    const reset = el('button', { type: 'button', class: 'nickname-reset', textContent: 'Usar nome de usuário', onclick: () => { name.value = ''; refresh(); name.focus(); } });
+    const save = el('button', { type: 'submit', class: 'btn-primary', textContent: 'Salvar nome' });
+    const form = el('form', { class: 'nickname-card', role: 'dialog', ariaModal: 'true', ariaLabelledby: 'nickname-title', onsubmit: async (event) => {
+      event.preventDefault(); if (busy) return;
+      busy = true; name.disabled = cancel.disabled = reset.disabled = save.disabled = true; error.textContent = 'Salvando…';
+      try {
+        const result = await call('member:nickname', { serverId, nickname: name.value });
+        if (closed) return;
+        if (!result) { error.textContent = 'O nome não foi salvo. Confira o aviso e tente novamente.'; return; }
+        busy = false; close(); toast('Nome atualizado neste servidor.', 'info');
+      } finally { busy = false; name.disabled = cancel.disabled = reset.disabled = save.disabled = false; }
+    } },
+    el('div', { class: 'nickname-heading' }, Icon('pencil', 24), el('h2', { id: 'nickname-title', textContent: 'Editar nome no servidor' })),
+    el('p', { class: 'nickname-subtitle', textContent: 'Escolha como você aparece em ' + serverName() + '.' }),
+    el('div', { class: 'nickname-preview' }, previewAvatar, el('div', {}, display, el('small', { textContent: 'Nome de usuário: ' + username }))),
+    el('label', { htmlFor: name.id, textContent: 'NOME NO SERVIDOR' }, name),
+    el('p', { class: 'nickname-hint', textContent: 'Até 32 caracteres. Deixe em branco para usar seu nome de usuário.' }), reset, error,
+    el('div', { class: 'confirm-actions' }, cancel, save));
+    const overlay = el('div', { class: 'confirm-overlay nickname-overlay', onmousedown: (event) => { if (event.target === overlay) close(); } }, form);
+    const onKey = (event) => {
+      if (event.key === 'Escape') { event.preventDefault(); event.stopImmediatePropagation(); close(); }
+      if (event.key === 'Tab') {
+        const controls = [...form.querySelectorAll('input, button')].filter((control) => !control.disabled);
+        const first = controls[0], last = controls.at(-1);
+        if (!first) { event.preventDefault(); return; }
+        if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last.focus(); }
+        else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first.focus(); }
+      }
+    };
+    nicknameDialog = { close }; document.body.append(overlay); document.addEventListener('keydown', onKey, true); name.focus(); name.select();
   }
 
   $('#btn-members').onclick = () => {
@@ -2395,7 +2479,7 @@
   function mention(m) {
     if (state.view !== 'chat') { state.view = 'chat'; render(); }
     if (state.home && !state.textChannel) return messageUser(m.id);
-    insertAtCursor('@' + m.name + ' ');
+    insertAtCursor('@' + (m.username || m.name) + ' ');
   }
   async function kickMember(m) {
     if (await confirmDialog({ title: `Expulsar ${m.name}`, text: `${m.name} vai sair do servidor, mas pode entrar de novo com a mesma conta.`, confirm: 'Expulsar' })) modAction(m, 'kick');
@@ -2456,6 +2540,7 @@
 
     groups.push([
       menuAction('Perfil', 'userCog', () => openProfile(m.id, { x: e.clientX, y: e.clientY })),
+      self && !state.home ? menuAction('Editar nome no servidor', 'pencil', openNicknameEditor) : null,
       !self && canSend() && !state.home ? menuAction('Mencionar', 'at', () => mention(m)) : null,
     ]);
     if (!self) groups.push(socialMenuItems(m));
@@ -2618,14 +2703,19 @@
         el('div', { class: 'pc-top-actions' },
           el('button', { type: 'button', class: 'pc-icon-btn', tip: 'Mais', ariaLabel: 'Mais ações', onclick: (e) => { const r = e.currentTarget.getBoundingClientRect(); openMemberMenu(m.id, { preventDefault() {}, stopPropagation() {}, clientX: r.left, clientY: r.bottom + 6 }); } }, el('span', { class: 'kebab', textContent: '⋯' }))));
     }
-    // Só o que vem depois do banner é refeito; o banner nunca sai da tela enquanto for o mesmo.
-    for (const child of [...card.children]) if (child !== banner) child.remove();
+    let avatarRow = card.querySelector(':scope > .pc-avatar-row');
+    if (!avatarRow) avatarRow = el('div', { class: 'pc-avatar-row' }, el('div', { class: 'pc-avatar' }, avatar(m), el('span', { class: 'pc-status' })));
+    setAvatarContents(avatarRow.querySelector('.avatar'), m.avatarUrl, m.name, m.avatarCrop);
+    avatarRow.querySelector('.avatar').style.background = m.color;
+    const status = avatarRow.querySelector('.pc-status'); status.className = 'pc-status ' + presence[0]; status.dataset.tip = presence[1];
+    // Keep animated images mounted while the rest of the profile updates.
+    for (const child of [...card.children]) if (child !== banner && child !== avatarRow) child.remove();
     if (banner.parentNode !== card) card.prepend(banner);
+    if (avatarRow.parentNode !== card) card.append(avatarRow);
     card.append(
-      el('div', { class: 'pc-avatar-row' },
-        el('div', { class: 'pc-avatar' }, avatar(m), el('span', { class: 'pc-status ' + presence[0], tip: presence[1] }))),
       el('div', { class: 'pc-body' },
         el('div', { class: 'pc-name', textContent: m.name, style: { color: nameColor(m) || '' } }),
+        m.nickname ? el('div', { class: 'pc-username', textContent: 'Nome de usuário: ' + m.username }) : null,
         el('div', { class: 'pc-tags' },
           isOwner(m.id) ? el('span', { class: 'pc-tag owner' }, Icon('crown', 12), 'Dono do servidor') : null,
           el('span', { class: 'pc-tag ' + presence[0] }, el('span', { class: 'pc-dot ' + presence[0] }), presence[1]),
@@ -2672,11 +2762,12 @@
     SPEAK: ['Falar', 'Permite falar nos canais de voz. Sem ela, o membro só escuta.'],
     STREAM: ['Vídeo', 'Permite ligar a câmera e compartilhar a tela nos canais de voz.'],
     SOUNDBOARD: ['Usar efeitos sonoros', 'Permite tocar os efeitos do soundboard (grilo, trovão…) na chamada.'],
+    MANAGE_SOUNDBOARD: ['Gerenciar efeitos sonoros', 'Permite adicionar e remover os efeitos personalizados deste servidor.'],
     MUTE_MEMBERS: ['Silenciar e ensurdecer membros', 'Permite silenciar ou ensurdecer outras pessoas para todo o servidor.'],
     MOVE_MEMBERS: ['Mover membros', 'Permite mover e desconectar membros entre canais de voz.'],
   };
   const PERM_GROUPS = [
-    ['Permissões gerais do servidor', ['ADMIN', 'MANAGE_ROLES', 'MANAGE_CHANNELS']],
+    ['Permissões gerais do servidor', ['ADMIN', 'MANAGE_ROLES', 'MANAGE_CHANNELS', 'MANAGE_SOUNDBOARD']],
     ['Permissões de membros', ['KICK', 'BAN', 'TIMEOUT']],
     ['Permissões de canais de texto', ['SEND_MESSAGES', 'MANAGE_MESSAGES', 'MENTION_EVERYONE']],
     ['Permissões de canais de voz', ['CONNECT', 'SPEAK', 'STREAM', 'SOUNDBOARD', 'MUTE_MEMBERS', 'MOVE_MEMBERS']],
@@ -2687,10 +2778,11 @@
     { id: 'overview', label: 'Visão geral', icon: 'settings', perm: null },
     { id: 'roles', label: 'Cargos', icon: 'crown', perm: 'MANAGE_ROLES' },
     { id: 'channels', label: 'Canais', icon: 'hash', perm: 'MANAGE_CHANNELS' },
+    { id: 'soundboard', label: 'Efeitos sonoros', icon: 'music', perm: 'MANAGE_SOUNDBOARD' },
     { id: 'members', label: 'Membros', icon: 'users', perm: null },
     { id: 'bans', label: 'Banimentos', icon: 'lock', perm: 'BAN', group: 'MODERAÇÃO' },
   ];
-  const ADMIN_PERMS = ['ADMIN', 'MANAGE_ROLES', 'MANAGE_CHANNELS', 'BAN', 'KICK', 'TIMEOUT'];
+  const ADMIN_PERMS = ['ADMIN', 'MANAGE_ROLES', 'MANAGE_CHANNELS', 'MANAGE_SOUNDBOARD', 'BAN', 'KICK', 'TIMEOUT'];
   const admin = { mode: 'server', page: 'overview', channelId: null, roleId: null, roleTab: 'display', draft: null, base: null, draftKey: null, search: {}, busy: false };
   const serverName = () => state.server?.serverName || 'Resenha';
   const canAdmin = () => ADMIN_PERMS.some(hasPerm);
@@ -2810,7 +2902,7 @@
     const scroll = body.scrollTop;
     renderAdminNav();
     const content = admin.mode === 'channel' ? channelPage() : {
-      overview: overviewPage, roles: rolesPage, channels: channelsPage, members: membersPage, bans: bansPage,
+      overview: overviewPage, roles: rolesPage, channels: channelsPage, soundboard: soundboardPage, members: membersPage, bans: bansPage,
     }[admin.page]();
     body.replaceChildren(content);
     body.scrollTop = scroll;
@@ -3434,6 +3526,7 @@
     const me = meMember();
     if (!me) return;
     const iCantHear = state.deafened || me.serverDeafened;
+    if (iCantHear) Sounds.stopBoard();
     state.micStream?.getAudioTracks().forEach((t) => (t.enabled = !selfSilent()));
 
     for (const [sid, p] of state.peers) {
@@ -3554,6 +3647,7 @@
 
   function leaveVoice(notify = true, sound = true) {
     if (!state.voiceChannel) return;
+    Sounds.stopBoard();
     stopVideo('screen', false);
     stopVideo('camera', false);
     for (const sid of [...state.peers.keys()]) closePeer(sid);
@@ -3718,24 +3812,125 @@
 
   socket.on('sound', ({ sound, from }) => {
     if (!state.voiceChannel || state.deafened || meMember()?.serverDeafened || state.sbMuted || state.localMuted.has(from)) return;
-    Sounds.playBoard(sound, state.sbVolume);
-    const b = Sounds.board[sound];
+    const custom = (state.server.soundboard || []).find((s) => s.id === sound);
+    if (custom) Sounds.playCustom(custom.url, state.sbVolume, localStorage.getItem('token')).catch((error) => toast(error.message));
+    else Sounds.playBoard(sound, state.sbVolume);
+    const b = custom ? { label: custom.name, emoji: '🔊' } : Sounds.board[sound];
     if (b && from !== state.me.accountId) toast(`${member(from)?.name || 'Alguém'} tocou ${b.emoji} ${b.label}`, 'info');
   });
 
   function setSbMuted(v) {
     state.sbMuted = v;
     localStorage.setItem('sbMuted', v);
+    if (v) Sounds.stopBoard();
     renderControls();
+  }
+
+  let soundUploadSession = null;
+  function openSoundUpload() {
+    if (!hasPerm('MANAGE_SOUNDBOARD') || !state.server.serverId) return;
+    if ((state.server.soundboard || []).length >= 32) return toast('O servidor já tem 32 efeitos personalizados. Remova um para adicionar outro.');
+    soundUploadSession?.close();
+    const serverId = state.server.serverId, focus = document.activeElement;
+    const roots = [$('#app'), $('#settings'), $('#server-settings')].map((element) => [element, element.inert]);
+    roots.forEach(([element]) => { element.inert = true; });
+    let prepared = null, previewUrl = null, epoch = 0, busy = false, closed = false;
+    const status = el('p', { class: 'sound-status', role: 'status', ariaLive: 'polite' });
+    const name = el('input', { id: 'sound-upload-name', type: 'text', maxLength: 32, required: true, placeholder: 'Ex.: risada da turma', autocomplete: 'off' });
+    const file = el('input', { id: 'sound-upload-file', type: 'file', accept: 'audio/*,.mp3,.wav,.ogg,.m4a', hidden: true });
+    const chosen = el('strong', { textContent: 'Escolha um áudio' });
+    const details = el('small', { textContent: 'MP3, WAV, OGG ou M4A · até 5 MB' });
+    const audio = el('audio', { controls: true, preload: 'metadata', class: 'sound-audio-preview', volume: state.sbVolume });
+    const preview = el('div', { class: 'sound-preview hidden' }, el('div', { class: 'sound-preview-title' }, Icon('headphones', 16), 'Pré-escuta · só você ouve'), audio);
+    const submit = el('button', { type: 'submit', class: 'btn-primary', textContent: 'Adicionar ao servidor', disabled: true });
+    const choose = el('button', { type: 'button', class: 'sound-dropzone', onclick: () => file.click() },
+      el('span', { class: 'sound-upload-icon' }, Icon('upload', 28)), chosen, details, el('span', { textContent: 'Selecionar arquivo', class: 'sound-select-label' }));
+    async function selectFile(selected) {
+      if (!selected || busy) return;
+      const current = ++epoch; prepared = null; submit.disabled = true; audio.pause();
+      if (previewUrl) URL.revokeObjectURL(previewUrl); previewUrl = null;
+      preview.classList.add('hidden'); status.textContent = 'Preparando o áudio…';
+      chosen.textContent = selected.name || 'Áudio selecionado';
+      try {
+        const result = await Sounds.prepareFile(selected);
+        if (closed || current !== epoch) return;
+        prepared = result; previewUrl = URL.createObjectURL(result.blob); audio.src = previewUrl;
+        if (!name.value) name.value = (selected.name || 'Meu efeito').replace(/\.[^.]+$/, '').slice(0, 32);
+        details.textContent = `${result.duration.toFixed(1).replace('.', ',')} s · pronto para a chamada`;
+        preview.classList.remove('hidden'); submit.disabled = false; status.textContent = 'Confira a pré-escuta e dê um nome ao efeito.';
+        setSinkId(audio);
+      } catch (error) { if (!closed && current === epoch) status.textContent = error.message || 'Não foi possível preparar esse áudio.'; }
+    }
+    file.onchange = () => { selectFile(file.files[0]); file.value = ''; };
+    choose.ondragover = (event) => { event.preventDefault(); choose.classList.add('dragging'); };
+    choose.ondragleave = () => choose.classList.remove('dragging');
+    choose.ondrop = (event) => { event.preventDefault(); choose.classList.remove('dragging'); selectFile(event.dataTransfer.files[0]); };
+    const close = () => {
+      if (busy || closed) return; closed = true; epoch++; audio.pause(); audio.removeAttribute('src'); audio.load();
+      if (previewUrl) URL.revokeObjectURL(previewUrl);
+      overlay.remove(); roots.forEach(([element, inert]) => { element.inert = inert; });
+      document.removeEventListener('keydown', onKey, true); soundUploadSession = null; focus?.focus();
+    };
+    const cancel = el('button', { type: 'button', class: 'btn-ghost', textContent: 'Cancelar', onclick: close });
+    const form = el('form', { class: 'sound-dialog-card', role: 'dialog', ariaModal: 'true', ariaLabelledby: 'sound-upload-title', onsubmit: async (event) => {
+      event.preventDefault(); if (!prepared || busy) return;
+      busy = true; submit.disabled = choose.disabled = cancel.disabled = name.disabled = true; audio.pause(); status.textContent = 'Adicionando o efeito ao servidor…';
+      try {
+        const response = await fetch('/servers/' + serverId + '/sounds', { method: 'POST', headers: { 'x-token': localStorage.getItem('token'), 'x-sound-name': encodeURIComponent(name.value.trim()) }, body: prepared.blob });
+        const body = await response.json().catch(() => ({}));
+        if (!response.ok) throw new Error(body.error || 'Não foi possível adicionar o efeito.');
+        busy = false; close(); toast('Efeito sonoro adicionado ao servidor!', 'info');
+        if (adminOpen() && admin.page === 'soundboard') renderServerSettings(true);
+      } catch (error) { status.textContent = error.message || 'Confira a conexão e tente novamente.'; }
+      finally { busy = false; submit.disabled = choose.disabled = cancel.disabled = name.disabled = false; }
+    } },
+    el('div', { class: 'sound-dialog-head' }, el('span', { class: 'sound-dialog-emblem' }, Icon('music', 28)),
+      el('div', {}, el('h2', { id: 'sound-upload-title', textContent: 'Adicionar efeito sonoro' }), el('p', { textContent: 'Um som com a cara de ' + serverName() + '.' }))),
+    el('div', { class: 'sound-limit-note' }, Icon('info', 16), 'Até 8 segundos. Disponível para a turma nos canais de voz.'),
+    choose, file, preview, el('label', { htmlFor: name.id, textContent: 'NOME DO EFEITO' }, name), status,
+    el('div', { class: 'confirm-actions' }, cancel, submit));
+    const overlay = el('div', { class: 'confirm-overlay sound-upload-overlay', onmousedown: (event) => { if (event.target === overlay) close(); } }, form);
+    const onKey = (event) => {
+      if (event.key === 'Escape') { event.preventDefault(); event.stopImmediatePropagation(); close(); }
+      if (event.key === 'Tab') {
+        const nodes = [...form.querySelectorAll('button, input:not([hidden]), audio')].filter((n) => !n.disabled && !n.closest('.hidden'));
+        const first = nodes[0], last = nodes.at(-1);
+        if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last.focus(); }
+        else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first.focus(); }
+      }
+    };
+    soundUploadSession = { serverId, close };
+    document.body.append(overlay); document.addEventListener('keydown', onKey, true); choose.focus();
+  }
+
+  function soundboardPage() {
+    const sounds = state.server.soundboard || [];
+    return el('section', {}, pageHead('Efeitos sonoros', 'Os sons desta turma ficam disponíveis no painel de efeitos das chamadas.'),
+      el('div', { class: 'sound-upload' }, el('strong', { textContent: `${sounds.length} de 32 efeitos personalizados` }),
+        el('p', { class: 'section-description', textContent: 'Envie um áudio de até 8 segundos. A pré-escuta toca só para você.' }),
+        el('button', { type: 'button', class: 'btn-primary', onclick: openSoundUpload }, Icon('plus', 18), 'Adicionar efeito sonoro')),
+      el('div', { class: 'server-sound-list' }, sounds.length ? sounds.map((sound) => el('div', { class: 'server-sound-row' },
+        Icon('music', 22), el('div', { class: 'sound-title' }, el('strong', { textContent: sound.name }), el('small', { textContent: sound.duration.toFixed(1).replace('.', ',') + ' segundos' })),
+        el('button', { type: 'button', class: 'btn-ghost', ariaLabel: 'Pré-escutar ' + sound.name, onclick: () => Sounds.playCustom(sound.url, state.sbVolume, localStorage.getItem('token')).catch((error) => toast(error.message)) }, Icon('headphones', 16), 'Ouvir'),
+        el('button', { type: 'button', class: 'btn-ghost danger', ariaLabel: 'Remover ' + sound.name, onclick: async () => {
+          if (await confirmDialog({ title: 'Remover efeito sonoro', text: `Remover “${sound.name}” do servidor?`, confirm: 'Remover' })) await call('sound:remove', { id: sound.id });
+        } }, Icon('trash', 16), 'Remover'))) : el('p', { class: 'section-description', textContent: 'Ainda não há efeitos personalizados. Adicione o primeiro som da turma.' })));
   }
 
   function openSoundboard(anchor) {
     const menu = $('#context-menu');
     const allowed = hasPerm('SOUNDBOARD') && !timedOut(meMember());
-    const grid = el('div', { class: 'sb-grid' }, Object.entries(Sounds.board).map(([id, s]) => el('button', {
+    const makeCard = (id, s) => el('div', { class: 'sb-card' }, el('button', {
       class: 'sb-btn', disabled: !allowed, tip: allowed ? 'Tocar para a sala' : 'Sem permissão para efeitos sonoros',
-      onclick: () => call('sound:play', { sound: id }),
-    }, el('span', { class: 'sb-emoji', textContent: s.emoji }), el('span', { textContent: s.label }))));
+      ariaLabel: 'Tocar ' + s.label + ' para a sala', onclick: () => call('sound:play', { sound: id }),
+    }, el('span', { class: 'sb-emoji', textContent: s.emoji }), el('span', { textContent: s.label })),
+    el('button', { type: 'button', class: 'sb-preview', ariaLabel: 'Pré-escutar ' + s.label, onclick: () => {
+      if (s.url) Sounds.playCustom(s.url, state.sbVolume, localStorage.getItem('token')).catch((error) => toast(error.message));
+      else Sounds.playBoard(id, state.sbVolume);
+    } }, Icon('headphones', 12), 'Ouvir'));
+    const grid = el('div', { class: 'sb-grid' }, Object.entries(Sounds.board).map(([id, s]) => makeCard(id, s)));
+    const custom = state.server.soundboard || [];
+    const customGrid = el('div', { class: 'sb-grid' }, custom.map((s) => makeCard(s.id, { label: s.name, emoji: '🔊', url: s.url })));
     const vol = el('input', { type: 'range', min: 0, max: 100, value: Math.round(state.sbVolume * 100) });
     const volLabel = el('span', { textContent: `Volume dos efeitos: ${vol.value}%` });
     vol.oninput = () => {
@@ -3744,7 +3939,13 @@
       localStorage.setItem('sbVolume', state.sbVolume);
     };
     menu.replaceChildren(el('div', { class: 'menu-section', textContent: 'EFEITOS SONOROS' }), grid,
+      el('div', { class: 'menu-section', textContent: 'DO SERVIDOR' }),
+      custom.length ? customGrid : el('p', { class: 'sb-empty', textContent: 'Adicione o primeiro som da sua turma.' }),
+      el('button', { type: 'button', class: 'sb-add', disabled: !hasPerm('MANAGE_SOUNDBOARD'),
+        tip: hasPerm('MANAGE_SOUNDBOARD') ? 'Enviar um áudio de até 8 segundos' : 'Requer a permissão Gerenciar efeitos sonoros',
+        onclick: () => { closeMenu(); openSoundUpload(); } }, Icon('plus', 18), 'Adicionar efeito sonoro'),
       el('div', { class: 'menu-sep' }), el('div', { class: 'menu-range' }, volLabel, vol),
+      menuItem('Parar pré-escuta', 'headphones', () => Sounds.stopBoard()),
       menuItem(state.sbMuted ? 'Ativar efeitos sonoros dos outros' : 'Silenciar efeitos sonoros', state.sbMuted ? 'volume' : 'volumeX', () => setSbMuted(!state.sbMuted)));
     menu.style.width = '320px';
     const r = anchor.getBoundingClientRect();
@@ -3947,6 +4148,24 @@
   let bannerReadEpoch = 0;
   const BANNER_HINT = 'Imagem PNG, JPG ou WebP (recortada no centro) ou GIF animado de até 5 MB. Salve para aplicar.';
   let pendingBanner = null; // { blob, url }: banner escolhido e ainda não enviado
+  const PHOTO_HINT = 'PNG, JPG ou WebP de até 8 MB, ou GIF animado de até 5 MB. Ajuste o enquadramento e salve para aplicar.';
+  let pendingAvatar = null;
+  let avatarSource = null;
+  function setPendingAvatar(result) {
+    if (pendingAvatar) URL.revokeObjectURL(pendingAvatar.url);
+    pendingAvatar = result ? { ...result, url: URL.createObjectURL(result.blob) } : null;
+    return pendingAvatar?.url || '';
+  }
+  async function saveAvatar(value, crop) {
+    if (value && !pendingAvatar) throw new Error('Escolha a foto novamente antes de salvar.');
+    const headers = { 'x-token': localStorage.getItem('token'), 'x-avatar-crop': crop || 'null' };
+    const response = await fetch('/profile/avatar', value ? { method: 'POST', headers, body: pendingAvatar.blob } : { method: 'DELETE', headers });
+    const body = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(body.error || 'A foto não foi salva. Tente novamente.');
+    $('#profile-avatar').value = body.avatarUrl || '';
+    $('#profile-avatar-crop').value = body.avatarCrop ? JSON.stringify(body.avatarCrop) : '';
+    setPendingAvatar(null); avatarSource = null;
+  }
   function setPendingBanner(blob) {
     if (pendingBanner) URL.revokeObjectURL(pendingBanner.url);
     pendingBanner = blob ? { blob, url: URL.createObjectURL(blob) } : null;
@@ -3966,7 +4185,7 @@
     setPendingBanner(null);
   }
   const settingFields = {
-    'profile-color': 'color', 'profile-avatar': 'avatar', 'profile-banner': 'banner', 'mic-select': 'micDeviceId', 'speaker-select': 'speakerDeviceId',
+    'profile-color': 'color', 'profile-avatar': 'avatar', 'profile-avatar-crop': 'avatarCrop', 'profile-banner': 'banner', 'mic-select': 'micDeviceId', 'speaker-select': 'speakerDeviceId',
     'camera-select': 'cameraDeviceId', 'noise-mode': 'noiseMode', 'echo-toggle': 'echoCancellation',
     'sens-auto': 'sensAuto', 'sens-range': 'sensThreshold', 'input-mode': 'inputMode',
     'ptt-code': 'pttCode', 'ptt-label': 'pttLabel', 'upload-select': 'uploadMbps',
@@ -3985,7 +4204,7 @@
   for (const id of ['mic-select', 'speaker-select', 'camera-select']) document.getElementById(id).replaceChildren(new Option('Padrão do sistema', ''));
 
   function readPreferences() {
-    return { ...state, color: meMember()?.color || '#5865f2', avatar: meMember()?.avatarUrl || '', banner: meMember()?.bannerUrl || '', sounds: Sounds.enabled,
+    return { ...state, color: meMember()?.color || '#5865f2', avatar: meMember()?.avatarUrl || '', avatarCrop: meMember()?.avatarCrop ? JSON.stringify(meMember().avatarCrop) : '', banner: meMember()?.bannerUrl || '', sounds: Sounds.enabled,
       soundboard: !state.sbMuted, sbVolume: Math.round(state.sbVolume * 100),
       inputMode: state.ptt.enabled ? 'ptt' : 'voice', pttCode: state.ptt.code, pttLabel: state.ptt.label };
   }
@@ -3993,8 +4212,9 @@
     Object.assign(document.documentElement.dataset, { theme: values.theme, density: values.density, reduceMotion: String(values.reduceMotion), streamStats: String(values.showStreamStats) });
     document.documentElement.style.setProperty('--chat-size', values.fontSize + 'px');
     if (values.avatar !== undefined) {
-      setAvatarContents($('#profile-preview-avatar'), values.avatar, meMember()?.name);
+      setAvatarContents($('#profile-preview-avatar'), values.avatar, meMember()?.name, values.avatarCrop ? JSON.parse(values.avatarCrop) : null);
       $('#profile-photo-remove').disabled ||= !values.avatar || $('#profile-avatar').disabled;
+      $('#profile-photo-adjust').disabled ||= !values.avatar || $('#profile-avatar').disabled;
     }
     if (values.banner !== undefined) {
       $('#profile-preview-banner').style.backgroundImage = values.banner ? `url("${values.banner}")` : '';
@@ -4026,9 +4246,10 @@
   }
   function stopSettingsTests() {
     avatarReadEpoch++;
+    window.PhotoEditor?.cancel();
     preferences.setProcessing(false);
     $('#profile-photo-file').value = '';
-    $('#profile-photo-status').textContent = 'PNG, JPG ou WebP de até 8 MB. A foto será recortada no centro. Salve para aplicar.';
+    $('#profile-photo-status').textContent = PHOTO_HINT;
     bannerReadEpoch++;
     $('#profile-banner-file').value = '';
     $('#profile-banner-status').textContent = BANNER_HINT;
@@ -4051,14 +4272,17 @@
       try { await restartMic({ ...state, ...values }); }
       catch { throw new Error('Não foi possível trocar o microfone. A chamada e o dispositivo anterior foram preservados.'); }
     }
-    const avatarChanged = values.avatar !== (meMember().avatarUrl || '');
-    if (values.color !== meMember().color || avatarChanged) {
-      const result = await call('profile', { color: values.color, ...(avatarChanged ? { avatar: values.avatar || null } : {}) });
+    const avatarChanged = values.avatar !== (meMember().avatarUrl || '') || values.avatarCrop !== (meMember().avatarCrop ? JSON.stringify(meMember().avatarCrop) : '');
+    if (avatarChanged) {
+      try { await saveAvatar(values.avatar, values.avatarCrop); }
+      catch (error) { if (micChanged) await restartMic(state).catch(() => {}); throw error; }
+    }
+    if (values.color !== meMember().color) {
+      const result = await call('profile', { color: values.color });
       if (!result) {
         if (micChanged) await restartMic(state).catch(() => mediaNotice('Confira o microfone antes de continuar.'));
         throw new Error('O perfil não foi salvo. Verifique a conexão e tente novamente.');
       }
-      $('#profile-avatar').value = result.avatarUrl || '';
     }
     if (values.banner !== (meMember().bannerUrl || '')) {
       try { await saveBanner(values.banner); }
@@ -4091,8 +4315,8 @@
   }
   const preferences = SettingsPanel({ read: readPreferences, apply: applyPreferences, preview: previewAppearance,
     onOpen: async () => {
-      $('#profile-preview-name').textContent = meMember().name;
-      setAvatarContents($('#profile-preview-avatar'), $('#profile-avatar').value, meMember().name);
+      $('#profile-preview-name').textContent = meMember().username || meMember().name;
+      setAvatarContents($('#profile-preview-avatar'), $('#profile-avatar').value, meMember().name, meMember().avatarCrop);
       $('#profile-preview-banner').style.backgroundImage = $('#profile-banner').value ? `url("${$('#profile-banner').value}")` : '';
       $('#ptt-key').textContent = state.ptt.label;
       $('#settings-server-link').classList.toggle('hidden', !canAdmin());
@@ -4104,40 +4328,47 @@
     }, onClose: () => {
       stopSettingsTests();
       setPendingBanner(null);
+      setPendingAvatar(null); avatarSource = null;
       // Ouvir devicechange mantém o serviço de câmeras do navegador aberto (dezenas de MB);
       // só vale enquanto a lista de dispositivos está na tela. Descartar chama onClose com o painel aberto.
       queueMicrotask(() => { if (!preferences.isOpen()) navigator.mediaDevices?.removeEventListener('devicechange', fillDevices); });
     } });
   $('#btn-settings').onclick = () => { closePanels(); preferences.open(); };
+  $('#profile-name-edit').onclick = openNicknameEditor;
   $('#profile-photo-choose').onclick = () => $('#profile-photo-file').click();
   $('#profile-photo-remove').onclick = () => {
     avatarReadEpoch++;
     $('#profile-avatar').value = '';
+    $('#profile-avatar-crop').value = '';
+    setPendingAvatar(null); avatarSource = null;
     $('#profile-photo-status').textContent = 'Foto removida da prévia. Salve para aplicar ou descarte para manter a foto anterior.';
     preferences.refresh();
   };
-  $('#profile-photo-file').onchange = async (event) => {
-    const file = event.target.files[0];
-    event.target.value = '';
-    if (!file) return;
+  async function editProfilePhoto(source, crop) {
     const epoch = ++avatarReadEpoch;
-    if (!['image/png', 'image/jpeg', 'image/webp'].includes(file.type) || file.size > 8 * 1024 * 1024) {
-      $('#profile-photo-status').textContent = 'Escolha uma imagem PNG, JPG ou WebP de até 8 MB.';
-      return;
-    }
     preferences.setProcessing(true);
     $('#profile-photo-status').textContent = 'Preparando sua foto…';
     try {
-      const png = await cropToSquarePng(file);
-      if (epoch !== avatarReadEpoch || !preferences.isOpen()) return;
-      $('#profile-avatar').value = png;
+      const result = await PhotoEditor.edit({ ...source, crop });
+      if (epoch !== avatarReadEpoch || !preferences.isOpen() || !result) return;
+      avatarSource = source;
+      $('#profile-avatar').value = setPendingAvatar(result);
+      $('#profile-avatar-crop').value = result.crop ? JSON.stringify(result.crop) : '';
       $('#profile-photo-status').textContent = 'Foto pronta na prévia. Clique em Salvar alterações para usar no seu perfil.';
       preferences.refresh();
-    } catch {
-      if (epoch === avatarReadEpoch) $('#profile-photo-status').textContent = 'Não foi possível abrir essa imagem. Tente outra foto (até 40 megapixels).';
+    } catch (error) {
+      if (epoch === avatarReadEpoch) $('#profile-photo-status').textContent = error.message || 'Não foi possível abrir essa imagem.';
     } finally {
       if (epoch === avatarReadEpoch) preferences.setProcessing(false);
     }
+  }
+  $('#profile-photo-file').onchange = (event) => {
+    const file = event.target.files[0]; event.target.value = '';
+    if (file) editProfilePhoto({ file });
+  };
+  $('#profile-photo-adjust').onclick = () => {
+    const crop = $('#profile-avatar-crop').value;
+    editProfilePhoto(avatarSource || { url: $('#profile-avatar').value }, pendingAvatar?.frame || (crop ? JSON.parse(crop) : null));
   };
   $('#profile-banner-choose').onclick = () => $('#profile-banner-file').click();
   $('#profile-banner-remove').onclick = () => {

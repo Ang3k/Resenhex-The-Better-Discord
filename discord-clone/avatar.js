@@ -40,12 +40,12 @@ const MAX_GIF_FRAMES = 500;
 
 // Percorre o GIF bloco a bloco. O arquivo é guardado como veio (para manter a animação),
 // então só aceitamos se a estrutura inteira for válida e terminar no marcador de fim.
-function checkGif(input, invalid) {
-  if (input.length < 14 || input.length > MAX_BANNER_GIF_BYTES) invalid();
+function checkGif(input, invalid, { maxBytes = MAX_BANNER_GIF_BYTES, maxSide = MAX_GIF_SIDE, maxFrames = MAX_GIF_FRAMES, maxPixels = Infinity } = {}) {
+  if (input.length < 14 || input.length > maxBytes) invalid();
   const header = input.toString('ascii', 0, 6);
   if (header !== 'GIF87a' && header !== 'GIF89a') invalid();
   const width = input.readUInt16LE(6), height = input.readUInt16LE(8);
-  if (!width || !height || width > MAX_GIF_SIDE || height > MAX_GIF_SIDE) invalid();
+  if (!width || !height || width > maxSide || height > maxSide) invalid();
   const byte = (i) => (i < input.length ? input[i] : invalid());
   const skipSubBlocks = (from) => {
     let pos = from;
@@ -62,15 +62,36 @@ function checkGif(input, invalid) {
       byte(pos++);
       pos = skipSubBlocks(pos);
     } else if (block === 0x2c) { // quadro
-      if (++frames > MAX_GIF_FRAMES) invalid();
+      if (++frames > maxFrames || frames * width * height > maxPixels || pos + 9 > input.length) invalid();
+      const left = input.readUInt16LE(pos), top = input.readUInt16LE(pos + 2);
+      const frameWidth = input.readUInt16LE(pos + 4), frameHeight = input.readUInt16LE(pos + 6);
+      if (!frameWidth || !frameHeight || left + frameWidth > width || top + frameHeight > height) invalid();
       pos += 9 + tableSize(byte(pos + 8));
-      byte(pos++); // tamanho mínimo do código LZW
+      const codeSize = byte(pos++);
+      if (codeSize < 2 || codeSize > 8) invalid();
       pos = skipSubBlocks(pos);
     } else invalid();
     if (pos > input.length) invalid();
   }
   if (!frames || pos !== input.length) invalid();
   return input;
+}
+
+// GIFs stay animated; their square framing is applied consistently by the client.
+function decodeProfilePhoto(input) {
+  const invalid = () => { throw new Error('Foto inválida. Use PNG, JPG, WebP ou GIF de até 5 MB.'); };
+  if (!Buffer.isBuffer(input) || input.length < 14) invalid();
+  if (input.subarray(0, 8).equals(SIGNATURE)) {
+    return { ext: 'png', data: decodePng(input, { maxBytes: MAX_AVATAR_BYTES, maxWidth: 256, maxHeight: 256, invalid }) };
+  }
+  return { ext: 'gif', data: checkGif(input, invalid, { maxBytes: 5 * 1024 * 1024, maxSide: 1024, maxFrames: 200, maxPixels: 40_000_000 }) };
+}
+
+function validateAvatarCrop(value) {
+  if (value == null) return null;
+  if (typeof value !== 'object' || Array.isArray(value) || !['x', 'y', 'zoom'].every((key) => typeof value[key] === 'number' && Number.isFinite(value[key]))
+      || value.x < 0 || value.x > 1 || value.y < 0 || value.y > 1 || value.zoom < 1 || value.zoom > 4) throw new Error('Enquadramento da foto inválido.');
+  return { x: value.x, y: value.y, zoom: value.zoom };
 }
 
 // Recebe os bytes enviados pelo navegador e devolve { ext, data } prontos para gravar.
@@ -83,4 +104,4 @@ function decodeBanner(input) {
   return { ext: 'gif', data: checkGif(input, invalid) };
 }
 
-module.exports = { decodeAvatar, decodeBanner };
+module.exports = { decodeAvatar, decodeBanner, decodeProfilePhoto, validateAvatarCrop };

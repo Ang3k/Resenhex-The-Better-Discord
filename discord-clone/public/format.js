@@ -134,8 +134,13 @@ window.Format = (() => {
 
   // "@Nome" digitado -> <@id>. Nomes mais longos primeiro ("Ana Paula" antes de "Ana").
   function toRaw(text, members, roles) {
+    const usernames = new Set(members.map((m) => (m.username || m.name).toLowerCase()));
+    const counts = new Map();
+    for (const m of members) counts.set(m.name.toLowerCase(), (counts.get(m.name.toLowerCase()) || 0) + 1);
     const targets = [
-      ...members.map((m) => ({ name: m.name, token: `<@${m.id}>` })),
+      ...members.map((m) => ({ name: m.username || m.name, token: `<@${m.id}>` })),
+      ...members.filter((m) => m.nickname && counts.get(m.name.toLowerCase()) === 1 && !usernames.has(m.name.toLowerCase()))
+        .map((m) => ({ name: m.name, token: `<@${m.id}>` })),
       ...roles.filter((r) => r.id !== 'everyone').map((r) => ({ name: r.name, token: `<@&${r.id}>` })),
     ].sort((a, b) => b.name.length - a.name.length);
     for (const t of targets) {

@@ -4,8 +4,9 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="theme-color" content="#1e1f22">
+  <meta name="description" content="Conheça o Resenhex: chat, voz, vídeo e compartilhamento de tela para você e seus amigos. Baixe o app para Windows ou abra no navegador.">
   <title>Resenhex</title>
-  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 32 32%22%3E%3Cdefs%3E%3ClinearGradient id=%22g%22 x1=%220%22 y1=%220%22 x2=%221%22 y2=%221%22%3E%3Cstop offset=%220%22 stop-color=%22%236d5dfc%22/%3E%3Cstop offset=%221%22 stop-color=%22%23c64cf0%22/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width=%2232%22 height=%2232%22 rx=%229%22 fill=%22url(%23g)%22/%3E%3Cpath fill=%22white%22 d=%22M16 6c-5.5 0-10 4-10 8.9 0 2.7 1.3 5 3.4 6.7l-.9 3.6a.6.6 0 0 0 .9.7l4.1-2.1c.8.2 1.6.2 2.5.2 5.5 0 10-4 10-8.9S21.5 6 16 6z%22/%3E%3Cpath stroke=%22%238a55f5%22 stroke-width=%222.2%22 stroke-linecap=%22round%22 d=%22M12.5 11.5l7 6M19.5 11.5l-7 6%22/%3E%3C/svg%3E">
+  <link rel="icon" type="image/png" href="/resenhax-logo.png">
   <link rel="stylesheet" href="style.css">
   <link rel="stylesheet" href="experience.css">
   <link rel="stylesheet" href="admin.css">
@@ -19,8 +20,187 @@
   <link rel="stylesheet" href="motion.css">
   <link rel="stylesheet" href="mobile-stream.css">
   <link rel="stylesheet" href="desktop.css">
+  <link rel="stylesheet" href="landing.css">
+  <link rel="stylesheet" href="profile-media.css">
+  <link rel="stylesheet" href="brand.css">
+  <script>
+    // Quem chega pela primeira vez vê a página inicial; quem já entrou neste navegador, veio por convite
+    // ou usa o app de desktop vai direto para o Resenhex. Decidido antes de pintar, para não piscar.
+    try {
+      const firstVisit = !window.resenhexDesktop && !new URLSearchParams(location.search).has('invite') && !localStorage.getItem('token') && !localStorage.getItem('name');
+      if (firstVisit) {
+        document.documentElement.dataset.landing = 'on';
+        if (!/^#(entrar|criar-conta)$/.test(location.hash)) document.documentElement.classList.add('show-landing');
+      }
+    } catch {}
+  </script>
 </head>
 <body>
+  <!-- Página inicial (primeira visita) -->
+  <div id="landing" aria-label="Conheça o Resenhex">
+    <header class="ld-top">
+      <a class="ld-brand" href="/"><span class="brand-mark" data-logo="22"></span><span>Resenhex</span></a>
+      <nav class="ld-nav" aria-label="Página inicial">
+        <a href="#recursos">Recursos</a>
+        <a href="/baixar">Baixar</a>
+        <a href="/privacidade">Privacidade</a>
+      </nav>
+      <a class="ld-login" href="#entrar">Entrar</a>
+    </header>
+
+    <main>
+      <section class="ld-hero">
+        <div class="ld-glow" aria-hidden="true"></div>
+        <div class="ld-hero-copy">
+          <h1>Um lugar para a <span class="ld-grad">resenha</span> não acabar</h1>
+          <p class="ld-lead">Chat, voz, vídeo e transmissão de tela para você e sua turma. Crie sua conta em segundos, sem e-mail, e chame todo mundo com um link.</p>
+          <div class="ld-cta">
+            <a class="ld-btn ld-btn-light ld-download hidden" href="/baixar"><span data-icon="download" data-size="20"></span>Baixar para Windows</a>
+            <a class="ld-btn ld-btn-dark ld-open" href="#criar-conta">Abrir o Resenhex no navegador</a>
+          </div>
+        </div>
+
+        <!-- Prévia do app, só visual -->
+        <div class="ld-preview" aria-hidden="true">
+          <div class="ld-window">
+            <div class="ld-w-rail">
+              <span class="ld-w-home" data-logo="18"></span>
+              <span class="ld-w-sep"></span>
+              <span class="ld-w-server active">R</span>
+              <span class="ld-w-server alt">J</span>
+              <span class="ld-w-server add">+</span>
+            </div>
+            <div class="ld-w-side">
+              <div class="ld-w-title">Resenha</div>
+              <div class="ld-w-group">CANAIS DE TEXTO</div>
+              <div class="ld-w-channel active"><span data-icon="hash" data-size="14"></span>geral</div>
+              <div class="ld-w-channel"><span data-icon="hash" data-size="14"></span>jogos</div>
+              <div class="ld-w-channel unread"><span data-icon="hash" data-size="14"></span>memes</div>
+              <div class="ld-w-group">CANAIS DE VOZ</div>
+              <div class="ld-w-channel"><span data-icon="volume" data-size="14"></span>Sala 1</div>
+              <div class="ld-w-voice"><span class="ld-av speaking" style="--c:#e67e22">C</span>Caio</div>
+              <div class="ld-w-voice"><span class="ld-av" style="--c:#9b59b6">D</span>Duda</div>
+              <div class="ld-w-voice"><span class="ld-av speaking later" style="--c:#1abc9c">L</span>Lu<span class="ld-live">AO VIVO</span></div>
+            </div>
+            <div class="ld-w-chat">
+              <div class="ld-w-head"><span data-icon="hash" data-size="16"></span>geral</div>
+              <div class="ld-w-msgs">
+                <div class="ld-msg"><span class="ld-av big" style="--c:#1abc9c">L</span><div><b style="color:#1abc9c">Lu</b><small>hoje às 20:41</small><p>alguém on pra jogar mais tarde?</p></div></div>
+                <div class="ld-msg"><span class="ld-av big" style="--c:#9b59b6">D</span><div><b style="color:#b07cd6">Duda</b><small>hoje às 20:43</small><p>bora! 21h na Sala 1</p><span class="ld-react">🔥 3</span></div></div>
+                <div class="ld-msg ld-msg-new"><span class="ld-av big" style="--c:#e67e22">C</span><div><b style="color:#e89a4f">Caio</b><small>hoje às 21:02</small><p>já tô lá transmitindo, cola</p></div></div>
+              </div>
+              <div class="ld-w-typing"><i></i><i></i><i></i> Ju está digitando…</div>
+              <div class="ld-w-input">Conversar em #geral</div>
+            </div>
+          </div>
+          <div class="ld-float ld-float-call"><span data-icon="volume" data-size="16"></span><div><b>Sala 1</b><small>3 na chamada</small></div></div>
+          <div class="ld-float ld-float-invite"><span class="ld-w-server">R</span><div><b>Convite para Resenha</b><small>12 membros · 5 online</small></div></div>
+        </div>
+      </section>
+
+      <div id="recursos" class="ld-features">
+        <section class="ld-row">
+          <div class="ld-art ld-art-servers" aria-hidden="true">
+            <div class="ld-card ld-invite">
+              <span class="ld-invite-icon">R</span>
+              <div class="ld-invite-body"><small>VOCÊ RECEBEU UM CONVITE</small><b>Resenha</b><span><i class="on"></i>5 online <i></i>12 membros</span></div>
+              <span class="ld-invite-btn">Entrar</span>
+            </div>
+            <div class="ld-card ld-channels">
+              <div class="ld-w-group">JOGOS</div>
+              <div class="ld-w-channel active"><span data-icon="hash" data-size="14"></span>lol</div>
+              <div class="ld-w-channel"><span data-icon="hash" data-size="14"></span>minecraft</div>
+              <div class="ld-w-group">FACULDADE</div>
+              <div class="ld-w-channel"><span data-icon="hash" data-size="14"></span>trabalhos</div>
+              <div class="ld-w-channel"><span data-icon="lock" data-size="14"></span>só-a-diretoria</div>
+            </div>
+          </div>
+          <div class="ld-copy">
+            <span class="ld-kicker"><span data-icon="users" data-size="16"></span> Servidores</span>
+            <h2>Uma casa para cada turma</h2>
+            <p>Crie um servidor para a galera do jogo, da faculdade ou da família e chame todo mundo com um link de convite. Separe os assuntos em canais e grupos, e escolha quem vê cada um com cargos.</p>
+          </div>
+        </section>
+
+        <section class="ld-row reverse">
+          <div class="ld-art ld-art-voice" aria-hidden="true">
+            <div class="ld-card ld-stage">
+              <div class="ld-tile speaking" style="--c:#e67e22"><span class="ld-av huge">C</span><em>Caio</em></div>
+              <div class="ld-tile" style="--c:#9b59b6"><span class="ld-av huge">D</span><em>Duda <span data-icon="micOff" data-size="14"></span></em></div>
+              <div class="ld-tile speaking later" style="--c:#1abc9c"><span class="ld-av huge">L</span><em>Lu</em></div>
+              <div class="ld-tile" style="--c:#3498db"><span class="ld-av huge">J</span><em>Ju</em></div>
+            </div>
+            <div class="ld-card ld-chip-noise"><span data-icon="waves" data-size="18"></span><div><b>Supressão de ruído com IA</b><small>Teclado e ventilador ficam de fora</small></div></div>
+          </div>
+          <div class="ld-copy">
+            <span class="ld-kicker"><span data-icon="mic" data-size="16"></span> Voz</span>
+            <h2>Entre na sala quando quiser</h2>
+            <p>Sem ligar para ninguém: quem está livre entra na sala de voz e a conversa rola. A supressão de ruído com IA tira os barulhos do fundo, e no app de Windows o push-to-talk funciona até com o jogo aberto.</p>
+          </div>
+        </section>
+
+        <section class="ld-row">
+          <div class="ld-art ld-art-stream" aria-hidden="true">
+            <div class="ld-card ld-screen">
+              <div class="ld-screen-img">
+                <span class="ld-screen-sun"></span><span class="ld-screen-hill a"></span><span class="ld-screen-hill b"></span>
+              </div>
+              <span class="ld-badge-live">AO VIVO</span>
+              <span class="ld-screen-viewers"><span data-icon="eye" data-size="14"></span>4</span>
+              <span class="ld-screen-name"><span data-icon="screenShare" data-size="14"></span>Tela do Caio</span>
+            </div>
+          </div>
+          <div class="ld-copy">
+            <span class="ld-kicker"><span data-icon="screenShare" data-size="16"></span> Transmissão</span>
+            <h2>Mostre sua tela para a galera</h2>
+            <p>Transmita o jogo, o filme ou aquele erro que ninguém entende, com o som do computador junto. A qualidade se ajusta à internet de cada um, e quem assiste pelo celular ainda aproxima com os dedos.</p>
+          </div>
+        </section>
+
+        <section class="ld-row reverse">
+          <div class="ld-art ld-art-profile" aria-hidden="true">
+            <div class="ld-card ld-profile">
+              <div class="ld-profile-banner"></div>
+              <span class="ld-av ld-profile-av" style="--c:#1abc9c">L</span>
+              <div class="ld-profile-body">
+                <b>Lu</b><small>jogando de noite, estudando de dia</small>
+                <div class="ld-roles"><span style="--c:#f1c40f">Diretoria</span><span style="--c:#1abc9c">Gamer</span></div>
+              </div>
+            </div>
+            <div class="ld-card ld-friends">
+              <div class="ld-friend"><span class="ld-av" style="--c:#9b59b6">D</span><b>Duda</b><i class="on"></i></div>
+              <div class="ld-friend"><span class="ld-av" style="--c:#3498db">J</span><b>Ju</b><i class="on"></i></div>
+              <div class="ld-friend"><span class="ld-av" style="--c:#e67e22">C</span><b>Caio</b><i></i></div>
+            </div>
+          </div>
+          <div class="ld-copy">
+            <span class="ld-kicker"><span data-icon="sparkles" data-size="16"></span> Do seu jeito</span>
+            <h2>Seu perfil, seus amigos, seu tema</h2>
+            <p>Coloque foto, banner (pode ser GIF) e a cor do seu nome. Adicione amigos e converse no privado, só vocês dois. E escolha entre os temas Escuro, Meia-noite e Alto contraste.</p>
+          </div>
+        </section>
+      </div>
+
+      <section class="ld-final">
+        <h2>Bora pra resenha?</h2>
+        <p>É de graça, não pede e-mail e funciona no navegador, no celular e no app para Windows.</p>
+        <div class="ld-cta">
+          <a class="ld-btn ld-btn-light ld-download hidden" href="/baixar"><span data-icon="download" data-size="20"></span>Baixar para Windows</a>
+          <a class="ld-btn ld-btn-brand ld-open" href="#criar-conta">Abrir no navegador</a>
+        </div>
+      </section>
+    </main>
+
+    <footer class="ld-footer">
+      <a class="ld-brand" href="/"><span class="brand-mark" data-logo="18"></span><span>Resenhex</span></a>
+      <nav aria-label="Rodapé">
+        <a href="/baixar">Baixar o app</a>
+        <a href="/privacidade">Privacidade</a>
+        <a href="#entrar">Entrar</a>
+      </nav>
+    </footer>
+  </div>
+
   <!-- Tela de entrada / cadastro -->
   <div id="login" class="auth">
     <form id="login-form" class="auth-card">
@@ -55,6 +235,7 @@
       <p class="switch">
 <span id="login-switch-text">Precisa de uma conta?</span> <a href="#" id="login-switch">Registre-se</a>
 </p>
+      <a href="/" class="auth-back" id="login-back"><span data-icon="chevronRight" data-size="16"></span>Voltar ao início</a>
     </form>
   </div>
 
@@ -334,14 +515,20 @@
 </div>
 </div>
 <div class="setting-group">
+<div id="profile-server-identity" class="profile-server-identity hidden">
+<div><h3>Nome no servidor</h3><span id="profile-server-label" class="hint"></span><strong id="profile-server-display"></strong></div>
+<button id="profile-name-edit" type="button" data-draft-action>Editar nome no servidor</button>
+</div>
 <h3>Identidade</h3>
 <div class="profile-photo-actions">
   <button id="profile-photo-choose" type="button" data-draft-action>Mudar foto</button>
+  <button id="profile-photo-adjust" type="button" class="secondary" data-draft-action>Ajustar foto</button>
   <button id="profile-photo-remove" type="button" class="secondary" data-draft-action>Remover foto</button>
-  <input id="profile-photo-file" type="file" accept="image/png,image/jpeg,image/webp" data-draft-action hidden>
+  <input id="profile-photo-file" type="file" accept="image/png,image/jpeg,image/webp,image/gif" data-draft-action hidden>
   <input id="profile-avatar" type="hidden">
 </div>
-<p id="profile-photo-status" class="hint" role="status">PNG, JPG ou WebP de até 8 MB. A foto será recortada no centro. Salve para aplicar.</p>
+<input id="profile-avatar-crop" type="hidden" value="">
+<p id="profile-photo-status" class="hint" role="status">PNG, JPG ou WebP de até 8 MB, ou GIF animado de até 5 MB. Ajuste o enquadramento e salve para aplicar.</p>
 <div class="profile-photo-actions">
   <button id="profile-banner-choose" type="button" data-draft-action>Mudar banner</button>
   <button id="profile-banner-remove" type="button" class="secondary" data-draft-action>Remover banner</button>
@@ -698,6 +885,7 @@
 </script>
   <script src="settings.js">
 </script>
+  <script src="photo-editor.js"></script>
   <script src="media-session.js">
 </script>
   <script src="mobile-stream.js"></script>
@@ -706,5 +894,6 @@
   <script src="desktop.js"></script>
   <script src="app.js">
 </script>
+  <script src="landing.js"></script>
 </body>
 </html>

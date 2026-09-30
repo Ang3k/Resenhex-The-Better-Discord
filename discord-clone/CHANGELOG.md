@@ -3,7 +3,23 @@
 Histórico de versões. A mesma lista aparece dentro do app em **Novidades** (menu do servidor ou rodapé das Configurações).
 O Resenhex ainda está antes da 1.0.
 
-## v0.97 — Resenhex no Windows
+## v0.99 — Apelidos por servidor
+_30/09/2026_
+
+- **Editar nome no servidor** no menu do servidor, em Meu perfil ou no menu do próprio membro. A janela mostra a prévia antes de salvar.
+- Apelidos de até 32 caracteres, independentes por servidor, exibidos no chat, nas menções, na lista de membros e nas chamadas. Deixe em branco ou use **Usar nome de usuário** para restaurar o nome padrão.
+- Nome de usuário, login, amigos e mensagens diretas mantêm a identidade da conta.
+
+## v0.98 — GIF animado e ajuste da foto de perfil
+_30/09/2026_
+
+- Ajuste da foto de perfil com arraste, zoom, posições horizontal e vertical e prévia circular antes de salvar. O botão **Ajustar foto** também abre a foto atual.
+- GIF animado como foto de perfil: até 5 MB e 1024 pixels por lado, com enquadramento mantido no chat, na chamada e no cartão de perfil.
+- **Adicionar efeito sonoro** no painel de efeitos da chamada abre uma janela dedicada com seleção de arquivo, nome, duração e pré-escuta. Até 8 segundos e 32 sons personalizados por servidor; formatos suportados pelo navegador, como MP3, WAV, OGG e M4A, são preparados para reprodução.
+- Permissão **Gerenciar efeitos sonoros** para adicionar e remover sons do servidor. A seção **Efeitos sonoros** nas configurações reúne os arquivos e permite ouvi-los e removê-los.
+- Efeitos prontos com controle de picos e timbres mais suaves; pré-escuta só para você. Sons enviados têm volume ajustado e transições nas pontas para evitar estalos. Tocar outro efeito, silenciar, ensurdecer ou sair da chamada encerra a reprodução anterior.
+
+## v0.97 — App para Windows
 _30/09/2026_
 
 - App para Windows (pasta `desktop/`): uma janela própria que abre o site, com barra de título no tema escolhido. Baixe pelo botão verde de download na barra de servidores ou em `/baixar`.
@@ -15,7 +31,7 @@ _30/09/2026_
 - Servidor: rota `/download` (instalador, `latest.yml` e respostas com várias faixas de bytes para a atualização diferencial), link fixo `/download/Resenhex-Setup.exe` e página `/baixar`.
 - Microsoft Store: pacote MSIX (`npm run dist:store`), página `/privacidade` e `MS_STORE_ID`, que faz a página `/baixar` entregar o instalador oficial da Microsoft, sem o aviso do Windows. Na versão da loja, a própria Store atualiza o app, e “Iniciar com o Windows” abre a tela de inicialização do Windows.
 
-## v0.96 — Tela no bolso
+## v0.96 — Tela cheia e zoom em transmissões no celular
 _30/09/2026_
 
 - Transmissão de tela no celular: toque abre uma tela cheia imersiva que gira para acompanhar a imagem. O botão Voltar fecha sem sair da chamada.
@@ -26,7 +42,7 @@ _30/09/2026_
 - Política de transmissão: sob aperto, a resolução desce em degraus fixos (720/540/360p) e o FPS é mantido. A estimativa de banda do navegador não limita mais o codificador.
 - Em telas de toque, os controles dos blocos ficam sempre visíveis. Em navegadores sem captura de tela, “Compartilhar tela” explica isso e oferece a câmera.
 
-## v0.95 — Uma casa para cada turma
+## v0.95 — Criação de servidores e convites
 _29/09/2026_
 
 - Criar servidores e entrar por convite usando o botão **+**. Alternar pela barra lateral ou por **Seus servidores**, inclusive no celular.
@@ -41,7 +57,7 @@ _29/09/2026_
 - Ícones animados no estilo do Discord (microfone, fone, engrenagem, câmera, tela, efeitos sonoros), risco desenhado ao silenciar ou ensurdecer e entradas suaves de mensagens, menus e avisos. “Reduzir animações” desliga tudo.
 - Correção: “Excluir servidor” aberto pelas configurações do servidor ficava atrás da janela; avisos não cobrem mais os controles da chamada.
 
-## v0.9 — Cada assunto no seu lugar
+## v0.9 — Grupos de canais e qualidade de transmissão
 _29/09/2026_
 
 Organize o servidor em grupos de canais e transmita com qualidade adaptada a cada espectador.
@@ -68,7 +84,7 @@ Organize o servidor em grupos de canais e transmita com qualidade adaptada a cad
 - Privado sem cargos agora permite acesso somente a administradores. Remover o último cargo autorizado mantém o canal privado.
 - Ajustes de qualidade que chegam durante outro ajuste são reaplicados. Estatísticas antigas de perda e telas estáticas não provocam reduções sucessivas indevidas.
 
-## v0.8 — Banner do perfil
+## v0.8 — Banner de perfil com imagens e GIFs
 _28/09/2026_
 
 Troque a faixa colorida do seu cartão de perfil por uma imagem ou um GIF animado.
@@ -81,7 +97,7 @@ Troque a faixa colorida do seu cartão de perfil por uma imagem ou um GIF animad
 ### Melhorias
 - Imagens comuns são recortadas no centro na proporção do banner; GIFs são enviados inteiros para não perder a animação (até 1500 × 1500 px).
 
-## v0.7 — Papo reservado
+## v0.7 — Amigos e mensagens diretas
 _28/09/2026_
 
 Amigos e mensagens diretas, como no Discord: agora dá para conversar em particular com quem você adicionou.
@@ -98,7 +114,7 @@ Amigos e mensagens diretas, como no Discord: agora dá para conversar em particu
 - Só você e a outra pessoa veem a conversa no app: nem quem administra o servidor lê ou apaga mensagens diretas dos outros.
 - Fechar uma conversa (x na lista) só a esconde; o histórico fica salvo e ela volta quando chegar mensagem nova.
 
-## v0.6 — Do seu jeito
+## v0.6 — Ícone do servidor e cartões de perfil
 _28/09/2026_
 
 O servidor ganhou cara própria e clicar em alguém agora mostra um perfil de verdade.
@@ -113,7 +129,7 @@ O servidor ganhou cara própria e clicar em alguém agora mostra um perfil de ve
 - Menu do clique direito redesenhado, com ícones, marcação de ligado/desligado e submenus para Castigar, Mover e Cargos.
 - Expulsar e banir pedem confirmação dentro do app.
 
-## v0.5 — Cara de app de verdade
+## v0.5 — Configurações de servidor, cargos e canais
 _28/09/2026_
 
 Uma rodada inteira de acabamento: telas de administração no estilo do Discord, paleta neutra e cada detalhe da conversa revisado.
@@ -139,7 +155,7 @@ Uma rodada inteira de acabamento: telas de administração no estilo do Discord,
 - A engrenagem de um canal abria a lista geral em vez do próprio canal.
 - Quem só podia expulsar ou castigar não conseguia abrir a administração do servidor.
 
-## v0.4 — Chamada completa
+## v0.4 — Efeitos sonoros e central de configurações
 _28/09/2026_
 
 Efeitos sonoros, uma central de configurações e transmissão que só gasta internet com quem está assistindo.
@@ -159,7 +175,7 @@ Efeitos sonoros, uma central de configurações e transmissão que só gasta int
 - Durante o teste de microfone você fica mudo na chamada, e o som volta sozinho.
 - Resolução, FPS, taxa e codec de volta sobre a transmissão.
 
-## v0.3 — Nasce o Resenhex
+## v0.3 — Qualidade de transmissão e supressão de ruído
 _27/09/2026_
 
 Nome novo, visual novo e transmissão de tela levada a sério. E o servidor passou a ficar online 24 horas.
@@ -179,7 +195,7 @@ Nome novo, visual novo e transmissão de tela levada a sério. E o servidor pass
 - Transmissão travava quando a pessoa minimizava o programa compartilhado; agora avisa e volta sozinha.
 - A supressão de ruído deixava a voz mais baixa em microfones estéreo.
 
-## v0.2 — Cara de Discord
+## v0.2 — Contas, cargos e moderação
 _27/09/2026_
 
 Contas, cargos, moderação e tudo aquilo que faz o chat parecer casa.
@@ -193,7 +209,7 @@ Contas, cargos, moderação e tudo aquilo que faz o chat parecer casa.
 - Mensagens não lidas, notificações e sons de entrar, sair e mutar.
 - Pressionar para falar e câmera.
 
-## v0.1 — Primeira chamada
+## v0.1 — Chat, chamadas de voz e compartilhamento de tela
 _27/09/2026_
 
 O começo: a turma perdeu o servidor antigo e resolveu fazer o próprio.

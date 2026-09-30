@@ -2,8 +2,8 @@ const crypto = require('node:crypto');
 const { AsyncLocalStorage } = require('node:async_hooks');
 const { migrateChannels } = require('./channels');
 
-const SERVER_FIELDS = new Set(['ownerId', 'serverName', 'serverIcon', 'roles', 'channels', 'categories', 'soundboardMigrated']);
-const MEMBER_FIELDS = new Set(['roles', 'banned', 'serverMuted', 'serverDeafened', 'timeoutUntil']);
+const SERVER_FIELDS = new Set(['ownerId', 'serverName', 'serverIcon', 'roles', 'channels', 'categories', 'soundboardMigrated', 'soundboard']);
+const MEMBER_FIELDS = new Set(['roles', 'banned', 'serverMuted', 'serverDeafened', 'timeoutUntil', 'nickname']);
 const inviteCode = () => crypto.randomBytes(18).toString('base64url');
 
 // Profiles, sessions and DMs belong to the account. Permissions belong to a membership.
@@ -28,6 +28,7 @@ function communityStore(root, newId, defaultDb) {
     migrateChannels(server);
     server.members ||= {};
     server.inviteCode ||= inviteCode();
+    server.soundboard ||= [];
     if (!server.soundboardMigrated) {
       const everyone = server.roles.find((role) => role.id === 'everyone');
       if (everyone && !everyone.perms.includes('SOUNDBOARD')) everyone.perms.push('SOUNDBOARD');
@@ -35,7 +36,7 @@ function communityStore(root, newId, defaultDb) {
     }
   }
   const context = new AsyncLocalStorage();
-  const empty = { ownerId: null, serverName: '', serverIcon: null, roles: [], channels: [], categories: [], members: {} };
+  const empty = { ownerId: null, serverName: '', serverIcon: null, roles: [], channels: [], categories: [], members: {}, soundboard: [] };
   const currentId = () => context.getStore() === undefined ? root.defaultServerId : context.getStore();
   const current = () => root.servers[currentId()] || empty;
   const membership = (accountId, serverId = currentId()) => root.servers[serverId]?.members[accountId];
@@ -72,7 +73,7 @@ function communityStore(root, newId, defaultDb) {
     const template = defaultDb();
     const id = newId();
     const server = { id, ownerId: accountId, serverName: name, serverIcon: null, roles: template.roles,
-      channels: template.channels.map((c) => ({ ...c, id: newId() })), members: {}, inviteCode: inviteCode(), soundboardMigrated: true };
+      channels: template.channels.map((c) => ({ ...c, id: newId() })), members: {}, inviteCode: inviteCode(), soundboardMigrated: true, soundboard: [] };
     migrateChannels(server);
     root.servers[id] = server;
     join(accountId, server);

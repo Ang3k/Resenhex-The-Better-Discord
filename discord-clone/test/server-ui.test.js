@@ -15,13 +15,19 @@ const snapshot = (id, name, servers) => ({ serverId: id, serverName: name, owner
   roles: [{ id: 'everyone', name: '@everyone', perms: [] }], channels: id ? [{ id: id + '-chat', name: 'geral', type: 'text', topic: '', categoryId: 'text', private: false, allowedRoles: [] }] : [],
   categories: id ? [{ id: 'text', name: 'Texto' }] : [], members: id ? [person] : [], people: [person], voice: [], bans: [], myPerms: id ? ['ADMIN', 'MANAGE_CHANNELS', 'SEND_MESSAGES', 'CONNECT', 'STREAM', 'KICK', 'BAN', 'MANAGE_ROLES', 'TIMEOUT', 'MUTE_MEMBERS'] : [] });
 
-async function ui(t, invited = false) {
+async function ui(t, invited = false, options = {}) {
   const errors = [];
   const console = new VirtualConsole(); console.on('jsdomError', (error) => errors.push(error));
   const dom = new JSDOM(fs.readFileSync(path.join(publicDir, 'index.html'), 'utf8'), {
-    url: 'https://resenhex.test/' + (invited ? '?invite=' + code : ''), runScripts: 'outside-only', pretendToBeVisual: true, virtualConsole: console,
+    url: 'https://resenhex.test/' + (invited ? '?invite=' + code : '') + (options.hash || ''), runScripts: 'outside-only', pretendToBeVisual: true, virtualConsole: console,
   });
   const w = dom.window;
+  Object.defineProperty(w.navigator, 'userAgent', { value: options.userAgent || 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)' });
+  if (options.name) w.localStorage.setItem('name', options.name);
+  if (options.token) w.localStorage.setItem('token', options.token);
+  if (options.desktop) w.resenhexDesktop = { onPushToTalk() {}, setPushToTalk() {} };
+  // Include the pre-paint decision and the landing script, in the HTML's real order.
+  for (const script of w.document.querySelectorAll('script:not([src])')) w.eval(script.textContent);
   const events = [], handlers = new Map();
   const servers = [];
   let current = snapshot(null, '', servers);
@@ -34,6 +40,7 @@ async function ui(t, invited = false) {
       queueMicrotask(() => {
         let result = { ok: true };
         if (event === 'auth') {
+          if (payload.token && options.expiredToken) { callback?.({ error: 'Sessão expirada.' }); return; }
           if (payload.mode === 'register' && payload.confirmPassword !== payload.password) { callback?.({ error: 'As senhas não coincidem.' }); return; }
           result = { token: 'fake-ui-token', accountId: userId, sid: 'ui-socket', iceServers: [], permNames: {}, maxUploadMb: 25 };
           callback?.(result); handlers.get('social')?.({ friends: [], incoming: [], outgoing: [], blocked: [], dms: [] }); push(); return;
@@ -64,24 +71,128 @@ async function ui(t, invited = false) {
   w.ResizeObserver = class { observe() {} unobserve() {} disconnect() {} };
   w.Element.prototype.scrollTo = function () {};
   w.Element.prototype.scrollIntoView = function () {};
-  w.fetch = async (url) => ({ json: async () => url === '/config' ? { hasOwner: true, passwordRequired: false, maxUploadMb: 25 } : { id: 'invited', name: 'Turma convidada', members: 3, icon: null } });
+  w.HTMLMediaElement.prototype.pause = function () {};
+  w.HTMLMediaElement.prototype.load = function () {};
+  let releaseConfig;
+  const configReady = options.deferConfig ? new Promise((resolve) => { releaseConfig = resolve; }) : Promise.resolve();
+  w.fetch = async (url) => {
+    if (url === '/config') await configReady;
+    return { json: async () => url === '/config' ? { hasOwner: options.hasOwner ?? true, passwordRequired: false, maxUploadMb: 25 } : { id: 'invited', name: 'Turma convidada', members: 3, icon: null } };
+  };
   let copied = '';
   Object.defineProperty(w.navigator, 'clipboard', { value: { writeText: async (text) => { copied = text; } } });
-  for (const file of ['icons.js', 'format.js', 'sounds.js', 'media-policy.js', 'settings.js', 'media-session.js', 'mobile-stream.js', 'changelog.js', 'channel-navigation.js', 'app.js']) w.eval(fs.readFileSync(path.join(publicDir, file), 'utf8'));
+  for (const file of ['icons.js', 'format.js', 'sounds.js', 'media-policy.js', 'settings.js', 'photo-editor.js', 'media-session.js', 'mobile-stream.js', 'changelog.js', 'channel-navigation.js', 'app.js', 'landing.js']) w.eval(fs.readFileSync(path.join(publicDir, file), 'utf8'));
   w.localStorage.setItem('seenVersion', w.APP_VERSION);
   t.after(() => { dom.window.close(); assert.deepEqual(errors.map((e) => e.message), []); });
   await settle();
   const d = w.document;
   const clickText = async (text) => { const element = [...d.querySelectorAll('button, a')].find((el) => el.textContent.trim() === text); assert.ok(element, 'Control missing: ' + text); element.click(); await settle(); };
-  async function register() {
-    d.querySelector('#login-switch').click();
+  async function register(confirmPassword = 'test-only') {
+    if (d.documentElement.classList.contains('show-landing')) d.querySelector('.ld-hero .ld-open').click();
+    if (d.querySelector('#login-submit').textContent !== 'Criar conta') d.querySelector('#login-switch').click();
     d.querySelector('#login-name').value = 'Ana';
     d.querySelector('#login-password').value = 'test-only';
-    d.querySelector('#login-confirm-password').value = 'test-only';
+    d.querySelector('#login-confirm-password').value = confirmPassword;
     d.querySelector('#login-form').dispatchEvent(new w.Event('submit', { bubbles: true, cancelable: true })); await settle();
   }
-  return { w, d, events, clickText, register, deliver: (event, payload) => handlers.get(event)?.(payload), get copied() { return copied; } };
+  return { w, d, events, clickText, register, releaseConfig, deliver: (event, payload) => handlers.get(event)?.(payload), get copied() { return copied; } };
 }
+
+test('first visit shows the home; login, back and forward preserve the chosen screen and focus', async (t) => {
+  const app = await ui(t);
+  const root = app.d.documentElement;
+  assert.equal(root.classList.contains('show-landing'), true);
+  assert.equal(app.events.some((e) => e.event === 'auth'), false);
+  assert.equal(app.d.querySelector('.ld-hero .ld-download').classList.contains('hidden'), false);
+  app.d.querySelector('.ld-login').click(); await settle();
+  assert.equal(root.classList.contains('show-landing'), false);
+  assert.equal(app.w.location.hash, '#entrar');
+  assert.equal(app.d.querySelector('#login-submit').textContent, 'Entrar');
+  assert.equal(app.d.activeElement.id, 'login-name');
+  app.d.querySelector('#login-back').click(); await settle();
+  assert.equal(app.w.location.hash, '');
+  assert.equal(root.classList.contains('show-landing'), true);
+  assert.equal(app.d.activeElement.className, 'ld-login');
+  app.w.history.forward(); await settle();
+  assert.equal(root.classList.contains('show-landing'), false);
+  assert.equal(app.d.querySelector('#login-submit').textContent, 'Entrar');
+});
+
+test('browser CTA opens registration; switching forms updates deep links and preserves back navigation', async (t) => {
+  const app = await ui(t);
+  app.d.querySelector('.ld-hero .ld-open').click(); await settle();
+  assert.equal(app.w.location.hash, '#criar-conta');
+  assert.equal(app.d.querySelector('#login-confirm-password').required, true);
+  app.d.querySelector('#login-switch').click(); await settle();
+  assert.equal(app.w.location.hash, '#entrar');
+  assert.equal(app.d.querySelector('#login-confirm-password').required, false);
+  app.d.querySelector('#login-back').click(); await settle();
+  assert.equal(app.d.documentElement.classList.contains('show-landing'), true);
+});
+
+test('direct registration opens with focus and can return home without adding a history entry', async (t) => {
+  const app = await ui(t, false, { hash: '#criar-conta' });
+  assert.equal(app.d.documentElement.classList.contains('show-landing'), false);
+  assert.equal(app.d.querySelector('#login-submit').textContent, 'Criar conta');
+  assert.equal(app.d.activeElement.id, 'login-name');
+  const entries = app.w.history.length;
+  app.d.querySelector('#login-back').click(); await settle();
+  assert.equal(app.d.documentElement.classList.contains('show-landing'), true);
+  assert.equal(app.w.history.length, entries);
+});
+
+test('returning visitors, desktop and invitations bypass the home; saved sessions authenticate automatically', async (t) => {
+  for (const options of [{ name: 'Ana' }, { desktop: true }, { token: 'saved-token' }, { token: 'expired', expiredToken: true }]) {
+    const app = await ui(t, false, options);
+    assert.equal(app.d.documentElement.classList.contains('show-landing'), false);
+    assert.equal(app.d.documentElement.dataset.landing, undefined);
+    if (options.token) assert.equal(app.events.find((e) => e.event === 'auth').payload.token, options.token);
+    if (options.expiredToken) {
+      assert.equal(app.w.localStorage.getItem('token'), null);
+      assert.equal(app.d.querySelector('#login').classList.contains('hidden'), false);
+    } else if (options.token) assert.equal(app.d.querySelector('#app').classList.contains('hidden'), false);
+  }
+  const invited = await ui(t, true);
+  assert.equal(invited.d.documentElement.classList.contains('show-landing'), false);
+  assert.equal(invited.d.documentElement.dataset.landing, undefined);
+  assert.match(invited.d.querySelector('#login-notice').textContent, /Turma convidada/);
+});
+
+test('unsupported systems get the browser CTA as primary; download pages open the app directly', async (t) => {
+  const app = await ui(t, false, { userAgent: 'Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X)' });
+  assert.equal(app.d.querySelector('.ld-hero .ld-download').classList.contains('hidden'), true);
+  assert.equal(app.d.querySelector('.ld-hero .ld-open').classList.contains('ld-btn-light'), true);
+  for (const file of ['baixar.html', 'privacidade.html']) {
+    const page = new JSDOM(fs.readFileSync(path.join(publicDir, file), 'utf8'));
+    assert.equal(page.window.document.querySelector('.dl-open').getAttribute('href'), '/#criar-conta');
+    page.window.close();
+  }
+});
+
+test('registration errors preserve the form so correcting the password can complete signup', async (t) => {
+  const app = await ui(t);
+  await app.register('different-password');
+  assert.equal(app.d.querySelector('#login-submit').textContent, 'Criar conta');
+  assert.equal(app.d.querySelector('#login-confirm-password').required, true);
+  assert.equal(app.w.localStorage.getItem('token'), null);
+  await app.register();
+  assert.equal(app.d.querySelector('#app').classList.contains('hidden'), false);
+  assert.equal(app.d.documentElement.classList.contains('show-landing'), false);
+  assert.equal(app.d.documentElement.dataset.landing, undefined);
+  assert.equal(app.w.location.hash, '');
+  app.w.history.back(); await settle();
+  assert.equal(app.d.documentElement.classList.contains('show-landing'), false);
+});
+
+test('late config respects the chosen form; an empty installation still starts with registration', async (t) => {
+  const app = await ui(t, false, { deferConfig: true });
+  app.d.querySelector('.ld-hero .ld-open').click();
+  app.d.querySelector('#login-switch').click();
+  app.releaseConfig(); await settle();
+  assert.equal(app.d.querySelector('#login-submit').textContent, 'Entrar');
+  const empty = await ui(t, false, { hash: '#entrar', hasOwner: false });
+  assert.equal(empty.d.querySelector('#login-submit').textContent, 'Criar conta');
+});
 
 test('real UI registers without email, creates two servers, copies a scoped invite and restores drafts when switching', async (t) => {
   const app = await ui(t);
@@ -157,4 +268,24 @@ test('invite survives registration, shows the right preview, and joins only afte
   assert.equal(app.events.find((e) => e.event === 'server:join').payload.code, code);
   assert.equal(app.d.querySelector('#server-header span').textContent, 'Turma convidada');
   assert.equal(app.w.location.search, '');
+});
+
+test('the call soundboard opens the dedicated upload dialog; ordinary members cannot manage sounds', async (t) => {
+  const app = await ui(t); await app.register();
+  const s = snapshot('1'.repeat(16), 'Turma', [{ id: '1'.repeat(16), name: 'Turma', owner: true }]);
+  s.myPerms.push('MANAGE_SOUNDBOARD', 'SOUNDBOARD');
+  app.deliver('state', s); await settle();
+  app.d.querySelector('#sc-sounds').click();
+  const add = app.d.querySelector('.sb-add'); assert.equal(add.disabled, false);
+  assert.equal(app.d.querySelectorAll('.sb-preview').length, 8);
+  add.click(); await settle();
+  assert.ok(app.d.querySelector('.sound-dialog-card[aria-modal="true"]'));
+  assert.match(app.d.querySelector('.sound-limit-note').textContent, /8 segundos/);
+  assert.equal(app.d.querySelector('.sound-dialog-card button[type=submit]').disabled, true);
+  assert.equal(app.d.querySelector('#app').inert, true);
+  app.d.dispatchEvent(new app.w.KeyboardEvent('keydown', { key: 'Escape', bubbles: true })); await settle();
+  assert.equal(app.d.querySelector('.sound-dialog-card'), null);
+  assert.equal(!!app.d.querySelector('#app').inert, false);
+  app.deliver('state', { ...s, ownerId: 'b'.repeat(16), myPerms: ['SOUNDBOARD', 'CONNECT'] }); await settle();
+  app.d.querySelector('#sc-sounds').click(); assert.equal(app.d.querySelector('.sb-add').disabled, true);
 });

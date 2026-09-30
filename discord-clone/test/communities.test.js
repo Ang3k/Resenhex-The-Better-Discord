@@ -64,3 +64,15 @@ test('opaque invites join only their server, are idempotent, and cannot bypass b
   assert.equal(store.byInvite(old), undefined);
   assert.equal(store.choose('b', server.id), store.root.defaultServerId);
 });
+
+test('nicknames persist on each membership without changing the global account name', () => {
+  const store = communityStore({ ...defaults(), accounts: { a: { id: 'a', name: 'Ana' } } }, newId, defaults);
+  const first = store.currentId(), second = store.create('a', 'Segundo');
+  store.run(first, () => { store.db.accounts.a.nickname = 'Ana da primeira turma'; });
+  store.run(second.id, () => { store.db.accounts.a.nickname = 'Ana da segunda turma'; });
+  const reload = communityStore(JSON.parse(JSON.stringify(store.root)), newId, defaults);
+  reload.run(first, () => assert.equal(reload.db.accounts.a.nickname, 'Ana da primeira turma'));
+  reload.run(second.id, () => assert.equal(reload.db.accounts.a.nickname, 'Ana da segunda turma'));
+  reload.run(null, () => assert.equal(reload.db.accounts.a.nickname, false));
+  assert.equal(reload.root.accounts.a.name, 'Ana');
+});

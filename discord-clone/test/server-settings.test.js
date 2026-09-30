@@ -32,6 +32,7 @@ async function startServer(t) {
     socket.on('state', (s) => (socket.last = s));
     socket.call = (event, payload) => new Promise((resolve) => socket.emit(event, payload, resolve));
     const res = await socket.call('auth', { mode: 'register', name, password: '1234', confirmPassword: '1234' });
+    socket.auth = res;
     assert.ok(!res.error, res.error);
     await new Promise((r) => setTimeout(r, 100));
     if (!socket.last.serverId) {
@@ -78,4 +79,43 @@ test('server icon: only administrators, validated PNG, served while in use and r
   await new Promise((r) => setTimeout(r, 100));
   assert.equal(member.last.serverIcon, null);
   assert.equal((await fetch(base + url)).status, 404);
+});
+
+test('nicknames belong to a membership, remain independent between servers and preserve login and DMs', async (t) => {
+  const connect = await startServer(t);
+  const owner = await connect('Dono'), member = await connect('Ana');
+  const first = member.last.serverId, id = member.auth.accountId;
+  const own = () => member.last.members.find((m) => m.id === id);
+  assert.equal(own().name, 'Ana');
+  assert.equal(own().nickname, null);
+  assert.ok((await member.call('member:nickname', { nickname: 'x'.repeat(33) })).error);
+  assert.ok((await member.call('member:nickname', { nickname: { name: 'invalid' } })).error);
+  assert.ok((await member.call('member:nickname', { nickname: 'bad\u0000name' })).error);
+  assert.ok(!(await member.call('member:nickname', { serverId: first, nickname: '  Ana   da turma  ', target: owner.auth.accountId })).error);
+  assert.equal(own().name, 'Ana da turma');
+  assert.equal(own().username, 'Ana');
+  assert.equal(owner.last.members.find((m) => m.id === id).name, 'Ana da turma');
+  assert.equal(owner.last.members.find((m) => m.id === owner.auth.accountId).name, 'Dono');
+  assert.equal(member.last.people.find((m) => m.id === id).name, 'Ana');
+  const second = await member.call('server:create', { name: 'Outra turma' });
+  assert.equal(own().name, 'Ana');
+  assert.ok((await member.call('member:nickname', { serverId: first, nickname: 'Servidor errado' })).error);
+  assert.ok(!(await member.call('member:nickname', { serverId: second.id, nickname: 'Ana de outro servidor' })).error);
+  await member.call('server:select', { id: first });
+  assert.equal(own().name, 'Ana da turma');
+  await member.call('friend:request', { id: owner.auth.accountId });
+  await owner.call('friend:accept', { id });
+  const dm = await member.call('dm:open', { userId: owner.auth.accountId });
+  assert.ok(!dm.error, dm.error);
+  await member.call('chat:send', { channel: dm.id, text: 'Oi' });
+  const history = await owner.call('chat:history', { channel: dm.id });
+  assert.equal(history.authors.find((a) => a.id === id).name, 'Ana');
+  const login = io(member.io.uri, { forceNew: true, transports: ['websocket'] });
+  t.after(() => login.disconnect());
+  const auth = await new Promise((r) => login.emit('auth', { mode: 'login', name: 'Ana', password: '1234' }, r));
+  assert.equal(auth.accountId, id);
+  await member.call('member:nickname', { nickname: '' });
+  assert.equal(own().name, 'Ana');
+  await member.call('server:select', { id: second.id });
+  assert.equal(own().name, 'Ana de outro servidor');
 });

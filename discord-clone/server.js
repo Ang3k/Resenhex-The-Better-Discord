@@ -7,7 +7,8 @@ const crypto = require('crypto');
 const { promisify } = require('util');
 const express = require('express');
 const { Server } = require('socket.io');
-const { decodeAvatar, decodeBanner } = require('./avatar');
+const { decodeAvatar, decodeBanner, decodeProfilePhoto, validateAvatarCrop } = require('./avatar');
+const { decodeSound, soundName, MAX_SOUND_BYTES, MAX_SERVER_SOUNDS } = require('./soundboard');
 const { channelActions } = require('./channels');
 const { communityStore } = require('./communities');
 const { downloadRoutes } = require('./downloads');
@@ -24,6 +25,8 @@ const MAX_ATTACHMENTS = 10;
 fs.mkdirSync(UPLOAD_DIR, { recursive: true });
 const AVATAR_DIR = path.join(UPLOAD_DIR, 'avatars');
 fs.mkdirSync(AVATAR_DIR, { recursive: true });
+const SOUND_DIR = path.join(UPLOAD_DIR, 'sounds');
+fs.mkdirSync(SOUND_DIR, { recursive: true });
 
 // Tipos que o navegador pode exibir direto. Todo o resto é servido como download,
 // para que um arquivo enviado (ex.: .html, .svg) nunca rode código neste site.
@@ -49,6 +52,7 @@ const PERMS = {
   SPEAK: 'Falar na voz',
   STREAM: 'Vídeo (câmera e compartilhar tela)',
   SOUNDBOARD: 'Usar efeitos sonoros',
+  MANAGE_SOUNDBOARD: 'Gerenciar efeitos sonoros',
 };
 // Efeitos sonoros que podem ser tocados na chamada (o som é gerado no navegador de cada um).
 const SOUNDBOARD = ['grilo', 'trovao', 'aplausos', 'badumtss', 'buzina', 'fail', 'vitoria', 'suspense'];
@@ -390,6 +394,65 @@ const authFromToken = (req) => {
   const acc = db.accounts[db.sessions[req.get('x-token')]];
   return acc || null;
 };
+app.post('/profile/avatar', express.raw({ type: () => true, limit: MAX_BANNER_UPLOAD }), (req, res) => {
+  const acc = authFromToken(req);
+  if (!acc) return res.status(401).json({ error: 'Não autenticado' });
+  if (!allow('avatar:' + acc.id, 10, 60 * 1000)) return res.status(429).json({ error: 'Muitas trocas de foto. Aguarde um minuto.' });
+  try {
+    const { ext, data } = decodeProfilePhoto(req.body);
+    const crop = ext === 'gif' ? validateAvatarCrop(JSON.parse(req.get('x-avatar-crop') || 'null')) : null;
+    const file = crypto.createHash('sha256').update(data).digest('hex') + '.' + ext;
+    fs.writeFileSync(path.join(AVATAR_DIR, file), data);
+    const previous = acc.avatar;
+    acc.avatar = file;
+    acc.avatarCrop = crop;
+    save(); broadcastState();
+    if (previous !== file) removeImageIfUnused(previous);
+    res.json({ ok: true, avatarUrl: '/avatars/' + file, avatarCrop: crop });
+  } catch (error) { res.status(400).json({ error: error.message }); }
+});
+app.delete('/profile/avatar', (req, res) => {
+  const acc = authFromToken(req);
+  if (!acc) return res.status(401).json({ error: 'Não autenticado' });
+  const previous = acc.avatar;
+  acc.avatar = null; acc.avatarCrop = null;
+  save(); broadcastState(); removeImageIfUnused(previous);
+  res.json({ ok: true, avatarUrl: null, avatarCrop: null });
+});
+
+const SOUND_FILE = /^[a-f0-9]{64}\.wav$/;
+function removeSoundIfUnused(file) {
+  if (!SOUND_FILE.test(file || '') || Object.values(communities.root.servers).some((s) => s.soundboard.some((sound) => sound.file === file))) return;
+  try { fs.unlinkSync(path.join(SOUND_DIR, file)); } catch (error) { if (error.code !== 'ENOENT') console.warn('Não foi possível remover um som antigo.'); }
+}
+app.post('/servers/:serverId/sounds', express.raw({ type: () => true, limit: MAX_SOUND_BYTES }), (req, res) => {
+  const acc = authFromToken(req);
+  if (!acc) return res.status(401).json({ error: 'Não autenticado' });
+  communities.run(req.params.serverId, () => {
+    if (!communities.joined(acc.id) || !can(communities.accountView(acc), 'MANAGE_SOUNDBOARD')) return res.status(403).json({ error: 'Você não pode gerenciar os efeitos deste servidor.' });
+    if (!allow('sound-upload:' + acc.id, 10, 60000)) return res.status(429).json({ error: 'Muitos envios. Aguarde um minuto.' });
+    if (db.soundboard.length >= MAX_SERVER_SOUNDS) return res.status(400).json({ error: 'O servidor já tem 32 efeitos personalizados.' });
+    try {
+      const name = soundName(decodeURIComponent(req.get('x-sound-name') || ''));
+      const { data, duration } = decodeSound(req.body);
+      const file = crypto.createHash('sha256').update(data).digest('hex') + '.wav';
+      fs.writeFileSync(path.join(SOUND_DIR, file), data);
+      const sound = { id: newId(), name, file, duration, createdBy: acc.id };
+      db.soundboard.push(sound); save(); broadcastState();
+      res.json({ ok: true, id: sound.id });
+    } catch (error) { res.status(400).json({ error: error.message }); }
+  });
+});
+app.get('/servers/:serverId/sounds/:soundId', (req, res) => {
+  const acc = authFromToken(req);
+  if (!acc) return res.status(401).end();
+  communities.run(req.params.serverId, () => {
+    const sound = communities.joined(acc.id) && db.soundboard.find((s) => s.id === req.params.soundId);
+    if (!sound || !SOUND_FILE.test(sound.file)) return res.status(404).end();
+    res.set({ 'Content-Type': 'audio/wav', 'X-Content-Type-Options': 'nosniff', 'Cache-Control': 'private, no-store' });
+    res.sendFile(path.join(SOUND_DIR, sound.file));
+  });
+});
 app.post('/profile/banner', express.raw({ type: () => true, limit: MAX_BANNER_UPLOAD }), (req, res) => {
   const acc = authFromToken(req);
   if (!acc) return res.status(401).json({ error: 'Não autenticado' });
@@ -473,7 +536,7 @@ app.get('/uploads/:file', (req, res) => {
 // Upload maior que o limite ou outro erro de corpo da requisição.
 app.use((err, req, res, _next) => {
   if (err.type === 'entity.too.large') {
-    return res.status(413).json({ error: req.path === '/profile/banner' ? 'O banner deve ter até 5 MB.' : `Arquivo maior que ${MAX_UPLOAD_MB} MB` });
+    return res.status(413).json({ error: req.path.startsWith('/profile/') ? 'A imagem deve ter até 5 MB.' : req.path.endsWith('/sounds') ? 'O efeito sonoro deve ter até 8 segundos.' : `Arquivo maior que ${MAX_UPLOAD_MB} MB` });
   }
   console.error(err);
   res.status(500).json({ error: 'Erro no servidor' });
@@ -489,9 +552,12 @@ function socketsOf(accountId, local = false) {
 function publicMember(a, onlineIds) {
   return {
     id: a.id,
-    name: a.name,
+    name: a.nickname || a.name,
+    username: a.name,
+    nickname: a.nickname || null,
     color: a.color,
     avatarUrl: a.avatar ? '/avatars/' + a.avatar : null,
+    avatarCrop: a.avatarCrop || null,
     bannerUrl: a.banner ? '/avatars/' + a.banner : null,
     since: a.createdAt || null,
     roles: a.roles,
@@ -547,6 +613,7 @@ function stateFor(acc, shared = sharedState()) {
     ownerId: db.ownerId,
     serverName: db.serverName || 'Resenha',
     serverIcon: db.serverIcon ? '/avatars/' + db.serverIcon : null,
+    soundboard: db.soundboard.map((s) => ({ id: s.id, name: s.name, duration: s.duration, url: '/servers/' + communities.currentId() + '/sounds/' + s.id })),
     roles: db.roles,
     channels: visibleChannels,
     categories: db.categories.filter((g) => perms.has('MANAGE_CHANNELS') || visibleChannels.some((c) => c.categoryId === g.id)),
@@ -754,7 +821,9 @@ io.on('connection', (socket) => {
     for (const [key, timer] of timeoutTimers) {
       if (key.startsWith(id + ':')) { clearTimeout(timer); timeoutTimers.delete(key); }
     }
+    const soundFiles = community.soundboard.map((s) => s.file);
     delete communities.root.servers[id];
+    soundFiles.forEach(removeSoundIfUnused);
     if (communities.root.defaultServerId === id) communities.root.defaultServerId = Object.keys(communities.root.servers)[0] || null;
     for (const account of Object.values(db.accounts)) {
       for (const channelId of channels) if (account.lastRead) delete account.lastRead[channelId];
@@ -850,6 +919,7 @@ io.on('connection', (socket) => {
       if (!allow('avatar:' + acc.id, 10, 60 * 1000)) fail('Muitas trocas de foto. Aguarde um minuto.');
       if (avatar === null) nextAvatar = null;
       else nextAvatar = storeImage(avatar);
+      acc.avatarCrop = null;
     }
     acc.avatar = nextAvatar || null;
     acc.color = cleanColor(color, acc.color);
@@ -857,6 +927,19 @@ io.on('connection', (socket) => {
     broadcastState();
     if (previousAvatar !== nextAvatar) removeImageIfUnused(previousAvatar);
     return { ok: true, avatarUrl: acc.avatar ? '/avatars/' + acc.avatar : null };
+  });
+
+  on('member:nickname', (acc, { nickname, serverId }) => {
+    if (!communities.joined(acc.id)) fail('Entre em um servidor para editar seu nome nele.');
+    if (serverId && serverId !== communities.currentId()) fail('O servidor mudou. Abra a edição novamente.');
+    if (nickname !== null && typeof nickname !== 'string') fail('Nome no servidor inválido.');
+    if (typeof nickname === 'string' && /[\x00-\x1f\x7f]/.test(nickname)) fail('O nome não pode conter caracteres de controle.');
+    const name = (nickname || '').normalize('NFC').trim().replace(/\s+/g, ' ');
+    if (name.length > 32) fail('O nome no servidor deve ter até 32 caracteres.');
+    if (!allow('nickname:' + acc.id, 10, 60000)) fail('Muitas mudanças de nome. Aguarde um minuto.');
+    acc.nickname = name || null;
+    save(); broadcastState();
+    return { ok: true, nickname: acc.nickname, name: acc.nickname || acc.name };
   });
 
   // --- Chat ---
@@ -1017,7 +1100,7 @@ io.on('connection', (socket) => {
     }
     const c = db.channels.find((ch) => ch.id === channel);
     if (c) for (const [sid, s] of online) {
-      if (sid !== socket.id && s.serverId === communities.currentId() && canView(db.accounts[s.accountId], c)) io.to(sid).emit('typing', { channel, name: acc.name });
+      if (sid !== socket.id && s.serverId === communities.currentId() && canView(db.accounts[s.accountId], c)) io.to(sid).emit('typing', { channel, name: acc.nickname || acc.name });
     }
   });
 
@@ -1220,12 +1303,21 @@ io.on('connection', (socket) => {
   // Efeito sonoro: todo mundo da sala toca o mesmo som.
   on('sound:play', (acc, { sound }) => {
     const s = online.get(socket.id);
-    if (!SOUNDBOARD.includes(sound)) fail('Som desconhecido');
+    if (!SOUNDBOARD.includes(sound) && !db.soundboard.some((s) => s.id === sound)) fail('Som desconhecido');
     if (!s.voice) fail('Entre numa sala de voz para usar efeitos sonoros.');
     if (!can(acc, 'SOUNDBOARD')) fail('Você não tem permissão para usar efeitos sonoros.');
     if (timedOut(acc)) fail('Você está de castigo.');
     if (!allow('sound:' + acc.id, 4, 10000)) fail('Calma! Muitos efeitos sonoros seguidos.');
     io.to('voice:' + s.voice).emit('sound', { sound, from: acc.id });
+  });
+
+  on('sound:remove', (acc, { id }) => {
+    if (!can(acc, 'MANAGE_SOUNDBOARD')) fail('Você não pode gerenciar os efeitos deste servidor.');
+    const sound = db.soundboard.find((s) => s.id === id);
+    if (!sound) fail('Efeito não encontrado neste servidor.');
+    db.soundboard = db.soundboard.filter((s) => s.id !== id);
+    save(); broadcastState(); removeSoundIfUnused(sound.file);
+    return { ok: true };
   });
 
   // Repassa ofertas/respostas/ICE entre dois participantes da mesma sala.

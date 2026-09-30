@@ -1,0 +1,8 @@
+/* A imagem da marca já inclui seu fundo e cantos arredondados. */
+.resenhax-logo { display: block; object-fit: contain; flex-shrink: 0; }
+.brand-mark[data-logo], .rail-item.home .brand-icon[data-logo], .ld-w-home[data-logo] {
+  background: transparent; box-shadow: none;
+}
+.brand-mark > .resenhax-logo, .brand-icon > .resenhax-logo, .ld-w-home > .resenhax-logo {
+  width: 100%; height: 100%;
+}

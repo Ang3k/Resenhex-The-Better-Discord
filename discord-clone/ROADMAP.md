@@ -16,7 +16,7 @@ Ideias anotadas para as próximas versões do Resenhex.
   - Tocar o som na chamada, mixado com o microfone, para todos ouvirem.
   - Permissão própria para cargos ("Usar efeitos sonoros") e um limite para evitar spam.
   - [x] Opção de silenciar os efeitos sonoros (e volume próprio).
-  - [ ] Depois: deixar enviar sons próprios (arquivos curtos).
+  - [x] Enviar sons próprios de até 8 segundos pelo painel da chamada, com pré-escuta e permissão de gerenciamento por servidor.
 
 ## Microfone
 

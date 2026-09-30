@@ -1,11 +1,39 @@
 // Histórico de versões do Resenhex. É a fonte da janela "Novidades" dentro do app;
 // o CHANGELOG.md na pasta do projeto é a mesma lista, para quem lê pelo GitHub.
 // Para uma versão nova: adicione um item no começo da lista e atualize a versão no package.json.
+// O título deve destacar as principais funcionalidades ou correções, com termos objetivos.
 window.CHANGELOG = [
+  {
+    version: '0.99', date: '2026-09-30', name: 'Apelidos por servidor',
+    summary: 'Escolha um nome diferente em cada servidor, mantendo o nome de usuário da sua conta.',
+    sections: [
+      { kind: 'new', items: [
+        'No menu do servidor, “Editar nome no servidor” abre uma janela com prévia. A opção também está em Meu perfil e no menu do seu próprio membro.',
+        'O apelido aparece no chat, nas menções, na lista de membros e nas chamadas daquele servidor. Até 32 caracteres; deixe em branco para voltar ao nome de usuário.',
+        'Cada servidor guarda seu próprio apelido. O login, os amigos e as mensagens diretas continuam usando seu nome de usuário.',
+      ] },
+    ],
+  },
+  {
+    version: '0.98', date: '2026-09-30', name: 'GIF animado e ajuste da foto de perfil',
+    summary: 'Enquadre sua foto, use GIF no perfil e adicione efeitos sonoros às chamadas.',
+    sections: [
+      { kind: 'new', items: [
+        'Meu perfil: arraste a foto, ajuste o zoom e confira a prévia circular antes de salvar. Também dá para ajustar uma foto que você já está usando.',
+        'GIF animado como foto de perfil, com enquadramento preservado no chat, nas chamadas e no cartão de perfil. Até 5 MB e 1024 pixels por lado.',
+        'No painel de efeitos da chamada, “Adicionar efeito sonoro” abre uma janela com seleção do áudio, nome e pré-escuta. Até 8 segundos e 32 efeitos por servidor.',
+        'A permissão “Gerenciar efeitos sonoros” permite adicionar e remover sons do servidor. Eles também aparecem nas configurações do servidor.',
+      ] },
+      { kind: 'improved', items: [
+        'Efeitos sonoros com controle de picos, timbres mais suaves e pré-escuta individual. Os áudios enviados têm volume ajustado e transições curtas nas pontas para evitar estalos.',
+        'A reprodução anterior para ao tocar outro efeito, silenciar os efeitos, ensurdecer ou sair da chamada.',
+      ] },
+    ],
+  },
   {
     version: '0.97',
     date: '2026-09-30',
-    name: 'Resenhex no Windows',
+    name: 'App para Windows',
     summary: 'O Resenhex virou app de computador: baixe uma vez e ele se atualiza sozinho.',
     sections: [
       { kind: 'new', items: [
@@ -23,7 +51,7 @@ window.CHANGELOG = [
   {
     version: '0.96',
     date: '2026-09-30',
-    name: 'Tela no bolso',
+    name: 'Tela cheia e zoom em transmissões no celular',
     summary: 'Assistir a uma transmissão de tela no celular ficou nítido, fluido e confortável.',
     sections: [
       { kind: 'new', items: [
@@ -45,7 +73,7 @@ window.CHANGELOG = [
   {
     version: '0.95',
     date: '2026-09-29',
-    name: 'Uma casa para cada turma',
+    name: 'Criação de servidores e convites',
     summary: 'Crie seus próprios servidores e chame seus amigos com um convite simples.',
     sections: [
       { kind: 'new', items: [
@@ -71,7 +99,7 @@ window.CHANGELOG = [
   {
     version: '0.9',
     date: '2026-09-29',
-    name: 'Cada assunto no seu lugar',
+    name: 'Grupos de canais e qualidade de transmissão',
     summary: 'Organize o servidor em grupos de canais e transmita com qualidade adaptada a cada espectador.',
     sections: [
       { kind: 'new', items: [
@@ -97,7 +125,7 @@ window.CHANGELOG = [
   {
     version: '0.8',
     date: '2026-09-28',
-    name: 'Banner do perfil',
+    name: 'Banner de perfil com imagens e GIFs',
     summary: 'Troque a faixa colorida do seu cartão de perfil por uma imagem ou um GIF animado.',
     sections: [
       { kind: 'new', items: [
@@ -113,7 +141,7 @@ window.CHANGELOG = [
   {
     version: '0.7',
     date: '2026-09-28',
-    name: 'Papo reservado',
+    name: 'Amigos e mensagens diretas',
     summary: 'Amigos e mensagens diretas, como no Discord: agora dá para conversar em particular com quem você adicionou.',
     sections: [
       { kind: 'new', items: [
@@ -133,7 +161,7 @@ window.CHANGELOG = [
   {
     version: '0.6',
     date: '2026-09-28',
-    name: 'Do seu jeito',
+    name: 'Ícone do servidor e cartões de perfil',
     summary: 'O servidor ganhou cara própria e clicar em alguém agora mostra um perfil de verdade.',
     sections: [
       { kind: 'new', items: [
@@ -151,7 +179,7 @@ window.CHANGELOG = [
   {
     version: '0.5',
     date: '2026-09-28',
-    name: 'Cara de app de verdade',
+    name: 'Configurações de servidor, cargos e canais',
     summary: 'Uma rodada inteira de acabamento: telas de administração no estilo do Discord, paleta neutra e cada detalhe da conversa revisado.',
     sections: [
       { kind: 'new', items: [
@@ -180,7 +208,7 @@ window.CHANGELOG = [
   {
     version: '0.4',
     date: '2026-09-28',
-    name: 'Chamada completa',
+    name: 'Efeitos sonoros e central de configurações',
     summary: 'Efeitos sonoros, uma central de configurações e transmissão que só gasta internet com quem está assistindo.',
     sections: [
       { kind: 'new', items: [
@@ -203,7 +231,7 @@ window.CHANGELOG = [
   {
     version: '0.3',
     date: '2026-09-27',
-    name: 'Nasce o Resenhex',
+    name: 'Qualidade de transmissão e supressão de ruído',
     summary: 'Nome novo, visual novo e transmissão de tela levada a sério. E o servidor passou a ficar online 24 horas.',
     sections: [
       { kind: 'new', items: [
@@ -226,7 +254,7 @@ window.CHANGELOG = [
   {
     version: '0.2',
     date: '2026-09-27',
-    name: 'Cara de Discord',
+    name: 'Contas, cargos e moderação',
     summary: 'Contas, cargos, moderação e tudo aquilo que faz o chat parecer casa.',
     sections: [
       { kind: 'new', items: [
@@ -243,7 +271,7 @@ window.CHANGELOG = [
   {
     version: '0.1',
     date: '2026-09-27',
-    name: 'Primeira chamada',
+    name: 'Chat, chamadas de voz e compartilhamento de tela',
     summary: 'O começo: a turma perdeu o servidor antigo e resolveu fazer o próprio.',
     sections: [
       { kind: 'new', items: [

@@ -2,6 +2,9 @@
 window.Sounds = (() => {
   let ctx = null;
   let enabled = localStorage.getItem('sounds') !== 'false';
+  let boardOutput = null;
+  let boardEpoch = 0;
+  const customBuffers = new Map();
 
   // Cada som é uma sequência de notas: [frequência em Hz, início em s, duração em s].
   const PRESETS = {
@@ -76,6 +79,7 @@ window.Sounds = (() => {
     o.connect(g).connect(out);
     o.start(start);
     o.stop(start + dur + 0.05);
+    o.onended = () => { o.disconnect(); g.disconnect(); };
     return o;
   }
 
@@ -93,6 +97,7 @@ window.Sounds = (() => {
     src.connect(f).connect(g).connect(out);
     src.start(start);
     src.stop(start + dur + 0.1);
+    src.onended = () => { src.disconnect(); f.disconnect(); g.disconnect(); };
   }
 
   const SYNTH = {
@@ -100,7 +105,7 @@ window.Sounds = (() => {
       // "cri-cri-cri": pulsos agudos em trios, repetidos
       for (let chirp = 0; chirp < 6; chirp++) {
         const base = t + chirp * 0.42 + (chirp % 2) * 0.05;
-        for (let p = 0; p < 4; p++) tone(c, out, { freq: 4400, start: base + p * 0.028, dur: 0.022, vol: 0.12, attack: 0.004 });
+        for (let p = 0; p < 4; p++) tone(c, out, { freq: 3900 + p * 75, to: 3500, start: base + p * 0.035, dur: 0.032, vol: 0.1, attack: 0.005 });
       }
     },
     trovao(c, out, t) {
@@ -109,15 +114,16 @@ window.Sounds = (() => {
       noise(c, out, { start: t + 0.9, dur: 2.2, vol: 0.6, filter: 'lowpass', freq: 160, brown: true, attack: 0.3 });
     },
     aplausos(c, out, t) {
-      for (let i = 0; i < 90; i++) {
-        const at = t + Math.random() * 2.4;
-        noise(c, out, { start: at, dur: 0.03 + Math.random() * 0.03, vol: 0.05 + Math.random() * 0.12, freq: 1200 + Math.random() * 1800, q: 0.8 });
+      for (let i = 0; i < 48; i++) {
+        const at = t + i * .048 + Math.random() * .06;
+        noise(c, out, { start: at, dur: 0.045 + Math.random() * 0.04, vol: 0.09 + Math.random() * 0.13, freq: 950 + Math.random() * 1700, q: 0.7, attack: .002 });
       }
+      noise(c, out, { start: t + .1, dur: 2.4, vol: .045, filter: 'bandpass', freq: 1800, q: .5, attack: .2 });
     },
     badumtss(c, out, t) {
       tone(c, out, { freq: 180, to: 90, start: t, dur: 0.18, vol: 0.5 });
       tone(c, out, { freq: 140, to: 70, start: t + 0.2, dur: 0.22, vol: 0.5 });
-      noise(c, out, { start: t + 0.45, dur: 1.2, vol: 0.25, filter: 'highpass', freq: 6000, attack: 0.002 });
+      noise(c, out, { start: t + 0.45, dur: 1.2, vol: 0.2, filter: 'highpass', freq: 4000, attack: 0.005 });
       tone(c, out, { freq: 90, to: 50, start: t + 0.45, dur: 0.3, vol: 0.5 });
     },
     buzina(c, out, t) {
@@ -136,6 +142,7 @@ window.Sounds = (() => {
       lfo.connect(depth).connect(o.frequency);
       lfo.start(t + 1.5);
       lfo.stop(t + 3);
+      lfo.onended = () => { lfo.disconnect(); depth.disconnect(); };
     },
     vitoria(c, out, t) {
       [[523, 0, 0.14], [659, 0.15, 0.14], [784, 0.3, 0.14], [1047, 0.45, 0.6]].forEach(([f, s, d]) => {
@@ -153,23 +160,104 @@ window.Sounds = (() => {
     },
   };
 
+  function stopBoard() {
+    boardEpoch++;
+    if (!boardOutput) return;
+    const current = boardOutput; boardOutput = null;
+    current.gain.gain.cancelScheduledValues(ctx.currentTime);
+    current.gain.gain.setTargetAtTime(0, ctx.currentTime, .01);
+    setTimeout(() => { current.gain.disconnect(); current.filter.disconnect(); current.compressor.disconnect(); }, 60);
+  }
+  function output(volume) {
+    const gain = ctx.createGain(), filter = ctx.createBiquadFilter(), compressor = ctx.createDynamicsCompressor();
+    filter.type = 'lowpass'; filter.frequency.value = 9500;
+    compressor.threshold.value = -12; compressor.knee.value = 8; compressor.ratio.value = 12;
+    compressor.attack.value = .003; compressor.release.value = .12;
+    gain.gain.setValueAtTime(Math.min(1, Math.max(0, Number(volume) || 0)) * .8, ctx.currentTime);
+    filter.connect(compressor).connect(gain).connect(ctx.destination);
+    boardOutput = { gain, filter, compressor };
+    return filter;
+  }
   function playBoard(id, volume = 1) {
-    if (!SYNTH[id] || volume <= 0) return;
+    if (!SYNTH[id] || volume <= 0) return false;
     try {
       ctx ||= new AudioContext();
       if (ctx.state === 'suspended') ctx.resume();
-      const out = ctx.createGain();
-      out.gain.value = volume;
-      out.connect(ctx.destination);
+      stopBoard();
+      const epoch = boardEpoch, out = output(volume);
       SYNTH[id](ctx, out, ctx.currentTime + 0.02);
-      setTimeout(() => out.disconnect(), 5000);
-    } catch {}
+      setTimeout(() => { if (epoch === boardEpoch) stopBoard(); }, 5000);
+      return true;
+    } catch { return false; }
+  }
+
+  async function playCustom(url, volume, token) {
+    if (volume <= 0 || !/^\/servers\/[a-f0-9]{16}\/sounds\/[a-f0-9]{16}$/.test(url)) return false;
+    ctx ||= new AudioContext();
+    stopBoard(); const epoch = boardEpoch;
+    if (ctx.state === 'suspended') await ctx.resume();
+    if (epoch !== boardEpoch) return false;
+    if (!customBuffers.has(url)) {
+      if (customBuffers.size >= 32) customBuffers.delete(customBuffers.keys().next().value);
+      customBuffers.set(url, fetch(url, { headers: { 'x-token': token } }).then((r) => {
+        if (!r.ok) throw new Error('Não foi possível carregar o efeito sonoro.');
+        return r.arrayBuffer();
+      }).then((bytes) => ctx.decodeAudioData(bytes)));
+    }
+    let buffer;
+    try { buffer = await customBuffers.get(url); }
+    catch (error) { customBuffers.delete(url); throw error; }
+    if (epoch !== boardEpoch) return false;
+    if (buffer.duration > 8.01) throw new Error('Efeito sonoro muito longo.');
+    const source = ctx.createBufferSource(); source.buffer = buffer;
+    source.connect(output(volume));
+    source.onended = () => { source.disconnect(); if (epoch === boardEpoch) stopBoard(); };
+    source.start(); return true;
+  }
+
+  // Decode any format supported by this browser, then send a bounded, normalized WAV.
+  async function prepareFile(file) {
+    if (!file || file.size > 5 * 1024 * 1024) throw new Error('Escolha um áudio de até 5 MB e 8 segundos.');
+    const url = URL.createObjectURL(file), audio = document.createElement('audio');
+    try {
+      await new Promise((resolve, reject) => {
+        const timer = setTimeout(() => reject(new Error('Não foi possível ler esse áudio.')), 10000);
+        audio.onloadedmetadata = () => { clearTimeout(timer); Number.isFinite(audio.duration) && audio.duration > 0 && audio.duration <= 8 ? resolve() : reject(new Error('O efeito deve ter até 8 segundos.')); };
+        audio.onerror = () => { clearTimeout(timer); reject(new Error('Formato não suportado. Tente MP3, WAV ou OGG.')); };
+        audio.preload = 'metadata'; audio.src = url;
+      });
+    } finally { audio.removeAttribute('src'); audio.load(); URL.revokeObjectURL(url); }
+    ctx ||= new AudioContext();
+    const decoded = await ctx.decodeAudioData(await file.arrayBuffer());
+    if (decoded.duration > 8 || !decoded.length || decoded.numberOfChannels > 8) throw new Error('O efeito deve ter até 8 segundos.');
+    const rate = 48000, length = Math.floor(decoded.duration * rate), samples = new Float32Array(length);
+    const channels = Array.from({ length: decoded.numberOfChannels }, (_, i) => decoded.getChannelData(i));
+    let peak = 0;
+    for (let i = 0; i < length; i++) {
+      const position = i * decoded.sampleRate / rate, index = Math.floor(position), fraction = position - index;
+      let sample = 0;
+      for (const data of channels) sample += (data[index] || 0) * (1 - fraction) + (data[Math.min(index + 1, data.length - 1)] || 0) * fraction;
+      samples[i] = sample / channels.length; peak = Math.max(peak, Math.abs(samples[i]));
+    }
+    if (peak < .0001) throw new Error('Esse áudio está sem som. Escolha outro arquivo.');
+    const bytes = new ArrayBuffer(44 + length * 2), view = new DataView(bytes);
+    const text = (at, value) => { for (let i = 0; i < value.length; i++) view.setUint8(at + i, value.charCodeAt(i)); };
+    text(0, 'RIFF'); view.setUint32(4, bytes.byteLength - 8, true); text(8, 'WAVE'); text(12, 'fmt ');
+    view.setUint32(16, 16, true); view.setUint16(20, 1, true); view.setUint16(22, 1, true);
+    view.setUint32(24, rate, true); view.setUint32(28, rate * 2, true); view.setUint16(32, 2, true); view.setUint16(34, 16, true);
+    text(36, 'data'); view.setUint32(40, length * 2, true);
+    for (let i = 0; i < length; i++) {
+      const fade = Math.min(1, i / 240, (length - 1 - i) / 240);
+      view.setInt16(44 + i * 2, Math.round(samples[i] * .75 / peak * fade * 32767), true);
+    }
+    return { blob: new Blob([bytes], { type: 'audio/wav' }), duration: length / rate };
   }
 
   return {
     play,
     board: BOARD,
     playBoard,
+    playCustom, prepareFile, stopBoard,
     get enabled() { return enabled; },
     set enabled(v) {
       enabled = !!v;
