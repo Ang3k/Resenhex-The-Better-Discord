@@ -1,0 +1,45 @@
+/* Grupos compartilham os mesmos canais e os controles existentes de chat/voz. */
+.channel-group { min-width: 0; }
+.channel-group .category { gap: 2px; padding: 12px 0 4px; }
+.channel-group .cat-toggle { min-width: 0; min-height: 28px; gap: 4px; text-transform: uppercase; }
+.group-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.group-action { flex-shrink: 0; display: grid; place-items: center; width: 28px; height: 28px; padding: 0; border: 0; border-radius: 5px; background: transparent; color: var(--text-muted); font: inherit; font-size: 20px; }
+.group-action:hover, .group-action:focus-visible { background: var(--hover-strong); color: var(--text-strong); }
+.group-action:focus-visible, .channel-entry:focus-visible, .channel-group .cat-toggle:focus-visible { outline: 2px solid var(--brand); outline-offset: 1px; }
+.group-channel-list { list-style: none; margin: 0; padding: 0 0 8px; min-height: 8px; }
+.grouped-channel { padding: 0 4px 0 0; gap: 2px; height: auto; min-height: 34px; }
+.channel-entry { display: flex; align-items: center; gap: 8px; align-self: stretch; flex: 1; min-width: 0; padding: 6px 8px; background: transparent; border: 0; border-radius: 5px; color: inherit; text-align: left; font: inherit; }
+.grouped-channel .group-action { font-size: 22px; }
+#channel-groups .grouped-channel .group-action,
+#channel-groups .category > .group-action:last-child { visibility: hidden; }
+#channel-groups .grouped-channel:hover .group-action,
+#channel-groups .grouped-channel:focus-within .group-action,
+#channel-groups .category:hover > .group-action,
+#channel-groups .category:focus-within > .group-action { visibility: visible; }
+.grouped-channel .channel-name { min-width: 0; }
+.group-empty { padding: 8px; font-size: 12px; color: var(--text-muted); }
+.channel-dragging { opacity: .45; }
+.channel-drop-target { outline: 2px solid var(--brand); outline-offset: -2px; border-radius: 5px; background: var(--hover); }
+.admin-channel-groups .channel-group { border: 1px solid var(--divider); border-radius: 8px; margin-bottom: 12px; padding: 0 12px; background: var(--bg-sidebar); }
+.admin-channel-groups .channel-entry { min-height: 42px; }
+#server-settings .admin-channel-groups .cat-toggle, #server-settings .admin-channel-groups .group-action, #server-settings .admin-channel-groups .channel-entry { background: transparent; color: var(--text); margin: 0; }
+#server-settings .admin-channel-groups .cat-toggle { font-size: 12px; }
+#server-settings .admin-channel-groups .group-action:hover, #server-settings .admin-channel-groups .channel-entry:hover { background: var(--hover); }
+.channel-dialog { width: min(440px, calc(100vw - 32px)); max-height: calc(100dvh - 32px); overflow: auto; padding: 24px; border: 1px solid var(--divider); border-radius: 12px; color: var(--text); background: var(--bg-main); box-shadow: 0 16px 48px #0008; }
+.channel-dialog::backdrop { background: #000a; }
+.channel-dialog form { display: grid; gap: 18px; }
+.channel-dialog h2 { font-size: 21px; margin: 0; color: var(--text-strong); }
+.channel-dialog p { margin: 0; line-height: 1.5; }
+.channel-dialog label { display: grid; gap: 8px; font-size: 14px; font-weight: 600; }
+.channel-dialog input, .channel-dialog select, #create-channel select, #create-channel textarea, #server-settings .admin-field select, #server-settings .admin-field textarea { width: 100%; background: var(--bg-panel); color: var(--text); border: 1px solid var(--divider); border-radius: 6px; padding: 10px; font: inherit; }
+#create-channel textarea, #server-settings .admin-field textarea { resize: vertical; min-height: 64px; }
+.channel-dialog input:focus, .channel-dialog select:focus, #create-channel select:focus, #create-channel textarea:focus, #server-settings .admin-field select:focus, #server-settings .admin-field textarea:focus { outline: 2px solid var(--brand); outline-offset: 1px; }
+.channel-dialog .confirm-actions { margin: 0 -24px -24px; border-radius: 0 0 12px 12px; }
+.channel-dialog button { font: inherit; border: 0; border-radius: 5px; padding: 10px 14px; }
+.channel-dialog .btn-primary { font-size: 14px; margin: 0; }
+.channel-dialog .btn-ghost { background: transparent; color: var(--text); }
+#create-channel .card { max-height: calc(100dvh - 32px); overflow: auto; }
+#header-title { min-width: 0; }
+#header-title .title-sub { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+@media (hover: none) { .group-action { width: 36px; height: 36px; } .channel-entry { min-height: 40px; } #channel-groups .grouped-channel.active .group-action { visibility: visible; } }
+@media (max-width: 640px) { .admin-toolbar { flex-wrap: wrap; } .admin-channel-groups .channel-group { padding-inline: 8px; } }

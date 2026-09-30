@@ -30,6 +30,7 @@
     permNames: {},
     maxUploadMb: 25,
     messages: {}, // idDoCanal -> mensagens (carregadas sob demanda)
+    messageAuthors: new Map(), // identidade pública de quem escreveu, mesmo depois de sair do servidor
     unread: {}, // idDoCanal -> { unread, mentions }
     textChannel: null,
     view: 'chat', // 'chat' | 'voice'
@@ -204,13 +205,15 @@
 
   function renderServerIcon() {
     const url = state.server?.serverIcon || '';
-    const key = url + ':' + serverName();
+    const key = state.server?.serverId + ':' + url + ':' + serverName();
     if (renderServerIcon.key === key) return;
     renderServerIcon.key = key;
-    const node = document.querySelector('.rail-icon.server-icon');
-    node.classList.toggle('has-image', !!url);
-    setAvatarContents(node, url, serverName());
-    node.closest('.rail-item').dataset.tip = serverName();
+    const node = document.querySelector('#rail-server .rail-icon.server-icon');
+    if (node) {
+      node.classList.toggle('has-image', !!url);
+      setAvatarContents(node, url, serverName());
+      node.closest('.rail-item').dataset.tip = serverName();
+    }
     const link = document.querySelector('link[rel=icon]');
     if (link) link.href = url || DEFAULT_FAVICON;
   }
@@ -272,7 +275,7 @@
   const isTyping = (target) => target && (target.matches?.('input, textarea, select') || target.isContentEditable);
 
   // ---------------- cargos e permissões (espelho do servidor) ----------------
-  const member = (id) => state.server?.members.find((m) => m.id === id);
+  const member = (id) => state.server?.members.find((m) => m.id === id) || state.server?.people?.find((m) => m.id === id) || state.messageAuthors.get(id);
   const meMember = () => member(state.me.accountId);
   const roleIdx = (id) => state.server.roles.findIndex((r) => r.id === id);
   const roleById = (id) => state.server.roles.find((r) => r.id === id);
@@ -287,7 +290,7 @@
     return Math.max(0, ...m.roles.map(roleIdx));
   }
 
-  const iOutrank = (target) => !isOwner(target.id) && topPos(meMember()) > topPos(target);
+  const iOutrank = (target) => state.server.members.some((m) => m.id === target.id) && !isOwner(target.id) && topPos(meMember()) > topPos(target);
   const canActOn = (target) => target.id === state.me.accountId || iOutrank(target);
 
   // Cor do nome = cor do cargo colorido mais alto.
@@ -344,20 +347,23 @@
   // ---------------- login / cadastro ----------------
   let config = { passwordRequired: false, hasOwner: true };
   let loginMode = 'login';
+  let pendingInviteCode = new URLSearchParams(location.search).get('invite') || '';
+  let pendingInvitePreview = null;
+  let inviteShown = false;
 
   function setLoginMode(mode) {
     loginMode = mode;
     const register = mode === 'register';
     $('#login-title').textContent = register ? 'Criar uma conta' : 'Bem-vindo de volta!';
     $('#login-subtitle').textContent = register
-      ? (config.hasOwner ? 'Escolha um nome e uma senha.' : 'Você é o primeiro! Esta conta será a dona do servidor Resenha.')
+      ? 'Escolha seu nome de usuário, crie uma senha e confirme. Sem e-mail.'
       : 'Entre com sua conta.';
     $('#login-submit').textContent = register ? 'Criar conta' : 'Entrar';
     $('#login-switch-text').textContent = register ? 'Já tem uma conta?' : 'Precisa de uma conta?';
     $('#login-switch').textContent = register ? 'Entrar' : 'Registre-se';
     $('#login-color-label').classList.toggle('hidden', !register);
-    $('#server-password-label').classList.toggle('hidden', !register || !config.passwordRequired);
-    $('#server-password').required = register && config.passwordRequired;
+    $('#confirm-password-label').classList.toggle('hidden', !register);
+    $('#login-confirm-password').required = register;
     $('#login-password').autocomplete = register ? 'new-password' : 'current-password';
   }
 
@@ -366,8 +372,9 @@
     $('#login-name').value = localStorage.getItem('name') || '';
     $('#app').classList.add('hidden');
     $('#login').classList.remove('hidden');
-    $('#login-notice').textContent = notice || '';
-    $('#login-notice').classList.toggle('hidden', !notice);
+    const message = notice || (pendingInvitePreview ? `Você recebeu um convite para ${pendingInvitePreview.name}. Entre ou crie sua conta para aceitar.` : '');
+    $('#login-notice').textContent = message;
+    $('#login-notice').classList.toggle('hidden', !message);
   }
 
   $('#login-switch').onclick = (e) => {
@@ -381,7 +388,7 @@
       mode: loginMode,
       name: $('#login-name').value.trim(),
       password: $('#login-password').value,
-      serverPassword: $('#server-password').value,
+      confirmPassword: $('#login-confirm-password').value,
       color: $('#login-color').value,
     });
   });
@@ -392,7 +399,7 @@
     // "active" = o Socket.IO já está conectando/reconectando; chamar connect() de novo
     // mandaria um segundo pedido de conexão e o servidor derrubaria a sessão.
     if (!socket.connected && !socket.active) socket.connect();
-    socket.emit('auth', payload, (res) => {
+    socket.emit('auth', { ...payload, serverId: localStorage.getItem('serverId'), invite: pendingInviteCode }, (res) => {
       if (res.error) {
         if (payload.token) localStorage.removeItem('token');
         setConnBanner(null);
@@ -406,7 +413,7 @@
       state.iceServers = res.iceServers;
       state.maxUploadMb = res.maxUploadMb;
       $('#login-password').value = '';
-      $('#server-password').value = '';
+      $('#login-confirm-password').value = '';
       $('#login').classList.add('hidden');
       $('#app').classList.remove('hidden');
       if (!opts.reconnect) setTimeout(showChangelogIfNew, 600);
@@ -435,13 +442,18 @@
     banner.classList.toggle('hidden', !text);
   }
 
-  fetch('/config').then((r) => r.json()).then((c) => {
+  Promise.all([fetch('/config').then((r) => r.json()), pendingInviteCode ? fetch('/invites/' + encodeURIComponent(pendingInviteCode)).then((r) => r.json()).catch(() => ({ error: 'Não foi possível consultar o convite. Tente novamente.' })) : null]).then(([c, invite]) => {
     config = c;
+    pendingInvitePreview = invite && !invite.error ? invite : null;
     setLoginMode(c.hasOwner ? 'login' : 'register');
+    if (invite) {
+      $('#login-notice').textContent = invite.error || `Convite para ${invite.name}. Entre ou crie sua conta para aceitar.`;
+      $('#login-notice').classList.remove('hidden');
+    }
     $('#login-name').value = localStorage.getItem('name') || '';
     const token = localStorage.getItem('token');
     if (token) authenticate({ token });
-  });
+  }).catch(() => showLogin('Não foi possível conectar. Recarregue a página para tentar novamente.'));
 
   socket.on('removed', ({ reason }) => {
     state.removed = true;
@@ -470,13 +482,32 @@
   });
 
   socket.on('notice', (text) => toast(text, 'info'));
+  socket.on('server:removed', ({ reason }) => toast(reason, 'info'));
 
   // ---------------- estado do servidor ----------------
   socket.on('state', (s) => {
+    const switching = state.server && state.server.serverId !== s.serverId;
+    if (switching) {
+      saveComposerDraft();
+      leaveVoice(false, false);
+      state.home = !s.serverId;
+      state.textChannel = null;
+      state.serverChannel = null;
+      state.editing = state.replyTo = null;
+      closeProfile();
+      closeMenu();
+      clearDraft();
+      $('#server-settings').classList.add('hidden');
+      lastRender.clear();
+      $('#messages').dataset.channel = '';
+    }
     state.server = s;
     if (!state.me) return;
+    if (!s.serverId) state.home = true;
+    if (s.serverId) localStorage.setItem('serverId', s.serverId); else localStorage.removeItem('serverId');
     const textChannels = s.channels.filter((c) => c.type === 'text');
     if (!state.home && !textChannels.some((c) => c.id === state.textChannel)) state.textChannel = textChannels[0]?.id || null;
+    if (switching) restoreComposerDraft(state.textChannel);
     // Fecha conexões com quem saiu da nossa sala.
     for (const sid of state.peers.keys()) {
       const v = voiceEntry(sid);
@@ -487,6 +518,7 @@
     syncScreenSubscriptions();
     tuneSenders();
     render();
+    if (pendingInviteCode && !inviteShown) { inviteShown = true; showInviteAcceptance(pendingInviteCode, pendingInvitePreview); }
   });
 
   // Sons quando alguém entra, sai ou começa a transmitir na minha sala.
@@ -529,12 +561,11 @@
     $('#btn-members').classList.toggle('hidden', state.home);
     $('#btn-members').classList.toggle('active', state.showMembers);
     $('#rail-home').classList.toggle('active', state.home);
-    $('#rail-server').classList.toggle('active', !state.home);
+    renderServerRail();
     $('#server-header').classList.toggle('hidden', state.home);
     $('#server-nav').classList.toggle('hidden', state.home);
     $('#home-nav').classList.toggle('hidden', !state.home);
     $('#btn-members').dataset.tip = state.showMembers ? 'Ocultar lista de membros' : 'Mostrar lista de membros';
-    for (const btn of document.querySelectorAll('.cat-add')) btn.classList.toggle('hidden', !hasPerm('MANAGE_CHANNELS'));
     renderChannels();
     renderHomeNav();
     renderMembers();
@@ -545,7 +576,7 @@
     $('#server-header span').textContent = serverName();
     renderServerIcon();
     if (profileFor) renderProfile();
-    const settingsKey = JSON.stringify([state.server.serverName, state.server.roles, state.server.channels, state.server.bans, state.server.myPerms,
+    const settingsKey = JSON.stringify([state.server.serverName, state.server.roles, state.server.channels, state.server.categories, state.server.bans, state.server.myPerms,
       state.server.members.map((m) => [m.id, m.name, m.color, m.avatarUrl, m.roles, m.online])]);
     if (!$('#server-settings').classList.contains('hidden') && settingsKey !== render.settingsKey) renderServerSettings();
     render.settingsKey = settingsKey;
@@ -556,8 +587,10 @@
     const serverMentions = entries.filter(([id]) => !isDm(id)).reduce((n, [, u]) => n + u.mentions, 0);
     const dmMessages = entries.filter(([id]) => isDm(id)).reduce((n, [, u]) => n + u.mentions, 0);
     const badge = $('#server-badge');
-    badge.textContent = serverMentions > 99 ? '99+' : String(serverMentions);
-    badge.classList.toggle('hidden', !serverMentions);
+    if (badge) {
+      badge.textContent = serverMentions > 99 ? '99+' : String(serverMentions);
+      badge.classList.toggle('hidden', !serverMentions);
+    }
     // No Início, a bolinha soma mensagens diretas novas e pedidos de amizade.
     const homeCount = dmMessages + state.social.incoming.length;
     const homeBadge = $('#home-badge');
@@ -572,13 +605,30 @@
     document.title = (mentions ? `(${mentions}) ` : entries.length ? '• ' : '') + (state.home ? `${where} | Resenhex` : `${where} | ${serverName()} | Resenhex`);
   }
 
+  const composerDrafts = new Map();
+  function saveComposerDraft() {
+    if (!state.textChannel) return;
+    const draft = { value: $('#chat-input').value, pending: state.pending, replyTo: state.replyTo };
+    if (draft.value || draft.pending.length || draft.replyTo) composerDrafts.set(state.textChannel, draft);
+    else composerDrafts.delete(state.textChannel);
+  }
+  function restoreComposerDraft(id) {
+    const draft = composerDrafts.get(id);
+    $('#chat-input').value = draft?.value || '';
+    state.pending = draft?.pending || [];
+    state.replyTo = draft?.replyTo || null;
+    autoresize();
+  }
+
   function openTextChannel(id) {
+    saveComposerDraft();
     if (state.textChannel !== id) {
       state.editing = null;
       state.replyTo = null;
     }
     state.home = false;
     state.textChannel = id;
+    restoreComposerDraft(id);
     state.view = 'chat';
     markRead(id);
     render();
@@ -588,9 +638,11 @@
 
   // Início: a tela de amigos (sem conversa aberta) e a lista de mensagens diretas.
   function goHome() {
+    saveComposerDraft();
     if (!state.home) state.serverChannel = state.textChannel;
     state.home = true;
     state.textChannel = null;
+    restoreComposerDraft(null);
     state.editing = null;
     state.replyTo = null;
     if (state.view === 'voice') state.view = 'chat';
@@ -599,14 +651,17 @@
   }
 
   function leaveHome() {
+    saveComposerDraft();
     const texts = state.server.channels.filter((c) => c.type === 'text');
     state.home = false;
     state.textChannel = texts.some((c) => c.id === state.serverChannel) ? state.serverChannel : texts[0]?.id || null;
+    restoreComposerDraft(state.textChannel);
     state.editing = null;
     state.replyTo = null;
   }
 
   function goServer() {
+    if (!state.server.serverId) return openServerPicker();
     if (!state.home) return;
     leaveHome();
     markRead(state.textChannel);
@@ -614,7 +669,218 @@
     closePanels();
   }
 
+  function serverIcon(name, url) {
+    const icon = el('span', { class: 'rail-icon server-icon' + (url ? ' has-image' : '') });
+    setAvatarContents(icon, url, name);
+    return icon;
+  }
+
+  function renderServerRail() {
+    const servers = state.server.servers || [];
+    if (!changed('servers', [servers, state.server.serverId, state.home])) return;
+    $('#server-list').replaceChildren(...servers.map((server) => {
+      const selected = server.id === state.server.serverId;
+      return el('button', { type: 'button', id: selected ? 'rail-server' : '', class: 'rail-item server-entry' + (selected && !state.home ? ' active' : ''),
+        ariaLabel: server.name, ariaCurrent: selected && !state.home ? 'true' : 'false', data: { tip: server.name, tipPos: 'right', serverId: server.id },
+        onclick: () => switchServer(server.id) }, el('span', { class: 'rail-pill' }), serverIcon(server.name, server.icon),
+      selected ? el('span', { id: 'server-badge', class: 'badge rail-badge hidden' }) : null);
+    }));
+    $('#nav-to-server .channel-name').textContent = state.server.serverId ? 'Voltar ao servidor' : 'Criar ou entrar em servidor';
+  }
+
+  async function switchServer(id) {
+    if (id === state.server.serverId) { goServer(); return true; }
+    if (!guardLeave()) return false;
+    const result = await call('server:select', { id });
+    if (result) { closePanels(); refreshServerUnread(); }
+    return !!result;
+  }
+
+  function refreshServerUnread() {
+    const serverId = state.server.serverId;
+    call('chat:unread').then((result) => {
+      if (!result || state.server.serverId !== serverId) return;
+      state.unread = result.unread;
+      render();
+    });
+  }
+
+  let serverDialogClose = null;
+  function serverDialog(title, subtitle = '') {
+    serverDialogClose?.();
+    const opener = document.activeElement;
+    const body = el('div');
+    const close = () => {
+      overlay.remove();
+      document.removeEventListener('keydown', onKey, true);
+      if (serverDialogClose === close) serverDialogClose = null;
+      if (opener?.isConnected) opener.focus();
+    };
+    const onKey = (event) => {
+      if (event.key === 'Escape') { event.preventDefault(); event.stopPropagation(); close(); }
+      if (event.key !== 'Tab') return;
+      const fields = [...overlay.querySelectorAll('button:not(:disabled), input:not(:disabled)')];
+      if (!fields.length) return;
+      const first = fields[0], last = fields.at(-1);
+      if (event.shiftKey && (document.activeElement === first || !overlay.contains(document.activeElement))) { event.preventDefault(); last.focus(); }
+      else if (!event.shiftKey && (document.activeElement === last || !overlay.contains(document.activeElement))) { event.preventDefault(); first.focus(); }
+    };
+    const overlay = el('div', { id: 'server-dialog', class: 'modal', role: 'dialog', ariaModal: 'true', ariaLabelledby: 'server-dialog-title',
+      onmousedown: (event) => { if (event.target === overlay) close(); } },
+    el('section', { class: 'server-dialog' },
+      el('button', { type: 'button', class: 'dialog-close', ariaLabel: 'Fechar', onclick: close }, Icon('x', 20)),
+      el('h2', { id: 'server-dialog-title', textContent: title }), subtitle ? el('p', { textContent: subtitle }) : null, body));
+    document.body.append(overlay);
+    document.addEventListener('keydown', onKey, true);
+    serverDialogClose = close;
+    queueMicrotask(() => overlay.querySelector('input, .server-choice, .btn-primary, button')?.focus());
+    return { body, close, overlay };
+  }
+
+  function openServerPicker() {
+    const dialog = serverDialog('Seus servidores', 'Escolha um servidor ou adicione um novo.');
+    dialog.body.append(...(state.server.servers || []).map((server) => el('button', { type: 'button', class: 'server-choice',
+      onclick: async () => { if (await switchServer(server.id)) dialog.close(); } }, serverIcon(server.name, server.icon),
+    el('span', { class: 'choice-text', textContent: server.name }, el('small', { textContent: server.id === state.server.serverId ? 'Servidor atual' : server.owner ? 'Seu servidor' : 'Participante' })), Icon('chevronRight', 18))),
+    el('button', { type: 'button', class: 'server-choice', onclick: openAddServer }, Icon('plusCircle', 24), el('span', { class: 'choice-text', textContent: 'Adicionar servidor' })));
+  }
+
+  function openAddServer() {
+    if (!guardLeave()) return;
+    const dialog = serverDialog('Seu próximo encontro', 'Crie um espaço para sua turma ou entre usando um convite.');
+    dialog.body.append(
+      el('button', { type: 'button', class: 'server-choice', onclick: openCreateServer }, Icon('plusCircle', 26), el('span', { class: 'choice-text', textContent: 'Criar meu servidor' }, el('small', { textContent: 'Dê um nome e convide seus amigos.' })), Icon('chevronRight', 18)),
+      el('button', { type: 'button', class: 'server-choice', onclick: openJoinServer }, Icon('link', 26), el('span', { class: 'choice-text', textContent: 'Entrar em um servidor' }, el('small', { textContent: 'Cole o link que alguém enviou.' })), Icon('chevronRight', 18)));
+  }
+
+  function openCreateServer() {
+    const dialog = serverDialog('Criar seu servidor', 'Canais, cargos e chamadas próprios para sua turma. Você pode personalizar tudo depois.');
+    const input = el('input', { id: 'new-server-name', maxLength: 32, minLength: 2, required: true, placeholder: 'Ex.: Resenha dos amigos', autocomplete: 'off' });
+    const submit = el('button', { type: 'submit', class: 'btn-primary', textContent: 'Criar servidor' });
+    dialog.body.append(el('form', { onsubmit: async (event) => {
+      event.preventDefault();
+      if (!guardLeave()) return;
+      submit.disabled = true;
+      const result = await call('server:create', { name: input.value.trim() });
+      submit.disabled = false;
+      if (!result) return;
+      dialog.close(); closePanels(); refreshServerUnread();
+      toast('Servidor criado! Agora é só chamar a turma.', 'info');
+      await copyInvite();
+    } }, el('label', { htmlFor: input.id, textContent: 'NOME DO SERVIDOR' }), input,
+    el('div', { class: 'dialog-actions' }, el('button', { type: 'button', class: 'secondary', textContent: 'Voltar', onclick: openAddServer }), submit)));
+  }
+
+  function codeFromInvite(value) {
+    const text = value.trim();
+    if (/^[\w-]{24}$/.test(text)) return text;
+    try {
+      const url = new URL(text);
+      if (url.origin !== location.origin) throw new Error('origin');
+      const code = url.searchParams.get('invite');
+      if (/^[\w-]{24}$/.test(code || '')) return code;
+    } catch {}
+    throw new Error('Cole um link de convite deste Resenhex ou o código do convite.');
+  }
+
+  function openJoinServer() {
+    const dialog = serverDialog('Entrar em um servidor', 'Cole o convite para ver o servidor antes de entrar.');
+    const input = el('input', { id: 'server-invite-input', required: true, placeholder: location.origin + '/?invite=…', autocomplete: 'off' });
+    const note = el('p', { class: 'invite-error', role: 'alert' });
+    dialog.body.append(el('form', { onsubmit: (event) => {
+      event.preventDefault();
+      try { showInviteAcceptance(codeFromInvite(input.value)); } catch (error) { note.textContent = error.message; input.focus(); }
+    } }, el('label', { htmlFor: input.id, textContent: 'LINK OU CÓDIGO DO CONVITE' }), input, note,
+    el('div', { class: 'dialog-actions' }, el('button', { type: 'button', class: 'secondary', textContent: 'Voltar', onclick: openAddServer }),
+      el('button', { type: 'submit', class: 'btn-primary', textContent: 'Ver convite' }))));
+  }
+
+  function clearPendingInvite() {
+    pendingInviteCode = '';
+    pendingInvitePreview = null;
+    const url = new URL(location.href); url.searchParams.delete('invite');
+    history.replaceState(null, '', url.pathname + url.search + url.hash);
+  }
+
+  async function showInviteAcceptance(code, preview = null) {
+    const dialog = serverDialog('Convite para sua próxima resenha', 'Carregando o servidor…');
+    if (!preview) {
+      try { preview = await (await fetch('/invites/' + encodeURIComponent(code))).json(); }
+      catch { preview = { error: 'Não foi possível consultar o convite. Confira sua conexão.' }; }
+    }
+    if (!dialog.overlay.isConnected) return;
+    dialog.overlay.querySelector('section > p')?.remove();
+    const dismiss = () => { if (code === pendingInviteCode) clearPendingInvite(); dialog.close(); };
+    if (preview.error) {
+      dialog.body.append(el('p', { class: 'invite-error', role: 'alert', textContent: preview.error }),
+        el('button', { type: 'button', class: 'btn-primary', textContent: 'Fechar', onclick: dismiss }));
+      return;
+    }
+    const already = state.server.servers.some((server) => server.id === preview.id);
+    const join = el('button', { type: 'button', class: 'btn-primary', textContent: already ? 'Abrir servidor' : 'Entrar no servidor', onclick: async () => {
+      if (!guardLeave()) return;
+      join.disabled = true;
+      const result = await call('server:join', { code });
+      join.disabled = false;
+      if (!result) return;
+      dismiss(); closePanels(); refreshServerUnread();
+      if (!already) toast(`Você entrou em ${preview.name}!`, 'info');
+    } });
+    dialog.body.append(el('div', { class: 'invite-identity' }, serverIcon(preview.name, preview.icon), el('h2', { textContent: preview.name }),
+      el('p', { textContent: `${preview.members} ${preview.members === 1 ? 'membro' : 'membros'} · ${already ? 'Você já participa' : 'Você foi convidado'}` })),
+    el('div', { class: 'dialog-actions' }, el('button', { type: 'button', class: 'secondary', textContent: 'Agora não', onclick: dismiss }), join));
+    join.focus();
+  }
+
+  function openInviteLink(invite) {
+    const dialog = serverDialog('Chame seus amigos', `Convide a turma para ${invite.name}. É só compartilhar este link.`);
+    const input = el('input', { id: 'server-invite-link', readOnly: true, value: location.origin + '/?invite=' + invite.code, ariaLabel: 'Link de convite', onclick: (event) => event.target.select() });
+    const copy = el('button', { type: 'button', class: 'btn-primary', textContent: 'Copiar link', onclick: async () => {
+      try { await navigator.clipboard.writeText(input.value); copy.textContent = 'Link copiado!'; }
+      catch { input.focus(); input.select(); toast('O navegador não permitiu copiar automaticamente. Copie o link selecionado.', 'info'); }
+    } });
+    dialog.body.append(el('label', { htmlFor: input.id, textContent: 'LINK DO SERVIDOR' }), input,
+      el('p', { class: 'invite-note', textContent: 'O convite não expira. Quem receber pode criar uma conta e entrar neste servidor.' }),
+      el('div', { class: 'dialog-actions' }, copy));
+    if (hasPerm('ADMIN')) dialog.body.append(el('button', { type: 'button', class: 'server-choice', textContent: 'Revogar este link e gerar outro', onclick: async () => {
+      if (!await confirmDialog({ title: 'Revogar o convite atual?', text: 'O link antigo vai parar de funcionar. Quem já entrou permanece no servidor.', confirm: 'Gerar novo convite' })) return;
+      const next = await call('server:invite', { rotate: true });
+      if (next) { input.value = location.origin + '/?invite=' + next.code; copy.textContent = 'Copiar link'; toast('Novo convite criado. O anterior foi revogado.', 'info'); }
+    } }));
+  }
+
+  async function leaveCurrentServer() {
+    if (!guardLeave()) return;
+    if (!await confirmDialog({ title: `Sair de ${serverName()}?`, text: 'Para voltar, você precisará de um convite. Suas mensagens diretas e seus outros servidores continuam disponíveis.', confirm: 'Sair do servidor' })) return;
+    if (await call('server:leave')) refreshServerUnread();
+  }
+
+  function deleteCurrentServer() {
+    if (!isOwner(state.me.accountId) || !guardLeave()) return;
+    const id = state.server.serverId, name = serverName();
+    const dialog = serverDialog('Excluir servidor', `Excluir ${name} apaga permanentemente seus canais, mensagens, anexos e convites e encerra as chamadas. Não dá para desfazer.`);
+    const input = el('input', { id: 'delete-server-name', required: true, autocomplete: 'off' });
+    const submit = el('button', { type: 'submit', class: 'btn-danger', textContent: 'Excluir servidor', disabled: true });
+    input.oninput = () => { submit.disabled = input.value !== name; };
+    dialog.body.append(el('form', { onsubmit: async (event) => {
+      event.preventDefault();
+      if (submit.disabled || input.value !== name) return;
+      submit.disabled = true;
+      input.disabled = true;
+      const result = await call('server:delete', { id, name: input.value });
+      if (result) { dialog.close(); refreshServerUnread(); }
+      else { input.disabled = false; submit.disabled = input.value !== name; input.focus(); }
+    } },
+    el('label', { htmlFor: input.id, textContent: `Digite “${name}” para confirmar:` }), input,
+    el('div', { class: 'dialog-actions' },
+      el('button', { type: 'button', class: 'btn-ghost', textContent: 'Cancelar', onclick: dialog.close }), submit)));
+  }
+
+  $('#btn-add-server').onclick = openAddServer;
+  $('#btn-switch-server').onclick = openServerPicker;
+
   function openDm(id) {
+    saveComposerDraft();
     if (state.textChannel !== id) {
       state.editing = null;
       state.replyTo = null;
@@ -622,6 +888,7 @@
     if (!state.home) state.serverChannel = state.textChannel;
     state.home = true;
     state.textChannel = id;
+    restoreComposerDraft(id);
     state.view = 'chat';
     markRead(id);
     render();
@@ -652,7 +919,7 @@
   // Lista de conversas privadas na lateral do Início.
   function renderHomeNav() {
     const s = state.server;
-    if (!changed('home-nav', [state.social, state.unread, state.home, state.textChannel, s.members.map((m) => [m.id, m.name, m.color, m.avatarUrl, m.online])])) return;
+    if (!changed('home-nav', [state.social, state.unread, state.home, state.textChannel, s.people, s.members.map((m) => [m.id, m.name, m.color, m.avatarUrl, m.online])])) return;
     $('#nav-friends').classList.toggle('active', state.home && !state.textChannel);
     const pending = state.social.incoming.length;
     $('#friends-badge').textContent = String(pending);
@@ -676,39 +943,37 @@
     $('#dm-empty').classList.toggle('hidden', rows.length > 0);
   }
 
+  const channelNavigation = window.ChannelNavigation({
+    state, el, Icon, call, toast, hasPerm,
+    refresh: () => { lastRender.delete('channels'); renderChannels(); },
+    open: (c) => c.type === 'text' ? openTextChannel(c.id) : (state.voiceChannel === c.id ? (state.view = 'voice', render()) : joinVoice(c.id)),
+    voiceUsers: channelVoiceUsers, createChannel: openCreateChannel,
+    editChannel: (id) => { if (guardLeave()) openChannelSettings(id); },
+    deleteChannel, markRead, guard: () => guardLeave(),
+    confirm: (options) => confirmDialog(options), action: (...args) => menuItem(...args),
+    menu: (event, items) => {
+      closeMenu();
+      const box = $('#context-menu');
+      box.style.width = '';
+      box.replaceChildren(...items);
+      const rect = event.currentTarget.getBoundingClientRect();
+      showMenuAt(event.type === 'contextmenu' ? event.clientX : rect.left, event.type === 'contextmenu' ? event.clientY : rect.bottom);
+      box.querySelector('button')?.focus();
+    },
+  });
+
   function renderChannels() {
     const s = state.server;
-    if (!changed('channels', [s.channels, s.voice, s.members.map((m) => [m.id, m.name, m.color, m.avatarUrl, m.serverMuted, m.serverDeafened, m.timeoutUntil]),
+    if (!s || channelNavigation.dragging) return;
+    if (!changed('channels', [s.channels, s.categories, s.voice, state.me.accountId,
+      s.members.map((m) => [m.id, m.name, m.color, m.avatarUrl, m.serverMuted, m.serverDeafened, m.timeoutUntil]),
       state.unread, state.textChannel, state.view, state.voiceChannel, [...state.collapsed], [...state.localMuted], s.myPerms])) return;
-    const canManage = hasPerm('MANAGE_CHANNELS');
-    const gear = (c) => canManage ? el('button', {
-      class: 'channel-gear', tip: 'Editar canal', ariaLabel: 'Editar canal',
-      onclick: (e) => { e.stopPropagation(); openChannelSettings(c.id); },
-    }, Icon('settings', 16)) : null;
-    for (const cat of document.querySelectorAll('.category[data-cat]')) cat.classList.toggle('collapsed', state.collapsed.has(cat.dataset.cat));
+    channelNavigation.render();
+  }
 
-    const tl = $('#text-channels');
-    tl.innerHTML = '';
-    const textCollapsed = state.collapsed.has('text');
-    for (const c of state.server.channels.filter((c) => c.type === 'text')) {
-      const u = state.unread[c.id];
-      const active = state.view === 'chat' && state.textChannel === c.id;
-      if (textCollapsed && !active && !u) continue;
-      tl.append(el('li', {
-        class: 'channel' + (active ? ' active' : '') + (u ? ' unread' : ''),
-        onclick: () => openTextChannel(c.id),
-      }, el('span', { class: 'icon' }, Icon('hash')), el('span', { class: 'channel-name', textContent: c.name }),
-      c.allowedRoles.length ? el('span', { class: 'lock', tip: 'Canal privado' }, Icon('lock', 14)) : null,
-      u?.mentions ? el('span', { class: 'badge', textContent: u.mentions > 99 ? '99+' : String(u.mentions) }) : null,
-      gear(c)));
-    }
-
-    const vl = $('#voice-channels');
-    vl.innerHTML = '';
-    const voiceCollapsed = state.collapsed.has('voice');
-    for (const c of state.server.channels.filter((c) => c.type === 'voice')) {
-      if (voiceCollapsed && state.voiceChannel !== c.id) continue;
-      const users = voiceEntries(c.id).map((v) => {
+  function channelVoiceUsers(c) {
+    if (c.type !== 'voice') return null;
+    return el('ul', { class: 'voice-users' }, voiceEntries(c.id).map((v) => {
         const m = member(v.accountId);
         if (!m) return null;
         const flags = el('span', { class: 'flags' });
@@ -724,15 +989,7 @@
           onclick: (e) => { e.stopPropagation(); openProfile(m.id, e.currentTarget); },
           oncontextmenu: (e) => openMemberMenu(m.id, e),
         }, avatar(m, 'small' + (state.speaking.has(v.sid) ? ' speaking' : ''), v.sid), el('span', { class: 'name', textContent: m.name }), flags);
-      });
-      vl.append(el('li', {},
-        el('div', {
-          class: 'channel' + (state.view === 'voice' && state.voiceChannel === c.id ? ' active' : ''),
-          onclick: () => (state.voiceChannel === c.id ? (state.view = 'voice', render()) : joinVoice(c.id)),
-        }, el('span', { class: 'icon' }, Icon('volume')), el('span', { class: 'channel-name', textContent: c.name }),
-        c.allowedRoles.length ? el('span', { class: 'lock', tip: 'Canal privado' }, Icon('lock', 14)) : null, gear(c)),
-        el('ul', { class: 'voice-users' }, users)));
-    }
+    }));
   }
 
   function renderMembers() {
@@ -775,7 +1032,7 @@
 
   function setHeader(icon, text, sub) {
     $('#header-title').replaceChildren(Icon(icon, 24), el('span', { class: 'title-text', textContent: text }),
-      sub ? el('span', { class: 'title-sub', textContent: sub }) : '');
+      sub ? el('span', { class: 'title-sub', textContent: sub, title: sub }) : '');
   }
 
   function renderMain() {
@@ -803,11 +1060,12 @@
         el('div', { class: 'avatar-wrap' }, avatar(c.peer, 'small'), el('span', { class: 'status ' + (c.peer.online ? 'online' : 'offline') })),
         el('span', { class: 'title-text', textContent: c.peer.name }),
         el('span', { class: 'title-sub', textContent: c.peer.online ? 'Online' : 'Offline' }));
-    } else setHeader('hash', c.name, c.allowedRoles.length ? 'Canal privado' : '');
+    } else setHeader('hash', c.name, c.topic || (c.private ? 'Canal privado' : ''));
     if (!state.messages[c.id]) {
       state.messages[c.id] = [];
       call('chat:history', { channel: c.id }).then((res) => {
         if (!res) return;
+        for (const author of res.authors || []) state.messageAuthors.set(author.id, author);
         state.messages[c.id] = res.messages;
         if (state.textChannel === c.id) renderMessages(true);
       });
@@ -859,7 +1117,7 @@
       scrollToEnd = true;
     }
     const list = state.messages[state.textChannel] || [];
-    const epoch = JSON.stringify([state.server.members.map((m) => [m.id, m.name, m.color, m.avatarUrl, m.roles]), state.server.roles.map((r) => [r.id, r.name, r.color]),
+    const epoch = JSON.stringify([state.server.members.map((m) => [m.id, m.name, m.color, m.avatarUrl, m.roles]), [...new Set(list.map((msg) => msg.authorId))].map((id) => state.messageAuthors.get(id)), state.server.roles.map((r) => [r.id, r.name, r.color]),
       hasPerm('MANAGE_MESSAGES'), canWrite(), inDm(), state.replyTo?.id, dayKey(Date.now())]);
     const nodes = [welcomeNode(channel)];
     let prev = null;
@@ -1073,20 +1331,22 @@
       renderComposer();
       fetch('/upload', {
         method: 'POST',
-        headers: { 'x-token': localStorage.getItem('token'), 'x-filename': encodeURIComponent(item.name), 'content-type': 'application/octet-stream' },
+        headers: { 'x-token': localStorage.getItem('token'), 'x-filename': encodeURIComponent(item.name), 'content-type': 'application/octet-stream', 'x-server-id': state.server.serverId || '', 'x-channel-id': state.textChannel || '' },
         body: file,
       })
         .then((r) => r.json().catch(() => ({ error: 'Falha no envio (' + r.status + ')' })))
         .catch(() => ({ error: 'Falha no envio' }))
         .then((res) => {
-          if (!state.pending.includes(item)) return;
+          const current = state.pending.includes(item);
+          if (!current && ![...composerDrafts.values()].some((draft) => draft.pending.includes(item))) return;
           if (res.error) {
             toast(res.error);
-            removePending(item);
+            if (current) removePending(item);
+            for (const draft of composerDrafts.values()) draft.pending = draft.pending.filter((p) => p !== item);
             return;
           }
           Object.assign(item, res, { uploading: false });
-          renderComposer();
+          if (current) renderComposer();
         });
     }
   }
@@ -1110,13 +1370,15 @@
     renderComposer();
     renderMessages();
     const res = await call('chat:send', payload);
-    if (!res && !input.value) {
+    if (!res && (state.textChannel !== payload.channel || !input.value)) {
       // Deu erro: devolve o rascunho.
-      input.value = draft.value;
-      state.pending = draft.pending;
-      state.replyTo = draft.replyTo;
-      autoresize();
-      renderComposer();
+      if (state.textChannel === payload.channel) {
+        input.value = draft.value;
+        state.pending = draft.pending;
+        state.replyTo = draft.replyTo;
+        autoresize();
+        renderComposer();
+      } else composerDrafts.set(payload.channel, draft);
       return;
     }
     draft.pending.forEach((p) => p.preview && URL.revokeObjectURL(p.preview));
@@ -1324,7 +1586,8 @@
   };
 
   // ---------------- chat (eventos) ----------------
-  socket.on('chat:message', ({ channel, msg }) => {
+  socket.on('chat:message', ({ channel, msg, author }) => {
+    if (author) state.messageAuthors.set(author.id, author);
     state.messages[channel]?.push(msg);
     if (msg.authorId !== state.me?.accountId) {
       if (isViewing(channel)) markRead(channel);
@@ -1473,6 +1736,7 @@
     const order = [...tiles.filter((t) => t.classList.contains('focus')), ...tiles.filter((t) => !t.classList.contains('focus'))];
     order.forEach((t, i) => { if (stage.children[i] !== t) stage.insertBefore(t, stage.children[i] || null); });
     applyAudio();
+    syncViewerQuality();
   }
 
   // ---------------- controles dos blocos da chamada (estilo Discord) ----------------
@@ -1545,6 +1809,9 @@
     if (o.kind === 'screen' && o.self) {
       items.push(btn('Qualidade / trocar tela', 'settings', (e) => openShareMenu(e.currentTarget), 'tc-quality'));
     }
+    if (o.kind === 'screen' && !o.self && !o.hidden) {
+      items.push(btn('Qualidade para assistir', 'settings', (e) => openWatchQualityMenu(o.sid, e.currentTarget), 'tc-quality'));
+    }
     items.push(btn(pinned ? 'Desafixar' : 'Fixar', pinned ? 'pinOff' : 'pin', () => togglePin(tile.dataset.key), 'tc-pin' + (pinned ? ' active' : '')));
     if ((o.kind === 'screen' && !o.hidden) || o.camera) {
       if (document.pictureInPictureEnabled) items.push(btn('Abrir em janela flutuante', 'pip', () => togglePip(video), 'tc-pip'));
@@ -1581,6 +1848,7 @@
       };
       items.push(el('div', { class: 'menu-range' }, label, range),
         menuItem(state.streamMuted.has(m.id) ? 'Ativar som da transmissão' : 'Silenciar transmissão', state.streamMuted.has(m.id) ? 'volume' : 'volumeX', () => toggleStreamMute(m.id)));
+      items.push(menuItem('Qualidade para assistir', 'settings', () => openWatchQualityMenu(v.sid, tile)));
     }
     items.push(menuItem(pinned ? 'Desafixar' : 'Fixar', pinned ? 'pinOff' : 'pin', () => togglePin(tile.dataset.key)));
     if (!hidden) {
@@ -1737,6 +2005,14 @@
     const tab = state.friendsTab;
     if (tab === 'online' || tab === 'all') {
       const all = people(friends);
+      if (!all.length && !state.server.servers.length && !q) {
+        const welcome = friendsEmpty('Sua turma começa aqui', 'Crie um servidor para seus amigos ou entre usando um convite.');
+        welcome.classList.add('server-welcome');
+        welcome.append(el('div', { class: 'server-welcome-actions' },
+          el('button', { type: 'button', class: 'btn-primary', textContent: 'Criar meu servidor', onclick: openCreateServer }),
+          el('button', { type: 'button', class: 'secondary', textContent: 'Entrar por convite', onclick: openJoinServer })));
+        return [welcome];
+      }
       const list = search(tab === 'online' ? all.filter((m) => m.online) : all);
       if (!list.length) {
         if (q) return [friendsEmpty('Ninguém encontrado', 'Nenhum amigo com esse nome.')];
@@ -1786,7 +2062,7 @@
   function renderFriends(force = false) {
     const { incoming } = state.social;
     const s = state.server;
-    if (!changed('friends', [state.friendsTab, state.social, s.members.map((m) => [m.id, m.name, m.color, m.avatarUrl, m.online, m.roles]), s.roles.map((r) => [r.id, r.color]),
+    if (!changed('friends', [state.friendsTab, state.social, s.people, s.members.map((m) => [m.id, m.name, m.color, m.avatarUrl, m.online, m.roles]), s.roles.map((r) => [r.id, r.color]),
       s.voice.map((v) => [v.accountId, v.channel]), s.channels.map((c) => [c.id, c.name])]) && !force) return;
     const focused = document.activeElement?.id;
     const tabs = $('#friends-tabs');
@@ -1837,7 +2113,7 @@
     closeMenu();
     $('#emoji-picker').classList.add('hidden');
     $('#lightbox').classList.add('hidden');
-    if (!$('#create-channel').classList.contains('hidden')) return $('#create-channel').classList.add('hidden');
+    if (!$('#create-channel').classList.contains('hidden')) return closeCreateChannel();
     if (document.querySelector('.confirm-overlay')) return;
     if (!$('#changelog').classList.contains('hidden')) return closeChangelog();
     if (adminOpen()) closeServerSettings();
@@ -1849,12 +2125,21 @@
     $(id).addEventListener('mousedown', (e) => {
       if (e.target !== e.currentTarget) return;
       if (id === '#server-settings') closeServerSettings();
-      else $(id).classList.add('hidden');
+      else closeCreateChannel();
     });
   }
 
   const menuItem = (label, icon, onclick, cls = '') => el('button', { class: 'menu-item ' + cls, onclick: async () => { closeMenu(); await onclick(); } },
     el('span', { textContent: label }), icon ? Icon(icon, 18) : null);
+  $('#context-menu').addEventListener('keydown', (e) => {
+    if (!['ArrowDown', 'ArrowUp', 'Home', 'End'].includes(e.key)) return;
+    const items = [...e.currentTarget.querySelectorAll('button:not(:disabled)')];
+    if (!items.length) return;
+    e.preventDefault();
+    const index = items.indexOf(document.activeElement);
+    const next = e.key === 'Home' ? 0 : e.key === 'End' ? items.length - 1 : (index + (e.key === 'ArrowDown' ? 1 : -1) + items.length) % items.length;
+    items[next].focus();
+  });
 
   // ---------------- novidades (changelog) ----------------
   // Janela no estilo do "Novidades" do Discord: versões à esquerda, detalhes à direita.
@@ -1900,6 +2185,7 @@
   }
   function closeChangelog() { $('#changelog').classList.add('hidden'); }
   function showChangelogIfNew() {
+    if (pendingInviteCode || document.getElementById('server-dialog')) return;
     let seen = null;
     try { seen = localStorage.getItem('seenVersion'); } catch {}
     if (seen !== window.APP_VERSION && $('#settings').classList.contains('hidden') && !adminOpen()) openChangelog();
@@ -1914,8 +2200,12 @@
     if (Date.now() - Number(header.dataset.closedAt || 0) < 300) return; // o clique fechou o menu
     const items = [];
     if (canAdmin()) items.push(menuItem('Configurações do servidor', 'settings', () => openServerSettings()));
-    if (hasPerm('MANAGE_CHANNELS')) items.push(menuItem('Criar canal', 'plusCircle', () => openCreateChannel('text')));
-    items.push(menuItem('Copiar link de convite', 'link', copyInvite));
+    if (hasPerm('MANAGE_CHANNELS')) items.push(menuItem('Criar grupo de canais', 'plusCircle', () => channelNavigation.editGroup()),
+      menuItem('Criar canal', 'plus', () => openCreateChannel('text')));
+    items.push(menuItem('Convidar amigos', 'link', copyInvite));
+    items.push(menuItem('Criar ou entrar em servidor', 'plusCircle', openAddServer));
+    if (isOwner(state.me.accountId)) items.push(menuItem('Excluir servidor', 'trash', deleteCurrentServer, 'danger'));
+    else items.push(menuItem('Sair do servidor', 'logout', leaveCurrentServer, 'danger'));
     items.push(menuItem(`Novidades · v${window.APP_VERSION}`, 'sparkles', () => openChangelog()));
     items.push(el('div', { class: 'menu-sep' }), menuItem('Configurações de usuário', 'userCog', () => $('#btn-settings').click()));
     const menu = $('#context-menu');
@@ -1927,24 +2217,8 @@
   };
 
   async function copyInvite() {
-    const text = location.origin;
-    try {
-      await navigator.clipboard.writeText(text);
-      toast('Link copiado! Mande para os amigos junto com a senha do servidor.', 'info');
-    } catch {
-      prompt('Copie o link de convite:', text);
-    }
-  }
-
-  // Categorias recolhíveis
-  for (const cat of document.querySelectorAll('.category[data-cat]')) {
-    cat.querySelector('.cat-toggle').onclick = () => {
-      const key = cat.dataset.cat;
-      state.collapsed.has(key) ? state.collapsed.delete(key) : state.collapsed.add(key);
-      localStorage.setItem('collapsed', JSON.stringify([...state.collapsed]));
-      renderChannels();
-    };
-    cat.querySelector('.cat-add').onclick = () => openCreateChannel(cat.dataset.cat);
+    const invite = await call('server:invite');
+    if (invite) openInviteLink(invite);
   }
 
   $('#btn-members').onclick = () => {
@@ -1955,11 +2229,18 @@
   };
 
   // Janela "Criar canal"
-  function openCreateChannel(type) {
+  function openCreateChannel(type, categoryId = null) {
+    if (!hasPerm('MANAGE_CHANNELS') || !guardLeave()) return;
     const form = $('#create-channel-form');
+    form.previousFocus = document.activeElement;
     form.reset();
     form.querySelector(`input[name=ctype][value=${type}]`).checked = true;
-    $('#create-channel-sub').textContent = type === 'voice' ? 'em Canais de voz' : 'em Canais de texto';
+    const select = channelNavigation.categorySelect(categoryId);
+    select.id = 'create-channel-group';
+    $('#create-channel-group').replaceWith(select);
+    const updateGroup = () => { $('#create-channel-sub').textContent = 'em ' + select.selectedOptions[0].textContent; };
+    select.onchange = updateGroup;
+    updateGroup();
     $('#create-channel-roles').classList.add('hidden');
     $('#create-channel-role-list').replaceChildren(...state.server.roles.slice(1).map((r) => {
       const box = el('input', { type: 'checkbox' });
@@ -1969,7 +2250,13 @@
     $('#create-channel').classList.remove('hidden');
     $('#create-channel-name').focus();
   }
-  const closeCreateChannel = () => $('#create-channel').classList.add('hidden');
+  const closeCreateChannel = () => {
+    if ($('#create-channel-form').busy) return;
+    $('#create-channel').classList.add('hidden');
+    const previous = $('#create-channel-form').previousFocus;
+    if (previous?.isConnected && previous.getClientRects().length) previous.focus();
+    else $('#server-header').focus();
+  };
   $('#create-channel-close').onclick = closeCreateChannel;
   $('#create-channel-cancel').onclick = closeCreateChannel;
   $('#create-channel-private').onchange = (e) => $('#create-channel-roles').classList.toggle('hidden', !e.target.checked);
@@ -1980,14 +2267,30 @@
   $('#create-channel-form').onsubmit = async (e) => {
     e.preventDefault();
     const form = e.target;
+    if (form.busy) return;
     const type = form.ctype.value;
     const allowedRoles = $('#create-channel-private').checked
       ? [...$('#create-channel-role-list').querySelectorAll('input:checked')].map((b) => b.dataset.role) : [];
-    const res = await call('channel', { action: 'create', type, name: $('#create-channel-name').value, allowedRoles });
+    form.busy = true;
+    const submit = form.querySelector('button[type=submit]');
+    submit.disabled = true;
+    let res;
+    try {
+      res = await call('channel', { action: 'create', type, name: $('#create-channel-name').value, allowedRoles,
+        private: $('#create-channel-private').checked, categoryId: $('#create-channel-group').value || null, topic: $('#create-channel-topic').value });
+    } finally { form.busy = false; submit.disabled = false; }
     if (!res) return;
     closeCreateChannel();
     if (type === 'text') openTextChannel(res.id);
   };
+  $('#create-channel').addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') { e.stopPropagation(); closeCreateChannel(); }
+    if (e.key !== 'Tab') return;
+    const focusable = [...e.currentTarget.querySelectorAll('button, input, select, textarea')].filter((n) => !n.disabled && n.getClientRects().length);
+    const first = focusable[0], last = focusable.at(-1);
+    if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
+    else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
+  });
 
   // ---------------- perfil e ações de um membro (estilo Discord) ----------------
   // Clique: cartão de perfil. Clique direito ou "⋯": menu de ações com submenus.
@@ -2417,7 +2720,7 @@
     if (!canAdmin()) { clearDraft(); return $('#server-settings').classList.add('hidden'); }
     const body = $('#settings-body');
     // Não redesenha embaixo de quem está digitando (o rascunho guarda o valor, mas o foco se perderia).
-    if (!force && body.contains(document.activeElement) && document.activeElement.matches('input[type=text], input[type=search], input:not([type])')) return;
+    if (!force && body.contains(document.activeElement) && document.activeElement.matches('input[type=text], input[type=search], input:not([type]), textarea, select')) return;
     if (admin.mode === 'channel' && !channelById(admin.channelId)) { admin.mode = 'server'; admin.page = 'channels'; clearDraft(); }
     if (admin.mode === 'server') {
       const page = SERVER_PAGES.find((p) => p.id === admin.page);
@@ -2435,7 +2738,7 @@
 
   function renderAdminNav() {
     const nav = $('#admin-nav');
-    const navButton = (label, icon, active, onclick, cls = '') => el('button', { type: 'button', class: (active ? 'active ' : '') + cls, onclick }, icon ? Icon(icon, 18) : null, el('span', { textContent: label }));
+    const navButton = (label, icon, active, onclick, cls = '') => el('button', { type: 'button', ariaLabel: label, class: (active ? 'active ' : '') + cls, onclick }, icon ? Icon(icon, 18) : null, el('span', { textContent: label }));
     if (admin.mode === 'channel') {
       const c = channelById(admin.channelId);
       nav.replaceChildren(
@@ -2459,7 +2762,9 @@
     nav.replaceChildren(
       el('div', { class: 'admin-nav-title' }, el('span', { textContent: serverName().toUpperCase() })),
       el('div', { class: 'settings-nav-label', textContent: 'CONFIGURAÇÕES DO SERVIDOR' }),
-      el('nav', { ariaLabel: 'Seções do servidor' }, items));
+      el('nav', { ariaLabel: 'Seções do servidor' }, items),
+      isOwner(state.me.accountId) ? el('div', { class: 'settings-nav-bottom' },
+        navButton('Excluir servidor', 'trash', false, deleteCurrentServer, 'danger')) : null);
   }
 
   function renderSavebar() {
@@ -2484,7 +2789,8 @@
         res = await call('server:update', { name: d.name, ...(iconChanged ? { icon: d.icon || null } : {}) });
       }
       else if (admin.draftKey.startsWith('role:')) res = await call('role', { action: 'update', id: d.id, name: d.name, color: d.color, hoist: d.hoist, perms: d.perms });
-      else if (admin.draftKey.startsWith('channel:')) res = await call('channel', { action: 'update', id: d.id, name: d.name, allowedRoles: d.private ? d.allowedRoles : [] });
+      else if (admin.draftKey.startsWith('channel:')) res = await call('channel', { action: 'update', id: d.id, name: d.name,
+        private: d.private, allowedRoles: d.private ? d.allowedRoles : [], categoryId: d.categoryId, topic: d.topic });
     } finally {
       admin.busy = false;
     }
@@ -2722,28 +3028,14 @@
 
   // ----- Canais -----
   function channelsPage() {
-    const roleNames = (c) => c.allowedRoles.map((id) => roleById(id)?.name).filter(Boolean).join(', ');
-    const section = (type, title) => {
-      const channels = state.server.channels.filter((c) => c.type === type && matches(c.name, 'channels'));
-      return el('div', { class: 'admin-table' },
-        el('div', { class: 'admin-table-head' }, el('span', { class: 'grow', textContent: `${title} — ${channels.length}` }),
-          el('button', { type: 'button', class: 'icon-btn', tip: 'Criar canal', ariaLabel: 'Criar ' + title.toLowerCase(), onclick: () => openCreateChannel(type) }, Icon('plus', 16))),
-        channels.map((c) => el('div', { class: 'admin-row clickable', tabIndex: 0, onclick: () => go({ mode: 'channel', channelId: c.id, page: 'overview' }), onkeydown: (e) => e.key === 'Enter' && go({ mode: 'channel', channelId: c.id, page: 'overview' }) },
-          el('span', { class: 'channel-ico' }, Icon(type === 'text' ? 'hash' : 'volume', 18)),
-          el('span', { class: 'grow' }, el('span', { class: 'role-name', textContent: c.name }),
-            c.allowedRoles.length ? el('span', { class: 'admin-badge private' }, Icon('lock', 12), el('span', { textContent: 'Privado · ' + roleNames(c) })) : null),
-          el('span', { class: 'col-actions' },
-            el('button', { type: 'button', class: 'icon-btn', tip: 'Editar canal', ariaLabel: 'Editar ' + c.name, onclick: (e) => { e.stopPropagation(); go({ mode: 'channel', channelId: c.id, page: 'overview' }); } }, Icon('pencil', 16)),
-            el('button', { type: 'button', class: 'icon-btn danger', tip: 'Excluir canal', ariaLabel: 'Excluir ' + c.name, onclick: (e) => { e.stopPropagation(); deleteChannel(c); } }, Icon('trash', 16))))),
-        channels.length ? null : el('div', { class: 'admin-empty', textContent: 'Nenhum canal.' }));
-    };
     const wrap = el('div', { class: 'admin-stack' });
-    const fill = () => wrap.replaceChildren(section('text', 'CANAIS DE TEXTO'), section('voice', 'CANAIS DE VOZ'));
+    const fill = () => wrap.replaceChildren(channelNavigation.adminList(admin.search.channels || ''));
     fill();
     return el('section', {},
-      pageHead('Canais', 'Crie, renomeie e escolha quem pode ver cada canal.'),
+      pageHead('Canais e grupos', 'Organize texto e voz juntos. Arraste para ordenar ou use o menu ⋯ de cada item.'),
       el('div', { class: 'admin-toolbar' },
         searchBox('channels', 'Pesquisar canais', fill),
+        el('button', { type: 'button', class: 'btn-primary', textContent: 'Criar grupo', onclick: () => channelNavigation.editGroup() }),
         el('button', { type: 'button', class: 'btn-primary', textContent: 'Criar canal', onclick: () => openCreateChannel('text') })),
       wrap);
   }
@@ -2770,7 +3062,8 @@
   // ----- Configurações de um canal -----
   function channelPage() {
     const c = channelById(admin.channelId);
-    const d = useDraft('channel:' + c.id, () => ({ id: c.id, name: c.name, private: c.allowedRoles.length > 0, allowedRoles: [...c.allowedRoles] }));
+    const d = useDraft('channel:' + c.id, () => ({ id: c.id, name: c.name, categoryId: c.categoryId, topic: c.topic,
+      private: c.private, allowedRoles: [...c.allowedRoles] }));
     if (admin.page === 'permissions') {
       const roles = state.server.roles.slice(1).reverse();
       const roleList = d.private ? el('div', { class: 'setting-group' },
@@ -2794,7 +3087,10 @@
             toggle(d.private, (v) => { d.private = v; renderServerSettings(true); }, false, 'Canal privado'))),
         roleList);
     }
-    const name = el('input', { type: 'text', value: d.name, maxLength: 32, ariaLabel: 'Nome do canal' });
+    const name = el('input', { type: 'text', value: d.name, maxLength: 64, ariaLabel: 'Nome do canal' });
+    const group = channelNavigation.categorySelect(d.categoryId, (id) => { d.categoryId = id; renderSavebar(); });
+    const topic = el('textarea', { value: d.topic, maxLength: 512, rows: 3, ariaLabel: 'Descrição do canal',
+      placeholder: 'Para que serve este canal?', oninput: (e) => { d.topic = e.target.value; renderSavebar(); } });
     // Canais de texto viram minúsculas com hífens, como no Discord: mostra o resultado enquanto digita.
     const preview = el('span', { class: 'hint' });
     const showPreview = () => {
@@ -2808,12 +3104,16 @@
       el('div', { class: 'admin-field' }, el('label', { class: 'admin-label', textContent: 'NOME DO CANAL' }),
         el('div', { class: 'input-prefix' }, Icon(c.type === 'text' ? 'hash' : 'volume', 18), name),
         preview),
+      el('div', { class: 'admin-field' }, el('label', { class: 'admin-label', textContent: 'GRUPO DE CANAIS' }), group,
+        el('span', { class: 'hint', textContent: 'Mover de grupo mantém as permissões, as mensagens e a chamada.' })),
+      el('div', { class: 'admin-field' }, el('label', { class: 'admin-label', textContent: 'DESCRIÇÃO DO CANAL' }), topic,
+        el('span', { class: 'hint', textContent: 'Até 512 caracteres. Aparece no cabeçalho do chat e ao passar o mouse sobre o canal.' })),
       el('div', { class: 'admin-divider' }),
       el('div', { class: 'admin-field' }, el('label', { class: 'admin-label', textContent: 'ACESSO' }),
         el('button', { type: 'button', class: 'admin-callout clickable', onclick: () => go({ page: 'permissions' }) },
-          el('span', { class: 'callout-icon' }, Icon(c.allowedRoles.length ? 'lock' : 'users', 20)),
-          el('span', { class: 'grow' }, el('strong', { textContent: c.allowedRoles.length ? 'Canal privado' : 'Todos os membros podem ver' }),
-            el('small', { textContent: c.allowedRoles.length ? 'Visível para: ' + c.allowedRoles.map((id) => roleById(id)?.name).filter(Boolean).join(', ') : 'Clique para tornar este canal privado.' })),
+          el('span', { class: 'callout-icon' }, Icon(d.private ? 'lock' : 'users', 20)),
+          el('span', { class: 'grow' }, el('strong', { textContent: d.private ? 'Canal privado' : 'Todos os membros podem ver' }),
+            el('small', { textContent: d.private ? 'Visível para: ' + (d.allowedRoles.map((id) => roleById(id)?.name).filter(Boolean).join(', ') || 'somente administradores') : 'Clique para tornar este canal privado.' })),
           Icon('chevronDown', 18))));
   }
 
@@ -3409,7 +3709,20 @@
     }
   }
 
-  const { isWatching, setWatching, addVideoTracks, syncScreenSubscriptions, videoBitrates, tuneSenders, applySharePreset, setSharePreset, captureScreen, watchScreenTrack, switchScreen, startVideo, stopVideo, scheduleRecovery, renderDiagnostics, updateStreamStats, mediaNotice } = MediaSession({ state, socket, call, el, toast, voiceEntry, member, render, renderStage, sendVoiceState, preferCodec });
+  const { isWatching, setWatching, getWatchQuality, setWatchQuality, syncViewerQuality, addVideoTracks, syncScreenSubscriptions, videoBitrates, tuneSenders, applySharePreset, setSharePreset, captureScreen, watchScreenTrack, switchScreen, startVideo, stopVideo, scheduleRecovery, renderDiagnostics, updateStreamStats, mediaNotice } = MediaSession({ state, socket, call, el, toast, voiceEntry, member, render, renderStage, sendVoiceState, preferCodec });
+
+  function openWatchQualityMenu(sid, anchor) {
+    const menu = $('#context-menu');
+    menu.replaceChildren(el('div', { class: 'menu-section', textContent: 'QUALIDADE PARA ASSISTIR' }),
+      ...Object.entries(MediaPolicy.watchModes).map(([key, mode]) => el('button', {
+        class: 'menu-item preset' + (key === getWatchQuality(sid) ? ' selected' : ''),
+        onclick: () => { closeMenu(); setWatchQuality(sid, key); },
+      }, el('div', { textContent: mode.label }), el('div', { class: 'muted-text', textContent: mode.desc }))),
+      el('div', { class: 'menu-tip', textContent: 'A qualidade acompanha sua reprodução. Em segundo plano o vídeo economiza recursos e o áudio continua.' }));
+    const rect = anchor.getBoundingClientRect();
+    menu.classList.remove('hidden');
+    showMenuAt(rect.left, rect.top - menu.getBoundingClientRect().height - 8);
+  }
 
   function openShareMenu(anchor) {
     const menu = $('#context-menu');
@@ -3806,7 +4119,7 @@
   document.addEventListener('keydown', (event) => { if (event.key === 'Escape') closePanels(); });
   // Existing rows contain a separate edit button. Keep their actions keyboard-accessible.
   function keyboardRows() {
-    for (const node of document.querySelectorAll('.channel, .voice-user, .member')) {
+    for (const node of document.querySelectorAll('.channel:not(.grouped-channel), .voice-user, .member')) {
       node.tabIndex = 0; node.setAttribute('role', 'button');
       node.onkeydown = (event) => { if (event.target === node && ['Enter', ' '].includes(event.key)) { event.preventDefault(); node.click(); } };
     }

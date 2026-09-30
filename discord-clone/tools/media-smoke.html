@@ -1,0 +1,74 @@
+<!doctype html><html lang="pt-BR"><meta charset="utf-8"><title>Resenhex · teste local WebRTC</title>
+<style>body{background:#141821;color:#ddd;font:15px system-ui;margin:24px}button{padding:10px 18px}video{width:320px;height:180px;background:#000}canvas{display:none}li{margin:8px 0}.pass{color:#a0e2b0}.fail{color:#ff9c9c}</style>
+<h1>Teste local de transmissão · 0.9</h1><p>Vídeo e áudio sintéticos entre duas conexões WebRTC reais. Sem acesso ao microfone, câmera ou tela.</p>
+<button id="start">Executar teste</button> <button id="stop" disabled>Encerrar</button>
+<div data-key="screen-host"><video autoplay playsinline muted></video><div class="stream-health"></div><div class="stats"></div></div>
+<ol id="results"></ol><div id="settings" class="hidden"></div><div id="diagnostics-peers" hidden></div><div id="media-health" hidden></div><div id="diagnostics-summary" hidden></div>
+<canvas width="1920" height="1080"></canvas><script src="/media-policy.js"></script><script src="/media-session.js"></script><script>
+const video = document.querySelector('video'), canvas = document.querySelector('canvas'), results = document.querySelector('#results'), ctx = canvas.getContext('2d');
+window.Sounds = { play() {} }; let cleanup = () => {};
+function line(message, pass = true) { const li = document.createElement('li'); li.className = pass ? 'pass' : 'fail'; li.textContent = message; results.append(li); }
+async function until(check) { const end = performance.now() + 15000; do { const value = await check(); if (value) return value; await new Promise((r) => setTimeout(r, 150)); } while (performance.now() < end); throw Error('Tempo esgotado aguardando o vídeo.'); }
+document.querySelector('#stop').onclick = () => cleanup();
+document.querySelector('#start').onclick = async () => {
+  cleanup(); results.replaceChildren(); video.style.width = '320px'; video.style.height = '180px';
+  document.querySelector('#start').disabled = true; document.querySelector('#stop').disabled = false;
+  const sourcePC = new RTCPeerConnection(), viewerPC = new RTCPeerConnection();
+  const audio = new AudioContext(), oscillator = audio.createOscillator(), gain = audio.createGain();
+  gain.gain.value = 0; oscillator.connect(gain); oscillator.start();
+  const system = audio.createMediaStreamDestination(), mic = audio.createMediaStreamDestination(); gain.connect(system); gain.connect(mic);
+  let frame = 0;
+  const paint = setInterval(() => { ctx.fillStyle = '#202838'; ctx.fillRect(0, 0, 1920, 1080); ctx.fillStyle = '#b5a6ff'; ctx.font = '64px sans-serif'; ctx.fillText('Resenhex · vídeo sintético · ' + frame++, 80, 160); ctx.fillStyle = '#71d8b3'; ctx.fillRect((frame * 15) % 1600, 400, 220, 220); }, 33);
+  const stream = canvas.captureStream(30); stream.addTrack(system.stream.getAudioTracks()[0]); sourcePC.addTrack(mic.stream.getAudioTracks()[0], mic.stream);
+  const entries = { host: { sid: 'host', channel: 'room', viewers: ['viewer'] }, viewer: { sid: 'viewer', channel: 'room', viewers: [] } }, events = new Map();
+  const peer = (sid, pc) => ({ sid, pc, senders: { screen: [], camera: [] }, remote: {}, adaptation: {}, stats: {} });
+  const sourcePeer = peer('viewer', sourcePC), viewerPeer = peer('host', viewerPC);
+  const state = (sid, p, local) => ({ me: { sid }, peers: new Map([[p.sid, p]]), voiceChannel: 'room', view: 'voice', local: { screen: local, camera: null }, sharePreset: 'auto', uploadMbps: 10, mediaHealth: '' });
+  const sourceState = state('host', sourcePeer, stream), viewerState = state('viewer', viewerPeer, null);
+  const deps = { el: (tag, props) => Object.assign(document.createElement(tag), props), toast: (msg) => line(msg, false), voiceEntry: (sid) => entries[sid], member: () => ({ name: 'Teste' }), render() {}, renderStage() {}, sendVoiceState() {}, preferCodec() {} };
+  const source = MediaSession({ ...deps, state: sourceState, socket: { on: (event, cb) => events.set(event, cb) }, call: async () => ({}) });
+  const viewer = MediaSession({ ...deps, state: viewerState, socket: {}, call: async (event, data) => {
+    if (data.quality) events.get('screen:quality')({ viewer: 'viewer', demand: data.quality });
+    if (event === 'screen:watch') { entries.host.viewers = data.watching ? ['viewer'] : []; source.syncScreenSubscriptions(); }
+    return { ok: true };
+  } });
+  viewerPC.ontrack = ({ streams, track }) => { if (streams[0]?.id === stream.id) { viewerPeer.remote.screen = streams[0]; if (track.kind === 'video') video.srcObject = streams[0]; } };
+  const pendingSource = [], pendingViewer = [];
+  sourcePC.onicecandidate = ({ candidate }) => { if (candidate) { if (viewerPC.remoteDescription) viewerPC.addIceCandidate(candidate); else pendingViewer.push(candidate); } };
+  viewerPC.onicecandidate = ({ candidate }) => { if (candidate) { if (sourcePC.remoteDescription) sourcePC.addIceCandidate(candidate); else pendingSource.push(candidate); } };
+  let closed = false;
+  cleanup = () => {
+    if (closed) return; closed = true;
+    sourceState.voiceChannel = viewerState.voiceChannel = null; sourceState.peers.clear(); viewerState.peers.clear(); source.stopVideo('screen', false); sourcePC.close(); viewerPC.close();
+    mic.stream.getTracks().forEach((t) => t.stop()); clearInterval(paint); oscillator.stop(); audio.close(); video.srcObject = null;
+    document.querySelector('#start').disabled = false; document.querySelector('#stop').disabled = true;
+  };
+  async function measurement() { const sender = sourcePeer.senders.screen.find((s) => s.track?.kind === 'video'); const stats = await sender.getStats(); return [...stats.values()].find((r) => r.type === 'outbound-rtp' && r.kind === 'video'); }
+  try {
+    source.syncScreenSubscriptions(); await sourcePeer.mediaQueue;
+    await sourcePC.setLocalDescription(await sourcePC.createOffer()); await viewerPC.setRemoteDescription(sourcePC.localDescription);
+    for (const candidate of pendingViewer) await viewerPC.addIceCandidate(candidate);
+    await viewerPC.setLocalDescription(await viewerPC.createAnswer()); await sourcePC.setRemoteDescription(viewerPC.localDescription);
+    for (const candidate of pendingSource) await sourcePC.addIceCandidate(candidate);
+    source.tuneSenders(); viewer.syncViewerQuality();
+    await until(() => sourcePeer.senders.screen.find((s) => s.track?.kind === 'video').track.getSettings().height <= 360);
+    const small = await until(async () => { const m = await measurement(); return m?.framesSent > 3 && m.frameHeight <= 360 ? m : null; });
+    if (Math.abs(small.frameWidth / small.frameHeight - 16 / 9) > .03) throw Error('A redução distorceu a proporção da imagem.');
+    line(`Vídeo pequeno: ${small.frameWidth}×${small.frameHeight}; ${small.framesSent} quadros enviados.`);
+    video.style.width = '960px'; video.style.height = '540px'; viewer.syncViewerQuality();
+    const large = await until(async () => { const m = await measurement(); return m?.frameHeight >= 540 ? m : null; });
+    line(`Vídeo ampliado: ${large.frameWidth}×${large.frameHeight}; qualidade recuperada sem reconectar.`);
+    viewer.setWatchQuality('host', 'economy');
+    await until(() => sourcePeer.senders.screen.find((s) => s.track?.kind === 'video').getParameters().encodings[0].maxFramerate === 15);
+    line('Modo Economia: limite de 15 fps confirmado pelo navegador.');
+    await viewer.setWatching('host', false); await sourcePeer.mediaQueue;
+    if (sourcePeer.senders.screen.some((s) => s.track)) throw Error('A tela continuou sendo enviada após parar de assistir.');
+    if (!sourcePC.getSenders().some((s) => s.track === mic.stream.getAudioTracks()[0])) throw Error('O microfone foi interrompido.');
+    line('Tela e áudio da tela suspensos, mantendo o microfone.');
+    await viewer.setWatching('host', true); await sourcePeer.mediaQueue;
+    const before = (await measurement()).framesSent; await until(async () => (await measurement()).framesSent > before + 3);
+    line('Reprodução retomada na mesma conexão. TESTE CONCLUÍDO.');
+  } catch (error) { line(error.message, false); console.error(error); }
+  finally { document.querySelector('#start').disabled = false; }
+};
+</script></html>

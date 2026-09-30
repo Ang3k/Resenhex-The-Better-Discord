@@ -35,11 +35,16 @@ async function startServer(t) {
     const socket = io(base, { forceNew: true, transports: ['websocket'] });
     clients.push(socket);
     socket.on('state', (s) => (socket.last = s));
-    const res = await new Promise((resolve) => socket.emit('auth', { mode: 'register', name, password: '1234' }, resolve));
+    const res = await new Promise((resolve) => socket.emit('auth', { mode: 'register', name, password: '1234', confirmPassword: '1234' }, resolve));
     assert.ok(!res.error, res.error);
     socket.token = res.token;
     socket.accountId = res.accountId;
     await wait();
+    if (!socket.last.serverId) {
+      const invite = await new Promise((resolve) => clients[0].emit('server:invite', {}, resolve));
+      const joined = await new Promise((resolve) => socket.emit('server:join', { code: invite.code }, resolve));
+      assert.ok(!joined.error, joined.error);
+    }
     return socket;
   };
   return { base, connect, dir };

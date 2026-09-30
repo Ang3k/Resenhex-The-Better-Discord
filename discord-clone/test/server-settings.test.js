@@ -31,9 +31,13 @@ async function startServer(t) {
     clients.push(socket);
     socket.on('state', (s) => (socket.last = s));
     socket.call = (event, payload) => new Promise((resolve) => socket.emit(event, payload, resolve));
-    const res = await socket.call('auth', { mode: 'register', name, password: '1234' });
+    const res = await socket.call('auth', { mode: 'register', name, password: '1234', confirmPassword: '1234' });
     assert.ok(!res.error, res.error);
     await new Promise((r) => setTimeout(r, 100));
+    if (!socket.last.serverId) {
+      const invite = await clients[0].call('server:invite');
+      assert.ok(!(await socket.call('server:join', { code: invite.code })).error);
+    }
     return socket;
   };
 }

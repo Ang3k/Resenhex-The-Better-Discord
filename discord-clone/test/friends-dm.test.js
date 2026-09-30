@@ -37,10 +37,14 @@ async function startServer(t) {
     socket.on('chat:message', (m) => socket.messages.push(m));
     socket.on('notice', (n) => (socket.notice = n));
     socket.call = (event, payload) => new Promise((resolve) => socket.emit(event, payload, resolve));
-    const res = await socket.call('auth', { mode: 'register', name, password: '1234' });
+    const res = await socket.call('auth', { mode: 'register', name, password: '1234', confirmPassword: '1234' });
     assert.ok(!res.error, res.error);
     socket.id_ = res.accountId;
     await wait(100);
+    if (!socket.last.serverId) {
+      const invite = await clients[0].call('server:invite');
+      assert.ok(!(await socket.call('server:join', { code: invite.code })).error);
+    }
     return socket;
   };
 }
@@ -234,7 +238,7 @@ test('closing a conversation hides it until a new message arrives', async (t) =>
   assert.equal((await beto.call('chat:history', { channel: id })).messages.length, 2);
 });
 
-test('banned people disappear from friends and conversations', async (t) => {
+test('a server ban removes membership while preserving friendship and direct messages', async (t) => {
   const { ana, beto } = await pair(t);
   await befriend(ana, beto);
   const { id } = await ana.call('dm:open', { userId: beto.id_ });
@@ -244,9 +248,10 @@ test('banned people disappear from friends and conversations', async (t) => {
 
   assert.ok(!(await ana.call('mod', { action: 'ban', target: beto.id_ })).error);
   await wait(150);
-  assert.deepEqual(ana.social.friends, []);
-  assert.deepEqual(ana.social.dms, []);
-  assert.match((await ana.call('chat:send', { channel: id, text: 'ainda aí?' })).error, /não está mais/);
+  assert.deepEqual(ana.social.friends, [beto.id_]);
+  assert.equal(ana.social.dms[0].id, id);
+  assert.ok(!(await ana.call('chat:send', { channel: id, text: 'ainda aí?' })).error);
+  assert.ok(!(await beto.call('chat:send', { channel: id, text: 'sim, no privado' })).error);
 });
 
 test('friends and direct messages survive a server restart', async (t) => {
@@ -264,17 +269,21 @@ test('friends and direct messages survive a server restart', async (t) => {
     return proc;
   };
   const stop = async (proc) => {
+    if (proc.exitCode !== null || proc.signalCode !== null) return;
     const exited = new Promise((resolve) => proc.once('exit', resolve));
     proc.kill();
     await exited;
   };
   let live = null;
+  const clients = [];
   t.after(async () => {
+    clients.forEach((socket) => socket.disconnect());
     if (live) await stop(live);
     fs.rmSync(dir, { recursive: true, force: true });
   });
   const client = async (payload) => {
     const socket = io('http://127.0.0.1:' + port, { forceNew: true, transports: ['websocket'] });
+    clients.push(socket);
     socket.on('social', (s) => (socket.social = s));
     socket.call = (event, data) => new Promise((resolve) => socket.emit(event, data, resolve));
     const res = await socket.call('auth', payload);
@@ -285,14 +294,22 @@ test('friends and direct messages survive a server restart', async (t) => {
   };
 
   let proc = live = await run();
-  let ana = await client({ mode: 'register', name: 'Ana', password: '1234' });
-  let beto = await client({ mode: 'register', name: 'Beto', password: '1234' });
+  let ana = await client({ mode: 'register', name: 'Ana', password: '1234', confirmPassword: '1234' });
+  let beto = await client({ mode: 'register', name: 'Beto', password: '1234', confirmPassword: '1234' });
   await befriend(Object.assign(ana, { name_: 'Ana' }), Object.assign(beto, { name_: 'Beto' }));
   const { id } = await ana.call('dm:open', { userId: beto.id_ });
   await ana.call('chat:send', { channel: id, text: 'persistiu?' });
+  // No Windows, kill() termina o processo sem executar o handler de SIGTERM.
+  // Aguarda a gravação real para testar o reinício em qualquer sistema.
+  let persisted = false;
+  for (let attempt = 0; attempt < 100 && !persisted; attempt++) {
+    try { persisted = JSON.parse(fs.readFileSync(path.join(dir, 'data.json'), 'utf8')).messages[id]?.some((m) => m.text === 'persistiu?'); } catch {}
+    if (!persisted) await wait(30);
+  }
+  assert.ok(persisted, 'As mensagens devem ser gravadas antes do reinício.');
   ana.disconnect();
   beto.disconnect();
-  await stop(proc); // SIGTERM grava os dados pendentes
+  await stop(proc);
 
   proc = live = await run();
   ana = await client({ mode: 'login', name: 'Ana', password: '1234' });

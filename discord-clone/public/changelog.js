@@ -3,6 +3,53 @@
 // Para uma versão nova: adicione um item no começo da lista e atualize a versão no package.json.
 window.CHANGELOG = [
   {
+    version: '0.95',
+    date: '2026-09-29',
+    name: 'Uma casa para cada turma',
+    summary: 'Crie seus próprios servidores e chame seus amigos com um convite simples.',
+    sections: [
+      { kind: 'new', items: [
+        'Use o botão + na barra lateral para criar um servidor ou entrar com um link de convite. No celular, abra “Seus servidores” na lista de canais.',
+        'O dono pode excluir o servidor pelo menu ou pelas configurações. Confirme digitando seu nome; os canais, mensagens, anexos e convites são removidos permanentemente.',
+        'Cada servidor tem canais, grupos, cargos, membros e chamadas próprios. Seu perfil, seus amigos e suas mensagens diretas acompanham você.',
+        'Convidar amigos abre um link exclusivo do servidor. Quem recebe vê o nome e a quantidade de membros antes de aceitar.',
+        'Cadastro com nome de usuário, senha e confirmação de senha, sem e-mail nem senha compartilhada do servidor.',
+      ] },
+      { kind: 'improved', items: [
+        'O servidor existente mantém seu nome, seus canais, históricos e permissões. A atualização guarda uma cópia permanente dos dados anteriores.',
+        'Banimentos, castigos e silenciamentos valem somente no servidor em que foram aplicados.',
+        'Administradores podem revogar o convite e gerar outro. Quem já entrou permanece no servidor.',
+        'Trocar de servidor encerra a chamada atual e restaura seus rascunhos por canal. O último servidor usado volta ao entrar novamente.',
+      ] },
+    ],
+  },
+  {
+    version: '0.9',
+    date: '2026-09-29',
+    name: 'Cada assunto no seu lugar',
+    summary: 'Organize o servidor em grupos de canais e transmita com qualidade adaptada a cada espectador.',
+    sections: [
+      { kind: 'new', items: [
+        'Grupos de canais: crie pelo menu do servidor ou em Configurações do servidor → Canais. Renomeie, recolha ou expanda cada grupo.',
+        'Arraste canais entre grupos e ordene grupos e canais. No celular ou pelo teclado, use o menu ⋯ para mover, subir ou descer.',
+        'Duplique um canal copiando tipo, descrição e permissões. A cópia começa sem mensagens, arquivos ou participantes da chamada.',
+        'Adicione uma descrição para explicar o assunto do canal. Ela aparece no cabeçalho do chat e ao passar o mouse sobre o canal.',
+        'Quem assiste pode escolher Automática, Economia ou Mais nitidez, sem alterar a qualidade dos demais.',
+      ] },
+      { kind: 'improved', items: [
+        'Excluir um grupo coloca seus canais em “Sem grupo”, preservando mensagens, arquivos, permissões e chamadas.',
+        'O recolhimento é uma preferência pessoal: o canal aberto, a sala da chamada e canais com atividade pendente continuam acessíveis.',
+        'Transmissão considera o tamanho do vídeo e a conexão de cada espectador. Banda não utilizada por vídeos pequenos ou conexões limitadas fica disponível para os demais.',
+        'Captura reduz resolução e FPS quando não há espectadores ou quando todos precisam de menos qualidade. Em segundo plano, o vídeo economiza recursos e o áudio continua; janela flutuante permanece ativa.',
+        'Reserva de banda e prioridade para voz e áudio da tela, com recuperação gradual após dificuldades de rede ou processamento.',
+      ] },
+      { kind: 'fixed', items: [
+        'Canais privados sem cargos selecionados agora ficam acessíveis somente a administradores. Remover o último cargo autorizado não torna o canal público.',
+        'Ajustes de qualidade recebidos durante outro ajuste são reaplicados. Estatísticas antigas de perda e telas estáticas não provocam reduções sucessivas indevidas.',
+      ] },
+    ],
+  },
+  {
     version: '0.8',
     date: '2026-09-28',
     name: 'Banner do perfil',

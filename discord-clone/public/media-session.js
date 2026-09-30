@@ -4,6 +4,15 @@ window.MediaSession = function ({ state, socket, call, el, toast, voiceEntry, me
   const epochs = { screen: 0, camera: 0 };
   const watchingRequests = new Set();
   const samples = new Map();
+  const demands = new Map();
+  const watchQuality = new Map();
+  const sentQuality = new Map();
+  const qualityRequests = new Set();
+  const observed = new Set();
+  let qualityTimer;
+  let captureTimer;
+  let captureSignature = '';
+  let pendingCapture = '';
   let statsBusy = false;
   let constraintsQueue = Promise.resolve();
   let lastNotice = '';
@@ -11,6 +20,68 @@ window.MediaSession = function ({ state, socket, call, el, toast, voiceEntry, me
   const isWatching = (sid) => !!voiceEntry(sid)?.viewers?.includes(state.me?.sid);
   const viewers = () => voiceEntry(state.me?.sid)?.viewers || [];
   const active = (peer) => state.peers.get(peer.sid) === peer && peer.pc.signalingState !== 'closed';
+
+  const getWatchQuality = (sid) => watchQuality.get(sid) || 'auto';
+  function requestedQuality(sid) {
+    const video = document.querySelector(`[data-key="screen-${sid}"] video`);
+    const rect = video?.getBoundingClientRect?.() || { width: 0, height: 0 };
+    const pip = !!video && document.pictureInPictureElement === video;
+    const size = pip && state.pipSize ? state.pipSize : rect;
+    return MediaPolicy.viewerDemand({ mode: getWatchQuality(sid), width: size.width, height: size.height,
+      aspect: video?.videoWidth && video.videoHeight ? video.videoWidth / video.videoHeight : 16 / 9,
+      pixelRatio: window.devicePixelRatio || 1, background: !pip && (document.hidden || state.view !== 'voice') });
+  }
+  function setWatchQuality(sid, mode) {
+    if (!MediaPolicy.watchModes[mode]) return;
+    watchQuality.set(sid, mode);
+    syncViewerQuality();
+    if (state.view === 'voice') renderStage();
+  }
+  const resizeObserver = typeof ResizeObserver === 'function' ? new ResizeObserver(() => syncViewerQuality()) : null;
+  function requestQuality(target, quality) {
+    if (socket.connected === false) return Promise.resolve(null);
+    if (!socket.timeout) return call('screen:quality', { target, quality });
+    // Automatic updates can race with stop/leave or a reconnect. Retry quietly
+    // on the next sample rather than interrupting the viewer with toasts.
+    return new Promise((resolve) => socket.timeout(5000).emit('screen:quality', { target, quality }, (error, result) => resolve(!error && !result?.error ? result : null)));
+  }
+  function syncViewerQuality() {
+    if (qualityTimer) return;
+    qualityTimer = setTimeout(async () => {
+      qualityTimer = null;
+      for (const video of observed) if (!video.isConnected) { resizeObserver?.unobserve(video); observed.delete(video); }
+      for (const [sid] of state.peers) {
+        if (!isWatching(sid)) { sentQuality.delete(sid); continue; }
+        const video = document.querySelector(`[data-key="screen-${sid}"] video`);
+        if (video && !observed.has(video)) {
+          observed.add(video); resizeObserver?.observe(video);
+          video.addEventListener?.('enterpictureinpicture', (event) => {
+            state.pipSize = { width: event.pictureInPictureWindow.width, height: event.pictureInPictureWindow.height };
+            event.pictureInPictureWindow.addEventListener('resize', () => { state.pipSize = { width: event.pictureInPictureWindow.width, height: event.pictureInPictureWindow.height }; syncViewerQuality(); });
+            syncViewerQuality();
+          });
+          video.addEventListener?.('leavepictureinpicture', () => { state.pipSize = null; syncViewerQuality(); });
+        }
+        const quality = requestedQuality(sid), signature = JSON.stringify(quality);
+        if (sentQuality.get(sid) === signature || qualityRequests.has(sid)) continue;
+        qualityRequests.add(sid);
+        try {
+          if (await requestQuality(sid, quality)) sentQuality.set(sid, signature);
+        } finally {
+          qualityRequests.delete(sid);
+          if (isWatching(sid) && JSON.stringify(requestedQuality(sid)) !== signature) syncViewerQuality();
+        }
+      }
+      for (const map of [sentQuality, watchQuality]) for (const sid of map.keys()) if (!state.peers.has(sid)) map.delete(sid);
+    }, 250);
+  }
+  document.addEventListener?.('visibilitychange', syncViewerQuality);
+  window.addEventListener?.('resize', syncViewerQuality);
+  socket.on?.('screen:quality', ({ viewer, demand }) => {
+    if (demand) demands.set(viewer, demand); else demands.delete(viewer);
+    tuneSenders();
+    scheduleCapture();
+  });
 
   function mediaNotice(message) {
     state.mediaHealth = message;
@@ -21,8 +92,10 @@ window.MediaSession = function ({ state, socket, call, el, toast, voiceEntry, me
     if (watchingRequests.has(sid)) return;
     watchingRequests.add(sid);
     try {
-      const result = await call('screen:watch', { target: sid, watching });
+      const quality = requestedQuality(sid);
+      const result = await call('screen:watch', { target: sid, watching, ...(watching ? { quality } : {}) });
       if (!result) return;
+      if (watching) sentQuality.set(sid, JSON.stringify(quality)); else sentQuality.delete(sid);
       if (!watching && state.pinned === 'screen-' + sid) state.pinned = null;
       if (state.view === 'voice') renderStage();
     } finally { watchingRequests.delete(sid); }
@@ -62,62 +135,114 @@ window.MediaSession = function ({ state, socket, call, el, toast, voiceEntry, me
           const track = watching ? current.getTracks().find((t) => t.kind === kind) || null : null;
           if (sender.track !== track) await sender.replaceTrack(track);
         }
-        if (!watching) peer.adaptation = {};
+        if (!watching) { peer.adaptation = {}; peer.capacity = null; }
       }).then(tuneSenders).catch(() => {
         peer.screenKey = null;
         if (active(peer)) mediaNotice('Não foi possível atualizar um espectador. Tentaremos novamente.');
       });
     }
+    for (const sid of demands.keys()) if (!voiceEntry(sid) || voiceEntry(sid).channel !== state.voiceChannel) demands.delete(sid);
+    scheduleCapture();
+    syncViewerQuality();
   }
 
   function videoBitrates() {
-    const count = viewers().filter((sid) => state.peers.has(sid)).length;
-    return MediaPolicy.budget(state.uploadMbps, count, state.peers.size, !!state.local.screen, !!state.local.camera, presets[state.sharePreset]);
+    const now = performance.now();
+    return MediaPolicy.allocate(state.uploadMbps, [...state.peers].map(([sid, peer]) => ({ sid, watching: viewers().includes(sid),
+      demand: demands.get(sid), level: peer.adaptation.level || 0, capacity: peer.capacity && now - peer.capacity.at < 8000 ? peer.capacity.bitrate : undefined })),
+    { screen: !!state.local.screen, screenAudio: !!state.local.screen?.getAudioTracks().length, camera: !!state.local.camera, preset: presets[state.sharePreset] });
   }
 
   async function setEncoding(sender, encoding, degradation) {
+    encoding = { ...encoding };
+    if (sender.scalingUnsupported) delete encoding.scaleResolutionDownBy;
     let params = sender.getParameters();
     if (!params.encodings?.length) return;
     const same = Object.entries(encoding).every(([key, value]) => params.encodings[0][key] === value);
     if (same && (!degradation || params.degradationPreference === degradation)) return;
     Object.assign(params.encodings[0], encoding);
     if (degradation) params.degradationPreference = degradation;
-    try { await sender.setParameters(params); }
+    try {
+      await sender.setParameters(params);
+      const appliedScale = sender.getParameters().encodings?.[0]?.scaleResolutionDownBy;
+      if (encoding.scaleResolutionDownBy > 1 && Number.isFinite(appliedScale) && Math.abs(appliedScale - encoding.scaleResolutionDownBy) > .02) sender.scalingUnsupported = true;
+    }
     catch (error) {
-      if (!degradation || !['NotSupportedError', 'TypeError', 'InvalidModificationError'].includes(error.name)) throw error;
-      // Some browsers support bitrate/framerate but not degradationPreference. Retain core limits.
+      if (!['NotSupportedError', 'TypeError', 'InvalidModificationError'].includes(error.name)) throw error;
+      // Optional controls differ across browsers. Preserve bitrate/active limits and
+      // never constrain a shared track to one viewer's smaller resolution.
       params = sender.getParameters();
       if (!params.encodings?.length) return;
+      delete encoding.priority;
       Object.assign(params.encodings[0], encoding);
-      await sender.setParameters(params);
+      delete params.degradationPreference;
+      try { await sender.setParameters(params); }
+      catch (fallbackError) {
+        if (!('scaleResolutionDownBy' in encoding) || !['NotSupportedError', 'TypeError', 'InvalidModificationError'].includes(fallbackError.name)) throw fallbackError;
+        params = sender.getParameters();
+        delete encoding.scaleResolutionDownBy;
+        Object.assign(params.encodings[0], encoding);
+        await sender.setParameters(params);
+        sender.scalingUnsupported = true;
+      }
     }
   }
 
-  function tuneSenders() {
-    for (const peer of state.peers.values()) {
+  function tuneSenders(onlyPeer) {
+    for (const peer of onlyPeer?.pc ? [onlyPeer] : state.peers.values()) {
+      peer.tuneAgain = true;
       if (peer.tuning) continue;
       peer.tuning = true;
       MediaPolicy.enqueue(peer, async () => {
         if (!active(peer)) return;
-        const rates = videoBitrates();
-        const preset = presets[state.sharePreset];
-        const mic = peer.pc.getSenders().find((sender) => sender.track?.kind === 'audio' && !peer.senders.screen.includes(sender));
-        if (mic) await setEncoding(mic, { maxBitrate: 64000 });
-        for (const kind of ['screen', 'camera']) {
-          for (const sender of peer.senders[kind]) {
-            if (sender.track?.kind !== 'video') continue;
-            const level = kind === 'screen' && state.sharePreset === 'auto' ? peer.adaptation.level || 0 : 0;
-            await setEncoding(sender, MediaPolicy.encoding(kind === 'screen' ? preset : { fps: 30 }, rates[kind], level), kind === 'screen' ? preset.degradation : 'balanced');
+        do {
+          peer.tuneAgain = false;
+          const rates = videoBitrates().get(peer.sid);
+          const preset = presets[state.sharePreset];
+          const mic = peer.pc.getSenders().find((sender) => sender.track?.kind === 'audio' && !peer.senders.screen.includes(sender));
+          if (mic) await setEncoding(mic, { maxBitrate: 64000, priority: 'high' });
+          for (const kind of ['screen', 'camera']) {
+            for (const sender of peer.senders[kind]) {
+              if (sender.track?.kind === 'audio' && kind === 'screen') { await setEncoding(sender, { maxBitrate: 96000, priority: 'high' }); continue; }
+              if (sender.track?.kind !== 'video') continue;
+              const encoding = kind === 'screen' ? MediaPolicy.screenEncoding(preset, rates.screen, demands.get(peer.sid), sender.track.getSettings?.(), peer.adaptation.level || 0)
+                : MediaPolicy.encoding({ fps: 30 }, rates.camera);
+              await setEncoding(sender, encoding, kind === 'screen' ? preset.degradation : 'balanced');
+            }
           }
-        }
-        peer.mediaError = '';
+          peer.mediaError = peer.senders.screen.some((sender) => sender.scalingUnsupported) ? 'Este navegador ajusta banda e FPS, mas não a resolução por espectador.' : '';
+        } while (active(peer) && peer.tuneAgain);
       }).catch((error) => {
         if (!active(peer)) return;
         peer.mediaError = 'Limites de qualidade não confirmados pelo navegador.';
         mediaNotice('Um ajuste de qualidade não pôde ser aplicado. Consulte Conexão e diagnóstico.');
         console.warn('Media parameters:', error.name);
-      }).finally(() => { peer.tuning = false; });
+      }).finally(() => { peer.tuning = false; if (peer.tuneAgain && active(peer)) tuneSenders(peer); });
     }
+  }
+
+  function desiredCapture() {
+    return MediaPolicy.captureTarget(presets[state.sharePreset], viewers().filter((sid) => state.peers.has(sid)).map((sid) => ({ demand: demands.get(sid), level: state.peers.get(sid).adaptation.level || 0 })));
+  }
+  function captureAspect(track, preset) {
+    const settings = track.getSettings?.() || {};
+    const aspect = settings.width && settings.height ? settings.width / settings.height : preset.width / preset.height;
+    // Browser-provided source switching can change aspect without changing track ID.
+    if (!track.captureAspect || Math.abs(aspect / track.captureAspect - 1) > .02) track.captureAspect = aspect;
+    return Math.round(track.captureAspect * 1000);
+  }
+  function scheduleCapture() {
+    const track = state.local.screen?.getVideoTracks()[0];
+    if (!track) { clearTimeout(captureTimer); captureSignature = pendingCapture = ''; return; }
+    const target = desiredCapture();
+    const signature = `${track.id}:${state.sharePreset}:${target.height}:${target.fps}:${captureAspect(track, presets[state.sharePreset])}`;
+    if (signature === captureSignature || signature === pendingCapture) return;
+    clearTimeout(captureTimer);
+    pendingCapture = signature;
+    const settings = track.getSettings?.() || {};
+    // Upgrade quickly; allow resize/pin animations to settle before reducing capture.
+    const delay = target.height > (settings.height || 0) || target.fps > (settings.frameRate || 0) ? 100 : 3000;
+    captureTimer = setTimeout(() => { pendingCapture = ''; applySharePreset(); }, delay);
   }
 
   function applySharePreset() {
@@ -125,8 +250,13 @@ window.MediaSession = function ({ state, socket, call, el, toast, voiceEntry, me
       const track = state.local.screen?.getVideoTracks()[0];
       if (!track || track.readyState === 'ended') return;
       const preset = presets[state.sharePreset];
+      const target = desiredCapture();
+      const aspect = captureAspect(track, preset);
+      const height = Math.max(2, Math.floor(Math.min(target.height, preset.width / track.captureAspect)));
+      const width = Math.max(2, Math.round(height * track.captureAspect));
       track.contentHint = preset.hint;
-      try { await track.applyConstraints({ width: { ideal: preset.width }, height: { ideal: preset.height }, frameRate: { ideal: preset.fps, max: preset.fps } }); }
+      captureSignature = `${track.id}:${state.sharePreset}:${target.height}:${target.fps}:${aspect}`;
+      try { await track.applyConstraints({ width: { ideal: width, max: width }, height: { ideal: height, max: height }, frameRate: { ideal: target.fps, max: target.fps } }); }
       catch { if (track.readyState !== 'ended') mediaNotice('A captura manteve a qualidade disponível. O navegador não aceitou o perfil completo.'); }
       tuneSenders();
     });
@@ -137,6 +267,7 @@ window.MediaSession = function ({ state, socket, call, el, toast, voiceEntry, me
     state.sharePreset = key;
     localStorage.setItem('sharePreset', key);
     for (const peer of state.peers.values()) peer.adaptation = {};
+    clearTimeout(captureTimer); pendingCapture = '';
     applySharePreset();
     if (state.view === 'voice') renderStage();
   }
@@ -240,7 +371,7 @@ window.MediaSession = function ({ state, socket, call, el, toast, voiceEntry, me
     state.local[kind] = null;
     if (!stream) return;
     stream.getTracks().forEach((track) => { track.onended = track.onmute = track.onunmute = null; track.stop(); });
-    if (kind === 'screen') { state.sharePaused = false; syncScreenSubscriptions(); }
+    if (kind === 'screen') { state.sharePaused = false; captureSignature = ''; syncScreenSubscriptions(); }
     else for (const peer of state.peers.values()) {
       for (const sender of peer.senders.camera) { if (active(peer)) peer.pc.removeTrack(sender); }
       peer.senders.camera = [];
@@ -281,9 +412,10 @@ window.MediaSession = function ({ state, socket, call, el, toast, voiceEntry, me
   function videoMeasurement(sid, report, r, bytes) {
     const key = sid + ':' + r.id;
     const previous = samples.get(key);
-    samples.set(key, { bytes, time: r.timestamp });
+    samples.set(key, { bytes, time: r.timestamp, frames: r.framesSent ?? r.framesDecoded });
     const bitrate = previous && r.timestamp > previous.time && bytes >= previous.bytes ? (bytes - previous.bytes) * 8000 / (r.timestamp - previous.time) : null;
-    return { width: r.frameWidth, height: r.frameHeight, fps: r.framesPerSecond, bitrate, codec: report.get(r.codecId)?.mimeType?.split('/')[1] || '' };
+    const progressing = previous ? bytes > previous.bytes || (r.framesSent ?? r.framesDecoded) > previous.frames : (r.framesSent ?? r.framesDecoded) > 0;
+    return { width: r.frameWidth, height: r.frameHeight, fps: r.framesPerSecond, bitrate, progressing, codec: report.get(r.codecId)?.mimeType?.split('/')[1] || '' };
   }
 
   async function updateStreamStats() {
@@ -298,9 +430,12 @@ window.MediaSession = function ({ state, socket, call, el, toast, voiceEntry, me
         const stats = {};
         let outbound;
         let outboundReport = report;
+        const selected = new Set();
+        report.forEach((r) => { if (r.type === 'transport' && r.selectedCandidatePairId) selected.add(r.selectedCandidatePairId); });
         report.forEach((r) => {
-          if (r.type === 'candidate-pair' && r.state === 'succeeded' && r.nominated) {
+          if (r.type === 'candidate-pair' && r.state === 'succeeded' && (selected.size ? selected.has(r.id) : r.nominated)) {
             stats.rtt = r.currentRoundTripTime;
+            peer.capacity = MediaPolicy.capacity(peer.capacity, r.availableOutgoingBitrate, now);
             stats.path = report.get(r.localCandidateId)?.candidateType === 'relay' || report.get(r.remoteCandidateId)?.candidateType === 'relay' ? 'Via retransmissão' : 'Conexão direta';
           }
           const video = r.kind === 'video' || r.mediaType === 'video';
@@ -320,12 +455,17 @@ window.MediaSession = function ({ state, socket, call, el, toast, voiceEntry, me
           const r = outbound;
           stats.screen = videoMeasurement(sid, outboundReport, r, r.bytesSent);
           stats.video = MediaPolicy.formatVideoStats([stats.screen]);
-          const remote = report.get(r.remoteId);
-          peer.adaptation = MediaPolicy.adapt(peer.adaptation, { active: !!r.framesSent, reason: r.qualityLimitationReason, rtt: remote?.roundTripTime ?? stats.rtt, loss: remote?.fractionLost || 0 }, now);
+          const remote = outboundReport.get(r.remoteId) || report.get(r.remoteId);
+          const feedback = MediaPolicy.feedback(peer.feedback, remote);
+          peer.feedback = feedback.previous;
+          peer.adaptation = MediaPolicy.adapt(peer.adaptation, { active: stats.screen.progressing, reason: r.qualityLimitationReason, rtt: feedback.rtt ?? stats.rtt, loss: feedback.loss }, now);
         }
         peer.stats = stats;
         const tile = document.querySelector(`[data-key="screen-${sid}"]`);
         if (tile && isWatching(sid)) {
+          const quality = requestedQuality(sid);
+          const health = tile.querySelector('.stream-health');
+          if (health) health.textContent = quality.background ? 'Economia em segundo plano · áudio conectado' : `${MediaPolicy.watchModes[getWatchQuality(sid)].label} · Qualidade por espectador`;
           const track = peer.remote.screen?.getVideoTracks()[0];
           const receiver = track && peer.pc.getReceivers().find((r) => r.track === track);
           if (receiver) {
@@ -339,8 +479,8 @@ window.MediaSession = function ({ state, socket, call, el, toast, voiceEntry, me
       const own = document.querySelector(`[data-key="screen-${state.me?.sid}"]`);
       if (own) {
         const connections = viewers().map((sid) => state.peers.get(sid)).filter(Boolean);
-        const reduced = state.sharePreset === 'auto' && connections.some((peer) => peer.adaptation.level > 0);
-        own.querySelector('.stream-health').textContent = connections.length ? `${connections.length} assistindo${reduced ? ' · Qualidade adaptada' : ''}` : 'Pronto · Aguardando espectadores';
+        const reduced = connections.some((peer) => peer.adaptation.level > 0);
+        own.querySelector('.stream-health').textContent = connections.length ? `${connections.length} assistindo · ${reduced ? 'Qualidade adaptada' : 'Qualidade por espectador'}` : 'Pronto · Aguardando espectadores';
         const measured = connections.map((peer) => peer.stats?.screen).filter(Boolean);
         own.querySelector('.stats').textContent = !connections.length ? 'Sem espectadores · 0,0 Mbps' : measured.length !== connections.length ? 'Medindo qualidade…' : MediaPolicy.formatVideoStats(measured, connections.length > 1);
       }
@@ -352,5 +492,5 @@ window.MediaSession = function ({ state, socket, call, el, toast, voiceEntry, me
     } finally { statsBusy = false; }
   }
   setInterval(updateStreamStats, 1500);
-  return { isWatching, setWatching, addVideoTracks, syncScreenSubscriptions, videoBitrates, tuneSenders, applySharePreset, setSharePreset, captureScreen, watchScreenTrack, switchScreen, startVideo, stopVideo, scheduleRecovery, renderDiagnostics, updateStreamStats, mediaNotice };
+  return { isWatching, setWatching, getWatchQuality, setWatchQuality, syncViewerQuality, addVideoTracks, syncScreenSubscriptions, videoBitrates, tuneSenders, applySharePreset, setSharePreset, captureScreen, watchScreenTrack, switchScreen, startVideo, stopVideo, scheduleRecovery, renderDiagnostics, updateStreamStats, mediaNotice };
 };

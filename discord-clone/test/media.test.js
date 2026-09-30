@@ -17,13 +17,14 @@ test('stream overlay includes resolution, FPS, Mbps and codec for every viewer c
 });
 
 test('upload budget counts actual viewers, reserves voice, and stays within the cap', () => {
-  const rates = policy.budget(10, 2, 5, true, true);
-  assert.ok(rates.screen * 2 + rates.camera * 5 + 5 * 80_000 <= 8_500_000);
-  assert.equal(policy.budget(10, 0, 5, true, false).screen, 0);
-  assert.ok(policy.budget(10, 2, 5, true, false).screen > policy.budget(10, 5, 5, true, false).screen);
-  const low = policy.budget(1, 20, 20, true, true);
-  assert.equal(low.screen, 0);
-  assert.equal(low.camera, 0);
+  const peers = Array.from({ length: 5 }, (_, i) => ({ sid: i, watching: i < 2 }));
+  const rates = policy.allocate(10, peers, { screen: true, camera: true });
+  assert.ok([...rates.values()].reduce((sum, rate) => sum + rate.screen + rate.camera, 0) + 5 * 80_000 <= 8_500_000);
+  assert.equal(rates.get(4).screen, 0);
+  const many = policy.allocate(10, peers.map((p) => ({ ...p, watching: true })), { screen: true, camera: true });
+  assert.ok(rates.get(0).screen > many.get(0).screen);
+  const low = policy.allocate(1, Array.from({ length: 20 }, (_, sid) => ({ sid, watching: true })), { screen: true, camera: true });
+  assert.ok([...low.values()].every((rate) => rate.screen === 0 && rate.camera === 0));
 });
 
 test('automatic quality tolerates startup, degrades persistent trouble, and recovers slowly', () => {
@@ -42,6 +43,67 @@ test('automatic quality tolerates startup, degrades persistent trouble, and reco
   assert.equal(policy.encoding(policy.presets.auto, 2e6, 1).scaleResolutionDownBy, 1.5);
 });
 
+test('viewer demand follows the displayed image, pixel density and selected mode', () => {
+  assert.deepEqual(policy.viewerDemand({ width: 640, height: 500 }), { mode: 'auto', maxHeight: 360, background: false });
+  assert.equal(policy.viewerDemand({ width: 640, height: 500, pixelRatio: 2 }).maxHeight, 720);
+  assert.equal(policy.viewerDemand({ mode: 'source', width: 160, height: 90 }).maxHeight, 1080);
+  assert.equal(policy.viewerDemand({ mode: 'economy', width: 1920, height: 1080 }).maxHeight, 720);
+  assert.equal(policy.screenTarget(policy.presets.p1080_60, { background: true }).fps, 5);
+});
+
+test('allocation gives unused thumbnail/slow-link bandwidth to larger viewers and reserves screen audio', () => {
+  const peers = [{ sid: 'small', watching: true, demand: { maxHeight: 360 } }, { sid: 'large', watching: true, demand: { maxHeight: 1080 } }];
+  const rates = policy.allocate(5, peers, { screen: true, screenAudio: true });
+  assert.equal(rates.get('small').screen, policy.screenTarget(policy.presets.auto, peers[0].demand).bitrate);
+  assert.ok(rates.get('large').screen > 3_000_000);
+  assert.ok(rates.get('small').screen + rates.get('large').screen + 2 * 176_000 <= 4_250_000);
+  peers[0].capacity = 500_000;
+  const slow = policy.allocate(5, peers, { screen: true, screenAudio: true });
+  assert.ok(slow.get('small').screen <= 399_000);
+  assert.ok(slow.get('large').screen > rates.get('large').screen);
+  assert.equal(policy.allocate(10, [{ sid: 'idle', watching: false }], { screen: true }).get('idle').screen, 0);
+  const probe = policy.allocate(10, [{ sid: 'collapsed', watching: true, capacity: 0 }], { screen: true, screenAudio: true }).get('collapsed').screen;
+  assert.equal(probe, 80_000);
+  assert.equal(policy.screenEncoding(policy.presets.auto, probe, {}).maxFramerate, 5);
+  assert.equal(policy.screenEncoding(policy.presets.auto, probe, {}).active, true);
+});
+
+test('screen, camera and transport allocations stay within every shared and per-peer ceiling', () => {
+  for (const upload of [1, 3, 10, 100]) for (const count of [1, 3, 20]) {
+    const peers = Array.from({ length: count }, (_, i) => ({ sid: String(i), watching: i % 2 === 0, capacity: i % 3 ? 2_000_000 : 400_000, demand: { maxHeight: i % 2 ? 360 : 1080 } }));
+    const rates = policy.allocate(upload, peers, { screen: true, screenAudio: true, camera: true });
+    const reserved = peers.reduce((sum, p) => sum + 80_000 + (p.watching ? 96_000 : 0), 0);
+    const total = [...rates.values()].reduce((sum, rate) => sum + rate.screen + rate.camera, 0);
+    assert.ok(total <= Math.max(0, upload * 850_000 - reserved));
+    for (const p of peers) assert.ok(rates.get(p.sid).screen + rates.get(p.sid).camera <= p.capacity * 1.15 - 80_000 - (p.watching ? 96_000 : 0));
+  }
+});
+
+test('encoding preserves text cadence tradeoff, favors motion and never upscales a captured track', () => {
+  const text = policy.screenEncoding(policy.presets.auto, 400_000, { maxHeight: 1080 }, { height: 1080 });
+  const motion = policy.screenEncoding(policy.presets.p1080_60, 400_000, { maxHeight: 1080 }, { height: 1080 });
+  assert.ok(text.maxFramerate < motion.maxFramerate);
+  assert.ok(text.scaleResolutionDownBy < motion.scaleResolutionDownBy);
+  assert.equal(policy.screenEncoding(policy.presets.auto, 4e6, { mode: 'source' }, { height: 720 }).scaleResolutionDownBy, 1);
+  assert.equal(policy.screenEncoding(policy.presets.auto, 0, {}, { height: 1080 }).active, false);
+  assert.deepEqual(policy.captureTarget(policy.presets.auto, []), { height: 720, fps: 5 });
+  assert.deepEqual(policy.captureTarget(policy.presets.auto, [{ demand: { maxHeight: 360, background: true } }, { demand: { mode: 'source' } }]), { height: 1080, fps: 30 });
+});
+
+test('capacity recovers gradually, expires missing estimates and feedback ignores stale/cumulative loss', () => {
+  const low = policy.capacity(null, 500_000, 0);
+  assert.equal(policy.capacity(low, 4_000_000, 1500).bitrate, 600_000);
+  assert.equal(policy.capacity(low, 200_000, 1500).bitrate, 200_000);
+  assert.equal(policy.capacity(low, undefined, 9000), null);
+  const remote = { id: 'r', timestamp: 100, packetsReceived: 100, packetsLost: 20, fractionLost: .2, roundTripTimeMeasurements: 1, roundTripTime: .3 };
+  const first = policy.feedback(undefined, remote);
+  assert.equal(first.loss, .2);
+  assert.equal(policy.feedback(first.previous, remote).loss, undefined);
+  const healthy = policy.feedback(first.previous, { ...remote, packetsReceived: 200, timestamp: 200, roundTripTimeMeasurements: 2 });
+  assert.equal(healthy.loss, 0);
+  assert.equal(policy.feedback(healthy.previous, { ...remote, packetsReceived: 0, packetsLost: 0 }).loss, undefined);
+});
+
 test('sender mutation queue preserves order after a rejected operation', async () => {
   const peer = {}, order = [];
   const first = policy.enqueue(peer, async () => { await new Promise((r) => setTimeout(r, 10)); order.push('first'); throw Error('unsupported'); });
@@ -53,29 +115,154 @@ test('sender mutation queue preserves order after a rejected operation', async (
 
 function mediaHarness() {
   let serial = 0;
-  const track = (kind) => ({ id: `t${serial++}`, kind, readyState: 'live', stop() { this.readyState = 'ended'; }, applyConstraints: async () => {} });
+  let clock = 0;
+  const events = new Map(), calls = [], nodes = new Map();
+  const track = (kind) => ({ id: `t${serial++}`, kind, readyState: 'live', constraints: [], settings: { height: 1080, width: 1920, frameRate: 30 },
+    stop() { this.readyState = 'ended'; }, getSettings() { return this.settings; }, async applyConstraints(value) { this.constraints.push(value); this.settings = { height: value.height?.max || 1080, width: value.width?.max || 1920, frameRate: value.frameRate?.max || 30 }; } });
+  const makeSender = (t) => ({ track: t, params: { encodings: [{}] }, changes: [], async replaceTrack(next) { this.track = next; },
+    getParameters() { return structuredClone(this.params); }, async setParameters(params) { this.params = structuredClone(params); this.changes.push(structuredClone(params)); } });
   const stream = (tracks) => ({ id: `s${serial++}`, getTracks: () => [...tracks], getVideoTracks: () => tracks.filter((t) => t.kind === 'video'), getAudioTracks: () => tracks.filter((t) => t.kind === 'audio'), addTrack: (t) => tracks.push(t), removeTrack: (t) => tracks.splice(tracks.indexOf(t), 1) });
   const microphone = track('audio');
   const screen = stream([track('video'), track('audio')]);
-  const senders = [{ track: microphone, getParameters: () => ({ encodings: [{}] }), setParameters: async () => {} }];
+  const senders = [makeSender(microphone)];
   const transceivers = [];
   const peer = { sid: 'viewer', adaptation: {}, stats: {}, remote: {}, senders: { screen: [], camera: [] }, pc: {
     signalingState: 'stable', connectionState: 'connected',
+    report: new Map(), async getStats() { return this.report; }, getReceivers: () => [],
     getSenders: () => senders, getTransceivers: () => transceivers,
-    addTrack(t) { const sender = { track: t, async replaceTrack(next) { this.track = next; }, getParameters: () => ({ encodings: [{}] }), setParameters: async () => {} }; senders.push(sender); transceivers.push({ sender, receiver: { track: { kind: t.kind } } }); return sender; },
+    addTrack(t) { const sender = makeSender(t); sender.getStats = async () => this.report; senders.push(sender); transceivers.push({ sender, receiver: { track: { kind: t.kind } } }); return sender; },
     removeTrack(sender) { sender.track = null; },
   } };
   const self = { viewers: [], sid: 'self' };
   const state = { me: { sid: 'self' }, local: { screen, camera: null }, sharePreset: 'auto', shareAudio: true, uploadMbps: 10, peers: new Map([['viewer', peer]]), voiceChannel: 'room', view: 'voice' };
   const notices = [];
   const domNode = { textContent: '', classList: { contains: () => true }, replaceChildren() {} };
-  const context = { window: {}, MediaPolicy: policy, document: { querySelector: () => domNode }, performance, localStorage: { setItem() {} }, setInterval() {}, setTimeout, clearTimeout, console,
+  const context = { window: {}, MediaPolicy: policy, document: { querySelector: (selector) => selector.startsWith('[data-key') ? nodes.get(selector) || null : domNode }, performance: { now: () => clock }, localStorage: { setItem() {} }, setInterval() {}, setTimeout(fn, delay) { const timer = setTimeout(fn, delay); timer.unref(); return timer; }, clearTimeout, console,
     navigator: { mediaDevices: { getDisplayMedia: async () => stream([track('video'), track('audio')]) } }, Sounds: { play() {} } };
   vm.createContext(context);
   vm.runInContext(fs.readFileSync(path.join(__dirname, '../public/media-session.js'), 'utf8'), context);
-  const media = context.window.MediaSession({ state, socket: {}, call: async () => ({}), el: () => domNode, toast: (msg) => notices.push(msg), voiceEntry: (sid) => sid === 'self' ? self : {}, member: () => ({}), render() {}, renderStage() {}, sendVoiceState() {}, preferCodec() {} });
-  return { media, state, self, peer, screen, microphone, notices, context };
+  const media = context.window.MediaSession({ state, socket: { on: (event, handler) => events.set(event, handler) }, call: async (event, payload) => { calls.push({ event, payload }); return {}; }, el: () => domNode, toast: (msg) => notices.push(msg), voiceEntry: (sid) => sid === 'self' ? self : { channel: 'room' }, member: () => ({}), render() {}, renderStage() {}, sendVoiceState() {}, preferCodec() {} });
+  return { media, state, self, peer, screen, microphone, notices, context, events, calls, nodes, clock: (value) => { clock = value; } };
 }
+
+async function settle(h) { for (let i = 0; i < 4; i++) { await h.peer.mediaQueue; await Promise.resolve(); } }
+
+test('capture follows the highest viewer demand and restores full quality for a focused viewer', async () => {
+  const h = mediaHarness();
+  const track = h.screen.getVideoTracks()[0];
+  await h.media.applySharePreset();
+  assert.equal(track.settings.frameRate, 5);
+  h.self.viewers = ['viewer'];
+  h.events.get('screen:quality')({ viewer: 'viewer', demand: { mode: 'auto', maxHeight: 360, background: true } });
+  await h.media.applySharePreset();
+  assert.equal(track.settings.height, 360);
+  assert.equal(track.settings.width, 640);
+  assert.equal(track.settings.frameRate, 5);
+  h.events.get('screen:quality')({ viewer: 'viewer', demand: { mode: 'source', maxHeight: 1080, background: false } });
+  await h.media.applySharePreset();
+  assert.equal(track.settings.height, 1080);
+  assert.equal(track.settings.width, 1920);
+  assert.equal(track.settings.frameRate, 30);
+  assert.equal(track.readyState, 'live');
+});
+
+test('quality arriving during sender tuning is applied and screen audio remains bounded', async () => {
+  const h = mediaHarness();
+  h.self.viewers = ['viewer']; h.media.syncScreenSubscriptions(); await settle(h);
+  const mic = h.peer.pc.getSenders()[0];
+  mic.params.encodings = [{}];
+  let release, entered;
+  const blocked = new Promise((r) => { entered = r; });
+  const original = mic.setParameters;
+  mic.setParameters = async function (params) { entered(); await new Promise((r) => { release = r; }); mic.setParameters = original; await original.call(this, params); };
+  h.media.tuneSenders(); await blocked;
+  h.events.get('screen:quality')({ viewer: 'viewer', demand: { mode: 'economy', maxHeight: 360, background: false } });
+  release(); await settle(h);
+  const video = h.peer.senders.screen.find((s) => s.track.kind === 'video').params.encodings[0];
+  assert.equal(video.maxFramerate, 15);
+  assert.equal(video.scaleResolutionDownBy, 3);
+  assert.equal(h.peer.senders.screen.find((s) => s.track.kind === 'audio').params.encodings[0].maxBitrate, 96000);
+  assert.equal(mic.params.encodings[0].maxBitrate, 64000);
+});
+
+test('ultrawide and portrait sources retain their aspect and fit the selected capture ceiling', async () => {
+  for (const size of [{ width: 3440, height: 1440 }, { width: 900, height: 1600 }]) {
+    const h = mediaHarness(), track = h.screen.getVideoTracks()[0];
+    track.settings = { ...size, frameRate: 30 };
+    h.self.viewers = ['viewer'];
+    await h.media.applySharePreset();
+    assert.ok(track.settings.width <= 1920 && track.settings.height <= 1080);
+    assert.ok(Math.abs(track.settings.width / track.settings.height - size.width / size.height) < .01);
+  }
+});
+
+test('unsupported per-viewer scaling retains bitrate/FPS without shrinking the shared capture', async () => {
+  const h = mediaHarness();
+  h.self.viewers = ['viewer']; h.media.syncScreenSubscriptions(); await settle(h);
+  const video = h.peer.senders.screen.find((s) => s.track.kind === 'video');
+  const original = video.setParameters;
+  video.setParameters = async function (params) {
+    if (params.encodings[0].scaleResolutionDownBy > 1) throw Object.assign(Error('unsupported'), { name: 'NotSupportedError' });
+    return original.call(this, params);
+  };
+  h.events.get('screen:quality')({ viewer: 'viewer', demand: { mode: 'auto', maxHeight: 360, background: false } });
+  await settle(h);
+  assert.equal(video.scalingUnsupported, true);
+  assert.ok(video.params.encodings[0].maxBitrate < 1e6);
+  assert.equal(h.screen.getVideoTracks()[0].settings.height, 1080);
+  assert.match(h.peer.mediaError, /resolução por espectador/);
+});
+
+test('stats use the selected ICE path and do not downgrade a static screen from stale trouble', async () => {
+  const h = mediaHarness();
+  h.self.viewers = ['viewer']; h.media.syncScreenSubscriptions(); await settle(h);
+  const screenTrack = h.screen.getVideoTracks()[0];
+  const report = [
+    { id: 'transport', type: 'transport', selectedCandidatePairId: 'selected' },
+    { id: 'selected', type: 'candidate-pair', state: 'succeeded', nominated: true, availableOutgoingBitrate: 2e6, currentRoundTripTime: .05 },
+    { id: 'old', type: 'candidate-pair', state: 'succeeded', nominated: true, availableOutgoingBitrate: 100_000, currentRoundTripTime: 1 },
+    { id: 'source', type: 'media-source', trackIdentifier: screenTrack.id },
+    { id: 'screen', type: 'outbound-rtp', kind: 'video', mediaSourceId: 'source', bytesSent: 1000, framesSent: 10, timestamp: 100, qualityLimitationReason: 'bandwidth' },
+  ];
+  h.peer.pc.report = new Map(report.map((r) => [r.id, r]));
+  await h.media.updateStreamStats();
+  assert.equal(h.peer.capacity.bitrate, 2e6);
+  assert.equal(h.peer.stats.rtt, .05);
+  h.clock(6000); report[4].timestamp = 6100;
+  await h.media.updateStreamStats();
+  assert.equal(h.peer.adaptation.level, 0);
+  assert.equal(h.peer.adaptation.badSince, null);
+});
+
+test('viewer resize and background requests are coalesced without stopping the subscribed audio', async () => {
+  const h = mediaHarness();
+  let width = 320;
+  h.nodes.set('[data-key="screen-viewer"] video', { getBoundingClientRect: () => ({ width, height: width * 9 / 16 }), videoWidth: 1920, videoHeight: 1080, isConnected: true });
+  // The receiver is subscribed to the other participant's stream.
+  h.self.viewers = [];
+  const entry = { channel: 'room', viewers: ['self'] };
+  const socket = { connected: true, timeout: (ms) => {
+    assert.equal(ms, 5000);
+    return { emit: (event, payload, ack) => { h.calls.push({ event, payload }); ack(null, { ok: true }); } };
+  } };
+  // Harness voiceEntry is fixed; wire a second MediaSession with a receiver entry.
+  const media = h.context.window.MediaSession({ state: h.state, socket, call: () => { throw Error('automatic requests must be quiet'); }, el: () => ({}), toast() {},
+    voiceEntry: (sid) => sid === 'viewer' ? entry : h.self, member: () => ({}), render() {}, renderStage() {}, sendVoiceState() {}, preferCodec() {} });
+  media.syncViewerQuality(); width = 640; media.syncViewerQuality();
+  await new Promise((r) => setTimeout(r, 300));
+  assert.equal(h.calls.length, 1);
+  assert.equal(h.calls[0].payload.quality.maxHeight, 360);
+  h.context.document.hidden = true;
+  media.syncViewerQuality(); await new Promise((r) => setTimeout(r, 300));
+  assert.equal(h.calls[1].payload.quality.background, true);
+  socket.connected = false; width = 960;
+  media.syncViewerQuality(); await new Promise((r) => setTimeout(r, 300));
+  assert.equal(h.calls.length, 2);
+  socket.connected = true;
+  media.syncViewerQuality(); await new Promise((r) => setTimeout(r, 300));
+  assert.equal(h.calls[2].payload.quality.maxHeight, 540);
+  assert.ok(h.calls.every((c) => c.event === 'screen:quality'));
+});
 
 test('watch/unwatch suspends both screen tracks while preserving the microphone', async () => {
   const h = mediaHarness();
@@ -130,10 +317,18 @@ test('server validates viewers and cleans subscriptions on stop, leave and disco
       clients.push(socket);
       socket.on('state', (s) => { socket.snapshot = s; });
       await new Promise((resolve, reject) => { socket.once('connect', resolve); socket.once('connect_error', reject); socket.connect(); });
-      assert.ok((await emit(socket, 'auth', { mode: 'register', name, password: 'test-only-2026' })).accountId);
+      const auth = await emit(socket, 'auth', { mode: 'register', name, password: 'test-only-2026', confirmPassword: 'test-only-2026' });
+      assert.ok(auth.accountId);
+      if (!auth.serverId) {
+        const invite = await emit(clients[0], 'server:invite', {});
+        assert.ok(!(await emit(socket, 'server:join', { code: invite.code })).error);
+      }
       return socket;
     }
     const host = await connect('Host'), viewer = await connect('Viewer'), outsider = await connect('Elsewhere');
+    const qualityEvents = [], outsiderQuality = [];
+    host.on('screen:quality', (event) => qualityEvents.push(event));
+    outsider.on('screen:quality', (event) => outsiderQuality.push(event));
     const avatar = 'data:image/png;base64,' + PNG.sync.write({ width: 32, height: 32, data: Buffer.alloc(4096, 200) }).toString('base64');
     assert.ok((await emit(host, 'profile', { avatar: 'data:image/svg+xml;base64,PHN2Zz4=' })).error);
     const profile = await emit(host, 'profile', { color: '#123456', avatar });
@@ -164,12 +359,27 @@ test('server validates viewers and cleans subscriptions on stop, leave and disco
     assert.ok((await emit(outsider, 'screen:watch', { target: host.id, watching: true })).error);
     assert.ok((await emit(host, 'screen:watch', { target: host.id, watching: true })).error);
     assert.ok((await emit(viewer, 'screen:watch', { target: host.id, watching: 'yes' })).error);
+    assert.ok((await emit(viewer, 'screen:watch', { target: host.id, watching: true, quality: { mode: 'auto', maxHeight: 9000, background: false } })).error);
+    assert.ok((await emit(viewer, 'screen:quality', { target: host.id, quality: { mode: 'auto', maxHeight: 360, background: false } })).error);
     assert.ok((await emit(viewer, 'screen:watch', { target: host.id, watching: true })).ok);
     await until(() => host.snapshot.voice.find((v) => v.sid === host.id)?.viewers.length === 1);
+    await until(() => qualityEvents.length === 1);
+    assert.deepEqual(qualityEvents[0], { viewer: viewer.id, demand: { mode: 'auto', maxHeight: 1080, background: false } });
+    const quality = { mode: 'economy', maxHeight: 360, background: true };
+    assert.ok((await emit(outsider, 'screen:quality', { target: host.id, quality })).error);
+    assert.ok((await emit(viewer, 'screen:quality', { target: host.id, quality: { ...quality, background: 'yes' } })).error);
+    assert.ok((await emit(viewer, 'screen:quality', { target: host.id, quality })).ok);
+    await until(() => qualityEvents.length === 2);
+    assert.deepEqual(qualityEvents[1], { viewer: viewer.id, demand: quality });
+    await emit(viewer, 'screen:quality', { target: host.id, quality });
+    assert.equal(qualityEvents.length, 2);
+    assert.equal(outsiderQuality.length, 0);
     await emit(viewer, 'screen:watch', { target: host.id, watching: true });
     assert.equal(host.snapshot.voice.find((v) => v.sid === host.id).viewers.length, 1);
     await emit(viewer, 'screen:watch', { target: host.id, watching: false });
     await until(() => host.snapshot.voice.find((v) => v.sid === host.id)?.viewers.length === 0);
+    await until(() => qualityEvents.at(-1)?.demand === null);
+    assert.ok((await emit(viewer, 'screen:quality', { target: host.id, quality })).error);
     await emit(viewer, 'screen:watch', { target: host.id, watching: true });
     await emit(host, 'voice:state', { sharing: false });
     assert.equal(host.snapshot.voice.find((v) => v.sid === host.id).viewers.length, 0);
@@ -177,6 +387,7 @@ test('server validates viewers and cleans subscriptions on stop, leave and disco
     await emit(viewer, 'screen:watch', { target: host.id, watching: true });
     await emit(viewer, 'voice:leave');
     await until(() => host.snapshot.voice.find((v) => v.sid === host.id)?.viewers.length === 0);
+    await until(() => qualityEvents.at(-1)?.demand === null);
     await emit(viewer, 'voice:join', { channel: room });
     await emit(viewer, 'screen:watch', { target: host.id, watching: true });
     viewer.close();

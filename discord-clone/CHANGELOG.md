@@ -3,6 +3,45 @@
 Histórico de versões. A mesma lista aparece dentro do app em **Novidades** (menu do servidor ou rodapé das Configurações).
 O Resenhex ainda está antes da 1.0.
 
+## v0.95 — Uma casa para cada turma
+_29/09/2026_
+
+- Criar servidores e entrar por convite usando o botão **+**. Alternar pela barra lateral ou por **Seus servidores**, inclusive no celular.
+- O dono pode excluir um servidor pelo menu ou pelas configurações, confirmando seu nome. A exclusão remove os canais, históricos, anexos e convites e encerra as chamadas daquele servidor.
+- Canais, grupos, cargos, membros, moderação e chamadas isolados por servidor. Conta, perfil, amigos e DMs compartilhados.
+- Link exclusivo do servidor, com prévia do nome e quantidade de membros antes da entrada. Administradores podem revogar o link e gerar outro.
+- Cadastro com nome de usuário, senha e confirmação de senha, sem e-mail ou senha compartilhada. Novas contas não entram automaticamente no servidor existente.
+- Migração preserva o servidor atual, incluindo nome, histórico, canais e permissões; mantém `data.json.pre-0.9.1.bak` como backup permanente do formato anterior.
+- Troca de servidor encerra a chamada atual. Rascunhos e anexos ficam separados por canal; o último servidor escolhido é lembrado.
+- Banimentos e castigos afetam apenas a participação naquele servidor e mantêm a conta e as conversas privadas.
+
+## v0.9 — Cada assunto no seu lugar
+_29/09/2026_
+
+Organize o servidor em grupos de canais e transmita com qualidade adaptada a cada espectador.
+
+### Novidades
+
+- Criar, renomear, recolher e expandir grupos pelo menu do servidor ou pela administração.
+- Arrastar para ordenar grupos e canais ou mover canais entre grupos. O menu ⋯ também permite mover, subir e descer pelo teclado e no celular.
+- Duplicar tipo, descrição e permissões de um canal, com histórico vazio e sem copiar arquivos ou participantes da chamada.
+- Descrição do canal no cabeçalho do chat e ao passar o mouse sobre o canal.
+- Quem assiste pode escolher Automática, Economia ou Mais nitidez, sem alterar a qualidade dos demais.
+
+### Melhorias
+
+- Excluir grupo move seus canais para “Sem grupo” e preserva mensagens, arquivos, permissões e chamadas.
+- Recolhimento pessoal por conta/navegador, mantendo acessíveis o canal ativo, a chamada e canais com atividade pendente.
+- Migração dos grupos iniciais de texto e voz sem alterar IDs nem pontos de leitura.
+- Transmissão considera o tamanho da reprodução e a conexão de cada espectador. Banda não utilizada por vídeos pequenos ou conexões limitadas fica disponível para os demais.
+- Captura reduz resolução e FPS quando não há espectadores ou quando todos precisam de menos qualidade. Em segundo plano, o vídeo economiza recursos e o áudio continua; janela flutuante permanece ativa.
+- Reserva de banda e prioridade para voz e áudio da tela, com recuperação gradual de qualidade após dificuldades de rede ou processamento.
+
+### Correções
+
+- Privado sem cargos agora permite acesso somente a administradores. Remover o último cargo autorizado mantém o canal privado.
+- Ajustes de qualidade que chegam durante outro ajuste são reaplicados. Estatísticas antigas de perda e telas estáticas não provocam reduções sucessivas indevidas.
+
 ## v0.8 — Banner do perfil
 _28/09/2026_
 

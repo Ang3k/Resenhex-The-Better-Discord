@@ -8,15 +8,13 @@ const { promisify } = require('util');
 const express = require('express');
 const { Server } = require('socket.io');
 const { decodeAvatar, decodeBanner } = require('./avatar');
+const { channelActions } = require('./channels');
+const { communityStore } = require('./communities');
 
 const PORT = process.env.PORT || 3000;
 const HOST = process.env.HOST || '0.0.0.0';
 const DATA_FILE = process.env.DATA_FILE || path.join(__dirname, 'data.json');
 const MAX_MESSAGES = 300;
-// Se definida, só cria conta quem souber a senha (recomendado quando o servidor estiver na internet).
-const ACCESS_PASSWORD = process.env.ACCESS_PASSWORD_B64
-  ? Buffer.from(process.env.ACCESS_PASSWORD_B64, 'base64').toString('utf8')
-  : process.env.ACCESS_PASSWORD || '';
 const UPLOAD_DIR = process.env.UPLOAD_DIR || path.join(__dirname, 'uploads');
 const MAX_UPLOAD_MB = Number(process.env.MAX_UPLOAD_MB) || 25;
 const MAX_ATTACHMENTS = 10;
@@ -127,22 +125,25 @@ function loadDb() {
   }
 }
 
-const db = loadDb();
+const loadedDb = loadDb();
+// Keep the original single-server database even after subsequent restarts replace .bak.
+const legacySource = fs.existsSync(DATA_FILE) ? DATA_FILE : fs.existsSync(DATA_FILE + '.bak') ? DATA_FILE + '.bak' : null;
+if (!loadedDb.servers && legacySource) {
+  try { fs.copyFileSync(legacySource, DATA_FILE + '.pre-0.9.1.bak', fs.constants.COPYFILE_EXCL); }
+  catch (error) { if (error.code !== 'EEXIST') throw error; }
+}
+const communities = communityStore(loadedDb, newId, defaultDb);
+const db = communities.db;
+const channelStore = channelActions(db, newId);
 db.uploads ||= {};
 db.friendships ||= {}; // "idA-idB" (ids em ordem) -> { status: 'pending' | 'friends', from, ts }
 db.blocks ||= {}; // idDeQuemBloqueou -> [ids bloqueados]
 db.dms ||= {}; // "dm-idA-idB" -> { id, users: [idA, idB], closed: { idDaConta: true } }; as mensagens ficam em db.messages[id]
-// Servidores criados antes dos efeitos sonoros: libera para @everyone uma única vez.
-if (!db.soundboardMigrated) {
-  const everyone = db.roles.find((r) => r.id === 'everyone');
-  if (everyone && !everyone.perms.includes('SOUNDBOARD')) everyone.perms.push('SOUNDBOARD');
-  db.soundboardMigrated = true;
-}
 
 // Grava na hora ao desligar o servidor (Ctrl+C), para não perder o que estava pendente.
 function saveNow() {
   clearTimeout(saveTimer);
-  fs.writeFileSync(DATA_FILE, JSON.stringify(db));
+  fs.writeFileSync(DATA_FILE, JSON.stringify(communities.root));
 }
 for (const sig of ['SIGINT', 'SIGTERM']) {
   process.on(sig, () => {
@@ -156,7 +157,7 @@ function save() {
   clearTimeout(saveTimer);
   saveTimer = setTimeout(() => {
     const tmp = DATA_FILE + '.tmp';
-    fs.writeFile(tmp, JSON.stringify(db), (err) => {
+    fs.writeFile(tmp, JSON.stringify(communities.root), (err) => {
       if (err) return console.error('Falha ao salvar dados:', err);
       fs.rename(tmp, DATA_FILE, (err2) => err2 && console.error('Falha ao salvar dados:', err2));
     });
@@ -223,11 +224,6 @@ function createSession(accountId) {
   return token;
 }
 
-function revokeSessions(accountId) {
-  for (const [token, id] of Object.entries(db.sessions)) if (id === accountId) delete db.sessions[token];
-  save();
-}
-
 // ---------------- permissões ----------------
 const roleIndex = (id) => db.roles.findIndex((r) => r.id === id);
 const isOwner = (acc) => acc.id === db.ownerId;
@@ -238,6 +234,7 @@ function topPosition(acc) {
 }
 
 function permsOf(acc) {
+  if (!acc || !communities.joined(acc.id)) return new Set();
   if (isOwner(acc)) return new Set(ALL_PERMS);
   const set = new Set();
   for (const r of db.roles) if (r.id === 'everyone' || acc.roles.includes(r.id)) r.perms.forEach((p) => set.add(p));
@@ -250,7 +247,7 @@ const outranks = (actor, target) => !isOwner(target) && topPosition(actor) > top
 const timedOut = (acc) => acc.timeoutUntil > Date.now();
 
 function canView(acc, channel) {
-  return !channel.allowedRoles.length || can(acc, 'ADMIN') || channel.allowedRoles.some((r) => acc.roles.includes(r));
+  return !!acc && communities.joined(acc.id) && (!channel.private || can(acc, 'ADMIN') || channel.allowedRoles.some((r) => acc.roles.includes(r)));
 }
 
 // ---------------- amigos e mensagens diretas ----------------
@@ -265,7 +262,7 @@ const areFriends = (a, b) => friendshipOf(a, b)?.status === 'friends';
 const hasBlocked = (blocker, target) => (db.blocks[blocker] || []).includes(target);
 const presentAccount = (id) => {
   const a = db.accounts[id];
-  return a && !a.banned ? a : null;
+  return a || null;
 };
 
 // Amigos, pedidos e conversas abertas de uma conta (o navegador só recebe o que é dele).
@@ -292,8 +289,8 @@ function socialFor(acc) {
 // ---------------- menções e anexos ----------------
 // Menções ficam no texto como <@idDaConta> e <@&idDoCargo>; @everyone/@here só contam com permissão.
 function parseMentions(acc, text, replyAuthorId) {
-  const users = new Set([...text.matchAll(/<@([0-9a-f]{16})>/g)].map((m) => m[1]).filter((id) => db.accounts[id]));
-  if (replyAuthorId && replyAuthorId !== acc.id && db.accounts[replyAuthorId]) users.add(replyAuthorId);
+  const users = new Set([...text.matchAll(/<@([0-9a-f]{16})>/g)].map((m) => m[1]).filter((id) => communities.joined(id)));
+  if (replyAuthorId && replyAuthorId !== acc.id && communities.joined(replyAuthorId)) users.add(replyAuthorId);
   const roles = [...new Set([...text.matchAll(/<@&([0-9a-f]{16})>/g)].map((m) => m[1]))].filter((id) => roleIndex(id) > 0);
   const everyone = /(^|[^\w<])@(everyone|here)\b/.test(text) && can(acc, 'MENTION_EVERYONE');
   return { users: [...users], roles, everyone };
@@ -332,20 +329,33 @@ function pushSocial(...accountIds) {
     const payload = socialFor(acc);
     for (const [sid, s] of online) if (s.accountId === id) io.sockets.sockets.get(sid)?.emit('social', payload);
   }
+  broadcastState();
 }
 
 const app = express();
+app.use((req, _res, next) => {
+  const account = communities.root.accounts[db.sessions[req.get('x-token')]];
+  communities.run(req.get('x-server-id') || account?.lastServerId || communities.root.defaultServerId, next);
+});
 app.use(express.static(path.join(__dirname, 'public')));
 // Supressão de ruído por IA (RNNoise e GTCRN compilados para WebAssembly), usada no navegador.
 app.use('/vendor/noise', express.static(path.dirname(require.resolve('@sapphi-red/web-noise-suppressor')), { maxAge: '7d' }));
 app.get('/config', (_req, res) => {
-  res.json({ passwordRequired: !!ACCESS_PASSWORD, hasOwner: !!db.ownerId, maxUploadMb: MAX_UPLOAD_MB });
+  res.json({ passwordRequired: false, hasOwner: Object.keys(db.accounts).length > 0, maxUploadMb: MAX_UPLOAD_MB });
+});
+app.get('/invites/:code', (req, res) => {
+  res.set('Cache-Control', 'no-store');
+  if (!allow('invite-preview:' + clientIp(req.headers, req.socket.remoteAddress), 60, 60_000)) return res.status(429).json({ error: 'Muitos convites consultados. Aguarde um minuto.' });
+  const community = communities.byInvite(req.params.code);
+  if (!community) return res.status(404).json({ error: 'Convite inválido ou revogado. Peça um novo link.' });
+  res.json({ id: community.id, name: community.serverName, icon: community.serverIcon ? '/avatars/' + community.serverIcon : null,
+    members: Object.values(community.members).filter((m) => m.active && !m.banned).length });
 });
 
 // Profile pictures are shared with the server, independent of chat attachments.
 // Uma imagem pode ser foto de alguém e ícone do servidor ao mesmo tempo (mesmo conteúdo, mesmo arquivo).
 const IMAGE_FILE = /^[a-f0-9]{64}\.(png|gif)$/;
-const imageInUse = (file) => db.serverIcon === file || Object.values(db.accounts).some((account) => account.avatar === file || account.banner === file);
+const imageInUse = (file) => Object.values(communities.root.servers).some((s) => s.serverIcon === file) || Object.values(db.accounts).some((account) => account.avatar === file || account.banner === file);
 function removeImageIfUnused(file) {
   if (!file || !IMAGE_FILE.test(file) || imageInUse(file)) return;
   try { fs.unlinkSync(path.join(AVATAR_DIR, file)); } catch (error) { if (error.code !== 'ENOENT') console.warn('Não foi possível remover uma imagem antiga.'); }
@@ -372,7 +382,7 @@ app.get('/avatars/:file', (req, res) => {
 const MAX_BANNER_UPLOAD = 5 * 1024 * 1024;
 const authFromToken = (req) => {
   const acc = db.accounts[db.sessions[req.get('x-token')]];
-  return acc && !acc.banned ? acc : null;
+  return acc || null;
 };
 app.post('/profile/banner', express.raw({ type: () => true, limit: MAX_BANNER_UPLOAD }), (req, res) => {
   const acc = authFromToken(req);
@@ -405,8 +415,13 @@ app.delete('/profile/banner', (req, res) => {
 
 app.post('/upload', express.raw({ type: () => true, limit: MAX_UPLOAD_MB * 1024 * 1024 }), (req, res) => {
   const acc = db.accounts[db.sessions[req.get('x-token')]];
-  if (!acc || acc.banned) return res.status(401).json({ error: 'Não autenticado' });
-  if (!can(acc, 'SEND_MESSAGES') || timedOut(acc)) return res.status(403).json({ error: 'Você não pode enviar arquivos agora.' });
+  if (!acc) return res.status(401).json({ error: 'Não autenticado' });
+  const targetId = req.get('x-channel-id');
+  const dm = targetId && db.dms[targetId];
+  if (dm) {
+    const peer = dm.users.find((id) => id !== acc.id);
+    if (!dm.users.includes(acc.id) || !areFriends(acc.id, peer) || hasBlocked(acc.id, peer) || hasBlocked(peer, acc.id)) return res.status(403).json({ error: 'Conversa não disponível.' });
+  } else if (!can(acc, 'SEND_MESSAGES') || timedOut(acc) || (targetId && !db.channels.some((c) => c.id === targetId && c.type === 'text' && canView(acc, c)))) return res.status(403).json({ error: 'Você não pode enviar arquivos agora.' });
   if (!allow('upload:' + acc.id, 20, 60 * 1000)) return res.status(429).json({ error: 'Muitos arquivos seguidos. Espere um pouco.' });
   if (!Buffer.isBuffer(req.body) || !req.body.length) return res.status(400).json({ error: 'Arquivo vazio' });
   let name;
@@ -424,7 +439,11 @@ app.post('/upload', express.raw({ type: () => true, limit: MAX_UPLOAD_MB * 1024 
       console.error('Falha ao salvar upload:', err);
       return res.status(500).json({ error: 'Falha ao salvar o arquivo' });
     }
-    const up = { id, file, name, size: req.body.length, type: INLINE_TYPES[ext] || 'application/octet-stream', uploaderId: acc.id, ts: Date.now(), messageId: null };
+    if (!dm && !communities.root.servers[communities.currentId()]) {
+      fs.unlink(path.join(UPLOAD_DIR, file), () => {});
+      return res.status(410).json({ error: 'Este servidor foi excluído.' });
+    }
+    const up = { id, file, name, size: req.body.length, type: INLINE_TYPES[ext] || 'application/octet-stream', uploaderId: acc.id, ts: Date.now(), messageId: null, serverId: dm ? null : communities.currentId(), channelId: targetId || null };
     db.uploads[id] = up;
     save();
     res.json({ id, name, size: up.size, type: up.type, url: '/uploads/' + file });
@@ -457,8 +476,8 @@ app.use((err, req, res, _next) => {
 const server = http.createServer(app);
 const io = new Server(server, { maxHttpBufferSize: 1e6 });
 
-function socketsOf(accountId) {
-  return [...online].filter(([, s]) => s.accountId === accountId).map(([sid]) => io.sockets.sockets.get(sid)).filter(Boolean);
+function socketsOf(accountId, local = false) {
+  return [...online].filter(([, s]) => s.accountId === accountId && (!local || s.serverId === communities.currentId())).map(([sid]) => io.sockets.sockets.get(sid)).filter(Boolean);
 }
 
 function publicMember(a, onlineIds) {
@@ -477,14 +496,19 @@ function publicMember(a, onlineIds) {
   };
 }
 
+function publicProfiles(ids) {
+  const onlineIds = new Set([...online.values()].map((s) => s.accountId));
+  return communities.run(null, () => [...new Set(ids)].map((id) => db.accounts[id]).filter(Boolean).map((a) => publicMember(a, onlineIds)));
+}
+
 // Partes do estado que são iguais para todo mundo: calculadas uma vez por envio.
 function sharedState() {
   const onlineIds = new Set([...online.values()].map((s) => s.accountId));
-  const accounts = Object.values(db.accounts);
+  const accounts = Object.values(db.accounts).filter((a) => communities.membership(a.id));
   return {
-    members: accounts.filter((a) => !a.banned).map((a) => publicMember(a, onlineIds)),
+    members: accounts.filter((a) => communities.joined(a.id)).map((a) => publicMember(a, onlineIds)),
     bans: accounts.filter((a) => a.banned).map((a) => ({ id: a.id, name: a.name })),
-    voice: [...online].filter(([, s]) => s.voice).map(([sid, s]) => {
+    voice: [...online].filter(([, s]) => s.voice && s.serverId === communities.currentId()).map(([sid, s]) => {
       const a = db.accounts[s.accountId];
       return {
         sid,
@@ -505,12 +529,21 @@ function sharedState() {
 
 function stateFor(acc, shared = sharedState()) {
   const perms = permsOf(acc);
+  const visibleChannels = db.channels.filter((c) => canView(acc, c));
   return {
+    serverId: communities.current().id || null,
+    servers: communities.list(acc.id),
+    people: (() => {
+      const social = socialFor(acc);
+      const ids = new Set([acc.id, ...social.friends, ...social.incoming, ...social.outgoing, ...social.blocked, ...social.dms.map((d) => d.userId)]);
+      return publicProfiles(ids);
+    })(),
     ownerId: db.ownerId,
     serverName: db.serverName || 'Resenha',
     serverIcon: db.serverIcon ? '/avatars/' + db.serverIcon : null,
     roles: db.roles,
-    channels: db.channels.filter((c) => canView(acc, c)),
+    channels: visibleChannels,
+    categories: db.categories.filter((g) => perms.has('MANAGE_CHANNELS') || visibleChannels.some((c) => c.categoryId === g.id)),
     members: shared.members,
     voice: shared.voice.filter((v) => db.channels.some((c) => c.id === v.channel && canView(acc, c))),
     myPerms: [...perms],
@@ -519,7 +552,16 @@ function stateFor(acc, shared = sharedState()) {
 }
 
 function clearScreenWatchers(sharer) {
-  for (const viewer of online.values()) viewer.watching?.delete(sharer);
+  for (const viewer of online.values()) {
+    viewer.watching?.delete(sharer);
+    viewer.screenQuality?.delete(sharer);
+  }
+}
+
+function screenQuality(value = { mode: 'auto', maxHeight: 1080, background: false }) {
+  if (!value || typeof value !== 'object' || !['auto', 'economy', 'source'].includes(value.mode)
+      || !Number.isInteger(value.maxHeight) || value.maxHeight < 180 || value.maxHeight > 1080 || typeof value.background !== 'boolean') throw new Error('Qualidade de transmissão inválida.');
+  return { mode: value.mode, maxHeight: value.maxHeight, background: value.background };
 }
 
 function leaveVoice(socket) {
@@ -529,7 +571,9 @@ function leaveVoice(socket) {
   socket.to(room).emit('voice:peer-left', { id: socket.id });
   socket.leave(room);
   clearScreenWatchers(socket.id);
+  for (const target of s.watching || []) io.to(target).emit('screen:quality', { viewer: socket.id, demand: null });
   s.watching?.clear();
+  s.screenQuality?.clear();
   s.voice = null;
   s.sharing = false;
   s.camera = false;
@@ -539,19 +583,21 @@ function leaveVoice(socket) {
 function enforceVoice() {
   for (const [sid, s] of online) {
     if (!s.voice) continue;
-    const acc = db.accounts[s.accountId];
-    const channel = db.channels.find((c) => c.id === s.voice);
-    const socket = io.sockets.sockets.get(sid);
-    if (!socket) continue;
-    if (!channel || !canView(acc, channel) || !can(acc, 'CONNECT')) {
-      leaveVoice(socket);
-      socket.emit('voice:force-leave', { reason: 'Você foi removido do canal de voz.' });
-    } else if ((s.sharing || s.camera) && (!can(acc, 'STREAM') || timedOut(acc))) {
-      clearScreenWatchers(sid);
-      s.sharing = false;
-      s.camera = false;
-      socket.emit('voice:stop-share');
-    }
+    communities.run(s.serverId, () => {
+      const acc = db.accounts[s.accountId];
+      const channel = db.channels.find((c) => c.id === s.voice);
+      const socket = io.sockets.sockets.get(sid);
+      if (!socket) return;
+      if (!channel || !canView(acc, channel) || !can(acc, 'CONNECT')) {
+        leaveVoice(socket);
+        socket.emit('voice:force-leave', { reason: 'Você foi removido do canal de voz.' });
+      } else if ((s.sharing || s.camera) && (!can(acc, 'STREAM') || timedOut(acc))) {
+        clearScreenWatchers(sid);
+        s.sharing = false;
+        s.camera = false;
+        socket.emit('voice:stop-share');
+      }
+    });
   }
 }
 
@@ -567,30 +613,50 @@ function flushBroadcast() {
   if (!broadcastQueued) return;
   broadcastQueued = false;
   enforceVoice();
-  const shared = sharedState();
+  const shared = new Map();
   for (const [sid, s] of online) {
-    const acc = db.accounts[s.accountId];
-    if (acc) io.sockets.sockets.get(sid)?.emit('state', stateFor(acc, shared));
+    communities.run(s.serverId, () => {
+      const acc = db.accounts[s.accountId];
+      if (!shared.has(s.serverId)) shared.set(s.serverId, sharedState());
+      if (acc) io.sockets.sockets.get(sid)?.emit('state', stateFor(acc, shared.get(s.serverId)));
+    });
   }
 }
 
 // Reavalia o estado quando um castigo termina.
 const timeoutTimers = new Map();
 function scheduleTimeoutEnd(acc) {
-  clearTimeout(timeoutTimers.get(acc.id));
+  const key = communities.currentId() + ':' + acc.id;
+  clearTimeout(timeoutTimers.get(key));
   const ms = (acc.timeoutUntil || 0) - Date.now();
-  if (ms > 0) timeoutTimers.set(acc.id, setTimeout(broadcastState, Math.min(ms + 100, 2 ** 31 - 1)));
+  if (ms > 0) timeoutTimers.set(key, setTimeout(broadcastState, Math.min(ms + 100, 2 ** 31 - 1)));
 }
-Object.values(db.accounts).forEach(scheduleTimeoutEnd);
+for (const id of Object.keys(communities.root.servers)) communities.run(id, () => Object.values(db.accounts).forEach(scheduleTimeoutEnd));
 
 function emitToViewers(channel, event, payload) {
   for (const [sid, s] of online) {
-    if (canView(db.accounts[s.accountId], channel)) io.to(sid).emit(event, payload);
+    if (s.serverId === communities.currentId() && canView(db.accounts[s.accountId], channel)) io.to(sid).emit(event, payload);
   }
 }
 
 const cleanName = (s, max = 32) => String(s || '').trim().replace(/\s+/g, ' ').slice(0, max);
 const cleanColor = (c, fallback = '#5865f2') => (/^#[0-9a-f]{6}$/i.test(c) ? c : fallback);
+
+function selectServer(socket, accountId, id) {
+  leaveVoice(socket);
+  online.get(socket.id).serverId = id;
+  db.accounts[accountId].lastServerId = id;
+  save();
+  broadcastState();
+}
+
+function removeMembership(accountId, reason) {
+  communities.membership(accountId).active = false;
+  for (const socket of socketsOf(accountId, true)) {
+    selectServer(socket, accountId, communities.choose(accountId));
+    socket.emit('server:removed', { reason });
+  }
+}
 
 // ---------------- eventos ----------------
 io.on('connection', (socket) => {
@@ -602,20 +668,96 @@ io.on('connection', (socket) => {
   // Todo handler que exige login passa por aqui; responde {error} quando falha.
   const on = (event, handler) => {
     socket.on(event, (payload, ack) => {
-      const acc = me();
-      const reply = typeof ack === 'function' ? ack : () => {};
-      if (!acc) return reply({ error: 'Não autenticado' });
-      try {
-        const result = handler(acc, payload || {});
-        // Quem fez a ação recebe o estado novo antes da confirmação.
-        flushBroadcast();
-        reply(result || { ok: true });
-      } catch (err) {
-        reply({ error: err.message });
-      }
+      communities.run(online.get(socket.id)?.serverId ?? null, () => {
+        const acc = me();
+        const reply = typeof ack === 'function' ? ack : () => {};
+        if (!acc) return reply({ error: 'Não autenticado' });
+        try {
+          const result = handler(acc, payload || {});
+          // Quem fez a ação recebe o estado novo antes da confirmação.
+          flushBroadcast();
+          reply(result || { ok: true });
+        } catch (err) {
+          reply({ error: err.message });
+        }
+      });
     });
   };
   const fail = (msg) => { throw new Error(msg); };
+
+  on('server:create', (acc, { name }) => {
+    const clean = cleanName(name, 32);
+    if (clean.length < 2) fail('O nome do servidor precisa ter pelo menos 2 caracteres.');
+    if (!allow('server-create:' + acc.id, 5, 60_000)) fail('Muitos servidores criados seguidos. Aguarde um minuto.');
+    const community = communities.create(acc.id, clean);
+    selectServer(socket, acc.id, community.id);
+    return { id: community.id };
+  });
+  on('server:select', (acc, { id }) => {
+    if (!communities.joined(acc.id, id)) fail('Você não participa deste servidor.');
+    if (online.get(socket.id).serverId !== id) selectServer(socket, acc.id, id);
+    return { id };
+  });
+  on('server:invite', (acc, { rotate }) => {
+    if (!communities.joined(acc.id)) fail('Entre em um servidor para convidar amigos.');
+    if (rotate) {
+      if (!can(acc, 'ADMIN')) fail('Só administradores podem revogar o convite anterior.');
+      if (!allow('invite-rotate:' + acc.id, 10, 60_000)) fail('Aguarde antes de renovar o convite.');
+      communities.current().inviteCode = communities.inviteCode();
+      save();
+    }
+    return { code: communities.current().inviteCode, name: db.serverName };
+  });
+  on('server:join', (acc, { code }) => {
+    if (!allow('invite-join:' + acc.id, 20, 60_000)) fail('Muitos convites seguidos. Aguarde um minuto.');
+    const community = communities.byInvite(code);
+    if (!community) fail('Convite inválido ou revogado. Peça um novo link.');
+    communities.join(acc.id, community);
+    if (online.get(socket.id).serverId !== community.id) selectServer(socket, acc.id, community.id);
+    else broadcastState();
+    save();
+    return { id: community.id };
+  });
+  on('server:leave', (acc) => {
+    if (!communities.joined(acc.id)) fail('Servidor não encontrado.');
+    if (isOwner(acc)) fail('O dono precisa permanecer no servidor.');
+    removeMembership(acc.id, 'Você saiu do servidor.');
+    save();
+    broadcastState();
+  });
+  on('server:delete', (acc, { id, name }) => {
+    const community = communities.current();
+    if (!community.id || id !== community.id || !communities.joined(acc.id)) fail('Servidor não encontrado.');
+    if (!isOwner(acc)) fail('Só o dono pode excluir o servidor.');
+    if (name !== community.serverName) fail('Digite o nome atual do servidor para confirmar a exclusão.');
+    const channels = new Set(community.channels.map((c) => c.id));
+    for (const channelId of channels) {
+      (db.messages[channelId] || []).forEach(deleteAttachments);
+      delete db.messages[channelId];
+    }
+    for (const upload of Object.values(db.uploads)) {
+      if (upload.serverId === id || channels.has(upload.channelId)) deleteUpload(upload.id);
+    }
+    for (const [key, timer] of timeoutTimers) {
+      if (key.startsWith(id + ':')) { clearTimeout(timer); timeoutTimers.delete(key); }
+    }
+    delete communities.root.servers[id];
+    if (communities.root.defaultServerId === id) communities.root.defaultServerId = Object.keys(communities.root.servers)[0] || null;
+    for (const account of Object.values(db.accounts)) {
+      for (const channelId of channels) if (account.lastRead) delete account.lastRead[channelId];
+      if (account.lastServerId === id) account.lastServerId = communities.choose(account.id);
+    }
+    for (const [sid, session] of online) {
+      if (session.serverId !== id) continue;
+      const affected = io.sockets.sockets.get(sid);
+      if (!affected) continue;
+      selectServer(affected, session.accountId, communities.choose(session.accountId));
+      affected.emit('server:removed', { reason: `O servidor ${community.serverName} foi excluído.` });
+    }
+    removeImageIfUnused(community.serverIcon);
+    save();
+    broadcastState();
+  });
 
   const ip = clientIp(socket.handshake.headers, socket.handshake.address);
 
@@ -624,6 +766,9 @@ io.on('connection', (socket) => {
     socket.data.authing = true;
     try {
       await authenticate(payload || {}, ack);
+    } catch (error) {
+      console.error('Falha na autenticação:', error.message);
+      ack({ error: 'Não foi possível entrar. Tente novamente.' });
     } finally {
       socket.data.authing = false;
     }
@@ -639,18 +784,25 @@ io.on('connection', (socket) => {
       const password = String(payload.password || '');
       const existing = Object.values(db.accounts).find((a) => a.name.toLowerCase() === name.toLowerCase());
       if (payload.mode === 'register') {
-        if (ACCESS_PASSWORD && payload.serverPassword !== ACCESS_PASSWORD) return ack({ error: 'Senha do servidor incorreta' });
         if (name.length < 2) return ack({ error: 'Nome muito curto' });
         if (password.length < 4) return ack({ error: 'A senha precisa ter pelo menos 4 caracteres' });
+        if (password.length > 128) return ack({ error: 'A senha deve ter até 128 caracteres.' });
+        if (payload.confirmPassword !== password) return ack({ error: 'As senhas não coincidem. Confirme sua senha.' });
         if (existing) return ack({ error: 'Esse nome já está em uso' });
         if (!allow('register:' + ip, 20, 60 * 60 * 1000)) return ack({ error: 'Muitas contas criadas daqui. Tente mais tarde.' });
         const secret = await hashPassword(password);
         // Outra pessoa pode ter pegado o nome enquanto o hash era calculado.
         if (Object.values(db.accounts).some((a) => a.name.toLowerCase() === name.toLowerCase())) return ack({ error: 'Esse nome já está em uso' });
-        acc = { id: newId(), name, color: cleanColor(payload.color), roles: [], createdAt: Date.now(), ...secret };
+        acc = { id: newId(), name, color: cleanColor(payload.color), createdAt: Date.now(), ...secret };
         db.accounts[acc.id] = acc;
         // A primeira conta criada vira dona do servidor.
-        if (!db.ownerId) db.ownerId = acc.id;
+        const legacy = communities.root.servers[communities.root.defaultServerId];
+        // Only the first account bootstraps a fresh installation. All later accounts
+        // start outside servers and explicitly accept an invite or create their own.
+        if (legacy && !legacy.ownerId) {
+          communities.join(acc.id, legacy);
+          legacy.ownerId = acc.id;
+        }
       } else {
         const key = ip + '|' + name.toLowerCase();
         const locked = loginLocked(key);
@@ -664,11 +816,11 @@ io.on('connection', (socket) => {
         acc = existing;
       }
     }
-    if (acc.banned) return ack({ error: 'Você foi banido deste servidor.' });
     const token = payload.token || createSession(acc.id);
-    online.set(socket.id, { accountId: acc.id, voice: null, muted: false, deafened: false, sharing: false, camera: false });
+    const serverId = communities.choose(acc.id, payload.serverId || acc.lastServerId);
+    online.set(socket.id, { accountId: acc.id, serverId, voice: null, muted: false, deafened: false, sharing: false, camera: false });
     save();
-    ack({ token, accountId: acc.id, sid: socket.id, iceServers: iceServers(), permNames: PERMS, maxUploadMb: MAX_UPLOAD_MB });
+    ack({ token, accountId: acc.id, serverId, sid: socket.id, iceServers: iceServers(), permNames: PERMS, maxUploadMb: MAX_UPLOAD_MB });
     socket.emit('social', socialFor(acc));
     broadcastState();
   }
@@ -728,7 +880,10 @@ io.on('connection', (socket) => {
     ? { users: c.dm.users.filter((u) => u !== acc.id), roles: [], everyone: false }
     : parseMentions(acc, text, replyAuthorId));
 
-  on('chat:history', (acc, { channel }) => ({ messages: db.messages[chatTarget(acc, channel).id] || [] }));
+  on('chat:history', (acc, { channel }) => {
+    const messages = db.messages[chatTarget(acc, channel).id] || [];
+    return { messages, authors: publicProfiles(messages.map((msg) => msg.authorId)) };
+  });
 
   const findMessage = (acc, channel, id) => {
     const c = chatTarget(acc, channel);
@@ -747,7 +902,9 @@ io.on('connection', (socket) => {
     if (!allow('chat:' + acc.id, 10, 5000)) fail('Você está enviando mensagens rápido demais. Espere um pouco.');
     const ids = [...new Set(Array.isArray(attachments) ? attachments : [])].slice(0, MAX_ATTACHMENTS);
     const ups = ids.map((id) => db.uploads[id]);
-    if (ups.some((up) => !up || up.uploaderId !== acc.id || up.messageId)) fail('Anexo inválido, envie o arquivo de novo.');
+    if (ups.some((up) => !up || up.uploaderId !== acc.id || up.messageId
+      || (up.serverId !== undefined && up.serverId !== (c.dm ? null : communities.currentId()))
+      || (up.channelId && up.channelId !== c.id))) fail('Anexo inválido, envie o arquivo de novo.');
     if (!text && !ups.length) return;
     const list = (db.messages[c.id] ||= []);
     const replied = replyTo ? list.find((m) => m.id === replyTo) : null;
@@ -764,7 +921,7 @@ io.on('connection', (socket) => {
     // A conversa aparece na lista de quem recebe a primeira mensagem e volta para quem a tinha fechado.
     const listChanged = c.dm && (list.length === 1 || c.dm.closed?.[peer.id] || c.dm.closed?.[acc.id]);
     if (c.dm) c.dm.closed = {};
-    emitToChat(c, 'chat:message', { channel: c.id, msg });
+    emitToChat(c, 'chat:message', { channel: c.id, msg, author: publicProfiles([acc.id])[0] });
     if (listChanged) pushSocial(acc.id, peer.id);
     save();
   });
@@ -847,7 +1004,7 @@ io.on('connection', (socket) => {
     }
     const c = db.channels.find((ch) => ch.id === channel);
     if (c) for (const [sid, s] of online) {
-      if (sid !== socket.id && canView(db.accounts[s.accountId], c)) io.to(sid).emit('typing', { channel, name: acc.name });
+      if (sid !== socket.id && s.serverId === communities.currentId() && canView(db.accounts[s.accountId], c)) io.to(sid).emit('typing', { channel, name: acc.name });
     }
   });
 
@@ -876,7 +1033,7 @@ io.on('connection', (socket) => {
     const wanted = cleanName(name).toLowerCase();
     const target = cleanId(id)
       ? presentAccount(id)
-      : wanted && Object.values(db.accounts).find((a) => !a.banned && a.name.toLowerCase() === wanted);
+      : wanted && Object.values(db.accounts).find((a) => a.name.toLowerCase() === wanted);
     if (!target) fail('Não encontramos ninguém com esse nome.');
     if (target.id === acc.id) fail('Você não pode adicionar a si mesmo.');
     if (hasBlocked(acc.id, target.id)) fail('Você bloqueou essa pessoa. Desbloqueie para adicioná-la.');
@@ -1009,20 +1166,42 @@ io.on('connection', (socket) => {
   });
 
   // Watching is explicit, ephemeral and limited to the same authorized voice room.
-  on('screen:watch', (acc, { target, watching }) => {
+  on('screen:watch', (acc, { target, watching, quality }) => {
     const viewer = online.get(socket.id);
     const source = online.get(target);
     if (typeof watching !== 'boolean' || typeof target !== 'string' || target === socket.id) fail('Transmissão inválida.');
     if (!watching) {
-      viewer.watching?.delete(target);
+      const subscribed = viewer.watching?.delete(target);
+      viewer.screenQuality?.delete(target);
+      if (subscribed) io.to(target).emit('screen:quality', { viewer: socket.id, demand: null });
       broadcastState();
       return;
     }
     const channel = db.channels.find((c) => c.id === source?.voice);
     if (!viewer.voice || !source?.sharing || viewer.voice !== source.voice || !channel || !canView(acc, channel) || !can(acc, 'CONNECT')) fail('Essa transmissão não está disponível nesta sala.');
+    const demand = screenQuality(quality);
     viewer.watching ||= new Set();
     viewer.watching.add(target);
+    viewer.screenQuality ||= new Map();
+    viewer.screenQuality.set(target, demand);
+    io.to(target).emit('screen:quality', { viewer: socket.id, demand });
     broadcastState();
+  });
+
+  // Only subscribed viewers can request quality. Resize updates go to the source,
+  // not into persistent state or a server-wide broadcast.
+  on('screen:quality', (acc, { target, quality }) => {
+    const viewer = online.get(socket.id), source = online.get(target);
+    const channel = db.channels.find((c) => c.id === source?.voice);
+    if (!viewer.voice || !source?.sharing || !viewer.watching?.has(target) || viewer.voice !== source.voice
+        || !channel || !canView(acc, channel) || !can(acc, 'CONNECT')) fail('Essa transmissão não está disponível nesta sala.');
+    const demand = screenQuality(quality);
+    if (!allow('screen-quality:' + socket.id + ':' + target, 24, 5000)) fail('Aguarde antes de ajustar a transmissão novamente.');
+    const previous = viewer.screenQuality?.get(target);
+    if (previous && previous.mode === demand.mode && previous.maxHeight === demand.maxHeight && previous.background === demand.background) return;
+    viewer.screenQuality ||= new Map();
+    viewer.screenQuality.set(target, demand);
+    io.to(target).emit('screen:quality', { viewer: socket.id, demand });
   });
 
   // Efeito sonoro: todo mundo da sala toca o mesmo som.
@@ -1040,14 +1219,14 @@ io.on('connection', (socket) => {
   socket.on('signal', ({ to, data } = {}) => {
     const from = online.get(socket.id);
     const target = online.get(to);
-    if (!from || !target || !from.voice || from.voice !== target.voice) return;
+    if (!from || !target || !from.voice || from.voice !== target.voice || from.serverId !== target.serverId) return;
     io.to(to).emit('signal', { from: socket.id, data });
   });
 
   // --- Moderação ---
   on('mod', (acc, { action, target, value }) => {
     const t = db.accounts[target];
-    if (!t) fail('Membro não encontrado');
+    if (!t || !communities.membership(t.id)) fail('Membro não encontrado');
     const self = t.id === acc.id;
     const need = (perm) => { if (!can(acc, perm)) fail('Você não tem permissão para isso.'); };
     const needRank = () => { if (!outranks(acc, t)) fail('Essa pessoa tem um cargo igual ou maior que o seu.'); };
@@ -1062,7 +1241,7 @@ io.on('connection', (socket) => {
       case 'disconnect':
         need('MOVE_MEMBERS');
         if (!self) needRank();
-        for (const s of socketsOf(t.id)) {
+        for (const s of socketsOf(t.id, true)) {
           if (!online.get(s.id).voice) continue;
           leaveVoice(s);
           s.emit('voice:force-leave', { reason: `${acc.name} desconectou você da voz.` });
@@ -1073,7 +1252,7 @@ io.on('connection', (socket) => {
         if (!self) needRank();
         const c = db.channels.find((ch) => ch.id === value && ch.type === 'voice');
         if (!c || !canView(t, c)) fail('Essa pessoa não pode entrar nesse canal.');
-        for (const s of socketsOf(t.id)) if (online.get(s.id).voice) s.emit('voice:force-move', { channel: c.id, by: acc.name });
+        for (const s of socketsOf(t.id, true)) if (online.get(s.id).voice) s.emit('voice:force-move', { channel: c.id, by: acc.name });
         break;
       }
       case 'timeout': {
@@ -1083,7 +1262,7 @@ io.on('connection', (socket) => {
         const minutes = Math.max(0, Math.min(Number(value) || 0, 28 * 24 * 60));
         t.timeoutUntil = minutes ? Date.now() + minutes * 60000 : 0;
         scheduleTimeoutEnd(t);
-        for (const s of socketsOf(t.id)) {
+        for (const s of socketsOf(t.id, true)) {
           s.emit('notice', minutes ? `${acc.name} colocou você de castigo por ${formatMinutes(minutes)}.` : `${acc.name} removeu seu castigo.`);
         }
         break;
@@ -1093,20 +1272,12 @@ io.on('connection', (socket) => {
         need(action === 'kick' ? 'KICK' : 'BAN');
         if (self) fail('Você não pode fazer isso consigo mesmo.');
         needRank();
-        if (action === 'ban') {
-          t.banned = true;
-          pushSocial(...[...online.values()].map((s) => s.accountId));
-        }
-        revokeSessions(t.id);
-        for (const s of socketsOf(t.id)) {
-          s.emit('removed', { reason: action === 'ban' ? `Você foi banido por ${acc.name}.` : `Você foi expulso por ${acc.name}.` });
-          s.disconnect(true);
-        }
+        if (action === 'ban') t.banned = true;
+        removeMembership(t.id, action === 'ban' ? `Você foi banido por ${acc.name}.` : `Você foi expulso por ${acc.name}.`);
         break;
       case 'unban':
         need('BAN');
         t.banned = false;
-        pushSocial(...[...online.values()].map((s) => s.accountId));
         break;
       case 'setRoles': {
         need('MANAGE_ROLES');
@@ -1162,7 +1333,7 @@ io.on('connection', (socket) => {
       const i = editable(id);
       if (id === 'everyone') fail('O cargo @everyone não pode ser apagado.');
       db.roles.splice(i, 1);
-      for (const a of Object.values(db.accounts)) a.roles = a.roles.filter((r) => r !== id);
+      for (const a of Object.values(db.accounts).filter((a) => communities.membership(a.id))) a.roles = a.roles.filter((r) => r !== id);
       for (const c of db.channels) c.allowedRoles = c.allowedRoles.filter((r) => r !== id);
     } else if (action === 'move') {
       const i = editable(id);
@@ -1199,40 +1370,28 @@ io.on('connection', (socket) => {
   });
 
   // --- Canais ---
-  on('channel', (acc, { action, id, type, name, allowedRoles }) => {
+  on('category', (acc, payload) => {
     if (!can(acc, 'MANAGE_CHANNELS')) fail('Você não tem permissão para gerenciar canais.');
-    const cleanChannelName = (n, t) => {
-      n = cleanName(n, 32);
-      if (t === 'text') n = n.toLowerCase().replace(/\s+/g, '-');
-      if (!n) fail('Nome inválido');
-      return n;
-    };
-    const cleanRoles = (list) => (Array.isArray(list) ? list : []).filter((r) => roleIndex(r) > 0);
-
-    if (action === 'create') {
-      if (type !== 'text' && type !== 'voice') fail('Tipo inválido');
-      const channel = { id: newId(), type, name: cleanChannelName(name, type), allowedRoles: cleanRoles(allowedRoles) };
-      db.channels.push(channel);
-      if (type === 'text') db.messages[channel.id] = [];
-      save();
-      broadcastState();
-      return { id: channel.id };
-    }
-    const channel = db.channels.find((c) => c.id === id);
-    if (!channel) fail('Canal não encontrado');
-    if (action === 'update') {
-      channel.name = cleanChannelName(name, channel.type);
-      channel.allowedRoles = cleanRoles(allowedRoles);
-    } else if (action === 'delete') {
-      if (channel.type === 'text' && db.channels.filter((c) => c.type === 'text').length === 1) fail('O servidor precisa de pelo menos um canal de texto.');
-      db.channels = db.channels.filter((c) => c.id !== id);
-      (db.messages[id] || []).forEach(deleteAttachments);
-      delete db.messages[id];
-    } else {
-      fail('Ação desconhecida');
-    }
+    const result = channelStore.category(payload);
     save();
     broadcastState();
+    return result;
+  });
+
+  on('channel', (acc, payload) => {
+    if (!can(acc, 'MANAGE_CHANNELS')) fail('Você não tem permissão para gerenciar canais.');
+    // Não permite editar/copiar/reordenar canais ocultos por meio de IDs conhecidos.
+    for (const id of [payload.action === 'create' ? null : payload.id, payload.beforeId]) {
+      if (id == null) continue;
+      const c = db.channels.find((ch) => ch.id === id);
+      if (!c || !canView(acc, c)) fail('Canal não encontrado.');
+    }
+    const removedMessages = payload.action === 'delete' ? db.messages[payload.id] || [] : [];
+    const result = channelStore.channel(payload);
+    removedMessages.forEach(deleteAttachments);
+    save();
+    broadcastState();
+    return result;
   });
 
   socket.on('disconnect', () => {

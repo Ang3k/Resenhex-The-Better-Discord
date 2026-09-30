@@ -13,6 +13,8 @@
   <link rel="stylesheet" href="changelog.css">
   <link rel="stylesheet" href="profile.css">
   <link rel="stylesheet" href="friends.css">
+  <link rel="stylesheet" href="channel-navigation.css">
+  <link rel="stylesheet" href="server-navigation.css">
 </head>
 <body>
   <!-- Tela de entrada / cadastro -->
@@ -35,12 +37,12 @@
       <label>
 <span>SENHA <span class="req">*</span>
 </span>
-        <input id="login-password" type="password" required autocomplete="current-password">
+        <input id="login-password" type="password" required maxlength="128" autocomplete="current-password">
       </label>
-      <label id="server-password-label" class="hidden">
-<span>SENHA DO SERVIDOR <span class="req">*</span>
+      <label id="confirm-password-label" class="hidden">
+<span>CONFIRMAR SENHA <span class="req">*</span>
 </span>
-        <input id="server-password" type="password" autocomplete="off">
+        <input id="login-confirm-password" type="password" maxlength="128" autocomplete="new-password">
       </label>
       <label id="login-color-label" class="hidden">COR DO AVATAR
         <input id="login-color" type="color" value="#5865f2">
@@ -65,6 +67,7 @@
       </div>
       <div class="rail-sep">
 </div>
+      <div id="server-list" aria-label="Seus servidores">
       <div class="rail-item active" id="rail-server" data-tip="Resenha" data-tip-pos="right">
         <span class="rail-pill">
 </span>
@@ -72,10 +75,13 @@
         <span id="server-badge" class="badge rail-badge hidden">
 </span>
       </div>
+      </div>
+      <button type="button" class="rail-item server-add" id="btn-add-server" aria-label="Adicionar servidor" data-tip="Adicionar servidor" data-tip-pos="right"><span class="rail-icon" data-icon="plus"></span></button>
     </nav>
 
     <!-- Canais -->
     <aside id="sidebar">
+      <button type="button" id="btn-switch-server" class="server-picker" aria-label="Trocar ou adicionar servidor"><span data-icon="users" data-size="16"></span><span>Seus servidores</span><span data-icon="chevronDown" data-size="16"></span></button>
       <button type="button" id="server-header" class="server-name">
         <span>Resenha</span>
 <span class="chev" data-icon="chevronDown">
@@ -85,24 +91,7 @@
         <ul class="rail-alt">
           <li id="nav-to-home" class="channel"><span class="icon" data-icon="message"></span><span class="channel-name">Mensagens diretas</span><span id="nav-home-badge" class="badge hidden"></span></li>
         </ul>
-        <div class="category" data-cat="text">
-          <button type="button" class="cat-toggle">
-<span class="cat-chev" data-icon="chevronDown" data-size="12">
-</span>CANAIS DE TEXTO</button>
-          <button type="button" class="cat-add hidden" data-type="text" data-tip="Criar canal" aria-label="Criar canal de texto" data-icon="plus" data-size="16">
-</button>
-        </div>
-        <ul id="text-channels">
-</ul>
-        <div class="category" data-cat="voice">
-          <button type="button" class="cat-toggle">
-<span class="cat-chev" data-icon="chevronDown" data-size="12">
-</span>CANAIS DE VOZ</button>
-          <button type="button" class="cat-add hidden" data-type="voice" data-tip="Criar canal" aria-label="Criar canal de voz" data-icon="plus" data-size="16">
-</button>
-        </div>
-        <ul id="voice-channels">
-</ul>
+        <div id="channel-groups"></div>
       </div>
 
       <!-- Início: amigos e mensagens diretas -->
@@ -618,11 +607,11 @@
   </div>
 
   <!-- Criar canal -->
-  <div id="create-channel" class="modal hidden">
+  <div id="create-channel" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="create-channel-title">
     <form id="create-channel-form" class="card">
       <div class="settings-head">
         <div>
-          <h2>Criar canal</h2>
+          <h2 id="create-channel-title">Criar canal</h2>
           <div class="muted-text" id="create-channel-sub">
 </div>
         </div>
@@ -649,12 +638,18 @@
 </span>
 </label>
       <label>NOME DO CANAL
-        <input id="create-channel-name" maxlength="32" required autocomplete="off" placeholder="novo-canal">
+        <input id="create-channel-name" maxlength="64" required autocomplete="off" placeholder="novo-canal">
+      </label>
+      <label>GRUPO DE CANAIS
+        <select id="create-channel-group" aria-label="Grupo de canais"></select>
+      </label>
+      <label>DESCRIÇÃO <span class="muted-text">(opcional)</span>
+        <textarea id="create-channel-topic" maxlength="512" rows="2" placeholder="Para que serve este canal?"></textarea>
       </label>
       <label class="row">
 <input type="checkbox" id="create-channel-private"> Canal privado</label>
       <div id="create-channel-roles" class="hidden">
-        <div class="muted-text">Só estes cargos (e administradores) vão ver o canal:</div>
+        <div class="muted-text">Só estes cargos e administradores vão ver o canal. Sem cargos selecionados, somente administradores têm acesso.</div>
         <div class="chips" id="create-channel-role-list">
 </div>
       </div>
@@ -700,6 +695,7 @@
   <script src="media-session.js">
 </script>
   <script src="changelog.js"></script>
+  <script src="channel-navigation.js"></script>
   <script src="app.js">
 </script>
 </body>

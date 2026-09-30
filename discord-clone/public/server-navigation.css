@@ -1,0 +1,32 @@
+#server-list { display: flex; flex-direction: column; gap: 8px; }
+.server-entry { border: 0; padding: 0; background: none; flex-shrink: 0; }
+.server-add { border: 0; padding: 0; background: none; flex-shrink: 0; }
+.server-add .rail-icon { color: #3ba55c; }
+.server-add:hover .rail-icon { background: #3ba55c; color: white; }
+.server-picker { display: flex; align-items: center; gap: 8px; width: 100%; min-height: 36px; padding: 8px 16px; border: 0; border-bottom: 1px solid #ffffff08; background: #1e1f22; color: #b5bac1; font: inherit; font-size: 12px; cursor: pointer; flex-shrink: 0; }
+.server-picker span:nth-child(2) { flex: 1; text-align: left; }
+.server-picker:hover { color: white; background: #35373c; }
+.server-dialog { width: min(440px, calc(100vw - 32px)); max-height: calc(100dvh - 32px); overflow: auto; padding: 28px; box-sizing: border-box; border-radius: 16px; background: #313338; color: #f2f3f5; box-shadow: 0 24px 100px #0008; position: relative; }
+.server-dialog h2 { margin: 8px 24px 8px 0; font-size: 24px; line-height: 1.25; overflow-wrap: anywhere; }
+.server-dialog p { color: #b5bac1; line-height: 1.5; margin: 0 0 22px; }
+.server-dialog label { display: block; color: #b5bac1; font-size: 12px; font-weight: 700; margin: 20px 0 8px; }
+.server-dialog input { width: 100%; min-height: 42px; border: 1px solid transparent; border-radius: 6px; padding: 10px 12px; background: #1e1f22; color: #f2f3f5; font: inherit; box-sizing: border-box; }
+.server-dialog input:focus { outline: 2px solid #5865f2; }
+.server-dialog .dialog-close { position: absolute; top: 12px; right: 12px; border: 0; background: none; color: #b5bac1; cursor: pointer; padding: 8px; }
+.server-dialog .dialog-actions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 24px; }
+.server-dialog .dialog-actions button { flex: 1; min-height: 42px; }
+.server-choice { display: flex; align-items: center; gap: 14px; width: 100%; padding: 14px; margin-top: 10px; border: 1px solid #ffffff14; border-radius: 10px; color: #f2f3f5; background: #2b2d31; text-align: left; font: inherit; cursor: pointer; }
+.server-choice:hover { background: #404249; border-color: #5865f2; }
+.server-choice .choice-text { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+.server-choice small { display: block; margin-top: 4px; color: #b5bac1; }
+.server-choice .rail-icon { width: 40px; height: 40px; flex: 0 0 40px; font-size: 14px; }
+.invite-identity { display: flex; flex-direction: column; align-items: center; text-align: center; padding-top: 12px; }
+.invite-identity .rail-icon { width: 72px; height: 72px; font-size: 24px; border-radius: 20px; margin-bottom: 12px; }
+.server-dialog .invite-note { font-size: 12px; margin: 14px 0 0; }
+.server-dialog .invite-error { color: #fda1a1; margin-top: 12px; }
+.server-dialog button:focus-visible, .server-picker:focus-visible, .server-add:focus-visible { outline: 2px solid #9da5ff; outline-offset: 3px; }
+.server-dialog .secondary { background: #4e5058; }
+.server-dialog .btn-primary { background: var(--brand); }
+.server-welcome-actions { display: flex; gap: 12px; justify-content: center; flex-wrap: wrap; margin-top: 10px; }
+.server-welcome-actions button { padding: 12px 16px; border: 0; border-radius: 6px; font-size: 14px; margin-top: 0; }
+.server-welcome-actions .secondary { background: #4e5058; color: #f2f3f5; }

@@ -2,6 +2,13 @@
 
 Ideias anotadas para as próximas versões do Resenhex.
 
+## Servidores (0.95)
+
+- [x] Criar e alternar entre vários servidores, com canais, grupos, cargos e chamadas próprios.
+- [x] Convidar amigos por link, com prévia do servidor e confirmação da entrada.
+- [x] Cadastro com nome de usuário, senha e confirmação de senha, sem e-mail.
+- [x] Banimentos e moderação por servidor, preservando a conta, os amigos e as DMs.
+
 ## Chamada
 
 - [x] **Botão de ensurdecer na barra de controles da chamada**, ao lado dos botões de mutar e câmera. Hoje ele só existe no painel do usuário, no canto inferior esquerdo.
