@@ -558,10 +558,17 @@ function clearScreenWatchers(sharer) {
   }
 }
 
+const SCREEN_CODECS = ['video/H264', 'video/VP9', 'video/VP8', 'video/AV1'];
 function screenQuality(value = { mode: 'auto', maxHeight: 1080, background: false }) {
   if (!value || typeof value !== 'object' || !['auto', 'economy', 'source'].includes(value.mode)
       || !Number.isInteger(value.maxHeight) || value.maxHeight < 180 || value.maxHeight > 1080 || typeof value.background !== 'boolean') throw new Error('Qualidade de transmissão inválida.');
-  return { mode: value.mode, maxHeight: value.maxHeight, background: value.background };
+  const demand = { mode: value.mode, maxHeight: value.maxHeight, background: value.background };
+  // Opcional: codecs que o aparelho de quem assiste decodifica por hardware (celulares).
+  if (value.codecs !== undefined) {
+    if (!Array.isArray(value.codecs) || value.codecs.length > 4 || value.codecs.some((c) => !SCREEN_CODECS.includes(c))) throw new Error('Qualidade de transmissão inválida.');
+    if (value.codecs.length) demand.codecs = [...new Set(value.codecs)];
+  }
+  return demand;
 }
 
 function leaveVoice(socket) {
@@ -1198,7 +1205,7 @@ io.on('connection', (socket) => {
     const demand = screenQuality(quality);
     if (!allow('screen-quality:' + socket.id + ':' + target, 24, 5000)) fail('Aguarde antes de ajustar a transmissão novamente.');
     const previous = viewer.screenQuality?.get(target);
-    if (previous && previous.mode === demand.mode && previous.maxHeight === demand.maxHeight && previous.background === demand.background) return;
+    if (previous && JSON.stringify(previous) === JSON.stringify(demand)) return;
     viewer.screenQuality ||= new Map();
     viewer.screenQuality.set(target, demand);
     io.to(target).emit('screen:quality', { viewer: socket.id, demand });

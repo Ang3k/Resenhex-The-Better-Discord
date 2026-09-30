@@ -1800,17 +1800,19 @@
     order.forEach((t, i) => { if (stage.children[i] !== t) stage.insertBefore(t, stage.children[i] || null); });
     applyAudio();
     syncViewerQuality();
+    mobileStream.sync();
   }
 
   // ---------------- controles dos blocos da chamada (estilo Discord) ----------------
   function setupTile(tile) {
     // Clique fixa/solta; clique duplo abre em tela cheia.
     tile.addEventListener('click', (e) => {
-      if (e.target.closest('.tile-controls, .watch-btn')) return;
+      if (e.target.closest('.tile-controls, .watch-btn, .imm-bar')) return;
+      if (mobileStream.handleTap(tile)) return;
       togglePin(tile.dataset.key);
     });
     tile.addEventListener('dblclick', (e) => {
-      if (e.target.closest('.tile-controls, .watch-btn')) return;
+      if (mobileStream.touch || e.target.closest('.tile-controls, .watch-btn')) return;
       togglePin(tile.dataset.key, true);
       toggleFullscreen(tile);
     });
@@ -1822,6 +1824,8 @@
   }
 
   function toggleFullscreen(tile) {
+    // No celular, a tela compartilhada abre no modo imersivo (zoom por pinça, controles por toque).
+    if (mobileStream.touch && tile.classList.contains('screen')) return mobileStream.isOpen() ? mobileStream.close() : mobileStream.open(tile);
     if (document.fullscreenElement) document.exitFullscreen().catch(() => {});
     else tile.requestFullscreen?.().catch(() => {});
   }
@@ -3632,11 +3636,12 @@
       renderDiagnostics();
     };
 
-    pc.ontrack = ({ track, streams }) => {
+    pc.ontrack = ({ track, streams, receiver }) => {
       const stream = streams[0] || new MediaStream([track]);
       const kind = stream.id === peer.remoteIds.camera ? 'camera'
         : stream.id === peer.remoteIds.screen || track.kind === 'video' ? 'screen' : 'mic';
       if (kind !== 'mic') {
+        if (kind === 'screen') mobileStream.tuneReceiver(receiver);
         peer.remote[kind] = stream;
         track.onmute = track.onunmute = () => { if (state.view === 'voice') renderStage(); };
         stream.onremovetrack = () => {
@@ -3786,6 +3791,7 @@
   }
 
   const { isWatching, setWatching, getWatchQuality, setWatchQuality, syncViewerQuality, addVideoTracks, syncScreenSubscriptions, videoBitrates, tuneSenders, applySharePreset, setSharePreset, captureScreen, watchScreenTrack, switchScreen, startVideo, stopVideo, scheduleRecovery, renderDiagnostics, updateStreamStats, mediaNotice } = MediaSession({ state, socket, call, el, toast, voiceEntry, member, render, renderStage, sendVoiceState, preferCodec });
+  const mobileStream = MobileStream({ state, el, Icon, toast, member, voiceEntry, syncViewerQuality, openWatchQualityMenu, toggleStreamMute, togglePip });
 
   function openWatchQualityMenu(sid, anchor) {
     const menu = $('#context-menu');
@@ -3803,6 +3809,16 @@
   function openShareMenu(anchor) {
     const menu = $('#context-menu');
     const live = !!state.local.screen;
+    if (!live && !navigator.mediaDevices?.getDisplayMedia) {
+      // Navegadores de celular (Chrome Android, Safari do iPhone) não permitem capturar a tela.
+      menu.replaceChildren(el('div', { class: 'menu-section', textContent: 'COMPARTILHAR TELA' }),
+        el('div', { class: 'menu-tip', textContent: 'Este navegador não permite transmitir a tela. No celular você pode assistir às transmissões em tela cheia (pince para aproximar) e ligar a câmera.' }),
+        ...(state.local.camera || !canVideo() ? [] : [menuItem('Ligar câmera', 'camera', () => startVideo('camera'))]));
+      const rect = anchor.getBoundingClientRect();
+      menu.classList.remove('hidden');
+      showMenuAt(rect.left, rect.top - menu.getBoundingClientRect().height - 8);
+      return;
+    }
     menu.replaceChildren(
       el('div', { class: 'menu-section', textContent: live ? 'QUALIDADE DA TRANSMISSÃO' : 'COMPARTILHAR TELA' }),
       ...Object.entries(SHARE_PRESETS).map(([key, p]) => el('button', {

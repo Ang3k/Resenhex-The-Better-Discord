@@ -3,6 +3,17 @@
 Histórico de versões. A mesma lista aparece dentro do app em **Novidades** (menu do servidor ou rodapé das Configurações).
 O Resenhex ainda está antes da 1.0.
 
+## v0.96 — Tela no bolso
+_30/09/2026_
+
+- Transmissão de tela no celular: toque abre uma tela cheia imersiva que gira para acompanhar a imagem. O botão Voltar fecha sem sair da chamada.
+- Pinça para aproximar até 5×, arrastar com inércia e toque duplo para ampliar no ponto tocado. A resolução pedida a quem transmite acompanha o zoom.
+- Controles por toque (som, qualidade, janela flutuante) que aparecem com um toque e somem sozinhos. Tela sempre acesa enquanto assiste (Wake Lock).
+- Codec por espectador: o celular informa os codecs que decodifica por hardware (Media Capabilities), e quem transmite prioriza um deles para aquele espectador.
+- Buffer de reprodução de 120 ms para a tela recebida no celular, com menos engasgos em Wi-Fi e 4G.
+- Política de transmissão: sob aperto, a resolução desce em degraus fixos (720/540/360p) e o FPS é mantido. A estimativa de banda do navegador não limita mais o codificador.
+- Em telas de toque, os controles dos blocos ficam sempre visíveis. Em navegadores sem captura de tela, “Compartilhar tela” explica isso e oferece a câmera.
+
 ## v0.95 — Uma casa para cada turma
 _29/09/2026_
 

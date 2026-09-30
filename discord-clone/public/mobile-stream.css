@@ -1,0 +1,50 @@
+/* Transmissão de tela no celular: modo imersivo com zoom por pinça e controles por toque. */
+#stage .tile.immersive, #stage:has(.tile.focus) .tile.immersive {
+  position: fixed; inset: 0; z-index: 28; width: auto; height: auto; min-height: 0; aspect-ratio: auto;
+  border: 0; border-radius: 0; box-shadow: none; background: #000; cursor: default;
+  touch-action: none; overscroll-behavior: contain; -webkit-user-select: none; user-select: none; -webkit-touch-callout: none;
+}
+.tile.immersive video { transform-origin: 0 0; will-change: transform; cursor: default; -webkit-tap-highlight-color: transparent; }
+.tile.immersive > .label, .tile.immersive > .tile-controls { display: none; }
+.tile.immersive .stats { top: calc(62px + env(safe-area-inset-top)); right: max(10px, env(safe-area-inset-right)); opacity: 0; transition: opacity .2s; }
+.tile.immersive .stream-health { top: calc(92px + env(safe-area-inset-top)); right: max(10px, env(safe-area-inset-right)); left: auto; bottom: auto; opacity: 0; transition: opacity .2s; }
+.tile.immersive.chrome .stats, .tile.immersive.chrome .stream-health { opacity: 1; }
+body.stream-immersive { overflow: hidden; }
+
+.imm-bar {
+  position: absolute; left: 0; right: 0; top: 0; display: flex; align-items: center; gap: 6px;
+  padding: max(8px, env(safe-area-inset-top)) max(10px, env(safe-area-inset-right)) 22px max(10px, env(safe-area-inset-left));
+  background: linear-gradient(rgba(0, 0, 0, .72), rgba(0, 0, 0, 0)); color: #fff;
+  opacity: 0; transform: translateY(-10px); pointer-events: none; transition: opacity .2s ease, transform .2s ease;
+}
+.tile.immersive.chrome .imm-bar { opacity: 1; transform: none; pointer-events: auto; }
+.imm-title { flex: 1; min-width: 0; font-size: 15px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; text-shadow: 0 1px 2px #000; }
+.imm-btn {
+  width: 44px; height: 44px; flex-shrink: 0; display: grid; place-items: center; border: 0; border-radius: 50%;
+  background: rgba(0, 0, 0, .38); color: #fff; -webkit-tap-highlight-color: transparent; transition: background .12s, transform .12s;
+}
+.imm-btn:active { background: rgba(255, 255, 255, .22); transform: scale(.92); }
+.imm-btn.off { color: var(--red); }
+.imm-zoom {
+  height: 32px; padding: 0 12px; flex-shrink: 0; border: 0; border-radius: 16px; background: rgba(255, 255, 255, .2); color: #fff;
+  font: inherit; font-size: 14px; font-weight: 600; font-variant-numeric: tabular-nums; -webkit-tap-highlight-color: transparent;
+}
+.imm-hint {
+  position: absolute; left: 50%; bottom: calc(28px + env(safe-area-inset-bottom)); padding: 9px 16px; border-radius: 20px;
+  background: rgba(0, 0, 0, .72); color: #fff; font-size: 13px; white-space: nowrap; pointer-events: none;
+  animation: imm-hint 3.2s ease forwards;
+}
+@keyframes imm-hint {
+  0% { opacity: 0; transform: translate(-50%, 8px); }
+  10%, 80% { opacity: 1; transform: translate(-50%, 0); }
+  100% { opacity: 0; transform: translate(-50%, 0); }
+}
+@media (prefers-reduced-motion: reduce) { .imm-bar, .imm-btn, .tile.immersive .stats, .tile.immersive .stream-health { transition: none; } .imm-hint { animation-duration: .01s; animation-delay: 3s; } }
+
+/* Telas de toque sem mouse: os controles dos blocos ficam sempre visíveis e alcançáveis com o dedo. */
+@media (hover: none) {
+  .tile-controls { opacity: 1; }
+  .tc-btn { width: 40px; height: 40px; }
+  .tc-slider { width: 72px; opacity: 1; margin-right: 10px; }
+  .tile.screen video { cursor: default; }
+}

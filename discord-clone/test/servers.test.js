@@ -7,6 +7,14 @@ const path = require('node:path');
 const crypto = require('node:crypto');
 const { io } = require('socket.io-client');
 const wait = (ms = 70) => new Promise((r) => setTimeout(r, ms));
+// O estado de OUTRA conexão pode chegar depois da confirmação de quem agiu: espera ele chegar.
+async function eventually(check, timeout = 2000) {
+  const end = Date.now() + timeout;
+  for (;;) {
+    try { return check(); } catch (error) { if (Date.now() > end) throw error; }
+    await wait(20);
+  }
+}
 
 async function fixture(t, password = '', seed = null, corrupt = false) {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'resenhex-servers-'));
@@ -140,11 +148,11 @@ test('moderation affects only that membership and preserves global sessions and 
   await friend.call('server:join', { code: invite.code });
   const friendOriginal = await connect({ token: friend.auth.token, serverId: original });
   assert.ok(!(await owner.call('mod', { action: 'serverMute', target: friend.auth.accountId, value: true })).error);
-  assert.equal(friend.last.members.find((m) => m.id === friend.auth.accountId).serverMuted, true);
+  await eventually(() => assert.equal(friend.last.members.find((m) => m.id === friend.auth.accountId).serverMuted, true));
   assert.equal(friendOriginal.last.members.find((m) => m.id === friend.auth.accountId).serverMuted, false);
   assert.ok(!(await owner.call('mod', { action: 'ban', target: friend.auth.accountId })).error);
   assert.equal(friend.connected, true); assert.equal(friendOriginal.connected, true);
-  assert.equal(friend.last.serverId, original);
+  await eventually(() => assert.equal(friend.last.serverId, original));
   assert.ok((await friend.call('server:join', { code: invite.code })).error);
   const reconnected = await connect({ token: friend.auth.token }); assert.equal(reconnected.last.serverId, original);
   assert.ok(!(await owner.call('mod', { action: 'unban', target: friend.auth.accountId })).error);
@@ -152,7 +160,7 @@ test('moderation affects only that membership and preserves global sessions and 
   const voice = friend.last.channels.find((c) => c.type === 'voice').id;
   await friend.call('voice:join', { channel: voice });
   await friend.call('server:select', { id: original });
-  assert.equal(owner.last.voice.some((v) => v.accountId === friend.auth.accountId), false);
+  await eventually(() => assert.equal(owner.last.voice.some((v) => v.accountId === friend.auth.accountId), false));
 });
 
 test('new servers support groups, private channels and role management without changing the original server', async (t) => {
@@ -171,7 +179,7 @@ test('new servers support groups, private channels and role management without c
   assert.equal(friend.last.channels.some((c) => c.id === privateChannel.id), false);
   assert.ok((await friend.call('chat:history', { channel: privateChannel.id })).error);
   assert.ok(!(await owner.call('mod', { action: 'setRoles', target: friend.auth.accountId, value: [role.id] })).error);
-  assert.equal(friend.last.channels.find((c) => c.id === privateChannel.id).topic, 'Planejamento');
+  await eventually(() => assert.equal(friend.last.channels.find((c) => c.id === privateChannel.id).topic, 'Planejamento'));
   assert.ok(!(await friend.call('chat:send', { channel: privateChannel.id, text: 'projeto privado' })).error);
   const copy = await owner.call('channel', { action: 'duplicate', id: privateChannel.id, name: 'projeto-copia' });
   assert.ok(copy.id, copy.error);
@@ -199,7 +207,7 @@ test('leaving and kicking only remove that server; a fresh invite restores membe
   assert.equal(history.authors[0].name, 'Amigo'); assert.equal(history.authors[0].hash, undefined); assert.deepEqual(history.authors[0].roles, []);
   assert.ok(!(await friend.call('server:join', { code: invite.code })).error);
   assert.ok(!(await owner.call('mod', { action: 'kick', target: friend.auth.accountId })).error);
-  assert.equal(friend.connected, true); assert.equal(friend.last.serverId, original);
+  assert.equal(friend.connected, true); await eventually(() => assert.equal(friend.last.serverId, original));
   assert.ok(!(await friend.call('server:join', { code: invite.code })).error);
   assert.deepEqual(friend.last.members.find((m) => m.id === friend.auth.accountId).roles, []);
 });

@@ -27,20 +27,40 @@ test('upload budget counts actual viewers, reserves voice, and stays within the 
   assert.ok([...low.values()].every((rate) => rate.screen === 0 && rate.camera === 0));
 });
 
-test('automatic quality tolerates startup, degrades persistent trouble, and recovers slowly', () => {
-  let state = policy.adapt({}, { active: true, reason: 'bandwidth' }, 0);
-  state = policy.adapt(state, { active: true, reason: 'bandwidth' }, 4000);
+test('automatic quality steps resolution down after persistent strain and back up only with headroom', () => {
+  let state = policy.adapt({}, { active: true, strained: true }, 0);
+  state = policy.adapt(state, { active: true, strained: true }, 3999);
   assert.equal(state.level, 0);
-  state = policy.adapt(state, { active: true, reason: 'bandwidth' }, 5000);
+  state = policy.adapt(state, { active: true, strained: true }, 4000);
   assert.equal(state.level, 1);
-  state = policy.adapt(state, { active: true, reason: 'cpu' }, 15000);
+  state = policy.adapt(state, { active: true, strained: true }, 9999);
+  assert.equal(state.level, 1, 'a new step waits for another 4 s of strain and 6 s since the last change');
+  state = policy.adapt(state, { active: true, strained: true }, 10000);
   assert.equal(state.level, 2);
-  state = policy.adapt(state, { active: true, reason: 'none' }, 16000);
-  state = policy.adapt(state, { active: true, reason: 'none' }, 40000);
-  assert.equal(state.level, 2);
-  state = policy.adapt(state, { active: true, reason: 'none' }, 41000);
+  state = policy.adapt(state, { active: true, strained: false }, 11000);
+  state = policy.adapt(state, { active: true, strained: false, headroom: false }, 30000);
+  assert.equal(state.level, 2, 'no step up while the estimate cannot carry the higher step');
+  state = policy.adapt(state, { active: true, strained: false }, 30000);
   assert.equal(state.level, 1);
+  state = policy.adapt(state, { active: false, strained: true }, 31000);
+  assert.equal(state.badSince, null);
+  assert.equal(state.level, 1);
+  assert.equal(policy.strained({ reason: 'bandwidth' }), true);
+  assert.equal(policy.strained({ reason: 'cpu' }), true);
+  assert.equal(policy.strained({ reason: 'none', sentFps: 12, sourceFps: 30, targetFps: 30 }), true);
+  assert.equal(policy.strained({ reason: 'none', sentFps: 25, sourceFps: 30, targetFps: 30 }), false);
+  assert.equal(policy.strained({ reason: 'none', sentFps: 1, sourceFps: 2, targetFps: 30 }), false, 'a static screen is not strain');
+  assert.equal(policy.strained({ reason: 'none', sentFps: 3, sourceFps: 60, targetFps: 5 }), false, 'background viewers only expect 5 fps');
   assert.equal(policy.encoding(policy.presets.auto, 2e6, 1).scaleResolutionDownBy, 1.5);
+});
+
+test('mobile viewers get a hardware-decodable screen codec unless the preset already offers one', () => {
+  assert.deepEqual(policy.screenCodecs(policy.presets.p1080, []), ['video/VP9', 'video/VP8']);
+  assert.deepEqual(policy.screenCodecs(policy.presets.p1080, ['video/H264']), ['video/H264', 'video/VP9', 'video/VP8']);
+  assert.deepEqual(policy.screenCodecs(policy.presets.p1080, ['video/H264', 'video/VP9']), ['video/VP9', 'video/VP8']);
+  assert.deepEqual(policy.screenCodecs(policy.presets.auto, ['video/H264']), ['video/H264', 'video/VP8']);
+  assert.deepEqual(policy.screenCodecs(policy.presets.auto, ['video/evil']), policy.presets.auto.codecs);
+  assert.deepEqual(policy.viewerDemand({ width: 844, height: 390, pixelRatio: 3, codecs: ['video/H264'] }), { mode: 'auto', maxHeight: 1080, background: false, codecs: ['video/H264'] });
 });
 
 test('viewer demand follows the displayed image, pixel density and selected mode', () => {
@@ -51,57 +71,62 @@ test('viewer demand follows the displayed image, pixel density and selected mode
   assert.equal(policy.screenTarget(policy.presets.p1080_60, { background: true }).fps, 5);
 });
 
-test('allocation gives unused thumbnail/slow-link bandwidth to larger viewers and reserves screen audio', () => {
+test('allocation gives unused thumbnail bandwidth to larger viewers, reserves screen audio and ignores browser estimates', () => {
   const peers = [{ sid: 'small', watching: true, demand: { maxHeight: 360 } }, { sid: 'large', watching: true, demand: { maxHeight: 1080 } }];
   const rates = policy.allocate(5, peers, { screen: true, screenAudio: true });
   assert.equal(rates.get('small').screen, policy.screenTarget(policy.presets.auto, peers[0].demand).bitrate);
   assert.ok(rates.get('large').screen > 3_000_000);
   assert.ok(rates.get('small').screen + rates.get('large').screen + 2 * 176_000 <= 4_250_000);
-  peers[0].capacity = 500_000;
-  const slow = policy.allocate(5, peers, { screen: true, screenAudio: true });
-  assert.ok(slow.get('small').screen <= 399_000);
-  assert.ok(slow.get('large').screen > rates.get('large').screen);
+  // A estimativa do navegador não limita o codificador: limitar impediria a própria estimativa de subir.
+  const estimated = policy.allocate(5, peers.map((p) => ({ ...p, capacity: 300_000 })), { screen: true, screenAudio: true });
+  assert.deepEqual(estimated.get('small'), rates.get('small'));
+  assert.deepEqual(estimated.get('large'), rates.get('large'));
+  const stepped = policy.allocate(5, [{ ...peers[1], level: 1 }], { screen: true });
+  assert.equal(stepped.get('large').target.height, 720);
+  assert.ok(stepped.get('large').screen < rates.get('large').screen);
   assert.equal(policy.allocate(10, [{ sid: 'idle', watching: false }], { screen: true }).get('idle').screen, 0);
-  const probe = policy.allocate(10, [{ sid: 'collapsed', watching: true, capacity: 0 }], { screen: true, screenAudio: true }).get('collapsed').screen;
-  assert.equal(probe, 80_000);
-  assert.equal(policy.screenEncoding(policy.presets.auto, probe, {}).maxFramerate, 5);
-  assert.equal(policy.screenEncoding(policy.presets.auto, probe, {}).active, true);
+  assert.ok(policy.screenTarget(policy.presets.auto, { maxHeight: 180, background: true }).bitrate >= 150_000);
 });
 
-test('screen, camera and transport allocations stay within every shared and per-peer ceiling', () => {
+test('screen, camera and transport allocations stay within the shared ceiling and each viewer target', () => {
   for (const upload of [1, 3, 10, 100]) for (const count of [1, 3, 20]) {
-    const peers = Array.from({ length: count }, (_, i) => ({ sid: String(i), watching: i % 2 === 0, capacity: i % 3 ? 2_000_000 : 400_000, demand: { maxHeight: i % 2 ? 360 : 1080 } }));
+    const peers = Array.from({ length: count }, (_, i) => ({ sid: String(i), watching: i % 2 === 0, level: i % 4, demand: { maxHeight: i % 2 ? 360 : 1080 } }));
     const rates = policy.allocate(upload, peers, { screen: true, screenAudio: true, camera: true });
     const reserved = peers.reduce((sum, p) => sum + 80_000 + (p.watching ? 96_000 : 0), 0);
     const total = [...rates.values()].reduce((sum, rate) => sum + rate.screen + rate.camera, 0);
     assert.ok(total <= Math.max(0, upload * 850_000 - reserved));
-    for (const p of peers) assert.ok(rates.get(p.sid).screen + rates.get(p.sid).camera <= p.capacity * 1.15 - 80_000 - (p.watching ? 96_000 : 0));
+    for (const p of peers) {
+      const rate = rates.get(p.sid);
+      assert.ok(rate.screen <= (p.watching ? policy.screenTarget(policy.presets.auto, p.demand, p.level).bitrate : 0));
+      assert.ok(rate.camera <= 1_200_000);
+    }
   }
 });
 
-test('encoding preserves text cadence tradeoff, favors motion and never upscales a captured track', () => {
+test('encoding keeps the requested FPS under low bandwidth, scales in fixed steps and never upscales', () => {
   const text = policy.screenEncoding(policy.presets.auto, 400_000, { maxHeight: 1080 }, { height: 1080 });
   const motion = policy.screenEncoding(policy.presets.p1080_60, 400_000, { maxHeight: 1080 }, { height: 1080 });
-  assert.ok(text.maxFramerate < motion.maxFramerate);
-  assert.ok(text.scaleResolutionDownBy < motion.scaleResolutionDownBy);
+  assert.equal(text.maxFramerate, 30);
+  assert.equal(motion.maxFramerate, 60);
+  assert.equal(text.scaleResolutionDownBy, 1);
+  assert.equal(text.maxBitrate, 400_000);
+  assert.equal(policy.screenEncoding(policy.presets.auto, 2e6, { maxHeight: 1080 }, { height: 1080 }, 1).scaleResolutionDownBy, 1.5);
+  assert.equal(policy.screenEncoding(policy.presets.auto, 2e6, { maxHeight: 1080 }, { height: 1080 }, 3).scaleResolutionDownBy, 3);
+  assert.equal(policy.screenEncoding(policy.presets.p1080, 2e6, { maxHeight: 1080 }, { height: 1080 }, 2).scaleResolutionDownBy, 1, 'Nitidez keeps its resolution');
   assert.equal(policy.screenEncoding(policy.presets.auto, 4e6, { mode: 'source' }, { height: 720 }).scaleResolutionDownBy, 1);
+  assert.deepEqual(policy.screenEncoding(policy.presets.auto, 1e6, { maxHeight: 1080, background: true }, { height: 1080 }), { maxBitrate: 1e6, maxFramerate: 5, scaleResolutionDownBy: 3, active: true });
   assert.equal(policy.screenEncoding(policy.presets.auto, 0, {}, { height: 1080 }).active, false);
-  assert.deepEqual(policy.captureTarget(policy.presets.auto, []), { height: 720, fps: 5 });
-  assert.deepEqual(policy.captureTarget(policy.presets.auto, [{ demand: { maxHeight: 360, background: true } }, { demand: { mode: 'source' } }]), { height: 1080, fps: 30 });
 });
 
-test('capacity recovers gradually, expires missing estimates and feedback ignores stale/cumulative loss', () => {
-  const low = policy.capacity(null, 500_000, 0);
-  assert.equal(policy.capacity(low, 4_000_000, 1500).bitrate, 600_000);
-  assert.equal(policy.capacity(low, 200_000, 1500).bitrate, 200_000);
-  assert.equal(policy.capacity(low, undefined, 9000), null);
-  const remote = { id: 'r', timestamp: 100, packetsReceived: 100, packetsLost: 20, fractionLost: .2, roundTripTimeMeasurements: 1, roundTripTime: .3 };
-  const first = policy.feedback(undefined, remote);
-  assert.equal(first.loss, .2);
-  assert.equal(policy.feedback(first.previous, remote).loss, undefined);
-  const healthy = policy.feedback(first.previous, { ...remote, packetsReceived: 200, timestamp: 200, roundTripTimeMeasurements: 2 });
-  assert.equal(healthy.loss, 0);
-  assert.equal(policy.feedback(healthy.previous, { ...remote, packetsReceived: 0, packetsLost: 0 }).loss, undefined);
+test('adaptive steps descend from the viewer request through 720/540/360 and only for adaptive presets', () => {
+  const heights = (preset, demand) => [0, 1, 2, 3, 4].map((level) => policy.screenTarget(preset, demand, level).height);
+  assert.deepEqual(heights(policy.presets.auto, { maxHeight: 1080 }), [1080, 720, 540, 360, 360]);
+  assert.deepEqual(heights(policy.presets.auto, { maxHeight: 540 }), [540, 360, 360, 360, 360]);
+  assert.deepEqual(heights(policy.presets.auto, { maxHeight: 180 }), [180, 180, 180, 180, 180]);
+  assert.deepEqual(heights(policy.presets.p720, { maxHeight: 1080 }), [720, 540, 360, 360, 360]);
+  assert.deepEqual(heights(policy.presets.p1080, { maxHeight: 1080 }), [1080, 1080, 1080, 1080, 1080]);
+  assert.deepEqual(heights(policy.presets.p1080_60, { maxHeight: 1080 }), [1080, 1080, 1080, 1080, 1080]);
+  for (const level of [0, 1, 2, 3]) assert.equal(policy.screenTarget(policy.presets.auto, { maxHeight: 1080 }, level).fps, 30);
 });
 
 test('sender mutation queue preserves order after a rejected operation', async () => {
@@ -147,22 +172,26 @@ function mediaHarness() {
 
 async function settle(h) { for (let i = 0; i < 4; i++) { await h.peer.mediaQueue; await Promise.resolve(); } }
 
-test('capture follows the highest viewer demand and restores full quality for a focused viewer', async () => {
+test('capture stays at the chosen preset while viewers resize; each viewer is scaled by its encoder', async () => {
   const h = mediaHarness();
   const track = h.screen.getVideoTracks()[0];
   await h.media.applySharePreset();
-  assert.equal(track.settings.frameRate, 5);
-  h.self.viewers = ['viewer'];
+  assert.deepEqual(track.settings, { height: 1080, width: 1920, frameRate: 30 });
+  h.self.viewers = ['viewer']; h.media.syncScreenSubscriptions(); await settle(h);
+  const constraints = track.constraints.length;
   h.events.get('screen:quality')({ viewer: 'viewer', demand: { mode: 'auto', maxHeight: 360, background: true } });
+  await settle(h);
+  assert.equal(track.constraints.length, constraints, 'a viewer resize does not recapture the screen');
+  const video = h.peer.senders.screen.find((s) => s.track.kind === 'video').params.encodings[0];
+  assert.equal(video.scaleResolutionDownBy, 3);
+  assert.equal(video.maxFramerate, 5);
+  await h.media.setSharePreset('p720');
   await h.media.applySharePreset();
-  assert.equal(track.settings.height, 360);
-  assert.equal(track.settings.width, 640);
-  assert.equal(track.settings.frameRate, 5);
-  h.events.get('screen:quality')({ viewer: 'viewer', demand: { mode: 'source', maxHeight: 1080, background: false } });
+  assert.deepEqual(track.settings, { height: 720, width: 1280, frameRate: 30 });
+  await h.media.setSharePreset('p1080_60');
   await h.media.applySharePreset();
-  assert.equal(track.settings.height, 1080);
-  assert.equal(track.settings.width, 1920);
-  assert.equal(track.settings.frameRate, 30);
+  assert.deepEqual(track.settings, { height: 1080, width: 1920, frameRate: 60 });
+  assert.equal(track.contentHint, 'motion');
   assert.equal(track.readyState, 'live');
 });
 
@@ -226,12 +255,23 @@ test('stats use the selected ICE path and do not downgrade a static screen from 
   ];
   h.peer.pc.report = new Map(report.map((r) => [r.id, r]));
   await h.media.updateStreamStats();
-  assert.equal(h.peer.capacity.bitrate, 2e6);
+  assert.equal(h.peer.estimate.bitrate, 2e6);
   assert.equal(h.peer.stats.rtt, .05);
   h.clock(6000); report[4].timestamp = 6100;
   await h.media.updateStreamStats();
   assert.equal(h.peer.adaptation.level, 0);
   assert.equal(h.peer.adaptation.badSince, null);
+  // Uma tela que continua enviando, mas engasgada, desce um degrau de resolução e mantém o FPS.
+  for (const at of [7000, 9000, 11000]) {
+    h.clock(at); report[4] = { ...report[4], timestamp: at + 100, bytesSent: at * 100, framesSent: at };
+    h.peer.pc.report = new Map(report.map((r) => [r.id, r]));
+    await h.media.updateStreamStats();
+  }
+  assert.equal(h.peer.adaptation.level, 1);
+  h.media.tuneSenders(); await settle(h);
+  const video = h.peer.senders.screen.find((s) => s.track.kind === 'video').params.encodings[0];
+  assert.equal(video.scaleResolutionDownBy, 1.5);
+  assert.equal(video.maxFramerate, 30);
 });
 
 test('viewer resize and background requests are coalesced without stopping the subscribed audio', async () => {
@@ -373,6 +413,14 @@ test('server validates viewers and cleans subscriptions on stop, leave and disco
     assert.deepEqual(qualityEvents[1], { viewer: viewer.id, demand: quality });
     await emit(viewer, 'screen:quality', { target: host.id, quality });
     assert.equal(qualityEvents.length, 2);
+    // Celulares informam os codecs que decodificam por hardware; só nomes conhecidos passam.
+    assert.ok((await emit(viewer, 'screen:quality', { target: host.id, quality: { ...quality, codecs: ['video/evil'] } })).error);
+    assert.ok((await emit(viewer, 'screen:quality', { target: host.id, quality: { ...quality, codecs: 'video/H264' } })).error);
+    assert.ok((await emit(viewer, 'screen:quality', { target: host.id, quality: { ...quality, codecs: ['video/H264', 'video/H264'] } })).ok);
+    await until(() => qualityEvents.length === 3);
+    assert.deepEqual(qualityEvents[2].demand, { ...quality, codecs: ['video/H264'] });
+    assert.ok((await emit(viewer, 'screen:quality', { target: host.id, quality })).ok);
+    await until(() => qualityEvents.length === 4);
     assert.equal(outsiderQuality.length, 0);
     await emit(viewer, 'screen:watch', { target: host.id, watching: true });
     assert.equal(host.snapshot.voice.find((v) => v.sid === host.id).viewers.length, 1);
