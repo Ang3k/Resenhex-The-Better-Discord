@@ -1,0 +1,71 @@
+/* App de desktop: botão "Baixar o app" na barra de servidores e janela de escolha da tela.
+   Só usa as variáveis dos temas. */
+
+/* ---------- Botão da barra de servidores (só no navegador, em Windows) ---------- */
+a.download-app { text-decoration: none; }
+.download-app .rail-icon .ico { transition: transform .2s; }
+.download-app:hover .rail-icon .ico { animation: download-nudge .7s ease-in-out infinite; }
+@keyframes download-nudge { 50% { transform: translateY(2px); } }
+
+/* ---------- Escolha da tela ---------- */
+.share-overlay { animation: share-fade .14s ease-out; }
+.share-overlay.closing { animation: share-fade .14s ease-in reverse forwards; }
+.confirm-card.share-picker { width: min(820px, calc(100vw - 32px)); max-height: calc(100dvh - 48px); gap: 0; padding: 0; overflow: hidden; outline: none; }
+.share-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; padding: 22px 24px 16px; }
+.confirm-card .share-head h2 { margin: 0; padding: 0; }
+.confirm-card .share-head p { margin: 6px 0 0; padding: 0; color: var(--text-muted); font-size: 14px; }
+.share-close {
+  display: grid; place-items: center; flex-shrink: 0; width: 32px; height: 32px; margin: -4px -6px 0 0; padding: 0; border: 0; border-radius: 8px;
+  background: transparent; color: var(--interactive); transition: background .15s, color .15s, transform .2s;
+}
+.share-close:hover { background: var(--hover-strong); color: var(--text-strong); transform: rotate(90deg); }
+
+.share-tabs { display: flex; gap: 4px; width: fit-content; margin: 0 24px 12px; padding: 4px; border-radius: 12px; background: var(--bg-rail); }
+.share-tabs button {
+  display: inline-flex; align-items: center; gap: 8px; height: 34px; padding: 0 14px; border: 0; border-radius: 9px;
+  background: transparent; color: var(--interactive); font-size: 14px; font-weight: 600; transition: background .15s, color .15s;
+}
+.share-tabs button:hover:not(:disabled) { color: var(--text-strong); background: var(--hover); }
+.share-tabs button.active { background: var(--bg-input); color: var(--text-strong); box-shadow: 0 1px 3px rgba(0, 0, 0, .25); }
+.share-tabs button:disabled { opacity: .45; }
+.share-count { min-width: 20px; padding: 1px 6px; border-radius: 999px; background: var(--hover-strong); color: var(--text); font-size: 12px; font-weight: 700; text-align: center; }
+.share-tabs button.active .share-count { background: var(--brand); color: #fff; }
+
+.share-grid {
+  display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 12px; align-content: start;
+  height: min(52dvh, 440px); overflow-y: auto; margin: 0 18px; padding: 6px 6px 18px;
+}
+.share-source {
+  display: flex; flex-direction: column; gap: 8px; min-width: 0; padding: 8px; border: 0; border-radius: 14px; text-align: left;
+  background: var(--bg-sidebar); color: var(--text); box-shadow: inset 0 0 0 1px var(--divider);
+  transition: background .15s, box-shadow .15s, transform .15s;
+  animation: share-in .22s ease-out backwards;
+}
+.share-source:nth-child(2) { animation-delay: .02s; } .share-source:nth-child(3) { animation-delay: .04s; } .share-source:nth-child(4) { animation-delay: .06s; }
+.share-source:nth-child(n+5) { animation-delay: .08s; }
+.share-source:hover { background: var(--bg-input); transform: translateY(-2px); }
+.share-source.selected { background: color-mix(in srgb, var(--brand) 14%, var(--bg-sidebar)); box-shadow: inset 0 0 0 2px var(--brand), 0 8px 24px color-mix(in srgb, var(--brand) 22%, transparent); }
+.share-source:focus-visible { outline: 2px solid var(--brand); outline-offset: 2px; }
+.share-thumb {
+  display: grid; place-items: center; aspect-ratio: 16 / 9; overflow: hidden; border-radius: 9px;
+  background: var(--bg-rail); color: var(--text-muted);
+}
+.share-thumb img { width: 100%; height: 100%; object-fit: contain; }
+.share-name { display: flex; align-items: center; gap: 8px; min-width: 0; padding: 0 2px 2px; font-size: 13.5px; font-weight: 600; color: var(--text-strong); }
+.share-name > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.share-name .ico { flex-shrink: 0; color: var(--interactive); }
+.share-app-icon { width: 16px; height: 16px; flex-shrink: 0; }
+
+.share-foot {
+  display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap;
+  padding: 14px 24px; background: var(--bg-sidebar); border-top: 1px solid var(--divider);
+}
+.share-audio { flex: 1 1 280px; max-width: 420px; flex-direction: row-reverse !important; justify-content: flex-end; gap: 12px; }
+.share-picker .confirm-actions { display: flex; align-items: center; margin: 0 0 0 auto; padding: 0; border: 0; background: none; }
+.share-picker .confirm-actions .btn-primary { display: inline-flex; align-items: center; gap: 8px; }
+
+@keyframes share-fade { from { opacity: 0; } }
+@keyframes share-in { from { opacity: 0; transform: translateY(6px) scale(.98); } }
+:root[data-reduce-motion=true] :is(.share-overlay, .share-source, .download-app .ico) { animation: none !important; }
+:root[data-reduce-motion=true] :is(.share-source, .share-close) { transition: none; }
+.share-picker .confirm-actions .btn-primary:disabled { opacity: .45; box-shadow: none; cursor: not-allowed; }

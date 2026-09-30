@@ -3,6 +3,17 @@
 Histórico de versões. A mesma lista aparece dentro do app em **Novidades** (menu do servidor ou rodapé das Configurações).
 O Resenhex ainda está antes da 1.0.
 
+## v0.97 — Resenhex no Windows
+_30/09/2026_
+
+- App para Windows (pasta `desktop/`): uma janela própria que abre o site, com barra de título no tema escolhido. Baixe pelo botão verde de download na barra de servidores ou em `/baixar`.
+- As mudanças do site chegam no app com o deploy normal. Versões novas do app (a casca de Windows) são publicadas com `deploy/publicar-app.ps1`, baixadas sozinhas em segundo plano (só os blocos que mudaram, cerca de 1 MB em vez de 107 MB) e instaladas com “Reiniciar para atualizar”.
+- Push-to-talk global: com o app em segundo plano, a tecla configurada continua funcionando (inclusive em jogos). Só a tecla escolhida é observada.
+- Escolha de tela no app: aplicativos e telas com miniaturas e ícones, e som do computador sem as vozes da própria chamada (sem eco para quem assiste).
+- Selo de menções na barra de tarefas, piscar ao ser mencionado, bandeja com “Iniciar com o Windows” e “Fechar para a bandeja”, corretor ortográfico em português e menu de copiar/colar.
+- Tela de reconexão quando o servidor não responde, com nova tentativa automática.
+- Servidor: rota `/download` (instalador, `latest.yml` e respostas com várias faixas de bytes para a atualização diferencial), link fixo `/download/Resenhex-Setup.exe` e página `/baixar`.
+
 ## v0.96 — Tela no bolso
 _30/09/2026_
 

@@ -254,7 +254,8 @@ window.MediaSession = function ({ state, socket, call, el, toast, voiceEntry, me
     if (!navigator.mediaDevices?.getDisplayMedia) throw new Error('Seu navegador não oferece captura de tela.');
     return navigator.mediaDevices.getDisplayMedia({
       video: { width: { ideal: preset.width }, height: { ideal: preset.height }, frameRate: { ideal: preset.fps, max: preset.fps } },
-      audio: state.shareAudio ? { echoCancellation: false, noiseSuppression: false, autoGainControl: false } : false,
+      // restrictOwnAudio: o som do computador vai sem as vozes da própria chamada (evita eco para quem assiste).
+      audio: state.shareAudio ? { echoCancellation: false, noiseSuppression: false, autoGainControl: false, restrictOwnAudio: true } : false,
       selfBrowserSurface: 'exclude', surfaceSwitching: 'include', systemAudio: state.shareAudio ? 'include' : 'exclude',
     });
   }

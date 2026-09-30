@@ -98,6 +98,7 @@ PORT=3000
 HOST=127.0.0.1
 DATA_FILE=$DATA_DIR/data.json
 UPLOAD_DIR=$DATA_DIR/uploads
+DOWNLOAD_DIR=$DATA_DIR/downloads
 TRUST_PROXY=1
 TURN_URL=turn:$DOMAIN:3478?transport=udp,turn:$DOMAIN:3478?transport=tcp
 TURN_USERNAME=$TURN_USERNAME
@@ -128,9 +129,11 @@ fi
 say "Copiando o Resenhex para $APP_DIR"
 id resenhex >/dev/null 2>&1 || useradd --system --home "$DATA_DIR" --shell /usr/sbin/nologin resenhex
 install -d -o resenhex -g resenhex -m 750 "$DATA_DIR" "$DATA_DIR/uploads"
+# Instalador e atualizações do app de Windows (enviados por deploy/publicar-app.ps1).
+install -d -o resenhex -g resenhex -m 755 "$DATA_DIR/downloads"
 install -d "$APP_DIR"
 if [ "$APP_SRC" != "$APP_DIR" ]; then
-  rsync -a --delete --exclude node_modules --exclude 'data.json*' --exclude uploads --exclude '*.log' "$APP_SRC/" "$APP_DIR/"
+  rsync -a --delete --exclude node_modules --exclude 'data.json*' --exclude uploads --exclude downloads --exclude desktop --exclude '*.log' "$APP_SRC/" "$APP_DIR/"
 fi
 cd "$APP_DIR"
 npm ci --omit=dev --no-audit --no-fund --loglevel=error
@@ -287,5 +290,6 @@ cat <<EOF
    reiniciar:                   sudo systemctl restart resenhex
    atualizar: copie a pasta nova e rode este script de novo
    dados (faça backup):         $DATA_DIR
+   app de Windows:              https://$DOMAIN/baixar
 ============================================================
 EOF

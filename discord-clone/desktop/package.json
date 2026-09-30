@@ -1,0 +1,68 @@
+{
+  "name": "resenhex",
+  "productName": "Resenhex",
+  "version": "1.0.0",
+  "description": "Resenhex para Windows",
+  "author": "Resenhex",
+  "main": "main.js",
+  "private": true,
+  "scripts": {
+    "start": "electron .",
+    "icons": "electron tools/render-icons.js",
+    "dist": "electron-builder --win --publish never",
+    "test": "node --test"
+  },
+  "dependencies": {
+    "electron-updater": "^6.8.9",
+    "uiohook-napi": "^1.5.5"
+  },
+  "devDependencies": {
+    "electron": "^44.5.1",
+    "electron-builder": "^26.15.3"
+  },
+  "build": {
+    "appId": "com.resenhex.desktop",
+    "productName": "Resenhex",
+    "copyright": "Resenhex",
+    "artifactName": "Resenhex-Setup-${version}.${ext}",
+    "directories": {
+      "output": "dist",
+      "buildResources": "build"
+    },
+    "files": [
+      "main.js",
+      "preload.js",
+      "titlebar-preload.js",
+      "titlebar.html",
+      "titlebar.js",
+      "offline.html",
+      "offline.js",
+      "lib/**",
+      "assets/**"
+    ],
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "icon": "build/icon.png"
+    },
+    "nsis": {
+      "oneClick": true,
+      "perMachine": false,
+      "shortcutName": "Resenhex",
+      "uninstallDisplayName": "Resenhex",
+      "deleteAppDataOnUninstall": false
+    },
+    "publish": [
+      {
+        "provider": "generic",
+        "url": "https://resenhex.duckdns.org/download/"
+      }
+    ]
+  }
+}

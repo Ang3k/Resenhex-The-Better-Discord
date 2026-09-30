@@ -3,6 +3,24 @@
 // Para uma versão nova: adicione um item no começo da lista e atualize a versão no package.json.
 window.CHANGELOG = [
   {
+    version: '0.97',
+    date: '2026-09-30',
+    name: 'Resenhex no Windows',
+    summary: 'O Resenhex virou app de computador: baixe uma vez e ele se atualiza sozinho.',
+    sections: [
+      { kind: 'new', items: [
+        'App para Windows: baixe pelo botão verde de download na barra de servidores ou em /baixar. É o mesmo Resenhex do site, com sua conta, seus servidores e suas chamadas.',
+        'Push-to-talk com o app em segundo plano: a tecla de falar funciona mesmo com um jogo ou outro programa em primeiro plano.',
+        'Ao compartilhar a tela no app, escolha um aplicativo ou a tela inteira pelas miniaturas. O som do computador vai sem as vozes da chamada, então ninguém ouve eco.',
+        'O ícone da barra de tarefas mostra quantas menções chegaram e pisca quando alguém chama você. O app fica na bandeja e pode abrir junto com o Windows.',
+      ] },
+      { kind: 'improved', items: [
+        'As novidades do site aparecem no app assim que são publicadas. Versões novas do próprio app são baixadas sozinhas, só com as partes que mudaram, e entram quando você clica em “Reiniciar para atualizar”.',
+        'Sem internet, o app mostra uma tela de reconexão e volta sozinho quando o servidor responde.',
+      ] },
+    ],
+  },
+  {
     version: '0.96',
     date: '2026-09-30',
     name: 'Tela no bolso',

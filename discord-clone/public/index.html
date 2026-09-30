@@ -18,6 +18,7 @@
   <link rel="stylesheet" href="controls.css">
   <link rel="stylesheet" href="motion.css">
   <link rel="stylesheet" href="mobile-stream.css">
+  <link rel="stylesheet" href="desktop.css">
 </head>
 <body>
   <!-- Tela de entrada / cadastro -->
@@ -80,6 +81,7 @@
       </div>
       </div>
       <button type="button" class="rail-item server-add" id="btn-add-server" aria-label="Adicionar servidor" data-tip="Adicionar servidor" data-tip-pos="right"><span class="rail-icon" data-icon="plus"></span></button>
+      <a class="rail-item server-add download-app hidden" id="btn-download-app" href="/baixar" target="_blank" rel="noopener" aria-label="Baixar o app para Windows" data-tip="Baixar o app" data-tip-pos="right"><span class="rail-icon" data-icon="download"></span></a>
     </nav>
 
     <!-- Canais -->
@@ -701,6 +703,7 @@
   <script src="mobile-stream.js"></script>
   <script src="changelog.js"></script>
   <script src="channel-navigation.js"></script>
+  <script src="desktop.js"></script>
   <script src="app.js">
 </script>
 </body>

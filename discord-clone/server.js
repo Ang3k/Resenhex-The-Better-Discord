@@ -10,6 +10,7 @@ const { Server } = require('socket.io');
 const { decodeAvatar, decodeBanner } = require('./avatar');
 const { channelActions } = require('./channels');
 const { communityStore } = require('./communities');
+const { downloadRoutes } = require('./downloads');
 
 const PORT = process.env.PORT || 3000;
 const HOST = process.env.HOST || '0.0.0.0';
@@ -17,6 +18,8 @@ const DATA_FILE = process.env.DATA_FILE || path.join(__dirname, 'data.json');
 const MAX_MESSAGES = 300;
 const UPLOAD_DIR = process.env.UPLOAD_DIR || path.join(__dirname, 'uploads');
 const MAX_UPLOAD_MB = Number(process.env.MAX_UPLOAD_MB) || 25;
+// Instalador e atualizações do app de desktop (enviados por deploy/publicar-app.ps1).
+const DOWNLOAD_DIR = process.env.DOWNLOAD_DIR || path.join(__dirname, 'downloads');
 const MAX_ATTACHMENTS = 10;
 fs.mkdirSync(UPLOAD_DIR, { recursive: true });
 const AVATAR_DIR = path.join(UPLOAD_DIR, 'avatars');
@@ -338,6 +341,8 @@ app.use((req, _res, next) => {
   communities.run(req.get('x-server-id') || account?.lastServerId || communities.root.defaultServerId, next);
 });
 app.use(express.static(path.join(__dirname, 'public')));
+app.use(downloadRoutes(DOWNLOAD_DIR));
+app.get('/baixar', (_req, res) => res.sendFile(path.join(__dirname, 'public', 'baixar.html')));
 // Supressão de ruído por IA (RNNoise e GTCRN compilados para WebAssembly), usada no navegador.
 app.use('/vendor/noise', express.static(path.dirname(require.resolve('@sapphi-red/web-noise-suppressor')), { maxAge: '7d' }));
 app.get('/config', (_req, res) => {

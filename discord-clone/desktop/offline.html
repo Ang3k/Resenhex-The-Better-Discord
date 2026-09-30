@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; script-src 'self'">
+<title>Resenhex</title>
+<style>
+  html, body { margin: 0; height: 100%; }
+  body {
+    display: grid; place-items: center; background: #1e1e22; color: #dbdce0; user-select: none;
+    font: 15px/1.5 "Segoe UI Variable Text", "Segoe UI", system-ui, sans-serif;
+  }
+  main { display: grid; justify-items: center; gap: 14px; max-width: 380px; padding: 24px; text-align: center; animation: rise .4s ease-out; }
+  .mark { width: 72px; height: 72px; border-radius: 22px; display: grid; place-items: center; background: linear-gradient(135deg, #6d5dfc, #c64cf0); box-shadow: 0 10px 30px rgba(140, 90, 245, .35); animation: breathe 2.4s ease-in-out infinite; }
+  .mark svg { width: 44px; height: 44px; }
+  h1 { margin: 8px 0 0; font-size: 21px; font-weight: 700; color: #f3f3f5; letter-spacing: -.01em; }
+  p { margin: 0; color: #8d8f98; }
+  .status { display: flex; align-items: center; gap: 8px; font-size: 13px; color: #b3b5bc; }
+  .dots { display: inline-flex; gap: 4px; }
+  .dots i { width: 6px; height: 6px; border-radius: 50%; background: #b3b5bc; animation: blink 1.2s infinite; }
+  .dots i:nth-child(2) { animation-delay: .2s; } .dots i:nth-child(3) { animation-delay: .4s; }
+  button { margin-top: 6px; height: 40px; padding: 0 20px; border: 0; border-radius: 10px; background: #5865f2; color: #fff; font: inherit; font-size: 14px; font-weight: 600; cursor: pointer; transition: background .15s, transform .12s; }
+  button:hover { background: #4752c4; }
+  button:active { transform: scale(.97); }
+  @keyframes breathe { 50% { transform: scale(1.05); box-shadow: 0 14px 40px rgba(140, 90, 245, .5); } }
+  @keyframes blink { 0%, 80%, 100% { opacity: .25; } 40% { opacity: 1; } }
+  @keyframes rise { from { opacity: 0; transform: translateY(8px); } }
+  @media (prefers-reduced-motion: reduce) { *, *::before { animation: none !important; } }
+</style>
+</head>
+<body>
+  <main>
+    <div class="mark"><svg viewBox="0 0 32 32" aria-hidden="true"><path fill="#fff" d="M16 3C8.8 3 3 8.2 3 14.6c0 3.5 1.7 6.6 4.4 8.7L6.3 28a.8.8 0 0 0 1.1.9l5.4-2.8c1 .2 2.1.3 3.2.3 7.2 0 13-5.2 13-11.6S23.2 3 16 3z"/><path fill="none" stroke="#9357f3" stroke-width="2.6" stroke-linecap="round" d="M11 10.5l10 8.5M21 10.5l-10 8.5"/></svg></div>
+    <h1>Sem conexão com o Resenhex</h1>
+    <p>Confira sua internet. Se ela estiver funcionando, o servidor pode estar reiniciando e deve voltar em instantes.</p>
+    <div class="status"><span class="dots"><i></i><i></i><i></i></span> Tentando reconectar</div>
+    <button type="button" id="retry">Tentar agora</button>
+  </main>
+  <script src="offline.js"></script>
+</body>
+</html>

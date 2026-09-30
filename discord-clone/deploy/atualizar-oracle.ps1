@@ -42,6 +42,8 @@ $tracked = @(& git -C $repoRoot ls-files -- discord-clone)
 if ($LASTEXITCODE -ne 0 -or $tracked.Count -eq 0) {
     throw 'Não foi possível listar os arquivos do aplicativo.'
 }
+# O app de Windows (desktop/) é publicado à parte, por deploy/publicar-app.ps1.
+$tracked = @($tracked | Where-Object { $_ -notlike 'discord-clone/desktop/*' })
 
 $stamp = Get-Date -Format 'yyyyMMdd-HHmmss'
 $localStage = Join-Path ([System.IO.Path]::GetTempPath()) ("resenhex-deploy-$([guid]::NewGuid().ToString('N'))")

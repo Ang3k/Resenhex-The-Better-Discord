@@ -1,6 +1,6 @@
 # Resenhex
 
-**Versão 0.96** · veja o que mudou em cada versão no [CHANGELOG.md](CHANGELOG.md) ou em **Novidades**, dentro do app.
+**Versão 0.97** · veja o que mudou em cada versão no [CHANGELOG.md](CHANGELOG.md) ou em **Novidades**, dentro do app.
 
 Plataforma própria de chat e voz para você e seus amigos, inspirada no Discord. Vem com o servidor **Resenha** pronto para usar, com:
 
@@ -27,6 +27,23 @@ Plataforma própria de chat e voz para você e seus amigos, inspirada no Discord
 - Escolha de **microfone e saída de áudio**, com supressão de ruído
 - Lista de membros agrupada por cargo, com online e offline (dá para esconder pelo botão no topo)
 - Interface no estilo Discord: ícones vetoriais, dicas ao passar o mouse, categorias recolhíveis, divisores de data, menu do servidor (clique em "Resenha") e controles da chamada na parte de baixo da tela
+- **App para Windows** que se atualiza sozinho, com push-to-talk em segundo plano, bandeja e menções na barra de tarefas (veja abaixo)
+
+## App para Windows
+
+Mande para os amigos o link **`https://seu-dominio/baixar`**. Lá tem o botão de download e o passo a passo. No site, quem usa Windows também vê um botão verde de download na barra de servidores.
+
+- O instalador tem cerca de 107 MB, instala em segundos (sem pedir administrador) e já abre o app. Na primeira vez, o Windows pode mostrar **“O Windows protegeu o computador”**, porque o app não tem assinatura paga: é só clicar em **Mais informações** e depois em **Executar assim mesmo**.
+- O app é uma janela que abre o seu site. Por isso, **toda mudança no site chega no app com o deploy normal** (`deploy/atualizar-oracle.ps1`), sem ninguém baixar nada.
+- A “casca” do app (pasta `desktop/`: janela, bandeja, push-to-talk global, escolha de tela) só muda quando você mexe nela. Para publicar uma versão nova dela, aumente `version` em `desktop/package.json` e rode, na pasta do projeto:
+
+  ```powershell
+  powershell -ExecutionPolicy Bypass -File discord-clone\deploy\publicar-app.ps1
+  ```
+
+  O script gera o instalador, testa, envia para o servidor e confere a versão publicada. O app dos amigos encontra a versão nova sozinho (na abertura e a cada 2 horas), baixa só o que mudou e mostra **Reiniciar para atualizar** na barra de título. Se a pessoa não clicar, a atualização entra quando ela fechar o app.
+- O que o app faz a mais que o navegador: push-to-talk com o app em segundo plano (inclusive em jogos), escolha de aplicativo ou tela com miniaturas e som do computador sem eco, selo de menções na barra de tarefas, bandeja com **Iniciar com o Windows** e **Fechar para a bandeja**, corretor em português e tela de reconexão automática.
+- Para rodar a casca no seu PC durante o desenvolvimento: `cd discord-clone/desktop`, `npm install` e `npm start` (use `RESENHEX_URL=http://localhost:3000/` para apontar para o servidor local). Os problemas de atualização ficam registrados em `%APPDATA%\Resenhex\resenhex.log`.
 
 ## Servidores e convites
 
@@ -274,6 +291,8 @@ Depois é só preencher `TURN_URL`, `TURN_USERNAME` e `TURN_CREDENTIAL`.
 ```
 discord-clone/
 ├── server.js          # Express + Socket.IO: contas, cargos/permissões, moderação, chat e sinalização WebRTC
+├── downloads.js       # /download (instalador e atualizações do app de Windows) e o link fixo do instalador
+├── desktop/           # app para Windows (Electron): janela, bandeja, push-to-talk global, escolha de tela, atualização
 └── public/
     ├── index.html     # layout (servidores, canais, chat, palco de voz, membros)
     ├── icons.js       # ícones SVG e o logo do Resenhex
@@ -285,7 +304,7 @@ discord-clone/
 
 - Um único servidor (dá para ter vários canais, mas não vários "servidores")
 - Sem mensagens diretas (DM), fotos de perfil ou status ("jogando X")
-- Push-to-talk só funciona com a janela do Resenhex em foco (limite do navegador)
+- No navegador, o push-to-talk só funciona com a janela do Resenhex em foco. No app para Windows ele funciona em segundo plano.
 - Quem tiver o link de um arquivo enviado consegue abri-lo, mesmo que o arquivo esteja num canal privado. Os links são aleatórios e impossíveis de adivinhar.
 - O servidor guarda as últimas 300 mensagens de cada canal. As mais antigas, e os arquivos delas, são apagadas.
 - Não dá para trocar senha nem nome pela interface

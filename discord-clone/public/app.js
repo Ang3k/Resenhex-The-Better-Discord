@@ -1631,6 +1631,7 @@
     });
     n.onclick = () => {
       window.focus();
+      window.resenhexDesktop?.focus();
       openChat(channel);
       n.close();
     };
@@ -3925,6 +3926,16 @@
     state.pttHeld = false;
     applyAudio();
   });
+  // App de desktop: com o Resenhex em segundo plano, a tecla chega pelo gancho global do app.
+  // Com a janela em foco, quem cuida da tecla são os eventos acima (e eles respeitam campos de texto).
+  const desktopApp = window.resenhexDesktop;
+  const syncDesktopPtt = () => desktopApp?.setPushToTalk(state.ptt);
+  desktopApp?.onPushToTalk((pressed) => {
+    if (!state.ptt.enabled || document.hasFocus() || state.pttHeld === pressed || capturingKey) return;
+    state.pttHeld = pressed;
+    applyAudio();
+  });
+  syncDesktopPtt();
 
   // ---------------- preferências e navegação ----------------
   let capturingKey = false;
@@ -4063,6 +4074,7 @@
     state.ptt = { enabled: values.inputMode === 'ptt', code: values.pttCode, label: values.pttLabel };
     state.pttHeld = false;
     localStorage.setItem('ptt', JSON.stringify(state.ptt));
+    syncDesktopPtt();
     state.sbMuted = !values.soundboard; state.sbVolume = values.sbVolume / 100;
     localStorage.setItem('sbMuted', state.sbMuted); localStorage.setItem('sbVolume', state.sbVolume);
     Sounds.enabled = values.sounds;
