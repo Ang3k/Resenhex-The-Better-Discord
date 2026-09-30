@@ -10,9 +10,6 @@ window.MediaSession = function ({ state, socket, call, el, toast, voiceEntry, me
   const qualityRequests = new Set();
   const observed = new Set();
   let qualityTimer;
-  let captureTimer;
-  let captureSignature = '';
-  let pendingCapture = '';
   let statsBusy = false;
   let constraintsQueue = Promise.resolve();
   let lastNotice = '';
@@ -80,7 +77,6 @@ window.MediaSession = function ({ state, socket, call, el, toast, voiceEntry, me
   socket.on?.('screen:quality', ({ viewer, demand }) => {
     if (demand) demands.set(viewer, demand); else demands.delete(viewer);
     tuneSenders();
-    scheduleCapture();
   });
 
   function mediaNotice(message) {
@@ -135,21 +131,19 @@ window.MediaSession = function ({ state, socket, call, el, toast, voiceEntry, me
           const track = watching ? current.getTracks().find((t) => t.kind === kind) || null : null;
           if (sender.track !== track) await sender.replaceTrack(track);
         }
-        if (!watching) { peer.adaptation = {}; peer.capacity = null; }
+        if (!watching) { peer.adaptation = {}; peer.estimate = null; }
       }).then(tuneSenders).catch(() => {
         peer.screenKey = null;
         if (active(peer)) mediaNotice('Não foi possível atualizar um espectador. Tentaremos novamente.');
       });
     }
     for (const sid of demands.keys()) if (!voiceEntry(sid) || voiceEntry(sid).channel !== state.voiceChannel) demands.delete(sid);
-    scheduleCapture();
     syncViewerQuality();
   }
 
   function videoBitrates() {
-    const now = performance.now();
     return MediaPolicy.allocate(state.uploadMbps, [...state.peers].map(([sid, peer]) => ({ sid, watching: viewers().includes(sid),
-      demand: demands.get(sid), level: peer.adaptation.level || 0, capacity: peer.capacity && now - peer.capacity.at < 8000 ? peer.capacity.bitrate : undefined })),
+      demand: demands.get(sid), level: peer.adaptation.level || 0 })),
     { screen: !!state.local.screen, screenAudio: !!state.local.screen?.getAudioTracks().length, camera: !!state.local.camera, preset: presets[state.sharePreset] });
   }
 
@@ -221,42 +215,26 @@ window.MediaSession = function ({ state, socket, call, el, toast, voiceEntry, me
     }
   }
 
-  function desiredCapture() {
-    return MediaPolicy.captureTarget(presets[state.sharePreset], viewers().filter((sid) => state.peers.has(sid)).map((sid) => ({ demand: demands.get(sid), level: state.peers.get(sid).adaptation.level || 0 })));
-  }
   function captureAspect(track, preset) {
     const settings = track.getSettings?.() || {};
     const aspect = settings.width && settings.height ? settings.width / settings.height : preset.width / preset.height;
-    // Browser-provided source switching can change aspect without changing track ID.
+    // A troca de fonte pelo navegador pode mudar a proporção sem trocar o ID da trilha.
     if (!track.captureAspect || Math.abs(aspect / track.captureAspect - 1) > .02) track.captureAspect = aspect;
-    return Math.round(track.captureAspect * 1000);
-  }
-  function scheduleCapture() {
-    const track = state.local.screen?.getVideoTracks()[0];
-    if (!track) { clearTimeout(captureTimer); captureSignature = pendingCapture = ''; return; }
-    const target = desiredCapture();
-    const signature = `${track.id}:${state.sharePreset}:${target.height}:${target.fps}:${captureAspect(track, presets[state.sharePreset])}`;
-    if (signature === captureSignature || signature === pendingCapture) return;
-    clearTimeout(captureTimer);
-    pendingCapture = signature;
-    const settings = track.getSettings?.() || {};
-    // Upgrade quickly; allow resize/pin animations to settle before reducing capture.
-    const delay = target.height > (settings.height || 0) || target.fps > (settings.frameRate || 0) ? 100 : 3000;
-    captureTimer = setTimeout(() => { pendingCapture = ''; applySharePreset(); }, delay);
+    return track.captureAspect;
   }
 
+  // A captura fica no perfil escolhido, igual para todos. Cada espectador recebe sua resolução pelo
+  // próprio codificador (scaleResolutionDownBy), sem recapturar a tela quando alguém redimensiona.
   function applySharePreset() {
     constraintsQueue = constraintsQueue.catch(() => {}).then(async () => {
       const track = state.local.screen?.getVideoTracks()[0];
       if (!track || track.readyState === 'ended') return;
       const preset = presets[state.sharePreset];
-      const target = desiredCapture();
       const aspect = captureAspect(track, preset);
-      const height = Math.max(2, Math.floor(Math.min(target.height, preset.width / track.captureAspect)));
-      const width = Math.max(2, Math.round(height * track.captureAspect));
+      const height = Math.max(2, Math.floor(Math.min(preset.height, preset.width / aspect)));
+      const width = Math.max(2, Math.round(height * aspect));
       track.contentHint = preset.hint;
-      captureSignature = `${track.id}:${state.sharePreset}:${target.height}:${target.fps}:${aspect}`;
-      try { await track.applyConstraints({ width: { ideal: width, max: width }, height: { ideal: height, max: height }, frameRate: { ideal: target.fps, max: target.fps } }); }
+      try { await track.applyConstraints({ width: { ideal: width, max: width }, height: { ideal: height, max: height }, frameRate: { ideal: preset.fps, max: preset.fps } }); }
       catch { if (track.readyState !== 'ended') mediaNotice('A captura manteve a qualidade disponível. O navegador não aceitou o perfil completo.'); }
       tuneSenders();
     });
@@ -267,7 +245,6 @@ window.MediaSession = function ({ state, socket, call, el, toast, voiceEntry, me
     state.sharePreset = key;
     localStorage.setItem('sharePreset', key);
     for (const peer of state.peers.values()) peer.adaptation = {};
-    clearTimeout(captureTimer); pendingCapture = '';
     applySharePreset();
     if (state.view === 'voice') renderStage();
   }
@@ -371,7 +348,7 @@ window.MediaSession = function ({ state, socket, call, el, toast, voiceEntry, me
     state.local[kind] = null;
     if (!stream) return;
     stream.getTracks().forEach((track) => { track.onended = track.onmute = track.onunmute = null; track.stop(); });
-    if (kind === 'screen') { state.sharePaused = false; captureSignature = ''; syncScreenSubscriptions(); }
+    if (kind === 'screen') { state.sharePaused = false; syncScreenSubscriptions(); }
     else for (const peer of state.peers.values()) {
       for (const sender of peer.senders.camera) { if (active(peer)) peer.pc.removeTrack(sender); }
       peer.senders.camera = [];
@@ -435,7 +412,8 @@ window.MediaSession = function ({ state, socket, call, el, toast, voiceEntry, me
         report.forEach((r) => {
           if (r.type === 'candidate-pair' && r.state === 'succeeded' && (selected.size ? selected.has(r.id) : r.nominated)) {
             stats.rtt = r.currentRoundTripTime;
-            peer.capacity = MediaPolicy.capacity(peer.capacity, r.availableOutgoingBitrate, now);
+            // Só informativa: decide se dá para subir um degrau, nunca limita o codificador.
+            if (Number.isFinite(r.availableOutgoingBitrate)) peer.estimate = { bitrate: r.availableOutgoingBitrate, at: now };
             stats.path = report.get(r.localCandidateId)?.candidateType === 'relay' || report.get(r.remoteCandidateId)?.candidateType === 'relay' ? 'Via retransmissão' : 'Conexão direta';
           }
           const video = r.kind === 'video' || r.mediaType === 'video';
@@ -455,10 +433,17 @@ window.MediaSession = function ({ state, socket, call, el, toast, voiceEntry, me
           const r = outbound;
           stats.screen = videoMeasurement(sid, outboundReport, r, r.bytesSent);
           stats.video = MediaPolicy.formatVideoStats([stats.screen]);
-          const remote = outboundReport.get(r.remoteId) || report.get(r.remoteId);
-          const feedback = MediaPolicy.feedback(peer.feedback, remote);
-          peer.feedback = feedback.previous;
-          peer.adaptation = MediaPolicy.adapt(peer.adaptation, { active: stats.screen.progressing, reason: r.qualityLimitationReason, rtt: feedback.rtt ?? stats.rtt, loss: feedback.loss }, now);
+          const preset = presets[state.sharePreset];
+          if (preset.adaptive) {
+            const demand = demands.get(sid), level = peer.adaptation.level || 0;
+            const target = MediaPolicy.screenTarget(preset, demand, level);
+            const source = outboundReport.get(r.mediaSourceId) || report.get(r.mediaSourceId);
+            const strained = MediaPolicy.strained({ reason: r.qualityLimitationReason, sentFps: r.framesPerSecond, sourceFps: source?.framesPerSecond, targetFps: target.fps });
+            const fresh = peer.estimate && now - peer.estimate.at < 8000 ? peer.estimate.bitrate : null;
+            const upper = level ? MediaPolicy.screenTarget(preset, demand, level - 1).bitrate : 0;
+            const headroom = level && fresh != null ? fresh - 176_000 >= upper * 1.25 : undefined;
+            peer.adaptation = MediaPolicy.adapt(peer.adaptation, { active: stats.screen.progressing, strained, headroom }, now);
+          } else peer.adaptation = {};
         }
         peer.stats = stats;
         const tile = document.querySelector(`[data-key="screen-${sid}"]`);
