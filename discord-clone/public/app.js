@@ -97,7 +97,9 @@
   // ---------------- utilidades ----------------
   function toast(text, kind = 'error') {
     const node = $('#toast');
-    node.textContent = text;
+    node.replaceChildren(Icon(kind === 'error' ? 'alert' : 'info', 18), el('span', { textContent: text }));
+    node.className = 'hidden';
+    void node.offsetWidth; // reinicia a animação de entrada quando um aviso substitui outro
     node.className = kind;
     clearTimeout(toast.t);
     toast.t = setTimeout(() => node.classList.add('hidden'), 4500);
@@ -229,6 +231,18 @@
   // Preenche os ícones declarados no HTML (data-icon / data-logo).
   for (const node of document.querySelectorAll('[data-icon]')) node.prepend(Icon(node.dataset.icon, Number(node.dataset.size) || 20));
   for (const node of document.querySelectorAll('[data-logo]')) node.append(Icon.logo(Number(node.dataset.logo)));
+
+  // Controles deslizantes: o trecho à esquerda do marcador fica colorido (controls.css desenha até --fill).
+  // Os das configurações são pintados pelo settings.js; aqui ficam os criados depois (menus, cartões, palco).
+  const paintRange = (range) => range.style.setProperty('--fill', `${((range.value - (range.min || 0)) / ((range.max || 100) - (range.min || 0))) * 100}%`);
+  document.addEventListener('input', (e) => { if (e.target.type === 'range') paintRange(e.target); }, true);
+  new MutationObserver((records) => {
+    for (const record of records) for (const node of record.addedNodes) {
+      if (node.nodeType !== 1) continue;
+      if (node.matches('input[type=range]')) paintRange(node);
+      else node.querySelectorAll('input[type=range]').forEach(paintRange);
+    }
+  }).observe(document.body, { childList: true, subtree: true });
 
   // Dicas flutuantes (tooltip) para qualquer elemento com data-tip.
   let tipTarget = null;
@@ -706,7 +720,8 @@
   }
 
   let serverDialogClose = null;
-  function serverDialog(title, subtitle = '') {
+  // Janela dos fluxos de servidor. "icon" mostra um selo acima do título; tone: 'danger' deixa o selo vermelho.
+  function serverDialog(title, subtitle = '', { icon = '', tone = '' } = {}) {
     serverDialogClose?.();
     const opener = document.activeElement;
     const body = el('div');
@@ -727,9 +742,12 @@
     };
     const overlay = el('div', { id: 'server-dialog', class: 'modal', role: 'dialog', ariaModal: 'true', ariaLabelledby: 'server-dialog-title',
       onmousedown: (event) => { if (event.target === overlay) close(); } },
-    el('section', { class: 'server-dialog' },
+    el('section', { class: 'server-dialog' + (tone ? ' tone-' + tone : '') },
       el('button', { type: 'button', class: 'dialog-close', ariaLabel: 'Fechar', onclick: close }, Icon('x', 20)),
-      el('h2', { id: 'server-dialog-title', textContent: title }), subtitle ? el('p', { textContent: subtitle }) : null, body));
+      el('header', { class: 'dialog-head' },
+        icon ? el('span', { class: 'dialog-hero' }, Icon(icon, 28)) : null,
+        el('h2', { id: 'server-dialog-title', textContent: title }), subtitle ? el('p', { textContent: subtitle }) : null),
+      body));
     document.body.append(overlay);
     document.addEventListener('keydown', onKey, true);
     serverDialogClose = close;
@@ -737,27 +755,44 @@
     return { body, close, overlay };
   }
 
+  // Opção clicável dos diálogos: selo com ícone, texto e seta.
+  const serverChoice = (media, title, sub, onclick) => el('button', { type: 'button', class: 'server-choice', onclick }, media,
+    el('span', { class: 'choice-text', textContent: title }, sub ? el('small', { textContent: sub }) : null), el('span', { class: 'choice-chev' }, Icon('chevronRight', 18)));
+  const choiceIcon = (name, tone) => el('span', { class: 'choice-icon ' + tone }, Icon(name, 22));
+
   function openServerPicker() {
     const dialog = serverDialog('Seus servidores', 'Escolha um servidor ou adicione um novo.');
-    dialog.body.append(...(state.server.servers || []).map((server) => el('button', { type: 'button', class: 'server-choice',
-      onclick: async () => { if (await switchServer(server.id)) dialog.close(); } }, serverIcon(server.name, server.icon),
-    el('span', { class: 'choice-text', textContent: server.name }, el('small', { textContent: server.id === state.server.serverId ? 'Servidor atual' : server.owner ? 'Seu servidor' : 'Participante' })), Icon('chevronRight', 18))),
-    el('button', { type: 'button', class: 'server-choice', onclick: openAddServer }, Icon('plusCircle', 24), el('span', { class: 'choice-text', textContent: 'Adicionar servidor' })));
+    dialog.body.append(el('div', { class: 'choice-list' },
+      ...(state.server.servers || []).map((server) => {
+        const choice = serverChoice(serverIcon(server.name, server.icon), server.name,
+          server.id === state.server.serverId ? 'Servidor atual' : server.owner ? 'Seu servidor' : 'Participante',
+          async () => { if (await switchServer(server.id)) dialog.close(); });
+        choice.classList.toggle('current', server.id === state.server.serverId);
+        return choice;
+      }),
+      serverChoice(choiceIcon('plus', 'green'), 'Adicionar servidor', 'Crie um novo ou entre por convite.', openAddServer)));
   }
 
   function openAddServer() {
     if (!guardLeave()) return;
-    const dialog = serverDialog('Seu próximo encontro', 'Crie um espaço para sua turma ou entre usando um convite.');
-    dialog.body.append(
-      el('button', { type: 'button', class: 'server-choice', onclick: openCreateServer }, Icon('plusCircle', 26), el('span', { class: 'choice-text', textContent: 'Criar meu servidor' }, el('small', { textContent: 'Dê um nome e convide seus amigos.' })), Icon('chevronRight', 18)),
-      el('button', { type: 'button', class: 'server-choice', onclick: openJoinServer }, Icon('link', 26), el('span', { class: 'choice-text', textContent: 'Entrar em um servidor' }, el('small', { textContent: 'Cole o link que alguém enviou.' })), Icon('chevronRight', 18)));
+    const dialog = serverDialog('Seu próximo encontro', 'Crie um espaço para sua turma ou entre usando um convite.', { icon: 'sparkles' });
+    dialog.body.append(el('div', { class: 'choice-list' },
+      serverChoice(choiceIcon('plus', 'brand'), 'Criar meu servidor', 'Dê um nome e convide seus amigos.', openCreateServer),
+      serverChoice(choiceIcon('link', 'green'), 'Entrar em um servidor', 'Cole o link que alguém enviou.', openJoinServer)));
   }
 
   function openCreateServer() {
     const dialog = serverDialog('Criar seu servidor', 'Canais, cargos e chamadas próprios para sua turma. Você pode personalizar tudo depois.');
     const input = el('input', { id: 'new-server-name', maxLength: 32, minLength: 2, required: true, placeholder: 'Ex.: Resenha dos amigos', autocomplete: 'off' });
     const submit = el('button', { type: 'submit', class: 'btn-primary', textContent: 'Criar servidor' });
-    dialog.body.append(el('form', { onsubmit: async (event) => {
+    // Prévia do ícone: as iniciais aparecem enquanto a pessoa digita o nome.
+    const preview = el('span', { class: 'rail-icon server-icon create-preview' }, Icon('plus', 28));
+    input.oninput = () => {
+      const name = input.value.trim();
+      preview.classList.toggle('filled', !!name);
+      preview.replaceChildren(name ? initials(name) : Icon('plus', 28));
+    };
+    dialog.body.append(el('div', { class: 'create-preview-wrap' }, preview), el('form', { onsubmit: async (event) => {
       event.preventDefault();
       if (!guardLeave()) return;
       submit.disabled = true;
@@ -784,13 +819,15 @@
   }
 
   function openJoinServer() {
-    const dialog = serverDialog('Entrar em um servidor', 'Cole o convite para ver o servidor antes de entrar.');
+    const dialog = serverDialog('Entrar em um servidor', 'Cole o convite para ver o servidor antes de entrar.', { icon: 'link' });
     const input = el('input', { id: 'server-invite-input', required: true, placeholder: location.origin + '/?invite=…', autocomplete: 'off' });
     const note = el('p', { class: 'invite-error', role: 'alert' });
+    input.oninput = () => { note.textContent = ''; };
     dialog.body.append(el('form', { onsubmit: (event) => {
       event.preventDefault();
       try { showInviteAcceptance(codeFromInvite(input.value)); } catch (error) { note.textContent = error.message; input.focus(); }
     } }, el('label', { htmlFor: input.id, textContent: 'LINK OU CÓDIGO DO CONVITE' }), input, note,
+    el('p', { class: 'dialog-hint' }, 'Os convites são assim: ', el('code', { textContent: location.origin + '/?invite=AbC…' })),
     el('div', { class: 'dialog-actions' }, el('button', { type: 'button', class: 'secondary', textContent: 'Voltar', onclick: openAddServer }),
       el('button', { type: 'submit', class: 'btn-primary', textContent: 'Ver convite' }))));
   }
@@ -809,11 +846,11 @@
       catch { preview = { error: 'Não foi possível consultar o convite. Confira sua conexão.' }; }
     }
     if (!dialog.overlay.isConnected) return;
-    dialog.overlay.querySelector('section > p')?.remove();
+    dialog.overlay.querySelector('.dialog-head > p')?.remove();
     const dismiss = () => { if (code === pendingInviteCode) clearPendingInvite(); dialog.close(); };
     if (preview.error) {
       dialog.body.append(el('p', { class: 'invite-error', role: 'alert', textContent: preview.error }),
-        el('button', { type: 'button', class: 'btn-primary', textContent: 'Fechar', onclick: dismiss }));
+        el('div', { class: 'dialog-actions' }, el('button', { type: 'button', class: 'btn-primary', textContent: 'Fechar', onclick: dismiss })));
       return;
     }
     const already = state.server.servers.some((server) => server.id === preview.id);
@@ -826,26 +863,30 @@
       dismiss(); closePanels(); refreshServerUnread();
       if (!already) toast(`Você entrou em ${preview.name}!`, 'info');
     } });
-    dialog.body.append(el('div', { class: 'invite-identity' }, serverIcon(preview.name, preview.icon), el('h2', { textContent: preview.name }),
-      el('p', { textContent: `${preview.members} ${preview.members === 1 ? 'membro' : 'membros'} · ${already ? 'Você já participa' : 'Você foi convidado'}` })),
+    dialog.body.append(el('div', { class: 'invite-identity' }, serverIcon(preview.name, preview.icon), el('strong', { class: 'invite-name', textContent: preview.name }),
+      el('p', {}, el('span', { class: 'invite-dot' }), `${preview.members} ${preview.members === 1 ? 'membro' : 'membros'} · ${already ? 'Você já participa' : 'Você foi convidado'}`)),
     el('div', { class: 'dialog-actions' }, el('button', { type: 'button', class: 'secondary', textContent: 'Agora não', onclick: dismiss }), join));
     join.focus();
   }
 
   function openInviteLink(invite) {
-    const dialog = serverDialog('Chame seus amigos', `Convide a turma para ${invite.name}. É só compartilhar este link.`);
+    const dialog = serverDialog('Chame seus amigos', `Convide a turma para ${invite.name}. É só compartilhar este link.`, { icon: 'userPlus' });
     const input = el('input', { id: 'server-invite-link', readOnly: true, value: location.origin + '/?invite=' + invite.code, ariaLabel: 'Link de convite', onclick: (event) => event.target.select() });
-    const copy = el('button', { type: 'button', class: 'btn-primary', textContent: 'Copiar link', onclick: async () => {
-      try { await navigator.clipboard.writeText(input.value); copy.textContent = 'Link copiado!'; }
-      catch { input.focus(); input.select(); toast('O navegador não permitiu copiar automaticamente. Copie o link selecionado.', 'info'); }
+    const copy = el('button', { type: 'button', class: 'btn-primary invite-copy', textContent: 'Copiar link', onclick: async () => {
+      try {
+        await navigator.clipboard.writeText(input.value);
+        copy.textContent = 'Copiado!';
+        copy.classList.add('copied');
+        clearTimeout(copy.reset);
+        copy.reset = setTimeout(() => { copy.textContent = 'Copiar link'; copy.classList.remove('copied'); }, 2200);
+      } catch { input.focus(); input.select(); toast('O navegador não permitiu copiar automaticamente. Copie o link selecionado.', 'info'); }
     } });
-    dialog.body.append(el('label', { htmlFor: input.id, textContent: 'LINK DO SERVIDOR' }), input,
-      el('p', { class: 'invite-note', textContent: 'O convite não expira. Quem receber pode criar uma conta e entrar neste servidor.' }),
-      el('div', { class: 'dialog-actions' }, copy));
-    if (hasPerm('ADMIN')) dialog.body.append(el('button', { type: 'button', class: 'server-choice', textContent: 'Revogar este link e gerar outro', onclick: async () => {
+    dialog.body.append(el('label', { htmlFor: input.id, textContent: 'LINK DO SERVIDOR' }), el('div', { class: 'invite-field' }, input, copy),
+      el('p', { class: 'invite-note' }, Icon('info', 16), el('span', { textContent: 'O convite não expira. Quem receber pode criar uma conta e entrar neste servidor.' })));
+    if (hasPerm('ADMIN')) dialog.body.append(el('button', { type: 'button', class: 'invite-revoke', textContent: 'Revogar este link e gerar outro', onclick: async () => {
       if (!await confirmDialog({ title: 'Revogar o convite atual?', text: 'O link antigo vai parar de funcionar. Quem já entrou permanece no servidor.', confirm: 'Gerar novo convite' })) return;
       const next = await call('server:invite', { rotate: true });
-      if (next) { input.value = location.origin + '/?invite=' + next.code; copy.textContent = 'Copiar link'; toast('Novo convite criado. O anterior foi revogado.', 'info'); }
+      if (next) { input.value = location.origin + '/?invite=' + next.code; copy.textContent = 'Copiar link'; copy.classList.remove('copied'); toast('Novo convite criado. O anterior foi revogado.', 'info'); }
     } }));
   }
 
@@ -858,11 +899,25 @@
   function deleteCurrentServer() {
     if (!isOwner(state.me.accountId) || !guardLeave()) return;
     const id = state.server.serverId, name = serverName();
-    const dialog = serverDialog('Excluir servidor', `Excluir ${name} apaga permanentemente seus canais, mensagens, anexos e convites e encerra as chamadas. Não dá para desfazer.`);
-    const input = el('input', { id: 'delete-server-name', required: true, autocomplete: 'off' });
-    const submit = el('button', { type: 'submit', class: 'btn-danger', textContent: 'Excluir servidor', disabled: true });
-    input.oninput = () => { submit.disabled = input.value !== name; };
-    dialog.body.append(el('form', { onsubmit: async (event) => {
+    const dialog = serverDialog('Excluir servidor', 'Esta ação é permanente e não pode ser desfeita.', { icon: 'trash', tone: 'danger' });
+    const input = el('input', { id: 'delete-server-name', required: true, autocomplete: 'off', spellcheck: false, placeholder: name });
+    const submit = el('button', { type: 'submit', class: 'btn-danger', disabled: true }, Icon('trash', 16), 'Excluir servidor');
+    const field = el('div', { class: 'confirm-field' }, input, el('span', { class: 'confirm-ok', ariaHidden: 'true' }, Icon('check', 16)));
+    input.oninput = () => {
+      submit.disabled = input.value !== name;
+      field.classList.toggle('match', input.value === name);
+    };
+    const members = state.server.members.length, channels = state.server.channels.length;
+    const losses = ['Canais, grupos e cargos', 'Mensagens, arquivos e anexos', 'Convites (os links param de funcionar)', 'Chamadas em andamento são encerradas'];
+    dialog.body.append(
+      el('div', { class: 'delete-summary' },
+        el('div', { class: 'delete-target' }, serverIcon(name, state.server.serverIcon),
+          el('div', {}, el('strong', { textContent: name }),
+            el('small', { textContent: `${members} ${members === 1 ? 'membro' : 'membros'} · ${channels} ${channels === 1 ? 'canal' : 'canais'}` }))),
+        el('div', { class: 'delete-list-title', textContent: 'SERÁ APAGADO' }),
+        el('ul', { class: 'delete-list' }, losses.map((text) => el('li', {}, Icon('x', 14), el('span', { textContent: text })))),
+        el('p', { class: 'delete-keep' }, Icon('info', 15), el('span', { textContent: 'Contas, amizades e mensagens diretas dos membros continuam intactas.' }))),
+      el('form', { onsubmit: async (event) => {
       event.preventDefault();
       if (submit.disabled || input.value !== name) return;
       submit.disabled = true;
@@ -871,9 +926,9 @@
       if (result) { dialog.close(); refreshServerUnread(); }
       else { input.disabled = false; submit.disabled = input.value !== name; input.focus(); }
     } },
-    el('label', { htmlFor: input.id, textContent: `Digite “${name}” para confirmar:` }), input,
-    el('div', { class: 'dialog-actions' },
-      el('button', { type: 'button', class: 'btn-ghost', textContent: 'Cancelar', onclick: dialog.close }), submit)));
+      el('label', { htmlFor: input.id, class: 'confirm-label' }, 'Digite ', el('strong', { textContent: name }), ' para confirmar'), field,
+      el('div', { class: 'dialog-actions' },
+        el('button', { type: 'button', class: 'btn-ghost', textContent: 'Cancelar', onclick: dialog.close }), submit)));
   }
 
   $('#btn-add-server').onclick = openAddServer;
@@ -1110,7 +1165,8 @@
     const box = $('#messages');
     const channel = channelById(state.textChannel);
     if (!channel) return;
-    if (box.dataset.channel !== state.textChannel) {
+    const firstPaint = box.dataset.channel !== state.textChannel;
+    if (firstPaint) {
       box.innerHTML = '';
       msgNodes.clear();
       box.dataset.channel = state.textChannel;
@@ -1129,7 +1185,14 @@
       const sig = JSON.stringify([msg, continued, state.editing === msg.id, epoch, replied && [replied.text, replied.authorId, !!replied.attachments]]);
       let entry = msgNodes.get(msg.id);
       if (!entry || entry.sig !== sig) {
+        // Só a mensagem que acabou de chegar entra deslizando; histórico e reconstruções aparecem direto.
+        const arriving = !entry && !firstPaint && Date.now() - msg.ts < 15000;
         entry = { sig, node: buildMessage(msg, continued, replied, msg.replyTo && !replied) };
+        if (arriving) {
+          const node = entry.node;
+          node.classList.add('msg-new');
+          node.addEventListener('animationend', () => node.classList.remove('msg-new'), { once: true });
+        }
         msgNodes.set(msg.id, entry);
       }
       nodes.push(entry.node);
@@ -1864,6 +1927,17 @@
     showMenuAt(e.clientX, e.clientY);
   }
 
+  // Troca o ícone só quando ele muda: a animação de ligar/desligar (motion.css) toca uma vez por
+  // clique, e não a cada nova renderização.
+  function setControlIcon(button, name, size = 20, label = '') {
+    const key = `${name}:${size}:${label}`;
+    if (button.dataset.iconKey === key) return;
+    const svg = Icon(name, size);
+    if (button.dataset.iconKey) svg.classList.add('ico-swap');
+    button.dataset.iconKey = key;
+    button.replaceChildren(svg, label);
+  }
+
   function renderControls() {
     const me = meMember();
     const inVoice = !!state.voiceChannel;
@@ -1874,13 +1948,13 @@
     $('#voice-room-name').textContent = inVoice ? `${channelById(state.voiceChannel)?.name || ''} / ${serverName()}` : '';
 
     const mute = $('#btn-mute');
-    mute.replaceChildren(Icon(micOff ? 'micOff' : 'mic'));
+    setControlIcon(mute, micOff ? 'micOff' : 'mic');
     mute.classList.toggle('off', micOff && !forcedMute);
     mute.classList.toggle('locked', forcedMute);
     mute.dataset.tip = forcedMute ? 'Silenciado pelo servidor' : micOff ? 'Ativar microfone' : 'Silenciar';
     refreshTip(mute);
     const deafen = $('#btn-deafen');
-    deafen.replaceChildren(Icon(deaf ? 'headphonesOff' : 'headphones'));
+    setControlIcon(deafen, deaf ? 'headphonesOff' : 'headphones');
     deafen.classList.toggle('off', state.deafened && !me.serverDeafened);
     deafen.classList.toggle('locked', !!me.serverDeafened);
     deafen.dataset.tip = me.serverDeafened ? 'Ensurdecido pelo servidor' : deaf ? 'Desativar surdez' : 'Ensurdecer';
@@ -1894,8 +1968,8 @@
       const active = !!state.local[kind];
       const disabled = !active && !canVideo();
       const tip = active ? v.on : disabled ? 'Sem permissão para vídeo' : v.off;
-      v.btn.replaceChildren(Icon(v.icon, 18), v.label);
-      v.sc.replaceChildren(Icon(active || kind === 'screen' ? v.icon : v.iconOff, 24));
+      setControlIcon(v.btn, v.icon, 18, v.label);
+      setControlIcon(v.sc, active || kind === 'screen' ? v.icon : v.iconOff, 24);
       for (const b of [v.btn, v.sc]) {
         b.classList.toggle('on', active);
         b.disabled = disabled;
@@ -1905,22 +1979,22 @@
     }
     const aiOn = state.noiseMode === 'ai' || state.noiseMode === 'ai-lite';
     const nb = $('#btn-noise');
-    nb.replaceChildren(Icon('waves', 20));
+    setControlIcon(nb, 'waves');
     nb.classList.toggle('active', aiOn);
     nb.dataset.tip = aiOn ? 'Supressão de ruído por IA: ligada' : 'Supressão de ruído por IA: desligada';
     refreshTip(nb);
     const scDeaf = $('#sc-deaf');
-    scDeaf.replaceChildren(Icon(deaf ? 'headphonesOff' : 'headphones', 24));
+    setControlIcon(scDeaf, deaf ? 'headphonesOff' : 'headphones', 24);
     scDeaf.classList.toggle('off', deaf);
     scDeaf.dataset.tip = deafen.dataset.tip;
     refreshTip(scDeaf);
     const scSb = $('#sc-sounds');
-    scSb.replaceChildren(Icon(state.sbMuted ? 'volumeX' : 'music', 24));
+    setControlIcon(scSb, state.sbMuted ? 'volumeX' : 'music', 24);
     scSb.classList.toggle('off', state.sbMuted);
     scSb.dataset.tip = state.sbMuted ? 'Efeitos sonoros (silenciados)' : 'Efeitos sonoros';
     refreshTip(scSb);
     const scMic = $('#sc-mic');
-    scMic.replaceChildren(Icon(micOff ? 'micOff' : 'mic', 24));
+    setControlIcon(scMic, micOff ? 'micOff' : 'mic', 24);
     scMic.classList.toggle('off', micOff);
     scMic.dataset.tip = mute.dataset.tip;
     refreshTip(scMic);
@@ -2198,16 +2272,18 @@
   $('#server-header').onclick = () => {
     const header = $('#server-header');
     if (Date.now() - Number(header.dataset.closedAt || 0) < 300) return; // o clique fechou o menu
-    const items = [];
+    // Grupos separados como no Discord: convite em destaque, administração, geral e, por último, a ação destrutiva.
+    const sep = () => el('div', { class: 'menu-sep' });
+    const items = [menuItem('Convidar amigos', 'userPlus', copyInvite, 'accent'), sep()];
     if (canAdmin()) items.push(menuItem('Configurações do servidor', 'settings', () => openServerSettings()));
-    if (hasPerm('MANAGE_CHANNELS')) items.push(menuItem('Criar grupo de canais', 'plusCircle', () => channelNavigation.editGroup()),
-      menuItem('Criar canal', 'plus', () => openCreateChannel('text')));
-    items.push(menuItem('Convidar amigos', 'link', copyInvite));
-    items.push(menuItem('Criar ou entrar em servidor', 'plusCircle', openAddServer));
+    if (hasPerm('MANAGE_CHANNELS')) items.push(menuItem('Criar canal', 'plusCircle', () => openCreateChannel('text')),
+      menuItem('Criar grupo de canais', 'hash', () => channelNavigation.editGroup()));
+    if (items.length > 2) items.push(sep());
+    items.push(menuItem('Criar ou entrar em servidor', 'plus', openAddServer),
+      menuItem(`Novidades · v${window.APP_VERSION}`, 'sparkles', () => openChangelog()),
+      menuItem('Configurações de usuário', 'userCog', () => $('#btn-settings').click()), sep());
     if (isOwner(state.me.accountId)) items.push(menuItem('Excluir servidor', 'trash', deleteCurrentServer, 'danger'));
     else items.push(menuItem('Sair do servidor', 'logout', leaveCurrentServer, 'danger'));
-    items.push(menuItem(`Novidades · v${window.APP_VERSION}`, 'sparkles', () => openChangelog()));
-    items.push(el('div', { class: 'menu-sep' }), menuItem('Configurações de usuário', 'userCog', () => $('#btn-settings').click()));
     const menu = $('#context-menu');
     menu.replaceChildren(...items);
     header.classList.add('open');
@@ -3035,7 +3111,7 @@
       pageHead('Canais e grupos', 'Organize texto e voz juntos. Arraste para ordenar ou use o menu ⋯ de cada item.'),
       el('div', { class: 'admin-toolbar' },
         searchBox('channels', 'Pesquisar canais', fill),
-        el('button', { type: 'button', class: 'btn-primary', textContent: 'Criar grupo', onclick: () => channelNavigation.editGroup() }),
+        el('button', { type: 'button', class: 'btn-secondary', textContent: 'Criar grupo', onclick: () => channelNavigation.editGroup() }),
         el('button', { type: 'button', class: 'btn-primary', textContent: 'Criar canal', onclick: () => openCreateChannel('text') })),
       wrap);
   }

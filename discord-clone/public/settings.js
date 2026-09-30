@@ -33,6 +33,8 @@ window.SettingsPanel = function ({ read, apply, preview, onOpen, onClose }) {
       const field = root.querySelector('#' + output.dataset.output);
       output.textContent = field.value + (output.dataset.suffix || '');
     }
+    // Trecho preenchido do trilho dos controles deslizantes (controls.css desenha até --fill).
+    for (const range of root.querySelectorAll('input[type=range]')) range.style.setProperty('--fill', `${((range.value - range.min) / (range.max - range.min)) * 100}%`);
     root.querySelector('#profile-preview-avatar').style.background = root.querySelector('#profile-color').value;
     root.querySelector('.profile-preview').style.setProperty('--pc-color', root.querySelector('#profile-color').value);
     preview(values());

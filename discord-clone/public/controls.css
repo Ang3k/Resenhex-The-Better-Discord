@@ -1,0 +1,219 @@
+/* Controles e janelas no mesmo acabamento: caixas de seleção, interruptores, controles deslizantes,
+   listas, seletor de cor, diálogos de confirmação e a tela de entrada. Só usa as variáveis dos temas. */
+
+/* ---------- Caixa de seleção ---------- */
+input[type=checkbox]:not(:is(.ds-switch, .setting-switch input, .settings-content label.row > input, .switch-row input)) {
+  appearance: none; -webkit-appearance: none; flex-shrink: 0; width: 18px; height: 18px; margin: 0; border-radius: 5px; cursor: pointer;
+  border: 2px solid color-mix(in srgb, var(--text) 32%, transparent); background: transparent center / 12px no-repeat;
+  transition: background-color .15s, border-color .15s, box-shadow .15s, transform .12s;
+}
+input[type=checkbox]:not(:is(.ds-switch, .setting-switch input, .settings-content label.row > input, .switch-row input)):hover:not(:disabled) { border-color: color-mix(in srgb, var(--text) 60%, transparent); }
+input[type=checkbox]:not(:is(.ds-switch, .setting-switch input, .settings-content label.row > input, .switch-row input)):checked {
+  border-color: var(--brand); background-color: var(--brand);
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='white' stroke-width='3.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M20 6 9 17l-5-5'/%3E%3C/svg%3E");
+}
+input[type=checkbox]:not(:is(.ds-switch, .setting-switch input, .settings-content label.row > input, .switch-row input)):active:not(:disabled) { transform: scale(.88); }
+input[type=checkbox]:not(:is(.ds-switch, .setting-switch input, .settings-content label.row > input, .switch-row input)):disabled { opacity: .45; cursor: not-allowed; }
+
+/* ---------- Interruptor (um só desenho para as configurações do usuário, do servidor e dos diálogos) ---------- */
+:is(.ds-switch, .setting-switch input[type=checkbox], .settings-content label.row > input[type=checkbox], .switch-row input[type=checkbox]) {
+  appearance: none; -webkit-appearance: none; position: relative; flex-shrink: 0; width: 40px !important; height: 24px !important; margin: 0;
+  border: 0; border-radius: 999px; background: color-mix(in srgb, var(--text) 22%, transparent); background-image: none;
+  cursor: pointer; transition: background-color .2s ease; box-shadow: inset 0 1px 2px rgba(0, 0, 0, .25);
+}
+:is(.ds-switch, .setting-switch input[type=checkbox], .settings-content label.row > input[type=checkbox], .switch-row input[type=checkbox])::after {
+  content: ''; position: absolute; top: 3px; left: 3px; width: 18px; height: 18px; border-radius: 50%;
+  background: #fff url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%237c7e88' stroke-width='3.5' stroke-linecap='round'%3E%3Cpath d='M17 7 7 17M7 7l10 10'/%3E%3C/svg%3E") center / 10px no-repeat;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, .35); transition: left .25s cubic-bezier(.3, 1.4, .55, 1), background-image .2s;
+}
+:is(.ds-switch, .setting-switch input[type=checkbox], .settings-content label.row > input[type=checkbox], .switch-row input[type=checkbox]):hover:not(:disabled) { background-color: color-mix(in srgb, var(--text) 30%, transparent); }
+:is(.ds-switch, .setting-switch input[type=checkbox], .settings-content label.row > input[type=checkbox], .switch-row input[type=checkbox]):checked { background-color: var(--brand); }
+:is(.ds-switch, .setting-switch input[type=checkbox], .settings-content label.row > input[type=checkbox], .switch-row input[type=checkbox]):checked:hover:not(:disabled) { background-color: var(--brand-hover); }
+:is(.ds-switch, .setting-switch input[type=checkbox], .settings-content label.row > input[type=checkbox], .switch-row input[type=checkbox]):checked::after {
+  left: 19px;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%236d63e6' stroke-width='3.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M20 6 9 17l-5-5'/%3E%3C/svg%3E");
+}
+:is(.ds-switch, .setting-switch input[type=checkbox], .settings-content label.row > input[type=checkbox], .switch-row input[type=checkbox]):active:not(:disabled)::after { width: 22px; }
+:is(.ds-switch, .setting-switch input[type=checkbox], .settings-content label.row > input[type=checkbox], .switch-row input[type=checkbox]):checked:active:not(:disabled)::after { left: 15px; }
+:is(.ds-switch, .setting-switch input[type=checkbox], .settings-content label.row > input[type=checkbox], .switch-row input[type=checkbox]):disabled { opacity: .45; cursor: not-allowed; }
+:is(.ds-switch, .setting-switch input[type=checkbox], .settings-content label.row > input[type=checkbox], .switch-row input[type=checkbox]):focus-visible { outline: 2px solid var(--brand); outline-offset: 2px; }
+
+/* Nas configurações, "caixa + texto" vira linha com o texto à esquerda e o interruptor à direita. */
+.settings-content label.row:has(> input[type=checkbox]) {
+  flex-direction: row-reverse; justify-content: space-between; gap: 20px; min-height: 28px;
+  font-size: 14px; font-weight: 500; color: var(--text); cursor: pointer;
+}
+.switch-row { display: flex !important; flex-direction: row !important; align-items: center; justify-content: space-between; gap: 16px; cursor: pointer; }
+.switch-row > span { display: grid; gap: 3px; }
+.switch-row strong { font-size: 15px; font-weight: 600; color: var(--text-strong); letter-spacing: 0; }
+.switch-row small { font-size: 12.5px; font-weight: 400; line-height: 1.45; color: var(--text-muted); letter-spacing: 0; }
+
+/* ---------- Botão de opção ---------- */
+:is(.card, body) input[type=radio] {
+  appearance: none; -webkit-appearance: none; display: grid; place-items: center; flex-shrink: 0; width: 20px; height: 20px; margin: 0;
+  border: 2px solid color-mix(in srgb, var(--text) 38%, transparent); border-radius: 50%; background: transparent; cursor: pointer;
+  transition: border-color .15s;
+}
+:is(.card, body) input[type=radio]::before {
+  content: ''; width: 10px; height: 10px; border-radius: 50%; background: var(--brand);
+  transform: scale(0); transition: transform .22s cubic-bezier(.34, 1.56, .64, 1);
+}
+:is(.card, body) input[type=radio]:checked { border-color: var(--brand); }
+:is(.card, body) input[type=radio]:checked::before { transform: scale(1); }
+
+/* ---------- Controle deslizante (o JS mantém --fill com a posição do marcador) ---------- */
+input[type=range] { -webkit-appearance: none; appearance: none; height: 20px; margin: 0; padding: 0; background: transparent; cursor: pointer; --fill: 50%; }
+input[type=range]::-webkit-slider-runnable-track {
+  height: 6px; border-radius: 999px;
+  background: linear-gradient(to right, var(--brand) var(--fill), color-mix(in srgb, var(--text) 16%, transparent) var(--fill));
+}
+input[type=range]::-webkit-slider-thumb {
+  -webkit-appearance: none; width: 16px; height: 16px; margin-top: -5px; border: 0; border-radius: 50%; background: #fff;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, .45), 0 0 0 0 transparent; transition: box-shadow .15s, transform .15s;
+}
+input[type=range]:hover:not(:disabled)::-webkit-slider-thumb, input[type=range]:focus-visible::-webkit-slider-thumb { box-shadow: 0 1px 4px rgba(0, 0, 0, .45), 0 0 0 6px color-mix(in srgb, var(--brand) 28%, transparent); }
+input[type=range]:active:not(:disabled)::-webkit-slider-thumb { transform: scale(1.15); }
+input[type=range]::-moz-range-track { height: 6px; border-radius: 999px; background: color-mix(in srgb, var(--text) 16%, transparent); }
+input[type=range]::-moz-range-progress { height: 6px; border-radius: 999px; background: var(--brand); }
+input[type=range]::-moz-range-thumb { width: 16px; height: 16px; border: 0; border-radius: 50%; background: #fff; box-shadow: 0 1px 4px rgba(0, 0, 0, .45); }
+/* Anula o fundo e o recuo que ".card input" (style.css) dá a todo campo; o atributo repetido só empata a especificidade. */
+.card input[type=range][type=range] { padding: 0; border-radius: 0; background: transparent; box-shadow: none; }
+input[type=range]:disabled { opacity: .45; cursor: not-allowed; }
+input[type=range]:focus-visible { outline: none; }
+/* No palco, sobre o vídeo, o trilho fica claro. */
+.tc-slider::-webkit-slider-runnable-track { background: linear-gradient(to right, #fff var(--fill), rgba(255, 255, 255, .25) var(--fill)); }
+.tc-slider::-moz-range-progress { background: #fff; }
+
+/* ---------- Listas (select) com a seta do app ----------
+   !important só nas propriedades da imagem: várias regras antigas usam o atalho "background:",
+   que apagaria a seta. */
+select { -webkit-appearance: none; appearance: none; cursor: pointer; }
+select:not([multiple]) {
+  padding-right: 36px !important;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23a1a3ab' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E") !important;
+  background-repeat: no-repeat !important; background-position: right 12px center !important; background-size: 16px !important;
+}
+:is(.settings-content, .card, #server-settings, .channel-dialog) select { min-height: 42px; border-radius: 10px !important; transition: border-color .15s, box-shadow .15s; }
+:is(.settings-content, .card, #server-settings, .channel-dialog) select:hover:not(:disabled) { border-color: color-mix(in srgb, var(--text) 22%, transparent); }
+option { background: var(--bg-floating); color: var(--text); }
+
+/* Campos de texto das configurações e janelas: mesma altura, borda e anel de foco. */
+.settings-content :is(input:not([type=checkbox]):not([type=radio]):not([type=range]):not([type=color]):not([type=hidden]), select, textarea),
+#create-channel :is(input:not([type=checkbox]):not([type=radio]), textarea, select) {
+  border: 1px solid var(--divider); border-radius: 10px; background-color: var(--bg-panel); color: var(--text); font-size: 14px; font-weight: 400;
+  transition: border-color .15s, box-shadow .15s;
+}
+.settings-content :is(input:not([type=checkbox]):not([type=radio]):not([type=range]):not([type=color]):not([type=hidden]), select, textarea):focus,
+#create-channel :is(input:not([type=checkbox]):not([type=radio]), textarea, select):focus {
+  outline: none; border-color: var(--brand); box-shadow: 0 0 0 3px color-mix(in srgb, var(--brand) 22%, transparent);
+}
+#create-channel input:not([type=checkbox]):not([type=radio]) { height: 44px; padding: 0 12px; }
+
+/* Botões dentro das configurações do usuário */
+#settings .settings-content button { min-height: 38px; padding: 0 16px; border-radius: 10px; font-weight: 600; transition: background .15s, color .15s, transform .12s, box-shadow .15s; }
+#settings .settings-content button:not(.secondary) { box-shadow: 0 4px 14px color-mix(in srgb, var(--brand) 22%, transparent); }
+#settings .settings-content button.secondary { background: var(--hover-strong); color: var(--text-strong); box-shadow: inset 0 0 0 1px var(--divider); }
+#settings .settings-content button.secondary:hover:not(:disabled) { background: color-mix(in srgb, var(--text) 14%, transparent); }
+#settings .settings-content button:active:not(:disabled) { transform: scale(.97); }
+#settings .settings-content button:disabled { opacity: .45; box-shadow: none; }
+
+/* ---------- Seletor de cor como amostra arredondada ---------- */
+:is(.settings-content, .auth-card, .card) input[type=color]:not(.swatch input) {
+  -webkit-appearance: none; appearance: none; width: 48px !important; height: 48px !important; padding: 4px !important;
+  border: 1px solid var(--divider) !important; border-radius: 14px !important; background: var(--bg-panel) !important; cursor: pointer;
+  transition: border-color .15s, transform .15s, box-shadow .15s;
+}
+:is(.settings-content, .auth-card, .card) input[type=color]:not(.swatch input):hover { border-color: color-mix(in srgb, var(--text) 30%, transparent) !important; transform: translateY(-1px); }
+:is(.settings-content, .auth-card, .card) input[type=color]:not(.swatch input):focus-visible { box-shadow: 0 0 0 3px color-mix(in srgb, var(--brand) 30%, transparent); }
+input[type=color]::-webkit-color-swatch-wrapper { padding: 0; }
+input[type=color]::-webkit-color-swatch { border: 0; border-radius: 10px; }
+input[type=color]::-moz-color-swatch { border: 0; border-radius: 10px; }
+
+/* ---------- Janelas: criar canal, confirmação e diálogos dos grupos ---------- */
+#create-channel, .confirm-overlay { background: rgba(6, 6, 8, .72); backdrop-filter: blur(6px); }
+.channel-dialog::backdrop { background: rgba(6, 6, 8, .72); backdrop-filter: blur(6px); }
+#create-channel .card, .confirm-card, .channel-dialog {
+  border: 1px solid var(--divider); border-radius: 16px;
+  box-shadow: 0 24px 80px rgba(0, 0, 0, .6), inset 0 1px 0 rgba(255, 255, 255, .04);
+  animation: dialog-in .24s cubic-bezier(.16, 1, .3, 1);
+}
+@keyframes dialog-in { from { opacity: 0; transform: translateY(10px) scale(.97); } }
+#create-channel .card { width: min(480px, 100%); padding: 24px; gap: 14px; }
+#create-channel .card h2, .confirm-card h2, .channel-dialog h2 { font-size: 21px; font-weight: 700; letter-spacing: -.015em; }
+#create-channel .card button.close { width: 32px; height: 32px; place-items: center; border-radius: 50%; transition: background .15s, color .15s, transform .2s; }
+#create-channel .card button.close:hover { background: var(--hover-strong); transform: rotate(90deg); }
+#create-channel .field-title, #create-channel .card > label:not(.row):not(.type-option) { font-size: 12px; font-weight: 700; letter-spacing: .04em; color: var(--interactive); }
+#create-channel .optional { font-weight: 500; color: var(--text-muted); letter-spacing: 0; text-transform: none; }
+#create-channel .card .type-option {
+  gap: 14px; padding: 12px 14px; border: 1px solid transparent; border-radius: 12px; background: var(--bg-sidebar);
+  transition: background .15s, border-color .15s, box-shadow .15s;
+}
+#create-channel .card .type-option:hover { background: var(--hover-strong); }
+#create-channel .card .type-option:has(input:checked) {
+  background: color-mix(in srgb, var(--brand) 12%, var(--bg-sidebar)); border-color: color-mix(in srgb, var(--brand) 55%, transparent);
+}
+#create-channel .type-icon { display: grid; place-items: center; width: 40px; height: 40px; border-radius: 12px; background: var(--hover-strong); color: var(--interactive); transition: background .15s, color .15s; }
+#create-channel .type-option:has(input:checked) .type-icon { background: var(--brand); color: #fff; }
+#create-channel .type-option .muted-text { font-size: 13px; }
+#create-channel .switch-row { padding: 12px 14px; border-radius: 12px; background: var(--bg-sidebar); }
+#create-channel .chips .chip.selectable { padding: 6px 10px; border-radius: 999px; border: 1px solid var(--divider); background: var(--bg-sidebar); transition: background .15s, border-color .15s; }
+#create-channel .chips .chip.selectable:has(input:checked) { background: color-mix(in srgb, var(--brand) 18%, transparent); border-color: color-mix(in srgb, var(--brand) 55%, transparent); }
+#create-channel .buttons { margin: 6px -24px -24px; padding: 16px 24px; background: var(--bg-sidebar); border-top: 1px solid var(--divider); }
+
+/* Botões das janelas: mesma altura, peso e resposta ao clique. */
+:is(#create-channel .buttons, .confirm-actions) button { height: 40px; padding: 0 18px; border: 0; border-radius: 10px; font-size: 14px; font-weight: 600; transition: background .15s, color .15s, box-shadow .2s, transform .12s; }
+:is(#create-channel .buttons, .confirm-actions) button:active:not(:disabled) { transform: scale(.97); }
+#create-channel .buttons button:not(.secondary), .confirm-actions .btn-primary { background: var(--brand); color: #fff; box-shadow: 0 6px 18px color-mix(in srgb, var(--brand) 26%, transparent); }
+#create-channel .buttons button:not(.secondary):hover:not(:disabled), .confirm-actions .btn-primary:hover { background: var(--brand-hover); }
+#create-channel .card .buttons button.secondary, .confirm-actions .btn-ghost, .channel-dialog .btn-ghost { background: transparent; color: var(--text); box-shadow: none; }
+#create-channel .card .buttons button.secondary:hover:not(:disabled), .confirm-actions .btn-ghost:hover, .channel-dialog .btn-ghost:hover { background: var(--hover-strong); text-decoration: none; }
+.confirm-actions .btn-danger { background: var(--red-dark); color: #fff; box-shadow: 0 6px 18px rgba(217, 67, 75, .3); }
+.confirm-actions .btn-danger:hover { background: color-mix(in srgb, var(--red-dark) 82%, #000); }
+.confirm-card { width: min(460px, 100%); }
+.confirm-card h2 { padding: 24px 24px 8px; }
+.confirm-card p { padding: 0 24px 24px; color: var(--interactive); font-size: 14.5px; line-height: 1.55; }
+.confirm-actions { padding: 16px 24px; gap: 10px; border-top: 1px solid var(--divider); }
+.channel-dialog { padding: 24px; }
+.channel-dialog input, .channel-dialog select { height: 44px; border-radius: 10px; }
+.channel-dialog label { font-size: 12px; font-weight: 700; letter-spacing: .04em; color: var(--interactive); text-transform: uppercase; }
+.channel-dialog .confirm-actions { margin: 4px -24px -24px; border-radius: 0 0 16px 16px; }
+.channel-dialog .btn-primary { background: var(--brand); color: #fff; }
+
+/* ---------- Tela de entrada ---------- */
+/* As manchas de cor derivam devagar numa camada própria (transform), sem repintar a tela a cada quadro. */
+.auth { background: var(--bg-rail); isolation: isolate; }
+.auth::before {
+  content: ''; position: fixed; inset: -15%; z-index: -1; pointer-events: none;
+  background:
+    radial-gradient(1200px 600px at 10% 0%, rgba(109, 93, 252, .55), transparent 60%),
+    radial-gradient(900px 600px at 100% 100%, rgba(198, 76, 240, .45), transparent 60%),
+    radial-gradient(600px 400px at 70% 20%, rgba(88, 101, 242, .35), transparent 70%);
+  animation: aurora 26s ease-in-out infinite alternate;
+}
+@keyframes aurora { to { transform: translate3d(5%, 4%, 0) rotate(4deg) scale(1.06); } }
+.auth-card {
+  position: relative; width: min(440px, 100%); padding: 36px 36px 30px; gap: 16px; border-radius: 20px;
+  background: color-mix(in srgb, var(--bg-main) 86%, transparent); backdrop-filter: blur(24px) saturate(1.3);
+  border: 1px solid rgba(255, 255, 255, .08); box-shadow: 0 30px 90px rgba(0, 0, 0, .55), inset 0 1px 0 rgba(255, 255, 255, .06);
+  animation: dialog-in .45s cubic-bezier(.16, 1, .3, 1);
+}
+.auth-card .brand-mark { box-shadow: 0 10px 30px rgba(130, 90, 245, .45), inset 0 1px 0 rgba(255, 255, 255, .3); }
+.auth-card h1 { font-size: 26px; font-weight: 700; letter-spacing: -.02em; }
+.auth-card p { font-size: 14.5px; line-height: 1.5; }
+.auth-card label { font-size: 11.5px; letter-spacing: .05em; }
+.auth-card input:not([type=color]) {
+  height: 46px; padding: 0 14px; border: 1px solid rgba(255, 255, 255, .07); border-radius: 10px; background: var(--bg-rail);
+  transition: border-color .15s, box-shadow .15s, background .15s;
+}
+.auth-card input:not([type=color]):hover { border-color: rgba(255, 255, 255, .14); }
+.auth-card input:not([type=color]):focus { border-color: var(--brand); box-shadow: 0 0 0 3px color-mix(in srgb, var(--brand) 25%, transparent); }
+.auth-card .btn-primary {
+  height: 48px; padding: 0 16px; border-radius: 10px; font-weight: 600; background: var(--brand-gradient);
+  box-shadow: 0 10px 26px rgba(130, 90, 245, .35), inset 0 1px 0 rgba(255, 255, 255, .2);
+  transition: filter .15s, transform .15s, box-shadow .2s;
+}
+.auth-card .btn-primary:hover { background: var(--brand-gradient); filter: brightness(1.08); transform: translateY(-1px); box-shadow: 0 14px 32px rgba(130, 90, 245, .45), inset 0 1px 0 rgba(255, 255, 255, .2); }
+.auth-card .btn-primary:active { transform: translateY(0) scale(.99); filter: brightness(.96); }
+.auth-card .switch a { font-weight: 600; color: color-mix(in srgb, var(--brand) 70%, #fff); }
+.auth-card .notice { border-radius: 10px; }
+#login-color-label { flex-direction: row !important; align-items: center; justify-content: space-between; }

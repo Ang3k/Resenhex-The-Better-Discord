@@ -14,6 +14,9 @@ _29/09/2026_
 - Migração preserva o servidor atual, incluindo nome, histórico, canais e permissões; mantém `data.json.pre-0.9.1.bak` como backup permanente do formato anterior.
 - Troca de servidor encerra a chamada atual. Rascunhos e anexos ficam separados por canal; o último servidor escolhido é lembrado.
 - Banimentos e castigos afetam apenas a participação naquele servidor e mantêm a conta e as conversas privadas.
+- Visual renovado: fonte Figtree servida pelo próprio app, janelas de servidor redesenhadas e controles de formulário (interruptores, listas, controles deslizantes, seletor de cor) com o mesmo acabamento em todos os temas.
+- Ícones animados no estilo do Discord (microfone, fone, engrenagem, câmera, tela, efeitos sonoros), risco desenhado ao silenciar ou ensurdecer e entradas suaves de mensagens, menus e avisos. “Reduzir animações” desliga tudo.
+- Correção: “Excluir servidor” aberto pelas configurações do servidor ficava atrás da janela; avisos não cobrem mais os controles da chamada.
 
 ## v0.9 — Cada assunto no seu lugar
 _29/09/2026_

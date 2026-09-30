@@ -11,6 +11,8 @@
 .menu-item:hover, .menu-item.sub-open { background: var(--hover-strong); color: var(--text-strong); }
 .menu-item.danger { color: var(--red); }
 .menu-item.danger:hover { background: rgba(240, 86, 94, .14); color: var(--red); }
+.menu-item.accent { color: color-mix(in srgb, var(--brand) 65%, #fff); }
+.menu-item.accent:hover { background: var(--brand); color: #fff; }
 .menu-item .mi-label { display: flex; align-items: center; gap: 10px; min-width: 0; }
 .menu-item .mi-label > span:last-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .menu-item .mi-label .ico { width: 18px; height: 18px; opacity: .85; }

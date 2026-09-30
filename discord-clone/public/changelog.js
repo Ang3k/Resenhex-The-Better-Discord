@@ -20,6 +20,11 @@ window.CHANGELOG = [
         'Banimentos, castigos e silenciamentos valem somente no servidor em que foram aplicados.',
         'Administradores podem revogar o convite e gerar outro. Quem já entrou permanece no servidor.',
         'Trocar de servidor encerra a chamada atual e restaura seus rascunhos por canal. O último servidor usado volta ao entrar novamente.',
+        'Visual renovado: nova fonte, janelas de criar, entrar, convidar e excluir servidor redesenhadas, e interruptores, listas, controles deslizantes e seletor de cor com o mesmo acabamento em todos os temas.',
+        'Ícones animados: microfone, fone e engrenagem reagem ao passar o mouse, e o risco aparece desenhado ao silenciar ou ensurdecer. Mensagens novas, menus e avisos entram com suavidade; “Reduzir animações” desliga tudo.',
+      ] },
+      { kind: 'fixed', items: [
+        '“Excluir servidor” aberto pelas configurações do servidor aparece na frente da janela, e os avisos não cobrem mais os controles da chamada.',
       ] },
     ],
   },
