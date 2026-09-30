@@ -3810,9 +3810,14 @@
     const menu = $('#context-menu');
     const live = !!state.local.screen;
     if (!live && !navigator.mediaDevices?.getDisplayMedia) {
-      // Navegadores de celular (Chrome Android, Safari do iPhone) não permitem capturar a tela.
+      // Sem https o navegador esconde a captura; no celular (Chrome Android, Safari do iPhone) ela não existe.
+      const why = !window.isSecureContext
+        ? `A transmissão de tela só funciona em conexão segura. Abra o site por https://${location.host}${location.pathname} e tente de novo.`
+        : mobileStream.touch
+          ? 'Navegadores de celular não permitem transmitir a tela. Pelo celular você pode assistir às transmissões em tela cheia (pince para aproximar) e ligar a câmera; para transmitir, use um computador.'
+          : 'Este navegador não permite transmitir a tela. Use o Chrome, Edge ou Firefox atualizado no computador (navegadores embutidos em outros apps não funcionam).';
       menu.replaceChildren(el('div', { class: 'menu-section', textContent: 'COMPARTILHAR TELA' }),
-        el('div', { class: 'menu-tip', textContent: 'Este navegador não permite transmitir a tela. No celular você pode assistir às transmissões em tela cheia (pince para aproximar) e ligar a câmera.' }),
+        el('div', { class: 'menu-tip', textContent: why }),
         ...(state.local.camera || !canVideo() ? [] : [menuItem('Ligar câmera', 'camera', () => startVideo('camera'))]));
       const rect = anchor.getBoundingClientRect();
       menu.classList.remove('hidden');
