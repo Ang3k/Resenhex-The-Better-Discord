@@ -4099,8 +4099,15 @@
       notificationHelp();
       renderDiagnostics();
       drawMeter(-100, false);
+      navigator.mediaDevices?.addEventListener('devicechange', fillDevices);
       await fillDevices();
-    }, onClose: () => { stopSettingsTests(); setPendingBanner(null); } });
+    }, onClose: () => {
+      stopSettingsTests();
+      setPendingBanner(null);
+      // Ouvir devicechange mantém o serviço de câmeras do navegador aberto (dezenas de MB);
+      // só vale enquanto a lista de dispositivos está na tela. Descartar chama onClose com o painel aberto.
+      queueMicrotask(() => { if (!preferences.isOpen()) navigator.mediaDevices?.removeEventListener('devicechange', fillDevices); });
+    } });
   $('#btn-settings').onclick = () => { closePanels(); preferences.open(); };
   $('#profile-photo-choose').onclick = () => $('#profile-photo-file').click();
   $('#profile-photo-remove').onclick = () => {
@@ -4168,7 +4175,6 @@
   $('#settings-server-link').onclick = () => { if (preferences.close()) openServerSettings(); };
   $('#btn-logout').onclick = async () => { if (!preferences.close()) return; const result = await call('logout', { token: localStorage.getItem('token') }); if (result) { localStorage.removeItem('token'); location.reload(); } };
   $('#notification-permission').onclick = async () => { if ('Notification' in window) { await Notification.requestPermission(); notificationHelp(); } };
-  navigator.mediaDevices?.addEventListener('devicechange', () => { if (preferences.isOpen()) fillDevices(); });
   $('#camera-test').onclick = async () => {
     if (cameraPreview) return stopCameraPreview();
     const epoch = ++cameraTestEpoch;

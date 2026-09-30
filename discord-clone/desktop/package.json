@@ -1,7 +1,7 @@
 {
   "name": "resenhex",
   "productName": "Resenhex",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Resenhex para Windows",
   "author": "Resenhex",
   "main": "main.js",
@@ -39,7 +39,21 @@
       "offline.html",
       "offline.js",
       "lib/**",
-      "assets/**"
+      "assets/**",
+      "!**/node_modules/**/*.{map,d.ts}",
+      "!**/node_modules/js-yaml/{bin,dist}{,/**}",
+      "!**/node_modules/argparse{,/**}",
+      "!**/node_modules/uiohook-napi/{src,libuiohook,binding.gyp}{,/**}",
+      "!**/node_modules/uiohook-napi/prebuilds/!(win32-x64){,/**}",
+      "!**/node_modules/uiohook-napi/build/{*.*,Release/obj,Release/*.{lib,iobj,ipdb,pdb,exp}}{,/**}"
+    ],
+    "electronLanguages": [
+      "pt-BR",
+      "pt-PT",
+      "en-US",
+      "en-GB",
+      "es",
+      "es-419"
     ],
     "win": {
       "target": [

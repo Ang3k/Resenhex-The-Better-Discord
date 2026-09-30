@@ -2,6 +2,11 @@
 // A interface vem do servidor, então cada deploy do site já chega em quem usa o app.
 // Este processo só cuida do que o navegador não faz: bandeja, selos na barra de tarefas,
 // escolha da tela para transmitir, push-to-talk com o app em segundo plano e atualização do próprio app.
+
+// Cada thread do pool do Node reserva 8 MB de memória no Windows (4 threads = 32 MB) desde a primeira
+// operação assíncrona de arquivo. Aqui só o atualizador usa esse pool, e uma thread dá conta.
+// Precisa vir antes de qualquer uso do pool.
+process.env.UV_THREADPOOL_SIZE ||= '1';
 const { app, BrowserWindow, WebContentsView, Menu, Tray, nativeImage, session, shell, ipcMain, desktopCapturer, net, Notification } = require('electron');
 const path = require('node:path');
 const { createStore } = require('./lib/store');
@@ -41,7 +46,12 @@ function acquireLock() {
 const store = createStore(path.join(app.getPath('userData'), 'preferencias.json'), {
   bounds: null, maximized: false, closeToTray: true, trayHintShown: false,
 });
-const image = (name) => nativeImage.createFromPath(path.join(ASSETS, name + '.png'));
+// Os selos e ícones da bandeja trocam a cada mudança de título; cada um é lido do disco uma vez só.
+const images = new Map();
+const image = (name) => {
+  if (!images.has(name)) images.set(name, nativeImage.createFromPath(path.join(ASSETS, name + '.png')));
+  return images.get(name);
+};
 
 let win = null;
 let site = null;
