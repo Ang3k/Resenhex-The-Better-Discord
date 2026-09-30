@@ -14,8 +14,11 @@ const ORIGIN = APP_URL.origin;
 const TITLEBAR = 30;
 const ASSETS = path.join(__dirname, 'assets');
 const DEFAULT_THEME = { background: '#141417', foreground: '#b3b5bc' }; // tema escuro padrão do site (--bg-rail, --interactive)
+// Instalado pela Microsoft Store: a loja atualiza o app e o Windows controla a inicialização.
+const STORE = process.windowsStore === true;
 
-app.setAppUserModelId('com.resenhex.desktop');
+// Na versão da loja o Windows já dá ao app a identidade do pacote (barra de tarefas e notificações).
+if (!STORE) app.setAppUserModelId('com.resenhex.desktop');
 const log = createLog(path.join(app.getPath('userData'), 'resenhex.log'));
 log.info(`Iniciando a versão ${app.getVersion()}`, process.argv.slice(1).join(' '));
 if (!acquireLock()) {
@@ -251,14 +254,16 @@ function updateTray() {
   if (!tray) return;
   tray.setImage(image(unread.unread ? 'tray-unread' : 'tray'));
   tray.setToolTip(unread.mentions ? `Resenhex: ${unread.mentions} menções` : 'Resenhex');
-  const startup = app.getLoginItemSettings().openAtLogin;
   tray.setContextMenu(Menu.buildFromTemplate([
     { label: 'Abrir o Resenhex', click: showWindow },
     { type: 'separator' },
-    update
+    ...(STORE ? [] : [update
       ? { label: `Reiniciar para atualizar (versão ${update.version})`, click: installUpdate }
-      : { label: 'Procurar atualizações', click: () => checkForUpdates(true) },
-    { label: 'Iniciar com o Windows', type: 'checkbox', checked: startup, click: (item) => setStartup(item.checked) },
+      : { label: 'Procurar atualizações', click: () => checkForUpdates(true) }]),
+    STORE
+      // Apps da loja não gravam a inicialização por conta própria: a chave fica em Configurações > Apps > Inicialização.
+      ? { label: 'Iniciar com o Windows…', click: () => shell.openExternal('ms-settings:startupapps') }
+      : { label: 'Iniciar com o Windows', type: 'checkbox', checked: app.getLoginItemSettings().openAtLogin, click: (item) => setStartup(item.checked) },
     { label: 'Fechar para a bandeja', type: 'checkbox', checked: store.get('closeToTray'), click: (item) => { store.set('closeToTray', item.checked); } },
     { type: 'separator' },
     { label: `Versão ${app.getVersion()}`, enabled: false },
@@ -386,7 +391,7 @@ ipcMain.on('titlebar:install-update', installUpdate);
 let updater = null;
 
 function setupUpdates() {
-  if (!app.isPackaged) return;
+  if (!app.isPackaged || STORE) return; // a Microsoft Store cuida das atualizações da versão da loja
   updater = require('electron-updater').autoUpdater;
   updater.logger = log;
   // As versões novas ficam no mesmo servidor do site, em /download.

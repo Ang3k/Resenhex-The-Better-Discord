@@ -6,6 +6,18 @@ const crypto = require('crypto');
 const express = require('express');
 
 const INSTALLER = /^[A-Za-z0-9._-]+\.exe$/;
+const STORE_ID = /^[0-9A-Z]{12}$/; // ID da Microsoft Store, ex.: 9NBLGGH4R32N
+
+// Com o app aprovado na Microsoft Store, a página /baixar entrega o instalador da própria
+// Microsoft (assinado por ela, sem o aviso de "fonte desconhecida"). O .exe continua como opção.
+function storeLinks(id) {
+  if (!id || !STORE_ID.test(id)) return null;
+  return {
+    id,
+    installer: `https://get.microsoft.com/installer/download/${id}?cid=website_cta_psi`,
+    page: `https://apps.microsoft.com/detail/${id}`,
+  };
+}
 
 // Lê o latest.yml (formato fixo do electron-builder) sem depender de uma biblioteca de YAML.
 function readRelease(dir) {
@@ -68,13 +80,14 @@ function multipleRanges(dir) {
   };
 }
 
-function downloadRoutes(dir) {
+function downloadRoutes(dir, { storeId } = {}) {
   const router = express.Router();
+  const store = storeLinks(storeId);
   router.get('/download/info', (_req, res) => {
     res.set('Cache-Control', 'no-cache');
     const release = readRelease(dir);
-    if (!release) return res.status(404).json({ available: false });
-    res.json({ available: true, ...release, url: '/download/' + encodeURIComponent(release.file) });
+    if (!release) return res.status(store ? 200 : 404).json({ available: false, store });
+    res.json({ available: true, ...release, url: '/download/' + encodeURIComponent(release.file), store });
   });
   // Link fixo para mandar aos amigos: sempre aponta para a versão mais nova.
   router.get('/download/Resenhex-Setup.exe', (_req, res) => {

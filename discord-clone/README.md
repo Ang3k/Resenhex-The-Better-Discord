@@ -43,6 +43,8 @@ Mande para os amigos o link **`https://seu-dominio/baixar`**. Lá tem o botão d
 
   O script gera o instalador, testa, envia para o servidor e confere a versão publicada. O app dos amigos encontra a versão nova sozinho (na abertura e a cada 2 horas), baixa só o que mudou e mostra **Reiniciar para atualizar** na barra de título. Se a pessoa não clicar, a atualização entra quando ela fechar o app.
 - O que o app faz a mais que o navegador: push-to-talk com o app em segundo plano (inclusive em jogos), escolha de aplicativo ou tela com miniaturas e som do computador sem eco, selo de menções na barra de tarefas, bandeja com **Iniciar com o Windows** e **Fechar para a bandeja**, corretor em português e tela de reconexão automática.
+- **Versão da Microsoft Store (sem o aviso do Windows):** `npm run dist:store`, na pasta `desktop/`, gera `desktop/dist/Resenhex-<versão>.appx` para enviar no Partner Center. Textos, capturas e respostas para a loja estão em [`desktop/store/LOJA.md`](desktop/store/LOJA.md). Na versão da loja, quem atualiza a casca é a Microsoft Store; o site continua chegando pelo deploy normal. Depois que a loja aprovar, coloque `MS_STORE_ID=<ID da loja>` em `/etc/resenhex.env` e reinicie o serviço: o botão da página `/baixar` passa a baixar o instalador oficial da Microsoft, e o `.exe` fica como opção.
+- A política de privacidade fica em **`https://seu-dominio/privacidade`** (a loja pede esse link).
 - Para rodar a casca no seu PC durante o desenvolvimento: `cd discord-clone/desktop`, `npm install` e `npm start` (use `RESENHEX_URL=http://localhost:3000/` para apontar para o servidor local). Os problemas de atualização ficam registrados em `%APPDATA%\Resenhex\resenhex.log`.
 
 ## Servidores e convites
@@ -263,6 +265,8 @@ Depois de criar sua conta, mande aos amigos o **link de convite do servidor**, d
 | `TRUST_PROXY` | `1` quando roda atrás de um proxy HTTPS (Caddy, Nginx), para ler o IP real de quem conecta. O instalador do VPS já define |
 | `TURN_URL` | Servidor(es) TURN, separados por vírgula, ex.: `turn:meu-turn.com:3478` |
 | `TURN_USERNAME` / `TURN_CREDENTIAL` | Credenciais do TURN |
+| `DOWNLOAD_DIR` | Pasta com o instalador do app para Windows e o `latest.yml` (padrão `downloads/`; o instalador do VPS já define) |
+| `MS_STORE_ID` | ID do app na Microsoft Store (ex.: `9NBLGGH4R32N`). Com ele, a página `/baixar` entrega o instalador oficial da Microsoft |
 
 ### Voz não conecta para alguém? Configure um TURN
 

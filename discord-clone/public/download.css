@@ -46,6 +46,12 @@ body.dl-page { overflow-y: auto; overflow-x: hidden; min-height: 100%; height: a
 .dl-button.disabled { pointer-events: none; background: var(--bg-input); color: var(--text-muted); box-shadow: none; }
 .dl-button-icon { display: grid; }
 .dl-meta { margin: 0; color: var(--text-muted); font-size: 13px; }
+.dl-alt {
+  margin-top: -4px; color: var(--text); font-size: 13px; font-weight: 600;
+  text-decoration: underline; text-decoration-color: color-mix(in srgb, currentColor 35%, transparent); text-underline-offset: 3px;
+  transition: color .15s, text-decoration-color .15s;
+}
+.dl-alt:hover { color: var(--text-strong); text-decoration-color: currentColor; }
 .dl-note {
   display: flex; align-items: flex-start; gap: 8px; max-width: 520px; margin: 4px 0 0; padding: 12px 14px; border-radius: 12px;
   background: var(--bg-panel); color: var(--text); font-size: 14px; line-height: 1.5; text-align: left; box-shadow: inset 0 0 0 1px var(--divider);
@@ -59,6 +65,7 @@ body.dl-page { overflow-y: auto; overflow-x: hidden; min-height: 100%; height: a
   display: flex; flex-direction: column; gap: 10px; padding: 22px; border-radius: 16px;
   background: var(--bg-sidebar); box-shadow: inset 0 0 0 1px var(--divider);
 }
+.dl-steps li[hidden] { display: none; }
 .dl-steps h3, .dl-features h3 { margin: 0; color: var(--text-strong); font-size: 16px; font-weight: 700; }
 .dl-steps p, .dl-features p { margin: 0; color: var(--text-muted); font-size: 14px; line-height: 1.55; }
 .dl-steps strong { color: var(--text); font-weight: 600; }
@@ -90,6 +97,8 @@ body.dl-page { overflow-y: auto; overflow-x: hidden; min-height: 100%; height: a
 .dl-features article:hover .dl-feature-icon { color: var(--brand); }
 
 .dl-footer { padding: 28px 24px 36px; color: var(--text-muted); font-size: 13px; text-align: center; border-top: 1px solid var(--divider); }
+.dl-footer a { color: var(--text); text-decoration: none; }
+.dl-footer a:hover { color: var(--text-strong); text-decoration: underline; }
 
 @keyframes dl-nudge { 50% { transform: translateY(3px); } }
 @keyframes dl-pulse { 0%, 100% { opacity: 0; transform: scale(.96); } 40%, 60% { opacity: 1; transform: scale(1); } }
@@ -110,3 +119,20 @@ body.dl-page { overflow-y: auto; overflow-x: hidden; min-height: 100%; height: a
 }
 :root[data-reduce-motion=true] .dl-page *, .dl-page.reduce-motion * { animation: none !important; transition: none !important; }
 @media (prefers-reduced-motion: reduce) { .dl-page * { animation: none !important; transition: none !important; } }
+
+/* ---------- Política de privacidade ---------- */
+.pv-doc { max-width: 720px; margin: 0 auto; padding: 40px 24px 64px; color: var(--text); font-size: 15px; line-height: 1.7; }
+.pv-doc h1 { margin: 0 0 6px; color: var(--text-strong); font-size: clamp(30px, 4.4vw, 40px); font-weight: 800; line-height: 1.15; letter-spacing: -.03em; }
+.pv-doc h2 { margin: 36px 0 8px; color: var(--text-strong); font-size: 19px; font-weight: 700; letter-spacing: -.01em; }
+.pv-doc p, .pv-doc ul { margin: 0 0 12px; }
+.pv-doc ul { display: grid; gap: 8px; padding-left: 20px; list-style: disc; }
+.pv-doc li::marker { color: var(--brand); }
+.pv-doc strong { color: var(--text-strong); font-weight: 600; }
+.pv-updated { color: var(--text-muted); font-size: 13px; }
+.pv-summary {
+  margin-top: 24px !important; padding: 16px 18px; border-radius: 14px;
+  background: color-mix(in srgb, var(--brand) 10%, var(--bg-sidebar)); color: var(--text-strong);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--brand) 26%, transparent);
+}
+.pv-contact { margin-top: 36px !important; padding-top: 20px; border-top: 1px solid var(--divider); color: var(--text-muted); font-size: 14px; }
+@media (max-width: 520px) { .pv-doc { padding: 24px 16px 48px; } }

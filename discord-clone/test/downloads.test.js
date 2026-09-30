@@ -16,9 +16,9 @@ sha512: abc==
 releaseDate: '2026-09-30T12:00:00.000Z'
 `;
 
-async function serve(t, dir) {
+async function serve(t, dir, options) {
   const app = express();
-  app.use(downloadRoutes(dir));
+  app.use(downloadRoutes(dir, options));
   const server = await new Promise((resolve) => { const s = app.listen(0, '127.0.0.1', () => resolve(s)); });
   t.after(() => server.close());
   const base = `http://127.0.0.1:${server.address().port}`;
@@ -108,4 +108,22 @@ test('ignora latest.yml incompleto ou apontando para fora da pasta', async (t) =
   assert.equal(readRelease(dir), null, 'instalador ainda não enviado');
   const get = await serve(t, dir);
   assert.ok([403, 404].includes((await get('/download/..%2Fserver.js')).status));
+});
+
+test('com o ID da Microsoft Store, a página recebe o instalador oficial e o .exe continua como opção', async (t) => {
+  const dir = releaseDir(t);
+  const onlyStore = await serve(t, dir, { storeId: '9NBLGGH4R32N' });
+  const store = { id: '9NBLGGH4R32N', installer: 'https://get.microsoft.com/installer/download/9NBLGGH4R32N?cid=website_cta_psi', page: 'https://apps.microsoft.com/detail/9NBLGGH4R32N' };
+  const res = await onlyStore('/download/info');
+  assert.equal(res.status, 200);
+  assert.deepEqual(await res.json(), { available: false, store });
+
+  fs.writeFileSync(path.join(dir, 'latest.yml'), LATEST);
+  fs.writeFileSync(path.join(dir, 'Resenhex-Setup-1.2.0.exe'), 'instalador!');
+  const info = await (await onlyStore('/download/info')).json();
+  assert.equal(info.url, '/download/Resenhex-Setup-1.2.0.exe');
+  assert.deepEqual(info.store, store);
+
+  const invalid = await serve(t, dir, { storeId: 'javascript:alert(1)' });
+  assert.equal((await (await invalid('/download/info')).json()).store, null);
 });

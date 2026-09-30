@@ -34,6 +34,7 @@
           <span>Baixar para Windows</span>
         </a>
         <p class="dl-meta" id="dl-meta">Windows 10 e 11 (64 bits)</p>
+        <a class="dl-alt hidden" id="dl-direct" href="/download/Resenhex-Setup.exe" download>Prefere o instalador direto (.exe)?</a>
       </div>
       <p class="dl-note hidden" id="dl-other-os"><span data-icon="info" data-size="16"></span> O app é para computadores com Windows. No celular ou no Mac, continue usando o Resenhex pelo navegador.</p>
       <p class="dl-note hidden" id="dl-soon"><span data-icon="info" data-size="16"></span> O instalador ainda não foi publicado. Enquanto isso, use o Resenhex pelo navegador.</p>
@@ -42,12 +43,22 @@
     <section class="dl-steps" aria-labelledby="dl-steps-title">
       <h2 id="dl-steps-title">Instalar leva menos de um minuto</h2>
       <ol>
-        <li>
+        <li data-mode="store" hidden>
+          <span class="dl-step-num">1</span>
+          <h3>Abra o instalador</h3>
+          <p>Abra o arquivo que foi baixado. É o instalador oficial da <strong>Microsoft Store</strong>: ele instala o Resenhex e já abre o app.</p>
+        </li>
+        <li data-mode="store" hidden>
+          <span class="dl-step-num">2</span>
+          <h3>Sem avisos do Windows</h3>
+          <p>O Resenhex é verificado e distribuído pela Microsoft Store. Por isso, o Windows instala direto, sem tela de alerta, e o app se atualiza sozinho pela loja.</p>
+        </li>
+        <li data-mode="direct">
           <span class="dl-step-num">1</span>
           <h3>Abra o instalador</h3>
           <p>Abra o arquivo <strong>Resenhex-Setup</strong> que foi baixado. A instalação termina em poucos segundos e o app já abre sozinho.</p>
         </li>
-        <li class="dl-step-warning">
+        <li class="dl-step-warning" data-mode="direct">
           <span class="dl-step-num">2</span>
           <h3>Se o Windows avisar</h3>
           <p>A tela <strong>“O Windows protegeu o computador”</strong> aparece porque o app é novo e não tem assinatura paga. Clique em <strong>Mais informações</strong> e depois em <strong>Executar assim mesmo</strong>.</p>
@@ -73,7 +84,7 @@
     </section>
   </main>
 
-  <footer class="dl-footer">Resenhex · chat e voz para você e seus amigos</footer>
+  <footer class="dl-footer">Resenhex · chat e voz para você e seus amigos · <a href="/privacidade">Privacidade</a></footer>
 
   <script src="icons.js"></script>
   <script src="download.js"></script>

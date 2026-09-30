@@ -1,5 +1,5 @@
-// Gera os ícones do app (instalador, janela, bandeja e selos da barra de tarefas)
-// a partir do logo do Resenhex. Rode com: npm run icons
+// Gera os ícones do app (instalador, janela, bandeja, selos da barra de tarefas e
+// blocos do pacote da Microsoft Store) a partir do logo do Resenhex. Rode com: npm run icons
 const { app, BrowserWindow } = require('electron');
 const fs = require('node:fs');
 const path = require('node:path');
@@ -47,6 +47,26 @@ async function draw(logo) {
     }
     out[name] = png(c);
   }
+  // Pacote da Microsoft Store: ícones em cada escala do Windows, sobre fundo transparente.
+  const tile = (width, height, logoSize) => {
+    const c = document.createElement('canvas');
+    c.width = width; c.height = height;
+    c.getContext('2d').drawImage(img, (width - logoSize) / 2, (height - logoSize) / 2, logoSize, logoSize);
+    return png(c);
+  };
+  for (const scale of [100, 200, 400]) {
+    const k = scale / 100;
+    out[`appx/Square44x44Logo.scale-${scale}`] = tile(44 * k, 44 * k, 44 * k);
+    out[`appx/StoreLogo.scale-${scale}`] = tile(50 * k, 50 * k, 50 * k);
+    out[`appx/Square150x150Logo.scale-${scale}`] = tile(150 * k, 150 * k, 80 * k);
+    out[`appx/Wide310x150Logo.scale-${scale}`] = tile(310 * k, 150 * k, 80 * k);
+  }
+  // Barra de tarefas e menu Iniciar usam os tamanhos exatos, sem a placa colorida atrás.
+  for (const size of [16, 24, 32, 48, 256]) {
+    out[`appx/Square44x44Logo.targetsize-${size}`] = tile(size, size, size);
+    out[`appx/Square44x44Logo.targetsize-${size}_altform-unplated`] = tile(size, size, size);
+  }
+  out['store/logo-1080'] = tile(1080, 1080, 1080); // logo da página na loja
   return out;
 }
 
@@ -55,7 +75,12 @@ app.whenReady().then(async () => {
   await win.loadURL('about:blank');
   const images = await win.webContents.executeJavaScript(`(${draw})(${JSON.stringify(LOGO)})`);
   const root = path.join(__dirname, '..');
-  const target = (name) => name === 'icon-512' ? path.join(root, 'build', 'icon.png') : path.join(root, 'assets', (name === 'icon-256' ? 'icon' : name) + '.png');
+  const target = (name) => {
+    if (name === 'icon-512') return path.join(root, 'build', 'icon.png');
+    if (name.startsWith('appx/')) return path.join(root, 'build', name + '.png');
+    if (name.startsWith('store/')) return path.join(root, name + '.png');
+    return path.join(root, 'assets', (name === 'icon-256' ? 'icon' : name) + '.png');
+  };
   for (const [name, data] of Object.entries(images)) {
     fs.mkdirSync(path.dirname(target(name)), { recursive: true });
     fs.writeFileSync(target(name), Buffer.from(data, 'base64'));

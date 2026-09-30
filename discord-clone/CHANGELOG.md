@@ -13,6 +13,7 @@ _30/09/2026_
 - Selo de menções na barra de tarefas, piscar ao ser mencionado, bandeja com “Iniciar com o Windows” e “Fechar para a bandeja”, corretor ortográfico em português e menu de copiar/colar.
 - Tela de reconexão quando o servidor não responde, com nova tentativa automática.
 - Servidor: rota `/download` (instalador, `latest.yml` e respostas com várias faixas de bytes para a atualização diferencial), link fixo `/download/Resenhex-Setup.exe` e página `/baixar`.
+- Microsoft Store: pacote MSIX (`npm run dist:store`), página `/privacidade` e `MS_STORE_ID`, que faz a página `/baixar` entregar o instalador oficial da Microsoft, sem o aviso do Windows. Na versão da loja, a própria Store atualiza o app, e “Iniciar com o Windows” abre a tela de inicialização do Windows.
 
 ## v0.96 — Tela no bolso
 _30/09/2026_

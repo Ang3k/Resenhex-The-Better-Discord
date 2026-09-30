@@ -10,6 +10,7 @@
     "start": "electron .",
     "icons": "electron tools/render-icons.js",
     "dist": "electron-builder --win --publish never",
+    "dist:store": "electron-builder --win appx --x64 --publish never -c.toolsets.winCodeSign=1.1.0",
     "test": "node --test"
   },
   "dependencies": {
@@ -57,6 +58,27 @@
       "shortcutName": "Resenhex",
       "uninstallDisplayName": "Resenhex",
       "deleteAppDataOnUninstall": false
+    },
+    "appx": {
+      "identityName": "AngelD.Mansilla.Resenhex",
+      "publisher": "CN=4BC4D576-D0B2-432B-9D0E-7075FE88F1BE",
+      "publisherDisplayName": "Angel D. Mansilla",
+      "applicationId": "Resenhex",
+      "displayName": "Resenhex",
+      "backgroundColor": "transparent",
+      "languages": [
+        "pt-BR"
+      ],
+      "capabilities": [
+        "runFullTrust",
+        "internetClient",
+        "microphone",
+        "webcam"
+      ],
+      "minVersion": "10.0.19041.0",
+      "maxVersionTested": "10.0.26100.0",
+      "customExtensionsPath": "build/appx-extensions.xml",
+      "artifactName": "Resenhex-${version}.${ext}"
     },
     "publish": [
       {

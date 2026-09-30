@@ -341,8 +341,9 @@ app.use((req, _res, next) => {
   communities.run(req.get('x-server-id') || account?.lastServerId || communities.root.defaultServerId, next);
 });
 app.use(express.static(path.join(__dirname, 'public')));
-app.use(downloadRoutes(DOWNLOAD_DIR));
+app.use(downloadRoutes(DOWNLOAD_DIR, { storeId: process.env.MS_STORE_ID }));
 app.get('/baixar', (_req, res) => res.sendFile(path.join(__dirname, 'public', 'baixar.html')));
+app.get('/privacidade', (_req, res) => res.sendFile(path.join(__dirname, 'public', 'privacidade.html')));
 // Supressão de ruído por IA (RNNoise e GTCRN compilados para WebAssembly), usada no navegador.
 app.use('/vendor/noise', express.static(path.dirname(require.resolve('@sapphi-red/web-noise-suppressor')), { maxAge: '7d' }));
 app.get('/config', (_req, res) => {

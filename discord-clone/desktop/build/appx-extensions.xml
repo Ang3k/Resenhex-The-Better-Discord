@@ -1,0 +1,4 @@
+        <!-- Aparece desligado em Configurações > Apps > Inicialização; quem ligar abre o app direto na bandeja. -->
+        <desktop:Extension xmlns:uap10="http://schemas.microsoft.com/appx/manifest/uap/windows10/10" Category="windows.startupTask" Executable="app\Resenhex.exe" EntryPoint="Windows.FullTrustApplication" uap10:Parameters="--startup">
+          <desktop:StartupTask TaskId="ResenhexStartup" Enabled="false" DisplayName="Resenhex" />
+        </desktop:Extension>
