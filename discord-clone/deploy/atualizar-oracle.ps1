@@ -78,7 +78,7 @@ try {
     $update = "sudo mkdir -p /var/backups/resenhex && sudo tar -czf $backup -C /var/lib/resenhex data.json uploads && sudo ${setDomain}bash $remoteStage/discord-clone/deploy/instalar-vps.sh --oracle && systemctl is-active resenhex caddy coturn"
     Run 'ssh.exe' ($sshArgs + @($update))
 
-    $siteDomain = (& ssh.exe @sshArgs "sed -n 's/^RESENHEX_DOMAIN=//p' /etc/resenhex.env | tail -n 1" | Out-String).Trim()
+    $siteDomain = (& ssh.exe @sshArgs "sudo sed -n 's/^RESENHEX_DOMAIN=//p' /etc/resenhex.env | tail -n 1" | Out-String).Trim()
     if ($siteDomain -notmatch '^[a-z0-9.-]+$') { $siteDomain = "$($Server.Replace('.', '-')).sslip.io" }
     $url = "https://$siteDomain"
     Run 'curl.exe' @('-fLsS', '--max-time', '20', '--output', 'NUL', "$url/config")
