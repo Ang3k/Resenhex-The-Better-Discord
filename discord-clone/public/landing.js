@@ -10,7 +10,7 @@
   const windows = /Windows NT/i.test(ua) && !/Mobile|Xbox/i.test(ua);
   for (const link of landing.querySelectorAll('.ld-download')) link.classList.toggle('hidden', !windows);
   // Sem app para o sistema de quem visita, abrir no navegador vira o botão principal.
-  if (!windows) landing.querySelector('.ld-hero .ld-open').classList.replace('ld-btn-dark', 'ld-btn-light');
+  if (!windows) for (const open of landing.querySelectorAll('.ld-open')) open.classList.replace('ld-btn-dark', 'ld-btn-light');
 
   function route() {
     const mode = MODES[location.hash];
