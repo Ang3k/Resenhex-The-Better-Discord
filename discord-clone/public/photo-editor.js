@@ -1,11 +1,13 @@
-// Square framing shared by static photos and animated GIFs.
+// Framing shared by profile photos (square) and banners (5:2), static or animated GIFs.
 window.PhotoEditor = (() => {
   let active = null;
   const clamp = (value, min, max) => Math.min(max, Math.max(min, value));
   const normal = (crop) => ({ x: clamp(Number(crop?.x ?? .5), 0, 1), y: clamp(Number(crop?.y ?? .5), 0, 1), zoom: clamp(Number(crop?.zoom ?? 1), 1, 4) });
-  function rect(width, height, crop) {
-    const c = normal(crop), side = Math.min(width, height) / c.zoom;
-    return { x: (width - side) * c.x, y: (height - side) * c.y, side };
+  // Area of the original image shown by the frame: `aspect` is width / height of the frame.
+  function rect(width, height, crop, aspect = 1) {
+    const c = normal(crop), cover = Math.min(width, height * aspect);
+    const w = cover / c.zoom, h = cover / aspect / c.zoom;
+    return { x: (width - w) * c.x, y: (height - h) * c.y, w, h, side: w };
   }
   function style(image, crop) {
     const c = normal(crop);
@@ -16,7 +18,12 @@ window.PhotoEditor = (() => {
     Object.assign(element, props); element.append(...children); return element;
   };
   function cancel() { if (active) { active.cancelled = true; active.close?.(null); } }
-  async function edit({ file, url, crop }) {
+  const KINDS = {
+    photo: { aspect: 1, width: 256, height: 256, maxGifSide: 1024, title: 'Ajustar foto', text: 'Arraste a imagem e ajuste o zoom. A área circular mostra como ficará seu perfil.' },
+    banner: { aspect: 5 / 2, width: 600, height: 240, maxGifSide: 1500, title: 'Ajustar banner', text: 'Arraste a imagem e ajuste o zoom. A área destacada mostra como o banner aparece no seu perfil.' },
+  };
+  async function edit({ file, url, crop, kind = 'photo' }) {
+    const k = KINDS[kind];
     cancel();
     const session = { cancelled: false, close: null }; active = session;
     let sourceUrl;
@@ -25,16 +32,17 @@ window.PhotoEditor = (() => {
       const gif = blob.type === 'image/gif';
       if (!['image/png', 'image/jpeg', 'image/webp', 'image/gif'].includes(blob.type) || blob.size > (gif ? 5 : 8) * 1024 * 1024) throw new Error('Use PNG, JPG ou WebP de até 8 MB, ou GIF de até 5 MB.');
       sourceUrl = URL.createObjectURL(blob);
-      const image = node('img', { src: sourceUrl, alt: 'Prévia da foto', draggable: false });
+      const image = node('img', { src: sourceUrl, alt: kind === 'banner' ? 'Prévia do banner' : 'Prévia da foto', draggable: false });
       await new Promise((resolve, reject) => { image.onload = resolve; image.onerror = () => reject(new Error('Não foi possível abrir essa imagem.')); });
       if (!image.naturalWidth || image.naturalWidth * image.naturalHeight > 40_000_000) throw new Error('A foto deve ter até 40 megapixels.');
-      if (gif && Math.max(image.naturalWidth, image.naturalHeight) > 1024) throw new Error('O GIF deve ter até 1024 pixels de largura e altura.');
+      if (gif && Math.max(image.naturalWidth, image.naturalHeight) > k.maxGifSide) throw new Error(`O GIF deve ter até ${k.maxGifSide} pixels de largura e altura.`);
       if (session.cancelled) return null;
       return await new Promise((resolve) => {
         const returnFocus = document.activeElement, settings = document.getElementById('settings');
         const previousInert = settings.inert; settings.inert = true;
         let c = normal(crop), dragging = null, done = false;
-        const view = node('div', { className: 'photo-crop-view' }, image, node('div', { className: 'photo-crop-mask' }));
+        const view = node('div', { className: 'photo-crop-view ' + kind }, image, node('div', { className: 'photo-crop-mask' }));
+        view.style.aspectRatio = String(k.aspect);
         const output = node('output');
         const zoom = node('input', { type: 'range', min: 1, max: 4, step: .01, value: c.zoom });
         const x = node('input', { type: 'range', min: 0, max: 1, step: .01, value: c.x });
@@ -58,17 +66,18 @@ window.PhotoEditor = (() => {
         const apply = node('button', { type: 'button', className: 'btn-primary', textContent: 'Usar este enquadramento', onclick: async () => {
           apply.disabled = true;
           if (gif) return close({ blob, crop: { ...c }, frame: { ...c } });
-          const canvas = document.createElement('canvas'); canvas.width = canvas.height = 256;
-          const r = rect(image.naturalWidth, image.naturalHeight, c);
-          canvas.getContext('2d').drawImage(image, r.x, r.y, r.side, r.side, 0, 0, 256, 256);
+          const canvas = document.createElement('canvas'); canvas.width = k.width; canvas.height = k.height;
+          const r = rect(image.naturalWidth, image.naturalHeight, c, k.aspect), ctx = canvas.getContext('2d');
+          ctx.imageSmoothingQuality = 'high';
+          ctx.drawImage(image, r.x, r.y, r.w, r.h, 0, 0, k.width, k.height);
           const result = await new Promise((r) => canvas.toBlob(r, 'image/png'));
           if (!result) { apply.disabled = false; return; }
           close({ blob: result, crop: null, frame: { ...c } });
         } });
         const overlay = node('div', { className: 'confirm-overlay photo-crop-overlay', onmousedown: (event) => { if (event.target === overlay) close(null); } },
           node('div', { className: 'photo-crop-card', role: 'dialog' },
-            node('h2', { id: 'photo-crop-title', textContent: 'Ajustar foto' }),
-            node('p', { textContent: 'Arraste a imagem e ajuste o zoom. A área circular mostra como ficará seu perfil.' }), view,
+            node('h2', { id: 'photo-crop-title', textContent: k.title }),
+            node('p', { textContent: k.text }), view,
             node('label', {}, node('span', { textContent: 'Zoom' }), output, zoom),
             node('div', { className: 'photo-crop-position' }, node('label', {}, 'Posição horizontal', x), node('label', {}, 'Posição vertical', y)),
             gif ? node('p', { className: 'hint', textContent: 'A animação do GIF será mantida.' }) : node('span'),
@@ -79,8 +88,9 @@ window.PhotoEditor = (() => {
         view.onpointerdown = (event) => { if (event.button !== 0) return; dragging = { px: event.clientX, py: event.clientY, ...c }; view.setPointerCapture(event.pointerId); };
         view.onpointermove = (event) => {
           if (!dragging) return;
-          const size = view.clientWidth, min = Math.min(image.naturalWidth, image.naturalHeight);
-          const dx = image.naturalWidth / min * size * c.zoom - size, dy = image.naturalHeight / min * size * c.zoom - size;
+          // Pixels of the frame per pixel of the original image, before zoom.
+          const scale = view.clientWidth / Math.min(image.naturalWidth, image.naturalHeight * k.aspect);
+          const dx = image.naturalWidth * scale * c.zoom - view.clientWidth, dy = image.naturalHeight * scale * c.zoom - view.clientHeight;
           c.x = dx > 0 ? clamp(dragging.x - (event.clientX - dragging.px) / dx, 0, 1) : .5;
           c.y = dy > 0 ? clamp(dragging.y - (event.clientY - dragging.py) / dy, 0, 1) : .5; refresh();
         };

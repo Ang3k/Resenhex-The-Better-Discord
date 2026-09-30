@@ -179,32 +179,18 @@
 
   // Ícone do servidor na faixa lateral e na aba do navegador.
   const DEFAULT_FAVICON = document.querySelector('link[rel=icon]')?.href;
-  // Banner do perfil. Imagens comuns são recortadas no centro na proporção 5:2 (600×240) e viram PNG.
-  // GIF vai inteiro, sem recorte, para não perder a animação; o servidor confere o arquivo de novo.
-  const BANNER_MAX_GIF = 5 * 1024 * 1024;
-  async function prepareBanner(file) {
-    const isGif = file.type === 'image/gif';
-    if (!['image/png', 'image/jpeg', 'image/webp', 'image/gif'].includes(file.type) || file.size > (isGif ? BANNER_MAX_GIF : 8 * 1024 * 1024)) throw new Error('type');
-    const bitmap = await createImageBitmap(file);
-    try {
-      if (!bitmap.width || !bitmap.height || bitmap.width * bitmap.height > 40_000_000) throw new Error('image-size');
-      if (isGif) {
-        if (bitmap.width > 1500 || bitmap.height > 1500) throw new Error('gif-size');
-        return file;
-      }
-      const canvas = document.createElement('canvas');
-      canvas.width = 600;
-      canvas.height = 240;
-      const ratio = 600 / 240;
-      const w = bitmap.width / bitmap.height > ratio ? bitmap.height * ratio : bitmap.width;
-      const h = bitmap.width / bitmap.height > ratio ? bitmap.height : bitmap.width / ratio;
-      const ctx = canvas.getContext('2d');
-      ctx.imageSmoothingQuality = 'high';
-      ctx.drawImage(bitmap, (bitmap.width - w) / 2, (bitmap.height - h) / 2, w, h, 0, 0, 600, 240);
-      return await new Promise((resolve, reject) => canvas.toBlob((blob) => (blob ? resolve(blob) : reject(new Error('encode'))), 'image/png'));
-    } finally {
-      bitmap.close();
-    }
+  // Banner do perfil. PNG/JPG/WebP chegam recortados pelo editor; GIF vai inteiro com o enquadramento (crop).
+  // A imagem é um <img> dentro do banner para o enquadramento valer em qualquer tamanho de tela.
+  function setBannerContents(node, url, crop) {
+    const key = (url || '') + ':' + JSON.stringify(crop || null);
+    if (node.dataset.bannerKey === key) return;
+    node.dataset.bannerKey = key;
+    node.querySelector(':scope > .profile-banner-image')?.remove();
+    if (!url) return;
+    const image = el('img', { class: 'profile-banner-image', src: url, alt: '', decoding: 'async', draggable: false });
+    window.PhotoEditor?.style(image, crop);
+    image.onerror = () => image.remove();
+    node.prepend(image);
   }
 
   function renderServerIcon() {
@@ -2697,12 +2683,13 @@
     card.style.setProperty('--pc-color', color);
     // O banner é reaproveitado enquanto for o mesmo: refazê-lo reiniciaria a animação de um GIF a cada atualização.
     let banner = card.querySelector(':scope > .pc-banner');
-    const bannerKey = m.id + '|' + (m.bannerUrl || '');
+    const bannerKey = m.id + '|' + (m.bannerUrl || '') + '|' + JSON.stringify(m.bannerCrop || null);
     if (!banner || banner.dataset.key !== bannerKey) {
-      banner = el('div', { class: 'pc-banner', data: { key: bannerKey }, style: m.bannerUrl ? { backgroundImage: `url("${m.bannerUrl}")` } : {} },
+      banner = el('div', { class: 'pc-banner', data: { key: bannerKey } },
         el('div', { class: 'pc-top-actions' },
           el('button', { type: 'button', class: 'pc-icon-btn', tip: 'Mais', ariaLabel: 'Mais ações', onclick: (e) => { const r = e.currentTarget.getBoundingClientRect(); openMemberMenu(m.id, { preventDefault() {}, stopPropagation() {}, clientX: r.left, clientY: r.bottom + 6 }); } }, el('span', { class: 'kebab', textContent: '⋯' }))));
     }
+    setBannerContents(banner, m.bannerUrl, m.bannerCrop);
     let avatarRow = card.querySelector(':scope > .pc-avatar-row');
     if (!avatarRow) avatarRow = el('div', { class: 'pc-avatar-row' }, el('div', { class: 'pc-avatar' }, avatar(m), el('span', { class: 'pc-status' })));
     setAvatarContents(avatarRow.querySelector('.avatar'), m.avatarUrl, m.name, m.avatarCrop);
@@ -4146,8 +4133,9 @@
   let cameraPreview = null;
   let avatarReadEpoch = 0;
   let bannerReadEpoch = 0;
-  const BANNER_HINT = 'Imagem PNG, JPG ou WebP (recortada no centro) ou GIF animado de até 5 MB. Salve para aplicar.';
-  let pendingBanner = null; // { blob, url }: banner escolhido e ainda não enviado
+  const BANNER_HINT = 'PNG, JPG ou WebP de até 8 MB, ou GIF animado de até 5 MB. Ajuste o enquadramento e salve para aplicar.';
+  let pendingBanner = null; // { blob, url, frame }: banner escolhido e ainda não enviado
+  let bannerSource = null; // arquivo original, para reajustar sem recortar o recorte
   const PHOTO_HINT = 'PNG, JPG ou WebP de até 8 MB, ou GIF animado de até 5 MB. Ajuste o enquadramento e salve para aplicar.';
   let pendingAvatar = null;
   let avatarSource = null;
@@ -4166,14 +4154,14 @@
     $('#profile-avatar-crop').value = body.avatarCrop ? JSON.stringify(body.avatarCrop) : '';
     setPendingAvatar(null); avatarSource = null;
   }
-  function setPendingBanner(blob) {
+  function setPendingBanner(result) {
     if (pendingBanner) URL.revokeObjectURL(pendingBanner.url);
-    pendingBanner = blob ? { blob, url: URL.createObjectURL(blob) } : null;
+    pendingBanner = result ? { ...result, url: URL.createObjectURL(result.blob) } : null;
     return pendingBanner?.url || '';
   }
   // O banner é enviado por HTTP (imagens são maiores que o limite das mensagens do socket).
-  async function saveBanner(value) {
-    const headers = { 'x-token': localStorage.getItem('token') };
+  async function saveBanner(value, crop) {
+    const headers = { 'x-token': localStorage.getItem('token'), 'x-banner-crop': crop || 'null' };
     if (value && !pendingBanner) throw new Error('Escolha o banner de novo antes de salvar.');
     let res;
     try {
@@ -4182,10 +4170,11 @@
     const body = await res.json().catch(() => ({}));
     if (!res.ok) throw new Error(body.error || 'O banner não foi salvo. Tente novamente.');
     $('#profile-banner').value = body.bannerUrl || '';
-    setPendingBanner(null);
+    $('#profile-banner-crop').value = body.bannerCrop ? JSON.stringify(body.bannerCrop) : '';
+    setPendingBanner(null); bannerSource = null;
   }
   const settingFields = {
-    'profile-color': 'color', 'profile-avatar': 'avatar', 'profile-avatar-crop': 'avatarCrop', 'profile-banner': 'banner', 'mic-select': 'micDeviceId', 'speaker-select': 'speakerDeviceId',
+    'profile-color': 'color', 'profile-avatar': 'avatar', 'profile-avatar-crop': 'avatarCrop', 'profile-banner': 'banner', 'profile-banner-crop': 'bannerCrop', 'mic-select': 'micDeviceId', 'speaker-select': 'speakerDeviceId',
     'camera-select': 'cameraDeviceId', 'noise-mode': 'noiseMode', 'echo-toggle': 'echoCancellation',
     'sens-auto': 'sensAuto', 'sens-range': 'sensThreshold', 'input-mode': 'inputMode',
     'ptt-code': 'pttCode', 'ptt-label': 'pttLabel', 'upload-select': 'uploadMbps',
@@ -4204,7 +4193,7 @@
   for (const id of ['mic-select', 'speaker-select', 'camera-select']) document.getElementById(id).replaceChildren(new Option('Padrão do sistema', ''));
 
   function readPreferences() {
-    return { ...state, color: meMember()?.color || '#5865f2', avatar: meMember()?.avatarUrl || '', avatarCrop: meMember()?.avatarCrop ? JSON.stringify(meMember().avatarCrop) : '', banner: meMember()?.bannerUrl || '', sounds: Sounds.enabled,
+    return { ...state, color: meMember()?.color || '#5865f2', avatar: meMember()?.avatarUrl || '', avatarCrop: meMember()?.avatarCrop ? JSON.stringify(meMember().avatarCrop) : '', banner: meMember()?.bannerUrl || '', bannerCrop: meMember()?.bannerCrop ? JSON.stringify(meMember().bannerCrop) : '', sounds: Sounds.enabled,
       soundboard: !state.sbMuted, sbVolume: Math.round(state.sbVolume * 100),
       inputMode: state.ptt.enabled ? 'ptt' : 'voice', pttCode: state.ptt.code, pttLabel: state.ptt.label };
   }
@@ -4217,8 +4206,9 @@
       $('#profile-photo-adjust').disabled ||= !values.avatar || $('#profile-avatar').disabled;
     }
     if (values.banner !== undefined) {
-      $('#profile-preview-banner').style.backgroundImage = values.banner ? `url("${values.banner}")` : '';
+      setBannerContents($('#profile-preview-banner'), values.banner, values.bannerCrop ? JSON.parse(values.bannerCrop) : null);
       $('#profile-banner-remove').disabled ||= !values.banner || $('#profile-banner').disabled;
+      $('#profile-banner-adjust').disabled ||= !values.banner || $('#profile-banner').disabled;
     }
   }
   previewAppearance(state);
@@ -4284,8 +4274,8 @@
         throw new Error('O perfil não foi salvo. Verifique a conexão e tente novamente.');
       }
     }
-    if (values.banner !== (meMember().bannerUrl || '')) {
-      try { await saveBanner(values.banner); }
+    if (values.banner !== (meMember().bannerUrl || '') || values.bannerCrop !== (meMember().bannerCrop ? JSON.stringify(meMember().bannerCrop) : '')) {
+      try { await saveBanner(values.banner, values.bannerCrop); }
       catch (error) {
         if (micChanged) await restartMic(state).catch(() => mediaNotice('Confira o microfone antes de continuar.'));
         throw error;
@@ -4317,7 +4307,7 @@
     onOpen: async () => {
       $('#profile-preview-name').textContent = meMember().username || meMember().name;
       setAvatarContents($('#profile-preview-avatar'), $('#profile-avatar').value, meMember().name, meMember().avatarCrop);
-      $('#profile-preview-banner').style.backgroundImage = $('#profile-banner').value ? `url("${$('#profile-banner').value}")` : '';
+      setBannerContents($('#profile-preview-banner'), $('#profile-banner').value, meMember().bannerCrop);
       $('#ptt-key').textContent = state.ptt.label;
       $('#settings-server-link').classList.toggle('hidden', !canAdmin());
       notificationHelp();
@@ -4327,7 +4317,7 @@
       await fillDevices();
     }, onClose: () => {
       stopSettingsTests();
-      setPendingBanner(null);
+      setPendingBanner(null); bannerSource = null;
       setPendingAvatar(null); avatarSource = null;
       // Ouvir devicechange mantém o serviço de câmeras do navegador aberto (dezenas de MB);
       // só vale enquanto a lista de dispositivos está na tela. Descartar chama onClose com o painel aberto.
@@ -4373,35 +4363,38 @@
   $('#profile-banner-choose').onclick = () => $('#profile-banner-file').click();
   $('#profile-banner-remove').onclick = () => {
     bannerReadEpoch++;
-    setPendingBanner(null);
+    setPendingBanner(null); bannerSource = null;
     $('#profile-banner').value = '';
+    $('#profile-banner-crop').value = '';
     $('#profile-banner-status').textContent = 'Banner removido da prévia. Salve para aplicar ou descarte para manter o banner anterior.';
     preferences.refresh();
   };
-  $('#profile-banner-file').onchange = async (event) => {
-    const file = event.target.files[0];
-    event.target.value = '';
-    if (!file) return;
+  async function editProfileBanner(source, crop) {
     const epoch = ++bannerReadEpoch;
     const status = $('#profile-banner-status');
-    if (!['image/png', 'image/jpeg', 'image/webp', 'image/gif'].includes(file.type)) { status.textContent = 'Escolha uma imagem PNG, JPG, WebP ou GIF.'; return; }
-    if (file.size > (file.type === 'image/gif' ? BANNER_MAX_GIF : 8 * 1024 * 1024)) {
-      status.textContent = file.type === 'image/gif' ? 'O GIF do banner deve ter até 5 MB.' : 'Escolha uma imagem de até 8 MB.';
-      return;
-    }
     preferences.setProcessing(true);
     status.textContent = 'Preparando seu banner…';
     try {
-      const blob = await prepareBanner(file);
-      if (epoch !== bannerReadEpoch || !preferences.isOpen()) return;
-      $('#profile-banner').value = setPendingBanner(blob);
+      const result = await PhotoEditor.edit({ ...source, crop, kind: 'banner' });
+      if (epoch !== bannerReadEpoch || !preferences.isOpen() || !result) return;
+      bannerSource = source;
+      $('#profile-banner').value = setPendingBanner(result);
+      $('#profile-banner-crop').value = result.crop ? JSON.stringify(result.crop) : '';
       status.textContent = 'Banner pronto na prévia. Clique em Salvar alterações para usar no seu perfil.';
       preferences.refresh();
     } catch (error) {
-      if (epoch === bannerReadEpoch) status.textContent = error.message === 'gif-size' ? 'Esse GIF é grande demais. Use até 1500 × 1500 px.' : 'Não foi possível abrir essa imagem. Tente outra (até 40 megapixels).';
+      if (epoch === bannerReadEpoch) status.textContent = error.message || 'Não foi possível abrir essa imagem.';
     } finally {
       if (epoch === bannerReadEpoch) preferences.setProcessing(false);
     }
+  }
+  $('#profile-banner-file').onchange = (event) => {
+    const file = event.target.files[0]; event.target.value = '';
+    if (file) editProfileBanner({ file });
+  };
+  $('#profile-banner-adjust').onclick = () => {
+    const crop = $('#profile-banner-crop').value;
+    editProfileBanner(bannerSource || { url: $('#profile-banner').value }, pendingBanner?.frame || (crop ? JSON.parse(crop) : null));
   };
   $('#settings-server-link').onclick = () => { if (preferences.close()) openServerSettings(); };
   $('#btn-logout').onclick = async () => { if (!preferences.close()) return; const result = await call('logout', { token: localStorage.getItem('token') }); if (result) { localStorage.removeItem('token'); location.reload(); } };

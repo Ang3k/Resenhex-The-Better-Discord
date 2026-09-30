@@ -3,6 +3,12 @@
 Histórico de versões. A mesma lista aparece dentro do app em **Novidades** (menu do servidor ou rodapé das Configurações).
 O Resenhex ainda está antes da 1.0.
 
+## v0.99.1 — Ajuste do banner do perfil
+_30/09/2026_
+
+- Ao escolher um banner, o editor abre na proporção do perfil: arraste a imagem e ajuste o zoom.
+- **Ajustar banner**, em Meu perfil, reabre o enquadramento. GIFs animados também podem ser enquadrados sem perder a animação.
+
 ## v0.99 — Apelidos por servidor
 _30/09/2026_
 

@@ -4,6 +4,17 @@
 // O título deve destacar as principais funcionalidades ou correções, com termos objetivos.
 window.CHANGELOG = [
   {
+    version: '0.99.1', date: '2026-09-30', name: 'Ajuste do banner do perfil',
+    summary: 'Enquadre o banner do perfil com zoom e posição, do mesmo jeito que a foto.',
+    sections: [
+      { kind: 'new', items: [
+        'Ao escolher um banner, abre o editor: arraste a imagem e ajuste o zoom na proporção em que ele aparece no perfil.',
+        'O botão “Ajustar banner”, em Meu perfil, reabre o enquadramento a qualquer momento.',
+        'GIFs animados também podem ser enquadrados e continuam animados.',
+      ] },
+    ],
+  },
+  {
     version: '0.99', date: '2026-09-30', name: 'Apelidos por servidor',
     summary: 'Escolha um nome diferente em cada servidor, mantendo o nome de usuário da sua conta.',
     sections: [

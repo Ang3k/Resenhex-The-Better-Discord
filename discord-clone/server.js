@@ -459,14 +459,17 @@ app.post('/profile/banner', express.raw({ type: () => true, limit: MAX_BANNER_UP
   if (!allow('banner:' + acc.id, 10, 60 * 1000)) return res.status(429).json({ error: 'Muitas trocas de banner. Aguarde um minuto.' });
   try {
     const { ext, data } = decodeBanner(req.body);
+    // PNG chega já recortado; GIF vai inteiro e guarda só o enquadramento, para manter a animação.
+    const crop = ext === 'gif' ? validateAvatarCrop(JSON.parse(req.get('x-banner-crop') || 'null')) : null;
     const file = crypto.createHash('sha256').update(data).digest('hex') + '.' + ext;
     fs.writeFileSync(path.join(AVATAR_DIR, file), data);
     const previous = acc.banner;
     acc.banner = file;
+    acc.bannerCrop = crop;
     save();
     broadcastState();
     if (previous !== file) removeImageIfUnused(previous);
-    res.json({ ok: true, bannerUrl: '/avatars/' + file });
+    res.json({ ok: true, bannerUrl: '/avatars/' + file, bannerCrop: crop });
   } catch (err) {
     res.status(400).json({ error: err.message });
   }
@@ -476,10 +479,11 @@ app.delete('/profile/banner', (req, res) => {
   if (!acc) return res.status(401).json({ error: 'Não autenticado' });
   const previous = acc.banner;
   acc.banner = null;
+  acc.bannerCrop = null;
   save();
   broadcastState();
   removeImageIfUnused(previous);
-  res.json({ ok: true, bannerUrl: null });
+  res.json({ ok: true, bannerUrl: null, bannerCrop: null });
 });
 
 app.post('/upload', express.raw({ type: () => true, limit: MAX_UPLOAD_MB * 1024 * 1024 }), (req, res) => {
@@ -559,6 +563,7 @@ function publicMember(a, onlineIds) {
     avatarUrl: a.avatar ? '/avatars/' + a.avatar : null,
     avatarCrop: a.avatarCrop || null,
     bannerUrl: a.banner ? '/avatars/' + a.banner : null,
+    bannerCrop: a.banner && a.bannerCrop || null,
     since: a.createdAt || null,
     roles: a.roles,
     online: onlineIds.has(a.id),

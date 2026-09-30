@@ -115,3 +115,22 @@ test('banner: two people with the same image share one file, which stays until b
   await send(base, 'DELETE', beto.token);
   assert.equal((await fetch(base + a.bannerUrl)).status, 404);
 });
+
+test('banner: a GIF keeps its framing for everyone, a PNG arrives already cropped and never keeps one', async (t) => {
+  const { base, connect } = await startServer(t);
+  const ana = await connect('Ana');
+  const beto = await connect('Beto');
+  const framed = (crop, body) => fetch(base + '/profile/banner', { method: 'POST', headers: { 'x-token': ana.token, 'x-banner-crop': JSON.stringify(crop) }, body });
+  const cropOf = () => beto.last.members.find((m) => m.id === ana.accountId).bannerCrop;
+
+  assert.equal((await framed({ x: 2, y: 0.5, zoom: 1 }, TINY_GIF)).status, 400);
+  const gif = await (await framed({ x: 0.2, y: 0.8, zoom: 1.5 }, TINY_GIF)).json();
+  assert.deepEqual(gif.bannerCrop, { x: 0.2, y: 0.8, zoom: 1.5 });
+  await wait();
+  assert.deepEqual(cropOf(), { x: 0.2, y: 0.8, zoom: 1.5 });
+
+  const png = await (await framed({ x: 0.2, y: 0.8, zoom: 1.5 }, bannerPng())).json();
+  assert.equal(png.bannerCrop, null);
+  await wait();
+  assert.equal(cropOf(), null);
+});
