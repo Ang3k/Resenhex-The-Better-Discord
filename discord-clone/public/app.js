@@ -193,6 +193,32 @@
     image.onerror = () => image.remove();
     node.prepend(image);
   }
+  // Fundo do perfil, atrás do nome e das informações (`node` é a camada, `host` o cartão inteiro).
+  // O tom médio do topo da imagem pinta o anel da foto e a borda do status, para combinarem com o fundo.
+  function setBackgroundContents(node, host, url, crop) {
+    const key = (url || '') + ':' + JSON.stringify(crop || null);
+    if (node.dataset.bgKey === key) return;
+    node.dataset.bgKey = key;
+    node.querySelector(':scope > .profile-bg-image')?.remove();
+    host.classList.toggle('has-bg', !!url);
+    host.style.removeProperty('--pc-surface');
+    if (!url) return;
+    const image = el('img', { class: 'profile-bg-image', src: url, alt: '', decoding: 'async', draggable: false });
+    window.PhotoEditor?.style(image, crop);
+    image.onload = () => { const tone = topTone(image); if (tone && node.dataset.bgKey === key) host.style.setProperty('--pc-surface', tone); };
+    image.onerror = () => { image.remove(); if (node.dataset.bgKey === key) host.classList.remove('has-bg'); };
+    node.prepend(image);
+  }
+  function topTone(image) {
+    try {
+      const canvas = el('canvas', { width: 8, height: 3 }), ctx = canvas.getContext('2d', { willReadFrequently: true });
+      ctx.drawImage(image, 0, 0, image.naturalWidth, image.naturalHeight * .3, 0, 0, 8, 3);
+      const data = ctx.getImageData(0, 0, 8, 3).data, sum = [0, 0, 0];
+      for (let i = 0; i < data.length; i += 4) for (let c = 0; c < 3; c++) sum[c] += data[i + c];
+      // Escurece como o véu que fica por cima do fundo.
+      return `rgb(${sum.map((total) => Math.round(total / (data.length / 4) * .45)).join(', ')})`;
+    } catch { return null; }
+  }
 
   function renderServerIcon() {
     const url = state.server?.serverIcon || '';
@@ -337,7 +363,7 @@
   const callSounds = () => callInfo()?.soundboard || state.server.soundboard || [];
   const inCallServer = () => !callInfo() || callInfo().serverId === state.server.serverId;
   // DJ da chamada (music.js): fila de músicas do YouTube tocando junto para a sala.
-  const dj = MusicDJ({ state, el, Icon, toast, call, callInfo, callPerm, callMe, timedOut, callChannelName });
+  const dj = MusicDJ({ state, el, Icon, toast, call, callInfo, callPerm, callMe, timedOut, callChannelName, pin: (key, force) => togglePin(key, force) });
   // Conversa privada: id "dm-<conta>-<conta>". Aparece como um canal de texto, com a outra pessoa em "peer".
   const isDm = (id) => typeof id === 'string' && id.startsWith('dm-');
   const dmPeerId = (id) => id.slice(3).split('-').find((x) => x !== state.me?.accountId);
@@ -1857,6 +1883,10 @@
       t.classList.toggle('pinned', t.dataset.key === state.pinned);
       t.classList.toggle('focus', state.pinned ? t.dataset.key === state.pinned : t.classList.contains('screen'));
     }
+    // Zoom (stream-zoom.js) na tela em destaque ou em tela cheia, no computador.
+    for (const t of tiles) {
+      if (t.classList.contains('screen')) streamZoom.sync(t, !mobileStream.touch && !!t.querySelector('video').srcObject && (t.classList.contains('focus') || document.fullscreenElement === t));
+    }
     const order = [...tiles.filter((t) => t.classList.contains('focus')), ...tiles.filter((t) => !t.classList.contains('focus'))];
     order.forEach((t, i) => { if (stage.children[i] !== t) stage.insertBefore(t, stage.children[i] || null); });
     applyAudio();
@@ -1868,12 +1898,15 @@
   function setupTile(tile) {
     // Clique fixa/solta; clique duplo abre em tela cheia.
     tile.addEventListener('click', (e) => {
-      if (e.target.closest('.tile-controls, .watch-btn, .imm-bar')) return;
+      if (e.target.closest('.tile-controls, .watch-btn, .imm-bar, .sz-hud, .sz-mini')) return;
+      if (streamZoom.consumeClick(tile)) return;
       if (mobileStream.handleTap(tile)) return;
       togglePin(tile.dataset.key);
     });
     tile.addEventListener('dblclick', (e) => {
-      if (mobileStream.touch || e.target.closest('.tile-controls, .watch-btn')) return;
+      if (mobileStream.touch || e.target.closest('.tile-controls, .watch-btn, .sz-hud, .sz-mini')) return;
+      // Na tela em destaque o clique duplo é do zoom; a tela cheia fica no botão e no menu.
+      if (streamZoom.dblclick(tile, e)) return;
       togglePin(tile.dataset.key, true);
       toggleFullscreen(tile);
     });
@@ -2737,14 +2770,18 @@
           el('button', { type: 'button', class: 'pc-icon-btn', tip: 'Mais', ariaLabel: 'Mais ações', onclick: (e) => { const r = e.currentTarget.getBoundingClientRect(); openMemberMenu(m.id, { preventDefault() {}, stopPropagation() {}, clientX: r.left, clientY: r.bottom + 6 }); } }, el('span', { class: 'kebab', textContent: '⋯' }))));
     }
     setBannerContents(banner, m.bannerUrl, m.bannerCrop);
+    // O fundo também fica montado, para o GIF não recomeçar a cada atualização do perfil.
+    const background = card.querySelector(':scope > .pc-bg') || el('div', { class: 'pc-bg', ariaHidden: true });
+    setBackgroundContents(background, card, m.backgroundUrl, m.backgroundCrop);
     let avatarRow = card.querySelector(':scope > .pc-avatar-row');
     if (!avatarRow) avatarRow = el('div', { class: 'pc-avatar-row' }, el('div', { class: 'pc-avatar' }, avatar(m), el('span', { class: 'pc-status' })));
     setAvatarContents(avatarRow.querySelector('.avatar'), m.avatarUrl, m.name, m.avatarCrop);
     avatarRow.querySelector('.avatar').style.background = m.color;
     const status = avatarRow.querySelector('.pc-status'); status.className = 'pc-status ' + presence[0]; status.dataset.tip = presence[1];
     // Keep animated images mounted while the rest of the profile updates.
-    for (const child of [...card.children]) if (child !== banner && child !== avatarRow) child.remove();
+    for (const child of [...card.children]) if (child !== banner && child !== background && child !== avatarRow) child.remove();
     if (banner.parentNode !== card) card.prepend(banner);
+    if (background.parentNode !== card) banner.after(background);
     if (avatarRow.parentNode !== card) card.append(avatarRow);
     card.append(
       el('div', { class: 'pc-body' },
@@ -4106,6 +4143,7 @@
   }
 
   const { isWatching, setWatching, getWatchQuality, setWatchQuality, syncViewerQuality, addVideoTracks, syncScreenSubscriptions, videoBitrates, tuneSenders, applySharePreset, setSharePreset, captureScreen, watchScreenTrack, switchScreen, startVideo, stopVideo, scheduleRecovery, renderDiagnostics, updateStreamStats, mediaNotice } = MediaSession({ state, socket, call, el, toast, voiceEntry, member: callMember, render, renderStage, sendVoiceState, preferCodec, ownAudio });
+  const streamZoom = StreamZoom({ el, Icon, syncViewerQuality });
   const mobileStream = MobileStream({ state, el, Icon, toast, member: callMember, voiceEntry, syncViewerQuality, openWatchQualityMenu, toggleStreamMute, togglePip });
 
   function openWatchQualityMenu(sid, anchor) {
@@ -4331,10 +4369,6 @@
   let cameraTestEpoch = 0;
   let cameraPreview = null;
   let avatarReadEpoch = 0;
-  let bannerReadEpoch = 0;
-  const BANNER_HINT = 'PNG, JPG ou WebP de até 8 MB, ou GIF animado de até 5 MB. Ajuste o enquadramento e salve para aplicar.';
-  let pendingBanner = null; // { blob, url, frame }: banner escolhido e ainda não enviado
-  let bannerSource = null; // arquivo original, para reajustar sem recortar o recorte
   const PHOTO_HINT = 'PNG, JPG ou WebP de até 8 MB, ou GIF animado de até 5 MB. Ajuste o enquadramento e salve para aplicar.';
   let pendingAvatar = null;
   let avatarSource = null;
@@ -4353,27 +4387,86 @@
     $('#profile-avatar-crop').value = body.avatarCrop ? JSON.stringify(body.avatarCrop) : '';
     setPendingAvatar(null); avatarSource = null;
   }
-  function setPendingBanner(result) {
-    if (pendingBanner) URL.revokeObjectURL(pendingBanner.url);
-    pendingBanner = result ? { ...result, url: URL.createObjectURL(result.blob) } : null;
-    return pendingBanner?.url || '';
+  // Banner e fundo do perfil: escolher, enquadrar, ver na prévia e enviar funcionam do mesmo jeito.
+  // `field` é o nome no perfil (bannerUrl/bannerCrop) e nos campos #profile-<field>-*; `noun` vai nas mensagens.
+  function profileImageDraft(field, noun, show) {
+    const Noun = noun[0].toUpperCase() + noun.slice(1);
+    const input = $('#profile-' + field), cropInput = $(`#profile-${field}-crop`), status = $(`#profile-${field}-status`), picker = $(`#profile-${field}-file`);
+    const hint = status.textContent;
+    const saved = () => ({ url: meMember()?.[field + 'Url'] || '', crop: meMember()?.[field + 'Crop'] ? JSON.stringify(meMember()[field + 'Crop']) : '' });
+    let pending = null; // { blob, url, frame }: imagem escolhida e ainda não enviada
+    let source = null; // arquivo original, para reajustar sem recortar o recorte
+    let epoch = 0;
+    const setPending = (result) => {
+      if (pending) URL.revokeObjectURL(pending.url);
+      pending = result ? { ...result, url: URL.createObjectURL(result.blob) } : null;
+      return pending?.url || '';
+    };
+    async function edit(from, crop) {
+      const mine = ++epoch;
+      const previousStatus = status.textContent;
+      preferences.setProcessing(true);
+      status.textContent = `Preparando seu ${noun}…`;
+      try {
+        const result = await PhotoEditor.edit({ ...from, crop, kind: field });
+        if (mine !== epoch || !preferences.isOpen()) return;
+        if (!result) { status.textContent = previousStatus; return; }
+        source = from;
+        input.value = setPending(result);
+        cropInput.value = result.crop ? JSON.stringify(result.crop) : '';
+        status.textContent = `${Noun} pronto na prévia. Clique em Salvar alterações para usar no seu perfil.`;
+        preferences.refresh();
+      } catch (error) {
+        if (mine === epoch) status.textContent = error.message || 'Não foi possível abrir essa imagem.';
+      } finally {
+        if (mine === epoch) preferences.setProcessing(false);
+      }
+    }
+    $(`#profile-${field}-choose`).onclick = () => picker.click();
+    picker.onchange = () => { const file = picker.files[0]; picker.value = ''; if (file) edit({ file }); };
+    $(`#profile-${field}-adjust`).onclick = () => edit(source || { url: input.value }, pending?.frame || (cropInput.value ? JSON.parse(cropInput.value) : null));
+    $(`#profile-${field}-remove`).onclick = () => {
+      epoch++;
+      setPending(null); source = null;
+      input.value = ''; cropInput.value = '';
+      status.textContent = `${Noun} removido da prévia. Salve para aplicar ou descarte para manter o ${noun} anterior.`;
+      preferences.refresh();
+    };
+    return {
+      read: () => ({ [field]: saved().url, [field + 'Crop']: saved().crop }),
+      changed: (values) => values[field] !== saved().url || values[field + 'Crop'] !== saved().crop,
+      preview(values) {
+        if (values[field] === undefined) return;
+        show(values[field], values[field + 'Crop'] ? JSON.parse(values[field + 'Crop']) : null);
+        for (const action of ['remove', 'adjust']) $(`#profile-${field}-${action}`).disabled ||= !values[field] || input.disabled;
+      },
+      showSaved: () => show(input.value, meMember()[field + 'Crop']),
+      // Fecha o editor pendente e volta a dica (ao salvar, descartar ou fechar).
+      reset() { epoch++; picker.value = ''; status.textContent = hint; },
+      discard() { setPending(null); source = null; },
+      // Enviado por HTTP: as imagens são maiores que o limite das mensagens do socket.
+      async save(values) {
+        const value = values[field], headers = { 'x-token': localStorage.getItem('token'), [`x-${field}-crop`]: values[field + 'Crop'] || 'null' };
+        if (value && !pending) throw new Error(`Escolha o ${noun} de novo antes de salvar.`);
+        let res;
+        try {
+          res = await fetch('/profile/' + field, value ? { method: 'POST', headers, body: pending.blob } : { method: 'DELETE', headers });
+        } catch { throw new Error(`Não foi possível enviar o ${noun}. Verifique a conexão e tente novamente.`); }
+        const body = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(body.error || `O ${noun} não foi salvo. Tente novamente.`);
+        input.value = body[field + 'Url'] || '';
+        cropInput.value = body[field + 'Crop'] ? JSON.stringify(body[field + 'Crop']) : '';
+        setPending(null); source = null;
+      },
+    };
   }
-  // O banner é enviado por HTTP (imagens são maiores que o limite das mensagens do socket).
-  async function saveBanner(value, crop) {
-    const headers = { 'x-token': localStorage.getItem('token'), 'x-banner-crop': crop || 'null' };
-    if (value && !pendingBanner) throw new Error('Escolha o banner de novo antes de salvar.');
-    let res;
-    try {
-      res = await fetch('/profile/banner', value ? { method: 'POST', headers, body: pendingBanner.blob } : { method: 'DELETE', headers });
-    } catch { throw new Error('Não foi possível enviar o banner. Verifique a conexão e tente novamente.'); }
-    const body = await res.json().catch(() => ({}));
-    if (!res.ok) throw new Error(body.error || 'O banner não foi salvo. Tente novamente.');
-    $('#profile-banner').value = body.bannerUrl || '';
-    $('#profile-banner-crop').value = body.bannerCrop ? JSON.stringify(body.bannerCrop) : '';
-    setPendingBanner(null); bannerSource = null;
-  }
+  const profileImages = [
+    profileImageDraft('banner', 'banner', (url, crop) => setBannerContents($('#profile-preview-banner'), url, crop)),
+    profileImageDraft('background', 'fundo', (url, crop) => setBackgroundContents($('#profile-preview-bg'), $('.profile-preview'), url, crop)),
+  ];
   const settingFields = {
-    'profile-color': 'color', 'profile-avatar': 'avatar', 'profile-avatar-crop': 'avatarCrop', 'profile-banner': 'banner', 'profile-banner-crop': 'bannerCrop', 'mic-select': 'micDeviceId', 'speaker-select': 'speakerDeviceId',
+    'profile-color': 'color', 'profile-avatar': 'avatar', 'profile-avatar-crop': 'avatarCrop', 'profile-banner': 'banner', 'profile-banner-crop': 'bannerCrop',
+    'profile-background': 'background', 'profile-background-crop': 'backgroundCrop', 'mic-select': 'micDeviceId', 'speaker-select': 'speakerDeviceId',
     'camera-select': 'cameraDeviceId', 'noise-mode': 'noiseMode', 'echo-toggle': 'echoCancellation',
     'sens-auto': 'sensAuto', 'sens-range': 'sensThreshold', 'input-mode': 'inputMode',
     'ptt-code': 'pttCode', 'ptt-label': 'pttLabel', 'keybinds-data': 'keybinds', 'upload-select': 'uploadMbps',
@@ -4392,7 +4485,7 @@
   for (const id of ['mic-select', 'speaker-select', 'camera-select']) document.getElementById(id).replaceChildren(new Option('Padrão do sistema', ''));
 
   function readPreferences() {
-    return { ...state, color: meMember()?.color || '#5865f2', avatar: meMember()?.avatarUrl || '', avatarCrop: meMember()?.avatarCrop ? JSON.stringify(meMember().avatarCrop) : '', banner: meMember()?.bannerUrl || '', bannerCrop: meMember()?.bannerCrop ? JSON.stringify(meMember().bannerCrop) : '', sounds: Sounds.enabled,
+    return { ...state, color: meMember()?.color || '#5865f2', avatar: meMember()?.avatarUrl || '', avatarCrop: meMember()?.avatarCrop ? JSON.stringify(meMember().avatarCrop) : '', ...Object.assign({}, ...profileImages.map((draft) => draft.read())), sounds: Sounds.enabled,
       soundboard: !state.sbMuted, sbVolume: Math.round(state.sbVolume * 100),
       inputMode: state.ptt.enabled ? 'ptt' : 'voice', pttCode: state.ptt.code, pttLabel: state.ptt.label,
       keybinds: JSON.stringify(state.keybinds) };
@@ -4405,11 +4498,7 @@
       $('#profile-photo-remove').disabled ||= !values.avatar || $('#profile-avatar').disabled;
       $('#profile-photo-adjust').disabled ||= !values.avatar || $('#profile-avatar').disabled;
     }
-    if (values.banner !== undefined) {
-      setBannerContents($('#profile-preview-banner'), values.banner, values.bannerCrop ? JSON.parse(values.bannerCrop) : null);
-      $('#profile-banner-remove').disabled ||= !values.banner || $('#profile-banner').disabled;
-      $('#profile-banner-adjust').disabled ||= !values.banner || $('#profile-banner').disabled;
-    }
+    for (const draft of profileImages) draft.preview(values);
   }
   previewAppearance(state);
 
@@ -4440,9 +4529,7 @@
     preferences.setProcessing(false);
     $('#profile-photo-file').value = '';
     $('#profile-photo-status').textContent = PHOTO_HINT;
-    bannerReadEpoch++;
-    $('#profile-banner-file').value = '';
-    $('#profile-banner-status').textContent = BANNER_HINT;
+    for (const draft of profileImages) draft.reset();
     stopMicTest();
     stopCameraPreview();
     if (captureKeyHandler) document.removeEventListener('keydown', captureKeyHandler, true);
@@ -4477,8 +4564,9 @@
         throw new Error('O perfil não foi salvo. Verifique a conexão e tente novamente.');
       }
     }
-    if (values.banner !== (meMember().bannerUrl || '') || values.bannerCrop !== (meMember().bannerCrop ? JSON.stringify(meMember().bannerCrop) : '')) {
-      try { await saveBanner(values.banner, values.bannerCrop); }
+    for (const draft of profileImages) {
+      if (!draft.changed(values)) continue;
+      try { await draft.save(values); }
       catch (error) {
         if (micChanged) await restartMic(state).catch(() => mediaNotice('Confira o microfone antes de continuar.'));
         throw error;
@@ -4514,7 +4602,7 @@
     onOpen: async () => {
       $('#profile-preview-name').textContent = meMember().username || meMember().name;
       setAvatarContents($('#profile-preview-avatar'), $('#profile-avatar').value, meMember().name, meMember().avatarCrop);
-      setBannerContents($('#profile-preview-banner'), $('#profile-banner').value, meMember().bannerCrop);
+      for (const draft of profileImages) draft.showSaved();
       $('#ptt-key').textContent = state.ptt.label;
       $('#keybinds-global-hint').classList.toggle('hidden', !desktopApp?.setKeybinds);
       renderKeybindList();
@@ -4526,7 +4614,7 @@
       await fillDevices();
     }, onClose: () => {
       stopSettingsTests();
-      setPendingBanner(null); bannerSource = null;
+      for (const draft of profileImages) draft.discard();
       setPendingAvatar(null); avatarSource = null;
       // Ouvir devicechange mantém o serviço de câmeras do navegador aberto (dezenas de MB);
       // só vale enquanto a lista de dispositivos está na tela. Descartar chama onClose com o painel aberto.
@@ -4568,42 +4656,6 @@
   $('#profile-photo-adjust').onclick = () => {
     const crop = $('#profile-avatar-crop').value;
     editProfilePhoto(avatarSource || { url: $('#profile-avatar').value }, pendingAvatar?.frame || (crop ? JSON.parse(crop) : null));
-  };
-  $('#profile-banner-choose').onclick = () => $('#profile-banner-file').click();
-  $('#profile-banner-remove').onclick = () => {
-    bannerReadEpoch++;
-    setPendingBanner(null); bannerSource = null;
-    $('#profile-banner').value = '';
-    $('#profile-banner-crop').value = '';
-    $('#profile-banner-status').textContent = 'Banner removido da prévia. Salve para aplicar ou descarte para manter o banner anterior.';
-    preferences.refresh();
-  };
-  async function editProfileBanner(source, crop) {
-    const epoch = ++bannerReadEpoch;
-    const status = $('#profile-banner-status');
-    preferences.setProcessing(true);
-    status.textContent = 'Preparando seu banner…';
-    try {
-      const result = await PhotoEditor.edit({ ...source, crop, kind: 'banner' });
-      if (epoch !== bannerReadEpoch || !preferences.isOpen() || !result) return;
-      bannerSource = source;
-      $('#profile-banner').value = setPendingBanner(result);
-      $('#profile-banner-crop').value = result.crop ? JSON.stringify(result.crop) : '';
-      status.textContent = 'Banner pronto na prévia. Clique em Salvar alterações para usar no seu perfil.';
-      preferences.refresh();
-    } catch (error) {
-      if (epoch === bannerReadEpoch) status.textContent = error.message || 'Não foi possível abrir essa imagem.';
-    } finally {
-      if (epoch === bannerReadEpoch) preferences.setProcessing(false);
-    }
-  }
-  $('#profile-banner-file').onchange = (event) => {
-    const file = event.target.files[0]; event.target.value = '';
-    if (file) editProfileBanner({ file });
-  };
-  $('#profile-banner-adjust').onclick = () => {
-    const crop = $('#profile-banner-crop').value;
-    editProfileBanner(bannerSource || { url: $('#profile-banner').value }, pendingBanner?.frame || (crop ? JSON.parse(crop) : null));
   };
   $('#settings-server-link').onclick = () => { if (preferences.close()) openServerSettings(); };
   $('#btn-logout').onclick = async () => { if (!preferences.close()) return; const result = await call('logout', { token: localStorage.getItem('token') }); if (result) { localStorage.removeItem('token'); location.reload(); } };

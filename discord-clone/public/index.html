@@ -19,6 +19,7 @@
   <link rel="stylesheet" href="controls.css">
   <link rel="stylesheet" href="motion.css">
   <link rel="stylesheet" href="mobile-stream.css">
+  <link rel="stylesheet" href="stream-zoom.css">
   <link rel="stylesheet" href="desktop.css">
   <link rel="stylesheet" href="landing.css">
   <link rel="stylesheet" href="profile-media.css">
@@ -525,6 +526,7 @@
 <div id="profile-preview-banner" class="profile-cover">
 </div>
 <div class="profile-preview-body">
+<div id="profile-preview-bg" class="profile-preview-bg" aria-hidden="true"></div>
 <div id="profile-preview-avatar" class="avatar">
 </div>
 <div>
@@ -558,6 +560,15 @@
 </div>
 <input id="profile-banner-crop" type="hidden" value="">
 <p id="profile-banner-status" class="hint" role="status">PNG, JPG ou WebP de até 8 MB, ou GIF animado de até 5 MB. Ajuste o enquadramento e salve para aplicar.</p>
+<div class="profile-photo-actions">
+  <button id="profile-background-choose" type="button" data-draft-action>Mudar fundo</button>
+  <button id="profile-background-adjust" type="button" class="secondary" data-draft-action>Ajustar fundo</button>
+  <button id="profile-background-remove" type="button" class="secondary" data-draft-action>Remover fundo</button>
+  <input id="profile-background-file" type="file" accept="image/png,image/jpeg,image/webp,image/gif" data-draft-action hidden>
+  <input id="profile-background" type="hidden">
+</div>
+<input id="profile-background-crop" type="hidden" value="">
+<p id="profile-background-status" class="hint" role="status">PNG, JPG ou WebP de até 8 MB, ou GIF animado de até 5 MB. O fundo fica atrás do nome e das informações, com escurecimento para manter o texto legível.</p>
 <label>Cor do avatar<input id="profile-color" type="color">
 <span class="hint">Usada como fundo quando você não tem uma foto de perfil.</span>
 </label>
@@ -934,6 +945,7 @@
   <script src="media-session.js">
 </script>
   <script src="mobile-stream.js"></script>
+  <script src="stream-zoom.js"></script>
   <script src="changelog.js"></script>
   <script src="channel-navigation.js"></script>
   <script src="desktop.js"></script>

@@ -4,6 +4,41 @@
 // O título deve destacar as principais funcionalidades ou correções, com termos objetivos.
 window.CHANGELOG = [
   {
+    version: '0.99.8', date: '2026-10-01', name: 'Zoom na transmissão de tela e DJ em destaque',
+    summary: 'Aproxime qualquer parte da tela compartilhada, e o vídeo do DJ pode ocupar o palco da chamada num layout próprio de música.',
+    sections: [
+      { kind: 'new', items: [
+        'Zoom na transmissão de tela em destaque ou em tela cheia: role o mouse (ou faça a pinça no trackpad) para aproximar exatamente onde está o cursor, e arraste para mover a imagem.',
+        'Shift + arrastar marca uma área e amplia só ela. Clique duplo amplia onde clicou e, ampliado, volta ao tamanho original. Também dá para usar + / − / 0 e as setas.',
+        'Com zoom, um minimapa mostra a tela inteira e a parte que você está vendo; arraste nele para navegar. A barra de zoom aparece ao mexer o mouse.',
+        'Aproximar pede mais resolução a quem transmite, para o texto ficar nítido.',
+        'Clique no bloco do DJ na chamada para colocá-lo em destaque: o vídeo fica grande no meio, com a capa desfocada ao fundo.',
+        'Em destaque aparecem o que está tocando, quem pediu, o progresso, os controles, o seu volume e as próximas músicas da fila.',
+        'Clique duplo ou o botão de tela cheia abre o modo cinema, com o DJ cobrindo a janela toda. Esc volta.',
+      ] },
+    ],
+  },
+  {
+    version: '0.99.7', date: '2026-10-01', name: 'Informações direto no fundo do perfil',
+    summary: 'Membro desde e Cargos aparecem direto sobre o fundo do perfil.',
+    sections: [
+      { kind: 'fixed', items: [
+        'Removido o painel retangular atrás das informações do perfil. O escurecimento do fundo e a sombra no texto mantêm a leitura.',
+      ] },
+    ],
+  },
+  {
+    version: '0.99.6', date: '2026-10-01', name: 'Fundo do perfil com imagem ou GIF',
+    summary: 'Personalize a parte abaixo do banner com uma imagem ou GIF animado, mantendo o nome e as informações legíveis.',
+    sections: [
+      { kind: 'new', items: [
+        'Em Configurações → Meu perfil, use Mudar fundo para escolher uma imagem PNG, JPG ou WebP de até 8 MB, ou um GIF animado de até 5 MB.',
+        'Arraste a imagem e ajuste o zoom antes de salvar. Ajustar fundo reabre o enquadramento e Remover fundo restaura o fundo padrão.',
+        'O fundo recebe escurecimento e painéis desfocados para preservar a leitura. GIFs mantêm a animação e o enquadramento.',
+      ] },
+    ],
+  },
+  {
     version: '0.99.5', date: '2026-09-30', name: 'DJ da sala: músicas do YouTube na chamada',
     summary: 'Peça uma música do YouTube e todo mundo na sala de voz ouve junto, no mesmo ponto, cada um no próprio volume.',
     sections: [

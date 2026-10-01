@@ -1,4 +1,4 @@
-// Framing shared by profile photos (square) and banners (5:2), static or animated GIFs.
+// Framing shared by profile photos (square), banners (5:2) and backgrounds (4:5).
 window.PhotoEditor = (() => {
   let active = null;
   const clamp = (value, min, max) => Math.min(max, Math.max(min, value));
@@ -21,6 +21,7 @@ window.PhotoEditor = (() => {
   const KINDS = {
     photo: { aspect: 1, width: 256, height: 256, maxGifSide: 1024, title: 'Ajustar foto', text: 'Arraste a imagem e ajuste o zoom. A área circular mostra como ficará seu perfil.' },
     banner: { aspect: 5 / 2, width: 600, height: 240, maxGifSide: 1500, title: 'Ajustar banner', text: 'Arraste a imagem e ajuste o zoom. A área destacada mostra como o banner aparece no seu perfil.' },
+    background: { aspect: 4 / 5, width: 480, height: 600, maxGifSide: 1500, title: 'Ajustar fundo', text: 'Arraste a imagem e ajuste o zoom. Ela fica atrás do seu nome e das informações do perfil, abaixo do banner.' },
   };
   async function edit({ file, url, crop, kind = 'photo' }) {
     const k = KINDS[kind];
@@ -32,7 +33,7 @@ window.PhotoEditor = (() => {
       const gif = blob.type === 'image/gif';
       if (!['image/png', 'image/jpeg', 'image/webp', 'image/gif'].includes(blob.type) || blob.size > (gif ? 5 : 8) * 1024 * 1024) throw new Error('Use PNG, JPG ou WebP de até 8 MB, ou GIF de até 5 MB.');
       sourceUrl = URL.createObjectURL(blob);
-      const image = node('img', { src: sourceUrl, alt: kind === 'banner' ? 'Prévia do banner' : 'Prévia da foto', draggable: false });
+      const image = node('img', { src: sourceUrl, alt: { banner: 'Prévia do banner', background: 'Prévia do fundo' }[kind] || 'Prévia da foto', draggable: false });
       await new Promise((resolve, reject) => { image.onload = resolve; image.onerror = () => reject(new Error('Não foi possível abrir essa imagem.')); });
       if (!image.naturalWidth || image.naturalWidth * image.naturalHeight > 40_000_000) throw new Error('A foto deve ter até 40 megapixels.');
       if (gif && Math.max(image.naturalWidth, image.naturalHeight) > k.maxGifSide) throw new Error(`O GIF deve ter até ${k.maxGifSide} pixels de largura e altura.`);

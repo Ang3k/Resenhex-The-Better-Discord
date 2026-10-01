@@ -104,4 +104,14 @@ function decodeBanner(input) {
   return { ext: 'gif', data: checkGif(input, invalid) };
 }
 
-module.exports = { decodeAvatar, decodeBanner, decodeProfilePhoto, validateAvatarCrop };
+// Fundo do perfil (atrás do nome e das informações): PNG recortado em 4:5 ou GIF animado inteiro.
+function decodeProfileBackground(input) {
+  const invalid = () => { throw new Error('Fundo inválido. Escolha uma imagem PNG, JPG, WebP ou GIF novamente.'); };
+  if (!Buffer.isBuffer(input) || input.length < 14) invalid();
+  if (input.subarray(0, 8).equals(SIGNATURE)) {
+    return { ext: 'png', data: decodePng(input, { maxBytes: 2 * 1024 * 1024, maxWidth: 480, maxHeight: 600, invalid }) };
+  }
+  return { ext: 'gif', data: checkGif(input, invalid) };
+}
+
+module.exports = { decodeAvatar, decodeBanner, decodeProfileBackground, decodeProfilePhoto, validateAvatarCrop };

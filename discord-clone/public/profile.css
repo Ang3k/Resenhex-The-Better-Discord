@@ -65,7 +65,7 @@
 .pc-dot.online { background: var(--green); }
 .pc-dot.offline { background: #80848e; }
 .pc-timeout { display: flex; align-items: center; gap: 8px; padding: 8px 10px; border-radius: 8px; background: rgba(240, 178, 50, .1); color: #f0c35a; font-size: 13px; }
-.pc-panel { display: flex; flex-direction: column; gap: 14px; padding: 12px; border-radius: 10px; background: #111113; border: 1px solid rgba(255, 255, 255, .05); }
+.pc-panel { display: flex; flex-direction: column; gap: 14px; padding: 4px 0; }
 .pc-section { display: flex; flex-direction: column; gap: 8px; }
 .pc-label { font-size: 11px; font-weight: 700; letter-spacing: .04em; color: var(--text-muted); }
 .pc-since { display: flex; align-items: center; gap: 8px; font-size: 14px; color: var(--text); }
@@ -87,6 +87,35 @@ button.pc-role.add:hover { background: rgba(255, 255, 255, .12); color: var(--te
 .pc-btn.primary { background: var(--brand); color: #fff; }
 .pc-btn.primary:hover { background: var(--brand-hover); }
 .msg-author, .mention { cursor: pointer; }
+
+/* ---------- Fundo do perfil (imagem ou GIF atrás do nome e das informações) ---------- */
+/* Grade de uma coluna: o fundo ocupa as linhas da foto e do corpo e rola junto com eles. */
+#profile-card { display: grid; grid-template-columns: minmax(0, 1fr); }
+.pc-banner { grid-area: 1 / 1; }
+.pc-bg { grid-area: 2 / 1 / 4; position: relative; overflow: hidden; pointer-events: none; }
+.pc-avatar-row { grid-area: 2 / 1; z-index: 1; }
+.pc-body { grid-area: 3 / 1; position: relative; z-index: 1; }
+.profile-bg-image { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; pointer-events: none; user-select: none; }
+/* Véu: mais leve no topo (a imagem aparece), mais escuro embaixo, onde fica o texto. */
+.has-bg .pc-bg::after, .has-bg .profile-preview-bg::after {
+  content: ''; position: absolute; inset: 0;
+  background: linear-gradient(180deg, rgb(0 0 0 / .55) 0%, rgb(0 0 0 / .6) 45%, rgb(0 0 0 / .74) 100%);
+}
+/* O anel da foto e a borda do status pegam o tom do fundo (calculado em app.js). */
+#profile-card.has-bg .pc-avatar .avatar { box-shadow: 0 0 0 6px var(--pc-surface, #18181b); transition: box-shadow .2s; }
+#profile-card.has-bg .pc-status { border-color: var(--pc-surface, #18181b); transition: border-color .2s; }
+#profile-card.has-bg .pc-name { text-shadow: 0 1px 3px rgb(0 0 0 / .6); }
+#profile-card.has-bg .pc-username { color: var(--text); text-shadow: 0 1px 2px rgb(0 0 0 / .6); }
+/* Tudo que tinha fundo translúcido claro vira vidro escuro, para não sumir em imagens claras. */
+#profile-card.has-bg .pc-tag:not(.owner):not(.warn),
+#profile-card.has-bg .pc-btn:not(.primary) { background: rgb(0 0 0 / .45); backdrop-filter: blur(10px); }
+#profile-card.has-bg .pc-tag.owner { background: rgb(40 32 10 / .7); backdrop-filter: blur(10px); }
+#profile-card.has-bg .pc-tag.warn { background: rgb(48 12 14 / .7); backdrop-filter: blur(10px); }
+#profile-card.has-bg .pc-btn:not(.primary):hover { background: rgb(0 0 0 / .62); }
+#profile-card.has-bg .pc-timeout { background: rgb(44 32 8 / .75); backdrop-filter: blur(10px); }
+#profile-card.has-bg .pc-panel { text-shadow: 0 1px 3px rgb(0 0 0 / .9); }
+#profile-card.has-bg .pc-panel :is(.pc-label, .pc-since, .muted-text) { color: var(--text-strong); }
+#profile-card.has-bg .pc-role { background: rgb(255 255 255 / .08); }
 
 /* ---------- Ícone do servidor ---------- */
 .rail-icon.server-icon.has-image { background: transparent; overflow: hidden; }

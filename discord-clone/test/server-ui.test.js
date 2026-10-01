@@ -81,7 +81,7 @@ async function ui(t, invited = false, options = {}) {
   };
   let copied = '';
   Object.defineProperty(w.navigator, 'clipboard', { value: { writeText: async (text) => { copied = text; } } });
-  for (const file of ['icons.js', 'format.js', 'sounds.js', 'media-policy.js', 'keybinds.js', 'settings.js', 'photo-editor.js', 'media-session.js', 'mobile-stream.js', 'changelog.js', 'channel-navigation.js', 'music.js', 'app.js', 'landing.js']) w.eval(fs.readFileSync(path.join(publicDir, file), 'utf8'));
+  for (const file of ['icons.js', 'format.js', 'sounds.js', 'media-policy.js', 'keybinds.js', 'settings.js', 'photo-editor.js', 'media-session.js', 'mobile-stream.js', 'stream-zoom.js', 'changelog.js', 'channel-navigation.js', 'music.js', 'app.js', 'landing.js']) w.eval(fs.readFileSync(path.join(publicDir, file), 'utf8'));
   w.localStorage.setItem('seenVersion', w.APP_VERSION);
   t.after(() => { dom.window.close(); assert.deepEqual(errors.map((e) => e.message), []); });
   await settle();
@@ -288,6 +288,100 @@ test('the call soundboard opens the dedicated upload dialog; ordinary members ca
   assert.equal(!!app.d.querySelector('#app').inert, false);
   app.deliver('state', { ...s, ownerId: 'b'.repeat(16), myPerms: ['SOUNDBOARD', 'CONNECT'] }); await settle();
   app.d.querySelector('#sc-sounds').click(); assert.equal(app.d.querySelector('.sb-add').disabled, true);
+});
+
+test('profile background drafts cancel, discard, retry uploads and remove without changing the banner', async (t) => {
+  const app = await ui(t); await app.register();
+  const { d, w } = app;
+  const s = snapshot('1'.repeat(16), 'Turma', [{ id: '1'.repeat(16), name: 'Turma', owner: true }]);
+  const me = { ...person, backgroundUrl: '/avatars/previous.gif', backgroundCrop: { x: .5, y: .5, zoom: 1 }, bannerUrl: '/avatars/banner.gif' };
+  s.members = [me]; s.people = [me];
+  app.deliver('state', s); await settle();
+  const requests = [], revoked = [], edits = [];
+  let serial = 0, failUpload = true, result = null;
+  w.URL.createObjectURL = () => 'blob:https://resenhex.test/' + ++serial;
+  w.URL.revokeObjectURL = (url) => revoked.push(url);
+  w.PhotoEditor.edit = async (options) => { edits.push(options); return result; };
+  w.fetch = async (url, options) => {
+    assert.equal(url, '/profile/background');
+    requests.push(options);
+    if (failUpload) throw new Error('offline');
+    me.backgroundUrl = options.method === 'DELETE' ? null : '/avatars/saved.gif';
+    me.backgroundCrop = options.method === 'DELETE' ? null : JSON.parse(options.headers['x-background-crop']);
+    app.deliver('state', structuredClone(s));
+    return { ok: true, json: async () => ({ backgroundUrl: me.backgroundUrl, backgroundCrop: me.backgroundCrop }) };
+  };
+  const select = async () => {
+    const picker = d.querySelector('#profile-background-file');
+    Object.defineProperty(picker, 'files', { configurable: true, value: [new w.File(['gif'], 'background.gif', { type: 'image/gif' })] });
+    picker.dispatchEvent(new w.Event('change', { bubbles: true })); await settle();
+  };
+  d.querySelector('#btn-settings').click(); await settle();
+  const hint = d.querySelector('#profile-background-status').textContent;
+  await select(); // Cancelar o editor restaura a dica e não cria alterações pendentes.
+  assert.equal(d.querySelector('#profile-background-status').textContent, hint);
+  assert.equal(d.querySelector('#settings-savebar').classList.contains('hidden'), true);
+
+  const crop = { x: .2, y: .8, zoom: 1.5 }, blob = new w.Blob(['gif'], { type: 'image/gif' });
+  result = { blob, crop, frame: crop };
+  await select();
+  assert.equal(edits.at(-1).kind, 'background');
+  const draftUrl = d.querySelector('#profile-background').value;
+  assert.match(draftUrl, /^blob:/);
+  assert.equal(requests.length, 0);
+  assert.equal(d.querySelector('#profile-preview-bg img').getAttribute('src'), draftUrl);
+  d.querySelector('#settings-discard').click(); await settle();
+  assert.equal(d.querySelector('#profile-preview-bg img').getAttribute('src'), me.backgroundUrl);
+  assert.ok(revoked.includes(draftUrl));
+
+  await select();
+  const retryUrl = d.querySelector('#profile-background').value;
+  d.querySelector('#settings-save').click(); await settle();
+  assert.match(d.querySelector('#settings-status').textContent, /Não foi possível enviar o fundo/);
+  assert.equal(d.querySelector('#profile-background').value, retryUrl);
+  assert.equal(revoked.includes(retryUrl), false);
+  failUpload = false;
+  d.querySelector('#settings-save').click(); await settle();
+  assert.equal(requests.length, 2);
+  assert.equal(requests[1].method, 'POST');
+  assert.equal(requests[1].body, blob);
+  assert.deepEqual(JSON.parse(requests[1].headers['x-background-crop']), crop);
+  assert.equal(d.querySelector('#profile-background').value, '/avatars/saved.gif');
+  assert.ok(revoked.includes(retryUrl));
+  assert.equal(d.querySelector('#settings-savebar').classList.contains('hidden'), true);
+  assert.equal(d.querySelector('#profile-preview-banner img').getAttribute('src'), me.bannerUrl);
+
+  d.querySelector('#profile-background-remove').click(); await settle();
+  assert.equal(d.querySelector('.profile-preview').classList.contains('has-bg'), false);
+  assert.equal(requests.length, 2);
+  d.querySelector('#settings-discard').click(); await settle();
+  assert.equal(d.querySelector('#profile-preview-bg img').getAttribute('src'), '/avatars/saved.gif');
+  d.querySelector('#profile-background-remove').click(); await settle();
+  d.querySelector('#settings-save').click(); await settle();
+  assert.equal(requests.at(-1).method, 'DELETE');
+  assert.equal(me.backgroundUrl, null);
+  assert.equal(me.backgroundCrop, null);
+  assert.equal(d.querySelector('#profile-preview-bg img'), null);
+  assert.equal(d.querySelector('#profile-preview-banner img').getAttribute('src'), me.bannerUrl);
+});
+
+test('animated profile media stays mounted when presence and profile information update', async (t) => {
+  const app = await ui(t); await app.register();
+  const s = snapshot('1'.repeat(16), 'Turma', [{ id: '1'.repeat(16), name: 'Turma', owner: true }]);
+  const me = { ...person, backgroundUrl: '/avatars/background.gif', bannerUrl: '/avatars/banner.gif', avatarUrl: '/avatars/photo.gif' };
+  s.members = [me]; s.people = [me];
+  app.deliver('state', s); await settle();
+  app.d.querySelector('#member-list .member').click(); await settle();
+  const card = app.d.querySelector('#profile-card');
+  const background = card.querySelector('.profile-bg-image'), banner = card.querySelector('.profile-banner-image'), avatar = card.querySelector('.avatar img');
+  assert.ok(background && banner && avatar);
+  me.online = false; me.serverMuted = true;
+  app.deliver('state', s); await settle();
+  assert.equal(card.querySelector('.profile-bg-image'), background);
+  assert.equal(card.querySelector('.profile-banner-image'), banner);
+  assert.equal(card.querySelector('.avatar img'), avatar);
+  assert.equal(card.querySelector('.pc-tag.warn').textContent, 'Silenciado');
+  assert.ok(card.querySelector('.pc-status.offline'));
 });
 
 test('keyboard shortcuts follow Discord defaults, can be rebound in settings and resolve conflicts', async (t) => {

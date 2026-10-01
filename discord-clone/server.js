@@ -7,7 +7,7 @@ const crypto = require('crypto');
 const { promisify } = require('util');
 const express = require('express');
 const { Server } = require('socket.io');
-const { decodeAvatar, decodeBanner, decodeProfilePhoto, validateAvatarCrop } = require('./avatar');
+const { decodeAvatar, decodeBanner, decodeProfileBackground, decodeProfilePhoto, validateAvatarCrop } = require('./avatar');
 const { decodeSound, soundName, MAX_SOUND_BYTES, MAX_SERVER_SOUNDS } = require('./soundboard');
 const { channelActions } = require('./channels');
 const { communityStore } = require('./communities');
@@ -369,7 +369,7 @@ app.get('/invites/:code', (req, res) => {
 // Profile pictures are shared with the server, independent of chat attachments.
 // Uma imagem pode ser foto de alguém e ícone do servidor ao mesmo tempo (mesmo conteúdo, mesmo arquivo).
 const IMAGE_FILE = /^[a-f0-9]{64}\.(png|gif)$/;
-const imageInUse = (file) => Object.values(communities.root.servers).some((s) => s.serverIcon === file) || Object.values(db.accounts).some((account) => account.avatar === file || account.banner === file);
+const imageInUse = (file) => Object.values(communities.root.servers).some((s) => s.serverIcon === file) || Object.values(db.accounts).some((account) => account.avatar === file || account.banner === file || account.background === file);
 function removeImageIfUnused(file) {
   if (!file || !IMAGE_FILE.test(file) || imageInUse(file)) return;
   try { fs.unlinkSync(path.join(AVATAR_DIR, file)); } catch (error) { if (error.code !== 'ENOENT') console.warn('Não foi possível remover uma imagem antiga.'); }
@@ -477,38 +477,43 @@ app.get('/music/search', async (req, res) => {
   }
 });
 
-app.post('/profile/banner', express.raw({ type: () => true, limit: MAX_BANNER_UPLOAD }), (req, res) => {
-  const acc = authFromToken(req);
-  if (!acc) return res.status(401).json({ error: 'Não autenticado' });
-  if (!allow('banner:' + acc.id, 10, 60 * 1000)) return res.status(429).json({ error: 'Muitas trocas de banner. Aguarde um minuto.' });
-  try {
-    const { ext, data } = decodeBanner(req.body);
-    // PNG chega já recortado; GIF vai inteiro e guarda só o enquadramento, para manter a animação.
-    const crop = ext === 'gif' ? validateAvatarCrop(JSON.parse(req.get('x-banner-crop') || 'null')) : null;
-    const file = crypto.createHash('sha256').update(data).digest('hex') + '.' + ext;
-    fs.writeFileSync(path.join(AVATAR_DIR, file), data);
-    const previous = acc.banner;
-    acc.banner = file;
-    acc.bannerCrop = crop;
+// Banner e fundo do perfil: mesma regra, cada um no seu campo da conta ("banner" → bannerUrl/bannerCrop).
+function profileImageRoutes(field, decode, tooMany) {
+  app.post('/profile/' + field, express.raw({ type: () => true, limit: MAX_BANNER_UPLOAD }), (req, res) => {
+    const acc = authFromToken(req);
+    if (!acc) return res.status(401).json({ error: 'Não autenticado' });
+    if (!allow(field + ':' + acc.id, 10, 60 * 1000)) return res.status(429).json({ error: tooMany });
+    try {
+      const { ext, data } = decode(req.body);
+      // PNG chega já recortado; GIF vai inteiro e guarda só o enquadramento, para manter a animação.
+      const crop = ext === 'gif' ? validateAvatarCrop(JSON.parse(req.get(`x-${field}-crop`) || 'null')) : null;
+      const file = crypto.createHash('sha256').update(data).digest('hex') + '.' + ext;
+      fs.writeFileSync(path.join(AVATAR_DIR, file), data);
+      const previous = acc[field];
+      acc[field] = file;
+      acc[field + 'Crop'] = crop;
+      save();
+      broadcastState();
+      if (previous !== file) removeImageIfUnused(previous);
+      res.json({ ok: true, [field + 'Url']: '/avatars/' + file, [field + 'Crop']: crop });
+    } catch (err) {
+      res.status(400).json({ error: err.message });
+    }
+  });
+  app.delete('/profile/' + field, (req, res) => {
+    const acc = authFromToken(req);
+    if (!acc) return res.status(401).json({ error: 'Não autenticado' });
+    const previous = acc[field];
+    acc[field] = null;
+    acc[field + 'Crop'] = null;
     save();
     broadcastState();
-    if (previous !== file) removeImageIfUnused(previous);
-    res.json({ ok: true, bannerUrl: '/avatars/' + file, bannerCrop: crop });
-  } catch (err) {
-    res.status(400).json({ error: err.message });
-  }
-});
-app.delete('/profile/banner', (req, res) => {
-  const acc = authFromToken(req);
-  if (!acc) return res.status(401).json({ error: 'Não autenticado' });
-  const previous = acc.banner;
-  acc.banner = null;
-  acc.bannerCrop = null;
-  save();
-  broadcastState();
-  removeImageIfUnused(previous);
-  res.json({ ok: true, bannerUrl: null, bannerCrop: null });
-});
+    removeImageIfUnused(previous);
+    res.json({ ok: true, [field + 'Url']: null, [field + 'Crop']: null });
+  });
+}
+profileImageRoutes('banner', decodeBanner, 'Muitas trocas de banner. Aguarde um minuto.');
+profileImageRoutes('background', decodeProfileBackground, 'Muitas trocas de fundo. Aguarde um minuto.');
 
 app.post('/upload', express.raw({ type: () => true, limit: MAX_UPLOAD_MB * 1024 * 1024 }), (req, res) => {
   const acc = db.accounts[db.sessions[req.get('x-token')]];
@@ -593,6 +598,8 @@ function publicMember(a, onlineIds) {
     avatarCrop: a.avatarCrop || null,
     bannerUrl: a.banner ? '/avatars/' + a.banner : null,
     bannerCrop: a.banner && a.bannerCrop || null,
+    backgroundUrl: a.background ? '/avatars/' + a.background : null,
+    backgroundCrop: a.background && a.backgroundCrop || null,
     since: a.createdAt || null,
     roles: a.roles,
     online: onlineIds.has(a.id),

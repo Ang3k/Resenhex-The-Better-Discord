@@ -1,0 +1,80 @@
+/* Zoom na transmissão de tela (stream-zoom.js): barra de zoom, minimapa, área marcada e cursores.
+   Fica sempre sobre o vídeo, então usa vidro escuro e texto claro em todos os temas. */
+.tile.sz-on video { transform-origin: 0 0; will-change: transform; }
+.tile.sz-on:not(.sz-zoomed) video { cursor: zoom-in; }
+.tile.sz-zoomed video { cursor: grab; }
+.tile.sz-dragging, .tile.sz-dragging video { cursor: grabbing; user-select: none; }
+.tile.sz-picking video, .tile.sz-on:has(.sz-select:not(.hidden)) video { cursor: crosshair; }
+
+/* Barra de zoom: em cima, no meio (embaixo ficam o nome e os botões do bloco); aparece com o mouse e some parada. */
+.sz-hud {
+  position: absolute; left: 50%; top: 10px; z-index: 2; display: none; align-items: center; gap: 2px; padding: 4px;
+  border-radius: 12px; background: rgba(17, 18, 20, .78); border: 1px solid rgba(255, 255, 255, .08);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, .45); backdrop-filter: blur(12px); color: #fff;
+  opacity: 0; transform: translate(-50%, -6px); pointer-events: none; transition: opacity .18s ease, transform .18s ease;
+}
+.tile.sz-on .sz-hud { display: flex; }
+.tile.sz-on.sz-awake .sz-hud, .tile.sz-on .sz-hud:hover, .tile.sz-on .sz-hud:focus-within {
+  opacity: 1; transform: translate(-50%, 0); pointer-events: auto;
+}
+.sz-btn {
+  width: 32px; height: 32px; border: 0; border-radius: 8px; display: grid; place-items: center;
+  background: transparent; color: #fff; cursor: pointer; transition: background .12s, transform .12s;
+}
+.sz-btn:hover:not(:disabled) { background: rgba(255, 255, 255, .14); }
+.sz-btn:active:not(:disabled) { transform: scale(.9); }
+.sz-btn:disabled { opacity: .35; cursor: default; }
+.sz-btn.active { background: var(--brand); }
+.sz-level {
+  min-width: 58px; height: 32px; padding: 0 8px; border: 0; border-radius: 8px; background: transparent; color: #fff; cursor: pointer;
+  font: inherit; font-size: 13px; font-weight: 700; font-variant-numeric: tabular-nums; transition: background .12s;
+}
+.sz-level:hover { background: rgba(255, 255, 255, .14); }
+.sz-sep { width: 1px; height: 20px; margin: 0 4px; background: rgba(255, 255, 255, .16); }
+
+/* Minimapa: a tela inteira em miniatura com a parte visível marcada. */
+.sz-mini {
+  position: absolute; right: 10px; bottom: 54px; z-index: 2; width: 176px; height: 99px; display: none;
+  border-radius: 8px; overflow: hidden; background: #000; cursor: pointer; touch-action: none;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, .55), 0 0 0 1px rgba(255, 255, 255, .14);
+  opacity: .45; transition: opacity .2s ease;
+}
+.tile.sz-zoomed .sz-mini { display: block; animation: sz-in .2s var(--ease-out, ease-out); }
+.tile.sz-zoomed.sz-awake .sz-mini, .sz-mini:hover { opacity: 1; }
+.sz-mini-frame { display: block; width: 100%; height: 100%; filter: brightness(.7); }
+.sz-mini-port {
+  position: absolute; border-radius: 3px; pointer-events: none;
+  box-shadow: 0 0 0 2px var(--brand), 0 0 0 999px rgba(0, 0, 0, .35); background: rgba(255, 255, 255, .06);
+}
+
+/* Área marcada com Shift + arrastar. */
+.sz-select {
+  position: absolute; z-index: 2; pointer-events: none; border-radius: 4px;
+  border: 2px solid var(--brand); background: color-mix(in srgb, var(--brand) 14%, transparent);
+  box-shadow: 0 0 0 9999px rgba(0, 0, 0, .35);
+}
+.sz-select.hidden { display: none; }
+
+.sz-hint {
+  position: absolute; left: 50%; top: 58px; z-index: 2; display: flex; align-items: center; gap: 8px; max-width: calc(100% - 24px);
+  padding: 8px 14px; border-radius: 999px; background: rgba(17, 18, 20, .82); color: #fff; font-size: 13px; white-space: nowrap;
+  overflow: hidden; text-overflow: ellipsis; pointer-events: none; box-shadow: 0 8px 24px rgba(0, 0, 0, .4);
+  animation: sz-hint 4.2s ease forwards;
+}
+.sz-hint .ico { flex-shrink: 0; color: var(--brand); }
+@keyframes sz-hint {
+  0% { opacity: 0; transform: translate(-50%, -6px); }
+  8%, 85% { opacity: 1; transform: translate(-50%, 0); }
+  100% { opacity: 0; transform: translate(-50%, 0); }
+}
+@keyframes sz-in { from { opacity: 0; transform: scale(.94); } }
+
+/* Na faixa de miniaturas e no modo imersivo do celular não há zoom. */
+.tile:not(.sz-on) :is(.sz-hud, .sz-mini, .sz-select) { display: none; }
+
+@media (prefers-reduced-motion: reduce) {
+  .sz-hud, .sz-mini { transition: none; }
+  .sz-mini, .sz-hint { animation: none; }
+}
+:root[data-reduce-motion="true"] :is(.sz-hud, .sz-mini) { transition: none; }
+:root[data-reduce-motion="true"] :is(.sz-mini, .sz-hint) { animation: none; }

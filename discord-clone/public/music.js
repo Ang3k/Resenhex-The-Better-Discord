@@ -2,8 +2,8 @@
    começou; cada pessoa toca o vídeo no player oficial do YouTube e este módulo mantém o player no
    mesmo ponto que o resto da sala. O player é um só (trocar um iframe de lugar no DOM recarrega o
    vídeo): ele fica num elemento fixo que acompanha o lugar visível do momento, o bloco do DJ no
-   palco ou a capinha no painel da chamada. */
-window.MusicDJ = function ({ state, el, Icon, toast, call, callInfo, callPerm, callMe, timedOut, callChannelName }) {
+   palco (a tela dele, quando o bloco está em destaque) ou a capinha no painel da chamada. */
+window.MusicDJ = function ({ state, el, Icon, toast, call, callInfo, callPerm, callMe, timedOut, callChannelName, pin }) {
   const $ = (sel) => document.querySelector(sel);
   const clamp01 = (v) => Math.min(1, Math.max(0, Number.isFinite(v) ? v : 0.4));
   state.djVolume = clamp01(Number(localStorage.getItem('djVolume') ?? 0.4));
@@ -145,7 +145,11 @@ window.MusicDJ = function ({ state, el, Icon, toast, call, callInfo, callPerm, c
   let placed = '';
   function slot() {
     const tile = $('#voice-view:not(.hidden) .tile.dj');
-    if (tile) return { node: tile, where: 'stage' };
+    if (tile) {
+      // Em destaque, o vídeo ocupa só a tela do meio; em volta ficam a faixa, os controles e a fila.
+      const where = tile.classList.contains('cinema') ? 'cinema' : tile.classList.contains('focus') ? 'focus' : 'stage';
+      return { node: where === 'stage' ? tile : tile.querySelector('.dj-screen'), where, clip: where === 'cinema' ? null : $('#stage') };
+    }
     const mini = $('#dj-mini:not(.hidden) .dj-mini-art');
     if (mini && mini.offsetParent) return { node: mini, where: 'mini' };
     return null;
@@ -156,10 +160,15 @@ window.MusicDJ = function ({ state, el, Icon, toast, call, callInfo, callPerm, c
     let sig = 'off';
     if (target) {
       const r = target.node.getBoundingClientRect();
-      // No celular o painel da chamada fica numa gaveta por cima de tudo.
-      const z = target.where === 'mini' && getComputedStyle($('#dock')).position === 'fixed' ? 16 : 4;
-      sig = [target.where, r.left, r.top, r.width, r.height, z].map((v) => (typeof v === 'number' ? Math.round(v) : v)).join();
-      if (sig !== placed) Object.assign(host.style, { left: r.left + 'px', top: r.top + 'px', width: r.width + 'px', height: r.height + 'px', zIndex: z });
+      // No celular o painel da chamada fica numa gaveta por cima de tudo. No modo cinema o bloco
+      // cobre a tela (z-index 26 no music.css) e o vídeo vai logo acima dele.
+      const z = target.where === 'cinema' ? 27 : target.where === 'mini' && getComputedStyle($('#dock')).position === 'fixed' ? 16 : 4;
+      // O player fica fora do palco: quando o palco rola, corta a parte que sairia dele.
+      const c = target.clip?.getBoundingClientRect();
+      const cut = c ? [c.top - r.top, r.right - c.right, r.bottom - c.bottom, c.left - r.left].map((v) => Math.max(0, Math.round(v))) : [0, 0, 0, 0];
+      sig = [target.where, r.left, r.top, r.width, r.height, z, ...cut].map((v) => (typeof v === 'number' ? Math.round(v) : v)).join();
+      if (sig !== placed) Object.assign(host.style, { left: r.left + 'px', top: r.top + 'px', width: r.width + 'px', height: r.height + 'px', zIndex: z,
+        clipPath: cut.some(Boolean) ? `inset(${cut.map((v) => v + 'px').join(' ')})` : '' });
       host.dataset.where = target.where;
     }
     if (sig === placed) return;
@@ -307,8 +316,8 @@ window.MusicDJ = function ({ state, el, Icon, toast, call, callInfo, callPerm, c
         onclick: () => control('remove', { trackId: t.id }) }, Icon('x', 16)) : null);
   }
 
-  function nowPlaying(m) {
-    const t = m.current;
+  // Pausar/continuar, pular, parar e o volume só seu: os mesmos no painel e no palco.
+  function transport(m) {
     const paused = m.pausedAt !== null;
     const allowed = canUse();
     const button = (icon, label, action, cls = '') => el('button', { type: 'button', class: 'dj-ctl ' + cls, ariaLabel: label, tip: label, disabled: !allowed,
@@ -317,22 +326,33 @@ window.MusicDJ = function ({ state, el, Icon, toast, call, callInfo, callPerm, c
     vol.style.setProperty('--fill', vol.value + '%');
     vol.oninput = () => {
       state.djVolume = vol.value / 100;
-      vol.style.setProperty('--fill', vol.value + '%');
+      for (const other of document.querySelectorAll('.dj-volume input')) {
+        if (other !== vol) other.value = vol.value;
+        other.style.setProperty('--fill', vol.value + '%');
+      }
       localStorage.setItem('djVolume', state.djVolume);
       if (state.djMuted) setMuted(false);
       drive();
     };
+    return el('div', { class: 'dj-controls' },
+      paused ? button('play', 'Continuar para todos', 'resume', 'primary') : button('pauseBars', 'Pausar para todos', 'pause', 'primary'),
+      button('skip', 'Pular', 'skip'), button('stop', 'Parar e limpar a fila', 'stop'),
+      el('div', { class: 'dj-volume' }, el('button', { type: 'button', class: 'icon-btn', ariaLabel: state.djMuted ? 'Ativar a música para você' : 'Silenciar a música só para você',
+        tip: state.djMuted ? 'Ativar a música para você' : 'Silenciar só para você', onclick: () => setMuted(!state.djMuted) }, Icon(state.djMuted ? 'volumeX' : 'volume', 18)), vol));
+  }
+
+  const progress = (t) => el('div', { class: 'dj-progress' + (t.live ? ' is-live' : '') }, el('span', { class: 'dj-elapsed' }), el('div', { class: 'dj-bar' }, el('i')),
+    el('span', { class: 'dj-total', textContent: t.live ? 'AO VIVO' : t.duration ? clock(t.duration) : '' }));
+  const credits = (t) => [t.author, 'pedido por ' + t.byName, t.alt ? 'outra versão' : ''].filter(Boolean).join(' · ');
+
+  function nowPlaying(m) {
+    const t = m.current;
+    const paused = m.pausedAt !== null;
     return el('section', { class: 'dj-now' + (paused ? ' paused' : '') },
       el('div', { class: 'dj-section-title', textContent: paused ? 'PAUSADA' : 'TOCANDO AGORA' }),
       el('div', { class: 'dj-now-row' }, el('img', { class: 'dj-now-art', src: thumb(t.videoId), alt: '', referrerPolicy: 'no-referrer' }),
-        el('div', { class: 'dj-track-text' }, el('strong', { textContent: t.title }),
-          el('small', { textContent: [t.author, 'pedido por ' + t.byName, t.alt ? 'outra versão' : ''].filter(Boolean).join(' · ') }))),
-      el('div', { class: 'dj-progress' + (t.live ? ' is-live' : '') }, el('span', { class: 'dj-elapsed' }), el('div', { class: 'dj-bar' }, el('i')), el('span', { class: 'dj-total', textContent: t.live ? 'AO VIVO' : t.duration ? clock(t.duration) : '' })),
-      el('div', { class: 'dj-controls' },
-        paused ? button('play', 'Continuar para todos', 'resume', 'primary') : button('pauseBars', 'Pausar para todos', 'pause', 'primary'),
-        button('skip', 'Pular', 'skip'), button('stop', 'Parar e limpar a fila', 'stop'),
-        el('div', { class: 'dj-volume' }, el('button', { type: 'button', class: 'icon-btn', ariaLabel: state.djMuted ? 'Ativar a música para você' : 'Silenciar a música só para você',
-          tip: state.djMuted ? 'Ativar a música para você' : 'Silenciar só para você', onclick: () => setMuted(!state.djMuted) }, Icon(state.djMuted ? 'volumeX' : 'volume', 18)), vol)));
+        el('div', { class: 'dj-track-text' }, el('strong', { textContent: t.title }), el('small', { textContent: credits(t) }))),
+      progress(t), transport(m));
   }
 
   // results: true redesenha a busca. A parte da sala só é refeita quando algo dela muda; o estado
@@ -398,19 +418,112 @@ window.MusicDJ = function ({ state, el, Icon, toast, call, callInfo, callPerm, c
   }
 
   // ---------- bloco do palco, capinha no painel da chamada e linha na lista de canais ----------
+  // No palco o DJ é um bloco como os outros: clicar fixa em destaque (como uma tela compartilhada)
+  // e o bloco vira o "palco do DJ": capa desfocada ao fundo, o vídeo no meio, a faixa com os
+  // controles embaixo e a fila ao lado. Clique duplo (ou o botão) abre o modo cinema.
+  const tileButton = (label, icon, onclick, cls = '') => el('button', { type: 'button', class: 'tc-btn ' + cls, tip: label, ariaLabel: label,
+    onclick: (e) => { e.stopPropagation(); onclick(e); } }, Icon(icon, 18));
+  const inStageUi = (e) => e.target.closest('button, input, .dj-stage-head, .dj-stage-bar, .dj-stage-next');
+
+  function setCinema(on) {
+    const tile = $('#stage .tile.dj');
+    if (on && tile) {
+      pin('dj', true);
+      tile.classList.add('cinema');
+      document.documentElement.requestFullscreen?.({ navigationUI: 'hide' }).catch(() => {});
+    } else {
+      tile?.classList.remove('cinema');
+      if (document.fullscreenElement === document.documentElement) document.exitFullscreen().catch(() => {});
+    }
+    const m = music();
+    if (tile && m) { tile.dataset.sig = ''; updateTile(tile, m); }
+    keepPlacing();
+  }
+  // Esc sai do cinema (com ou sem a tela cheia do navegador).
+  document.addEventListener('fullscreenchange', () => { if (!document.fullscreenElement && $('.tile.dj.cinema')) setCinema(false); });
+  document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && !panel.node && $('.tile.dj.cinema')) setCinema(false); });
+
+  function buildTile(stage) {
+    const tile = el('div', { class: 'tile dj', data: { key: 'dj' }, tabIndex: 0, role: 'button',
+      onclick: (e) => { if (!inStageUi(e) && !tile.classList.contains('cinema')) pin('dj'); },
+      ondblclick: (e) => { if (!inStageUi(e)) setCinema(!tile.classList.contains('cinema')); },
+      onkeydown: (e) => { if (e.key === 'Enter' && e.target === tile) pin('dj'); } },
+    el('img', { class: 'dj-tile-art', alt: '', referrerPolicy: 'no-referrer' }),
+    el('div', { class: 'dj-stage' },
+      el('header', { class: 'dj-stage-head' }),
+      el('div', { class: 'dj-screen-wrap' }, el('div', { class: 'dj-screen' })),
+      el('aside', { class: 'dj-stage-next' }),
+      el('footer', { class: 'dj-stage-bar' })),
+    el('div', { class: 'tile-controls' }));
+    stage.append(tile);
+    return tile;
+  }
+
+  const equalizer = () => el('span', { class: 'dj-eq', ariaHidden: 'true' }, el('i'), el('i'), el('i'), el('i'));
+
+  // Redesenha só quando algo visível muda (o estado chega a cada mute de alguém na sala).
+  function updateTile(tile, m) {
+    const t = m.current;
+    const paused = m.pausedAt !== null;
+    const art = tile.querySelector('.dj-tile-art');
+    if (art.dataset.video !== t.videoId) { art.dataset.video = t.videoId; art.src = thumb(t.videoId); }
+    const pinned = state.pinned === 'dj';
+    const cinema = tile.classList.contains('cinema');
+    tile.classList.toggle('paused', paused);
+    tile.setAttribute('aria-label', `DJ da sala: ${t.title}. ${pinned ? 'Clique para sair do destaque' : 'Clique para ver em destaque'}`);
+    const sig = JSON.stringify([t.id, t.duration, paused, m.queue.map((q) => q.id), canUse(), state.djMuted, pinned, cinema, callChannelName()]);
+    if (tile.dataset.sig === sig) return;
+    tile.dataset.sig = sig;
+
+    tile.querySelector('.tile-controls').replaceChildren(
+      tileButton('Fila e busca', 'listMusic', (e) => openPanel(e.currentTarget)),
+      tileButton(pinned ? 'Desafixar' : 'Ver em destaque', pinned ? 'pinOff' : 'pin', () => pin('dj'), 'tc-pin' + (pinned ? ' active' : '')),
+      tileButton('Modo cinema', 'maximize', () => setCinema(true), 'tc-full'));
+
+    tile.querySelector('.dj-stage-head').replaceChildren(
+      el('span', { class: 'dj-stage-badge' }, Icon('disc', 22)),
+      el('div', { class: 'dj-stage-who' }, el('strong', { textContent: 'DJ da sala' }),
+        el('small', { textContent: 'Tocando para todos em ' + callChannelName() })),
+      el('span', { class: 'dj-stage-status' + (t.live && !paused ? ' live' : '') }, paused ? Icon('pauseBars', 14) : equalizer(),
+        paused ? 'PAUSADA' : t.live ? 'AO VIVO' : 'TOCANDO AGORA'),
+      el('div', { class: 'dj-stage-actions' },
+        tileButton('Fila e busca', 'listMusic', (e) => openPanel(e.currentTarget)),
+        cinema ? null : tileButton('Sair do destaque', 'pinOff', () => pin('dj')),
+        tileButton(cinema ? 'Sair do modo cinema' : 'Modo cinema', cinema ? 'minimize' : 'maximize', () => setCinema(!cinema))));
+
+    const bar = tile.querySelector('.dj-stage-bar');
+    bar.classList.toggle('paused', paused);
+    bar.replaceChildren(progress(t),
+      el('div', { class: 'dj-stage-row' },
+        el('img', { class: 'dj-stage-art', src: thumb(t.videoId), alt: '', referrerPolicy: 'no-referrer' }),
+        el('div', { class: 'dj-stage-track' }, el('strong', { textContent: t.title, title: t.title }), el('small', { textContent: credits(t) })),
+        transport(m)));
+
+    const next = m.queue.slice(0, 5);
+    const allowed = canUse();
+    tile.querySelector('.dj-stage-next').replaceChildren(
+      el('div', { class: 'dj-section-title', textContent: m.queue.length ? `A SEGUIR · ${m.queue.length}` : 'A SEGUIR' }),
+      next.length ? el('ol', { class: 'dj-next-list' }, next.map((q, i) => el('li', {},
+        el('span', { class: 'dj-index', textContent: i + 1 }),
+        el('img', { src: thumb(q.videoId), alt: '', loading: 'lazy', referrerPolicy: 'no-referrer' }),
+        el('div', { class: 'dj-track-text' }, el('strong', { textContent: q.title }), el('small', { textContent: 'pedido por ' + q.byName })))))
+        : el('p', { class: 'dj-next-empty' }, Icon('listMusic', 22), el('span', { textContent: 'Ninguém pediu a próxima ainda. Digite /play no chat ou busque aqui.' })),
+      el('button', { type: 'button', class: 'dj-next-more', onclick: (e) => openPanel(e.currentTarget) },
+        Icon(allowed ? 'plus' : 'listMusic', 16), m.queue.length > next.length ? `Ver a fila toda (${m.queue.length})` : allowed ? 'Pedir uma música' : 'Ver a fila'));
+    tickTimes();
+  }
+
   // Chamado pelo renderStage: devolve a chave do bloco para ele não ser removido.
   function stageTile(stage) {
     const m = music();
     let tile = stage.querySelector('[data-key="dj"]');
-    if (!m) { tile?.remove(); return null; }
-    if (!tile) {
-      tile = el('div', { class: 'tile dj', data: { key: 'dj' }, tabIndex: 0, role: 'button', ariaLabel: 'DJ da sala: abrir a fila',
-        onclick: () => openPanel(tile), onkeydown: (e) => { if (e.key === 'Enter') openPanel(tile); } },
-      el('img', { class: 'dj-tile-art', alt: '', referrerPolicy: 'no-referrer' }));
-      stage.append(tile);
+    if (!m) {
+      if (tile?.classList.contains('cinema')) setCinema(false);
+      tile?.remove();
+      return null;
     }
-    const art = tile.querySelector('.dj-tile-art');
-    if (art.dataset.video !== m.current.videoId) { art.dataset.video = m.current.videoId; art.src = thumb(m.current.videoId); }
+    tile ||= buildTile(stage);
+    updateTile(tile, m);
     keepPlacing();
     return 'dj';
   }
@@ -463,8 +576,7 @@ window.MusicDJ = function ({ state, el, Icon, toast, call, callInfo, callPerm, c
     const t = m.current;
     const shown = t.duration ? Math.min(pos, t.duration) : pos;
     for (const node of document.querySelectorAll('.dj-elapsed')) node.textContent = t.live ? 'ao vivo' : clock(shown);
-    const bar = panel.node?.querySelector('.dj-bar i');
-    if (bar) bar.style.width = t.duration ? (shown / t.duration) * 100 + '%' : t.live ? '100%' : '0%';
+    for (const bar of document.querySelectorAll('.dj-bar i')) bar.style.width = t.duration ? (shown / t.duration) * 100 + '%' : t.live ? '100%' : '0%';
   }
 
   // Botão no palco e estado geral, a cada estado novo do servidor.

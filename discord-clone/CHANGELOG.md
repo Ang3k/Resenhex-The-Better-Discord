@@ -3,6 +3,28 @@
 Histórico de versões. A mesma lista aparece dentro do app em **Novidades** (menu do servidor ou rodapé das Configurações).
 O Resenhex ainda está antes da 1.0.
 
+## v0.99.8 — Zoom na transmissão de tela e DJ em destaque
+_01/10/2026_
+
+- **Zoom na transmissão de tela** em destaque ou em tela cheia: role o mouse (ou faça a pinça no trackpad) para aproximar onde está o cursor, e arraste para mover a imagem.
+- **Shift + arrastar** marca uma área e amplia só ela. Clique duplo amplia onde clicou e, ampliado, volta ao original. Teclas **+ / − / 0** e setas também funcionam.
+- Com zoom, um **minimapa** mostra a tela inteira e a parte visível; arraste nele para navegar. Aproximar pede mais resolução a quem transmite.
+- Clique no bloco do **DJ** na chamada para colocá-lo em destaque, como uma tela compartilhada: o vídeo fica grande no meio, com a capa desfocada ao fundo.
+- Em destaque aparecem o que está tocando, quem pediu, o progresso, os controles, o seu volume e as próximas músicas da fila.
+- Clique duplo (ou o botão de tela cheia) abre o **modo cinema**, com o DJ cobrindo a janela toda. **Esc** volta.
+
+## v0.99.7 — Informações direto no fundo do perfil
+_01/10/2026_
+
+- **Membro desde** e **Cargos** aparecem direto sobre o fundo do perfil, sem o painel retangular. O escurecimento do fundo e a sombra no texto mantêm a leitura.
+
+## v0.99.6 — Fundo do perfil com imagem ou GIF
+_01/10/2026_
+
+- Em **Configurações → Meu perfil → Mudar fundo**, escolha uma imagem PNG, JPG ou WebP de até 8 MB, ou um GIF animado de até 5 MB para a parte abaixo do banner.
+- Ajuste o enquadramento com arraste e zoom e salve. **Ajustar fundo** reabre o editor; **Remover fundo** restaura o fundo padrão.
+- O escurecimento e os painéis desfocados mantêm o nome e as informações legíveis. GIFs preservam a animação e o enquadramento.
+
 ## v0.99.5 — DJ da sala: músicas do YouTube na chamada
 _30/09/2026_
 
