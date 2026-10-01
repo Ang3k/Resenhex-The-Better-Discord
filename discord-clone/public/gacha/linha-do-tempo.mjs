@@ -12,10 +12,13 @@ const RARITIES = ['common', 'rare', 'epic', 'legendary'];
 const LADDER = ['common', 'rare', 'epic']; // um degrau de cor por balançada
 const TILT = 0.5;   // radianos no pico da balançada
 const SPLASH = 300; // ms de cada respingo
-// Quiques da queda, em fração da fase drop: [início, fim, altura do pico].
-const HOPS = [[0.35, 0.72, 0.35], [0.72, 0.9, 0.1]];
-// Momentos em que a cápsula bate no chão: [fração do drop, força do respingo].
-const IMPACTS = [[0.35, 1], [0.72, 0.35], [0.9, 0.1]];
+// Quiques da queda, em fração da fase drop: [momento em que bate no chão, força do respingo, altura do
+// quique seguinte]. A cápsula sai da portinhola, sobe, bate (1º), quica, bate (2º), quica de novo e
+// bate (3º, sem quique depois). HOPS e IMPACTS saem daqui para os tempos não ficarem repetidos.
+const BOUNCES = [[0.35, 1, 0.35], [0.72, 0.35, 0.1], [0.9, 0.1, 0]];
+const FIRST = BOUNCES[0][0]; // fração do drop em que a cápsula bate no chão pela primeira vez
+const HOPS = BOUNCES.slice(0, -1).map(([a, , peak], i) => [a, BOUNCES[i + 1][0], peak]);
+const IMPACTS = BOUNCES.map(([at, size]) => [at, size]);
 
 const clamp = (x, a = 0, b = 1) => Math.min(b, Math.max(a, x));
 const easeOut = (x) => 1 - (1 - x) ** 3;
@@ -28,7 +31,7 @@ export const REVEAL_MS = Object.fromEntries(RARITIES.map((r) => [r, duration(r)]
 
 // Altura da cápsula (1 = um quique alto). Sai da portinhola a 0,4, sobe um pouco, cai e quica duas vezes.
 function hopAt(p) {
-  if (p < 0.35) { const u = p / 0.35; return 0.4 * (1 - u) + 3.2 * u * (1 - u); }
+  if (p < FIRST) { const u = p / FIRST; return 0.4 * (1 - u) + 3.2 * u * (1 - u); }
   for (const [a, b, peak] of HOPS) if (p < b) { const u = (p - a) / (b - a); return peak * 4 * u * (1 - u); }
   return 0;
 }
@@ -46,7 +49,7 @@ export function state(rarity, time, { reduced = false } = {}) {
   const r = norm(rarity);
   const n = wobbles(r);
   const total = duration(r);
-  const t = Math.max(0, time);
+  const t = time > 0 ? time : 0; // NaN, undefined e negativos viram 0; Infinity continua (pose de descanso)
   const wobbleStart = CRANK + DROP;
   const lockStart = wobbleStart + n * WOBBLE;
   const openStart = total - OPEN;
@@ -70,15 +73,20 @@ export function state(rarity, time, { reduced = false } = {}) {
   s.crank = 1;
   s.visible = true;
 
+  // Respingo: vale desde cada batida no chão e dura SPLASH ms, inclusive no começo da balançada.
+  if (t < wobbleStart + SPLASH) {
+    const p = (t - CRANK) / DROP;
+    const hit = IMPACTS.filter(([at]) => p >= at).at(-1);
+    const since = hit ? (p - hit[0]) * DROP : Infinity;
+    if (since < SPLASH) s.splash = { at: since / SPLASH, size: hit[1] };
+  }
+
   if (t < wobbleStart) {
     const p = (t - CRANK) / DROP;
     s.phase = 'drop';
     s.travel = easeOut(p);
     s.hop = hopAt(p);
     s.shake = clamp(1 - p * 4);
-    const hit = IMPACTS.filter(([at]) => p >= at).at(-1);
-    const since = hit ? (p - hit[0]) * DROP : Infinity;
-    if (since < SPLASH) s.splash = { at: since / SPLASH, size: hit[1] };
     return s;
   }
   s.travel = 1;

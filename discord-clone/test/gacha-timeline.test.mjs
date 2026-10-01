@@ -98,3 +98,35 @@ test('reduzir movimento: sem quique, balançada nem câmera, com a cor final des
   assert.equal(state('epic', 100, { reduced: true }).open, 0);
   assert.equal(state('epic', duration('epic'), { reduced: true }).open, 1);
 });
+
+test('tempo inválido (NaN, undefined, -Infinity) cai no começo e nunca gera NaN', () => {
+  assert.equal(state('rare', NaN).phase, 'crank');
+  assert.equal(state('rare', undefined).phase, 'crank');
+  assert.equal(state('rare', -Infinity).phase, 'crank');
+  const s = state('rare', undefined, { reduced: true });
+  for (const [k, v] of Object.entries(s)) if (typeof v === 'number') assert.ok(Number.isFinite(v), `${k} = ${v}`);
+});
+
+test('todo campo numérico do estado é finito, em qualquer raridade e com ou sem reduzir movimento', () => {
+  const check = (s, label) => {
+    for (const [k, v] of Object.entries(s)) {
+      if (k === 'splash') continue;
+      if (typeof v === 'number') assert.ok(Number.isFinite(v), `${label}: ${k} = ${v}`);
+    }
+    assert.ok(s.splash === null || (Number.isFinite(s.splash.at) && Number.isFinite(s.splash.size)), `${label}: splash`);
+  };
+  for (const r of ORDER) {
+    for (const reduced of [false, true]) {
+      for (const [t, s] of sample(r, { reduced })) check(s, `${r}${reduced ? ' reduzido' : ''} em ${t} ms`);
+      check(state(r, Infinity, { reduced }), `${r} Infinity`);
+      check(state(r, NaN, { reduced }), `${r} NaN`);
+    }
+  }
+});
+
+test('o último respingo ainda aparece no começo da balançada', () => {
+  const s = state('common', CRANK + DROP + 100);
+  assert.equal(s.phase, 'wobble');
+  assert.ok(s.splash && s.splash.at > 0 && s.splash.at < 1);
+  assert.equal(state('common', CRANK + DROP + 400).splash, null);
+});
