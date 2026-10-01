@@ -71,7 +71,7 @@ function shopWindow() {
 
 function stripes() {
   return canvasTexture(512, 128, (g, w, h) => {
-    const n = 14;
+    const n = 20; // uma listra por gomo do toldo
     for (let i = 0; i < n; i++) {
       g.fillStyle = i % 2 ? '#efe2c8' : '#c3303d';
       g.fillRect((i * w) / n, 0, w / n + 1, h);
@@ -82,7 +82,9 @@ function stripes() {
 }
 
 // Sem fonte japonesa no sistema, "ガ" sai igual a um caractere que não existe: aí o neon vira "GACHA".
+let japanese; // resultado em cache: a checagem só roda uma vez
 function hasJapanese() {
+  if (japanese !== undefined) return japanese;
   const canvas = document.createElement('canvas');
   canvas.width = canvas.height = 32;
   const g = canvas.getContext('2d', { willReadFrequently: true });
@@ -92,7 +94,9 @@ function hasJapanese() {
     g.fillText(ch, 2, 26);
     return g.getImageData(0, 0, 32, 32).data.join(',');
   };
-  return paint('ガ') !== paint('￿');
+  const ga = paint('ガ');
+  japanese = ga !== paint('￿') && ga !== paint(String.fromCodePoint(0x10FFFF));
+  return japanese;
 }
 
 function neonTexture() {
@@ -186,7 +190,7 @@ export function createShop() {
   const wall = planks('#3b2519', '#1e120c', 10);
   wall.wrapS = wall.wrapT = THREE.RepeatWrapping;
   wall.repeat.set(3, 1.5);
-  add(new THREE.Mesh(new THREE.BoxGeometry(7.5, 3.8, 0.3), std({ map: wall, roughness: 0.85 }))).position.set(0, 1.9, -0.65);
+  add(new THREE.Mesh(new THREE.BoxGeometry(5.6, 3.8, 0.3), std({ map: wall, roughness: 0.85 }))).position.set(0, 1.9, -0.65);
   add(new THREE.Mesh(new THREE.BoxGeometry(1.3, 2.25, 0.08), std({ map: planks('#4a2d1d', '#24150d', 6), roughness: 0.8 }))).position.set(0, 1.125, -0.47);
   add(new THREE.Mesh(new THREE.BoxGeometry(1.42, 0.08, 0.1), std({ color: '#2a170e', roughness: 0.8 }))).position.set(0, 2.28, -0.46);
 
@@ -211,7 +215,7 @@ export function createShop() {
     pos.setXYZ(i, pos.getX(i), 2.38 + t * 0.42 - Math.sin(Math.PI * t) * 0.05, 0.38 - t * 0.88);
   }
   awning.computeVertexNormals();
-  add(new THREE.Mesh(awning, std({ map: stripes(), roughness: 0.75, side: THREE.DoubleSide })), { cast: true });
+  add(new THREE.Mesh(awning, std({ map: stripes(), roughness: 0.75, side: THREE.DoubleSide })));
   const scallop = new THREE.CircleGeometry(0.12, 16, Math.PI, Math.PI);
   const red = new THREE.InstancedMesh(scallop, std({ color: '#c3303d', roughness: 0.75, side: THREE.DoubleSide }), 10);
   const cream = new THREE.InstancedMesh(scallop, std({ color: '#efe2c8', roughness: 0.75, side: THREE.DoubleSide }), 10);
@@ -239,15 +243,15 @@ export function createShop() {
   const dim = std({ color: '#120f1c', roughness: 0.9 });
   for (const [x, z, w, h] of [[-4.6, -1.2, 2, 5], [4.7, -1.6, 2, 4.5], [4.2, -4.5, 3, 6], [-4.4, -4.8, 3, 6.5]]) add(new THREE.Mesh(new THREE.BoxGeometry(w, h, 1.5), dim)).position.set(x, h / 2, z);
   const lantern = new THREE.MeshBasicMaterial({ color: new THREE.Color(2.4, 0.55, 0.4) });
-  for (const [x, y, z] of [[3.3, 2.5, -1.0], [3.6, 2.35, -2.1], [3.9, 2.45, -3.2], [-3.4, 2.6, -2.4]]) {
+  for (const [x, y, z] of [[3.3, 2.5, -0.6], [3.85, 2.35, -0.65], [3.55, 2.45, -1.6], [-3.4, 2.6, -1.4]]) {
     const mesh = new THREE.Mesh(new THREE.SphereGeometry(0.13, 16, 12), lantern);
     mesh.scale.y = 1.3;
     mesh.position.set(x, y, z);
     group.add(mesh);
   }
-  add(new THREE.Mesh(new THREE.BoxGeometry(0.7, 1.6, 0.6), std({ color: '#d9dde8', roughness: 0.4 })), { cast: true }).position.set(3.4, 0.8, -1.6);
+  add(new THREE.Mesh(new THREE.BoxGeometry(0.7, 1.6, 0.6), std({ color: '#d9dde8', roughness: 0.4 })), { cast: true }).position.set(3.3, 0.8, -1.0);
   const screen = new THREE.Mesh(new THREE.PlaneGeometry(0.56, 1.0), new THREE.MeshBasicMaterial({ color: new THREE.Color(0.6, 1.3, 2.6) }));
-  screen.position.set(3.4, 0.95, -1.29);
+  screen.position.set(3.3, 0.95, -0.69);
   group.add(screen);
 
   // Vaso de hortênsias do lado esquerdo.
@@ -272,7 +276,8 @@ export function createShop() {
   const floor = add(new THREE.Mesh(new THREE.PlaneGeometry(14, 10), floorMaterial));
   floor.rotation.x = -Math.PI / 2;
   floor.position.set(0, 0, 1.5);
-  const mirror = new Reflector(new THREE.PlaneGeometry(14, 10), { textureWidth: 512, textureHeight: 512, color: 0x8a8aa0, clipBias: 0.003 });
+  floor.renderOrder = -1; // transparente ordena pela origem (o centro do chão está perto da câmera): sem isso pintaria por cima da chuva, das pétalas, da cápsula e do feixe
+  const mirror = new Reflector(new THREE.PlaneGeometry(14, 10), { textureWidth: 512, textureHeight: 512, color: 0x8a8aa0, clipBias: 0.003, multisample: 0 });
   mirror.rotation.x = -Math.PI / 2;
   mirror.position.set(0, -0.002, 1.5);
   group.add(mirror);
@@ -281,14 +286,14 @@ export function createShop() {
   const rainPos = new Float32Array(RAIN * 6);
   const drops = Array.from({ length: RAIN }, () => ({ x: (Math.random() - 0.5) * 7, y: Math.random() * 4, z: -0.3 + Math.random() * 4.3, v: 6 + Math.random() * 3 }));
   const rainGeometry = new THREE.BufferGeometry();
-  rainGeometry.setAttribute('position', new THREE.BufferAttribute(rainPos, 3));
+  rainGeometry.setAttribute('position', new THREE.BufferAttribute(rainPos, 3).setUsage(THREE.DynamicDrawUsage));
   const rain = new THREE.LineSegments(rainGeometry, new THREE.LineBasicMaterial({ color: '#aab8ff', transparent: true, opacity: 0.3, depthWrite: false }));
   rain.frustumCulled = false;
   group.add(rain);
   const petalPos = new Float32Array(PETALS * 3);
   const petals = Array.from({ length: PETALS }, (_, i) => ({ x: (Math.random() - 0.5) * 6, y: Math.random() * 3.2, z: Math.random() * 3, phase: i }));
   const petalGeometry = new THREE.BufferGeometry();
-  petalGeometry.setAttribute('position', new THREE.BufferAttribute(petalPos, 3));
+  petalGeometry.setAttribute('position', new THREE.BufferAttribute(petalPos, 3).setUsage(THREE.DynamicDrawUsage));
   const petalPoints = new THREE.Points(petalGeometry, new THREE.PointsMaterial({ color: '#ffb3d1', size: 0.045, map: softDot(), transparent: true, depthWrite: false }));
   petalPoints.frustumCulled = false;
   group.add(petalPoints);
@@ -342,5 +347,5 @@ export function createShop() {
   }
 
   update(0);
-  return { group, update, setReflection, setSize, dispose: () => mirror.dispose() };
+  return { group, update, setReflection, setSize, dispose: () => { mirror.dispose(); red.dispose(); cream.dispose(); flowers.dispose(); } };
 }
