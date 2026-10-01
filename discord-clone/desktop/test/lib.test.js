@@ -64,7 +64,7 @@ test('o registro grava linhas com data e nível e recomeça quando fica grande',
   fs.rmSync(dir, { recursive: true, force: true });
 });
 
-test('o som do computador na transmissão deixa de fora o próprio app a partir do Windows 10 2004', () => {
+test('o som do computador na transmissão deixa de fora o próprio app a partir do Windows 10 22H2', () => {
   const { systemAudioDevice } = require('../lib/system-audio');
   assert.equal(systemAudioDevice('win32', '10.0.26100'), 'loopbackWithoutChrome');
   assert.equal(systemAudioDevice('win32', '10.0.19045'), 'loopbackWithoutChrome');
