@@ -113,7 +113,7 @@ test('todo campo numérico do estado é finito, em qualquer raridade e com ou se
       if (k === 'splash') continue;
       if (typeof v === 'number') assert.ok(Number.isFinite(v), `${label}: ${k} = ${v}`);
     }
-    assert.ok(s.splash === null || (Number.isFinite(s.splash.at) && Number.isFinite(s.splash.size)), `${label}: splash`);
+    assert.ok(s.splash === null || (Number.isFinite(s.splash.at) && Number.isFinite(s.splash.size) && Number.isFinite(s.splash.travel)), `${label}: splash`);
   };
   for (const r of ORDER) {
     for (const reduced of [false, true]) {
@@ -129,4 +129,22 @@ test('o último respingo ainda aparece no começo da balançada', () => {
   assert.equal(s.phase, 'wobble');
   assert.ok(s.splash && s.splash.at > 0 && s.splash.at < 1);
   assert.equal(state('common', CRANK + DROP + 400).splash, null);
+});
+
+test('o respingo guarda o ponto do caminho onde a cápsula bateu, e ele não muda durante o respingo', () => {
+  const impacts = cues('common').filter((c) => c.name === 'bounce').map((c) => c.at);
+  for (const at of impacts) {
+    const expected = state('common', at).travel;
+    const first = state('common', at + 1).splash;
+    assert.ok(first, `respingo em ${at} ms`);
+    assert.ok(Math.abs(first.travel - expected) <= 1e-9, `travel do respingo em ${at} ms: ${first.travel} x ${expected}`);
+    assert.ok(Number.isFinite(first.travel));
+  }
+  // O 1º respingo fica antes do fim do caminho; o último, quase no fim.
+  const travels = impacts.map((at) => state('common', at + 1).splash.travel);
+  assert.ok(travels[0] < travels[1] && travels[1] < travels[2] && travels[2] <= 1);
+  // Durante um mesmo respingo o ponto não anda.
+  const a = state('common', impacts[1] + 10).splash.travel;
+  const b = state('common', impacts[1] + 90).splash.travel;
+  assert.equal(a, b);
 });

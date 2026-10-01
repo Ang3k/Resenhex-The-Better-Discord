@@ -78,7 +78,7 @@ export function state(rarity, time, { reduced = false } = {}) {
     const p = (t - CRANK) / DROP;
     const hit = IMPACTS.filter(([at]) => p >= at).at(-1);
     const since = hit ? (p - hit[0]) * DROP : Infinity;
-    if (since < SPLASH) s.splash = { at: since / SPLASH, size: hit[1] };
+    if (since < SPLASH) s.splash = { at: since / SPLASH, size: hit[1], travel: easeOut(hit[0]) }; // travel: onde do caminho a cápsula bateu
   }
 
   if (t < wobbleStart) {
