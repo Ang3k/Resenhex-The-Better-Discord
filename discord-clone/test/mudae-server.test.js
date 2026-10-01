@@ -171,5 +171,13 @@ test('Salão do Mudae: a cena 3D e o Three.js vêm do próprio servidor', async 
     await res.arrayBuffer();
   }
   const html = await (await fetch(base + '/')).text();
-  assert.match(html, /<script type="importmap">/);
+  const map = html.match(/<script type="importmap">([\s\S]*?)<\/script>/);
+  assert.ok(map, 'index.html precisa do import map');
+  const { imports } = JSON.parse(map[1]);
+  for (const url of [imports.three, imports['three/addons/'] + 'postprocessing/OutputPass.js']) {
+    const res = await fetch(base + url);
+    assert.equal(res.status, 200, url);
+    assert.match(res.headers.get('content-type'), /javascript/, url);
+    await res.arrayBuffer();
+  }
 });
