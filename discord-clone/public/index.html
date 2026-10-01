@@ -747,19 +747,36 @@
 <input type="hidden" id="ptt-code">
 <input type="hidden" id="ptt-label">
 </div>
+<div class="setting-group" id="keybinds-group">
+<div class="keybinds-head">
+<h3>Atalhos de teclado</h3>
+<button type="button" id="keybinds-reset" class="secondary small">Restaurar padrões</button>
+</div>
+<p class="hint">Clique num atalho e aperte a nova combinação. Esc cancela, Backspace remove o atalho.</p>
+<p class="hint desktop-only hidden" id="keybinds-global-hint">No app de Windows, microfone e áudio também funcionam com o Resenhex em segundo plano, como no jogo.</p>
+<div id="keybind-list">
+</div>
+<p id="keybind-status" class="hint" role="status" aria-live="polite">
+</p>
+<input type="hidden" id="keybinds-data">
+</div>
 <div class="setting-group">
-<h3>Atalhos da conversa</h3>
+<h3>Atalhos fixos</h3>
 <div class="shortcut-row">
-<span>Ativar ou desativar microfone</span>
-<kbd>Ctrl + Shift + M</kbd>
+<span>Enviar mensagem</span>
+<span class="keys"><kbd>Enter</kbd></span>
 </div>
 <div class="shortcut-row">
-<span>Ativar ou desativar áudio</span>
-<kbd>Ctrl + Shift + D</kbd>
+<span>Nova linha na mensagem</span>
+<span class="keys"><kbd>Shift</kbd><kbd>Enter</kbd></span>
+</div>
+<div class="shortcut-row">
+<span>Editar sua última mensagem</span>
+<span class="keys"><kbd>↑</kbd></span>
 </div>
 <div class="shortcut-row">
 <span>Fechar configurações ou menus</span>
-<kbd>Esc</kbd>
+<span class="keys"><kbd>Esc</kbd></span>
 </div>
 </div>
 </section>
@@ -901,6 +918,7 @@
 </script>
   <script src="media-policy.js">
 </script>
+  <script src="keybinds.js"></script>
   <script src="settings.js">
 </script>
   <script src="photo-editor.js"></script>

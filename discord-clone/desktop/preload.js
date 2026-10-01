@@ -10,6 +10,7 @@ if (location.protocol === 'file:') {
 } else if (location.origin === ORIGIN) {
   let pickSource = null;
   let pttListener = null;
+  let keybindListener = null;
 
   ipcRenderer.on('desktop:pick-source', async (_event, id, sources, options) => {
     let choice = { unhandled: true };
@@ -19,6 +20,7 @@ if (location.protocol === 'file:') {
     ipcRenderer.send('desktop:pick-source:result', id, choice);
   });
   ipcRenderer.on('desktop:ptt', (_event, pressed) => pttListener?.(!!pressed));
+  ipcRenderer.on('desktop:keybind', (_event, id) => keybindListener?.(String(id)));
 
   contextBridge.exposeInMainWorld('resenhexDesktop', {
     platform: process.platform,
@@ -26,6 +28,9 @@ if (location.protocol === 'file:') {
     onPickSource: (handler) => { pickSource = typeof handler === 'function' ? handler : null; },
     setPushToTalk: (config) => ipcRenderer.send('desktop:set-ptt', { enabled: !!config?.enabled, code: String(config?.code || '') }),
     onPushToTalk: (listener) => { pttListener = typeof listener === 'function' ? listener : null; },
+    // list: [{ id, combo }] dos atalhos que valem com o app em segundo plano.
+    setKeybinds: (list) => ipcRenderer.send('desktop:set-keybinds', Array.isArray(list) ? list.map((item) => ({ id: String(item?.id || ''), combo: String(item?.combo || '') })) : []),
+    onKeybind: (listener) => { keybindListener = typeof listener === 'function' ? listener : null; },
     setTheme: (colors) => ipcRenderer.send('desktop:set-theme', { background: String(colors?.background || ''), foreground: String(colors?.foreground || '') }),
     focus: () => ipcRenderer.send('desktop:focus'),
   });

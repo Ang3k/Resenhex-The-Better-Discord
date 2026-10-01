@@ -67,6 +67,7 @@
     sbVolume: Number(localStorage.getItem('sbVolume') ?? 0.6),
     ptt: savedJson('ptt', { enabled: false, code: 'Backquote', label: '`' }),
     pttHeld: false,
+    keybinds: Keybinds.load(), // ação -> combinação (keybinds.js)
     notify: localStorage.getItem('notify') !== 'false',
     localVolume: savedJson('localVolume', {}), // accountId -> 0..1
     localMuted: new Set(savedJson('localMuted', [])),
@@ -1601,7 +1602,7 @@
       renderMessages();
     }
     // Seta para cima edita a última mensagem, como no Discord.
-    if (e.key === 'ArrowUp' && !e.target.value) {
+    if (e.key === 'ArrowUp' && !e.target.value && !e.altKey && !e.ctrlKey && !e.metaKey) {
       const mine = (state.messages[state.textChannel] || []).filter((m) => m.authorId === state.me.accountId);
       if (!mine.length) return;
       e.preventDefault();
@@ -4116,11 +4117,74 @@
   }
   setInterval(updatePing, 2000);
 
+  // ---------------- atalhos de teclado ----------------
+  // Aperta um botão da interface só se ele estiver na tela e habilitado (o atalho faz o mesmo que o clique).
+  const press = (selector) => {
+    const button = $(selector);
+    if (!button || button.disabled || button.closest('.hidden, [hidden]')) return false;
+    button.click();
+    return true;
+  };
+  // Canais de texto na ordem da barra lateral (grupos recolhidos ficam de fora, como no Discord).
+  function stepChannel(direction, unreadOnly = false) {
+    if (state.home) return;
+    const rows = [...document.querySelectorAll('#channel-groups .channel[data-channel-id]')]
+      .filter((row) => channelById(row.dataset.channelId)?.type === 'text');
+    if (!rows.length) return;
+    const current = rows.findIndex((row) => row.dataset.channelId === state.textChannel);
+    for (let i = 1; i <= rows.length; i++) {
+      const row = rows[(current + direction * i + rows.length * (i + 1)) % rows.length];
+      if (unreadOnly && !row.classList.contains('unread')) continue;
+      openTextChannel(row.dataset.channelId);
+      document.querySelector(`#channel-groups .channel[data-channel-id="${CSS.escape(row.dataset.channelId)}"]`)?.scrollIntoView({ block: 'nearest' });
+      return;
+    }
+  }
+  function stepServer(direction) {
+    const servers = state.server.servers || [];
+    if (!servers.length) return;
+    const current = state.home ? (direction > 0 ? -1 : servers.length) : servers.findIndex((server) => server.id === state.server.serverId);
+    switchServer(servers[(current + direction + servers.length) % servers.length].id);
+  }
+  const KEY_ACTIONS = {
+    toggleMute: () => press('#btn-mute'),
+    toggleDeafen: () => press('#btn-deafen'),
+    toggleCamera: () => state.voiceChannel && press('#btn-camera'),
+    shareScreen: () => state.voiceChannel && press('#btn-share'),
+    toggleNoise: () => press('#btn-noise'),
+    disconnect: () => state.voiceChannel && leaveVoice(),
+    returnToCall: () => state.voiceChannel && returnToCall(),
+    prevChannel: () => stepChannel(-1),
+    nextChannel: () => stepChannel(1),
+    prevUnread: () => stepChannel(-1, true),
+    nextUnread: () => stepChannel(1, true),
+    prevServer: () => stepServer(-1),
+    nextServer: () => stepServer(1),
+    toggleMembers: () => press('#btn-members'),
+    emojiPicker: () => press('#btn-emoji'),
+    upload: () => press('#btn-attach'),
+    settings: () => preferences.open(),
+    shortcuts: () => preferences.open('accessibility').then(() => $('#keybinds-group').scrollIntoView({ block: 'start' })),
+  };
+  const VOICE_ACTIONS = new Set(Keybinds.ACTIONS.filter((action) => action.group === 'Voz').map((action) => action.id));
+  const REPEATABLE = new Set(Keybinds.ACTIONS.filter((action) => action.group === 'Navegação').map((action) => action.id));
+
   document.addEventListener('keydown', (e) => {
     if (!state.me) return;
-    // Atalhos estilo Discord: Ctrl+Shift+M muta, Ctrl+Shift+D ensurdece.
-    if (e.ctrlKey && e.shiftKey && e.key.toLowerCase() === 'm') { e.preventDefault(); $('#btn-mute').click(); }
-    if (e.ctrlKey && e.shiftKey && e.key.toLowerCase() === 'd') { e.preventDefault(); $('#btn-deafen').click(); }
+    const combos = capturingKey ? [] : Keybinds.candidates(e);
+    const action = Keybinds.ACTIONS.find((a) => state.keybinds[a.id] && combos.includes(state.keybinds[a.id]));
+    if (action) {
+      const { ctrl, alt, meta } = Keybinds.parse(state.keybinds[action.id]);
+      // Tecla sem Ctrl/Alt dentro de um campo de texto é digitação, não atalho.
+      const typing = isTyping(e.target) && !ctrl && !alt && !meta;
+      // Com as configurações abertas só valem os atalhos de voz (o resto mexeria na tela por trás).
+      const blocked = $('#app').inert && !VOICE_ACTIONS.has(action.id);
+      if (!typing && !blocked) {
+        e.preventDefault();
+        if (!e.repeat || REPEATABLE.has(action.id)) KEY_ACTIONS[action.id]();
+        return;
+      }
+    }
     // Push-to-talk: fala enquanto a tecla estiver pressionada (fora de campos de texto).
     if (state.ptt.enabled && e.code === state.ptt.code && !e.repeat && !isTyping(e.target) && !capturingKey) {
       e.preventDefault();
@@ -4149,6 +4213,15 @@
     applyAudio();
   });
   syncDesktopPtt();
+  // Microfone e áudio também valem com o app em segundo plano (versões do app que já têm o gancho).
+  const syncDesktopKeybinds = () => desktopApp?.setKeybinds?.(Keybinds.ACTIONS
+    .filter((action) => action.global && state.keybinds[action.id])
+    .map((action) => ({ id: action.id, combo: state.keybinds[action.id] })));
+  desktopApp?.onKeybind?.((id) => {
+    if (document.hasFocus() || capturingKey || !state.me || !VOICE_ACTIONS.has(id)) return;
+    KEY_ACTIONS[id]?.();
+  });
+  syncDesktopKeybinds();
 
   // ---------------- preferências e navegação ----------------
   let capturingKey = false;
@@ -4202,7 +4275,7 @@
     'profile-color': 'color', 'profile-avatar': 'avatar', 'profile-avatar-crop': 'avatarCrop', 'profile-banner': 'banner', 'profile-banner-crop': 'bannerCrop', 'mic-select': 'micDeviceId', 'speaker-select': 'speakerDeviceId',
     'camera-select': 'cameraDeviceId', 'noise-mode': 'noiseMode', 'echo-toggle': 'echoCancellation',
     'sens-auto': 'sensAuto', 'sens-range': 'sensThreshold', 'input-mode': 'inputMode',
-    'ptt-code': 'pttCode', 'ptt-label': 'pttLabel', 'upload-select': 'uploadMbps',
+    'ptt-code': 'pttCode', 'ptt-label': 'pttLabel', 'keybinds-data': 'keybinds', 'upload-select': 'uploadMbps',
     'share-preset': 'sharePreset', 'share-audio': 'shareAudio', 'stream-stats': 'showStreamStats',
     'sounds-toggle': 'sounds', 'notify-toggle': 'notify', 'sb-toggle': 'soundboard', 'sb-volume': 'sbVolume',
     'output-volume': 'outputVolume', 'theme-select': 'theme', 'density-select': 'density',
@@ -4220,7 +4293,8 @@
   function readPreferences() {
     return { ...state, color: meMember()?.color || '#5865f2', avatar: meMember()?.avatarUrl || '', avatarCrop: meMember()?.avatarCrop ? JSON.stringify(meMember().avatarCrop) : '', banner: meMember()?.bannerUrl || '', bannerCrop: meMember()?.bannerCrop ? JSON.stringify(meMember().bannerCrop) : '', sounds: Sounds.enabled,
       soundboard: !state.sbMuted, sbVolume: Math.round(state.sbVolume * 100),
-      inputMode: state.ptt.enabled ? 'ptt' : 'voice', pttCode: state.ptt.code, pttLabel: state.ptt.label };
+      inputMode: state.ptt.enabled ? 'ptt' : 'voice', pttCode: state.ptt.code, pttLabel: state.ptt.label,
+      keybinds: JSON.stringify(state.keybinds) };
   }
   function previewAppearance(values) {
     Object.assign(document.documentElement.dataset, { theme: values.theme, density: values.density, reduceMotion: String(values.reduceMotion), streamStats: String(values.showStreamStats) });
@@ -4274,6 +4348,9 @@
     captureKeyHandler = null;
     capturingKey = false;
     $('#ptt-key').textContent = $('#ptt-label').value;
+    editingKeybind = null;
+    $('#keybind-status').textContent = '';
+    renderKeybindList();
   }
   function notificationHelp() {
     const permission = 'Notification' in window ? Notification.permission : 'unsupported';
@@ -4314,6 +4391,9 @@
     state.pttHeld = false;
     localStorage.setItem('ptt', JSON.stringify(state.ptt));
     syncDesktopPtt();
+    state.keybinds = Keybinds.normalize(JSON.parse(values.keybinds || 'null'));
+    localStorage.setItem('keybinds', JSON.stringify(state.keybinds));
+    syncDesktopKeybinds();
     state.sbMuted = !values.soundboard; state.sbVolume = values.sbVolume / 100;
     localStorage.setItem('sbMuted', state.sbMuted); localStorage.setItem('sbVolume', state.sbVolume);
     Sounds.enabled = values.sounds;
@@ -4334,6 +4414,8 @@
       setAvatarContents($('#profile-preview-avatar'), $('#profile-avatar').value, meMember().name, meMember().avatarCrop);
       setBannerContents($('#profile-preview-banner'), $('#profile-banner').value, meMember().bannerCrop);
       $('#ptt-key').textContent = state.ptt.label;
+      $('#keybinds-global-hint').classList.toggle('hidden', !desktopApp?.setKeybinds);
+      renderKeybindList();
       $('#settings-server-link').classList.toggle('hidden', !canAdmin());
       notificationHelp();
       renderDiagnostics();
@@ -4453,6 +4535,89 @@
     };
     document.addEventListener('keydown', captureKeyHandler, true);
   };
+  // Lista editável de atalhos. O rascunho fica em #keybinds-data (JSON) e entra no Salvar/Descartar das configurações.
+  let editingKeybind = null;
+  const draftKeybinds = () => {
+    try { return Keybinds.normalize(JSON.parse($('#keybinds-data').value || 'null')); } catch { return { ...Keybinds.DEFAULTS }; }
+  };
+  const keyCaps = (combo) => (combo ? Keybinds.parts(combo).map((part) => el('kbd', { textContent: part })) : [el('span', { class: 'keybind-empty', textContent: 'Sem atalho' })]);
+  function renderKeybindList() {
+    const binds = draftKeybinds();
+    let group = null;
+    const rows = [];
+    for (const action of Keybinds.ACTIONS) {
+      if (action.group !== group) { group = action.group; rows.push(el('div', { class: 'keybind-group-title', textContent: group })); }
+      const editing = editingKeybind === action.id;
+      const changedFromDefault = binds[action.id] !== Keybinds.DEFAULTS[action.id];
+      rows.push(el('div', { class: 'shortcut-row keybind-row' + (editing ? ' editing' : '') },
+        el('span', { textContent: action.label }),
+        el('span', { class: 'keybind-actions' },
+          changedFromDefault && !editing ? el('button', { type: 'button', class: 'keybind-undo', ariaLabel: `Voltar ao padrão: ${Keybinds.format(Keybinds.DEFAULTS[action.id]) || 'sem atalho'}`,
+            data: { tip: 'Voltar ao padrão' }, onclick: () => setKeybind(action.id, Keybinds.DEFAULTS[action.id]) }, Icon('refresh', 14)) : null,
+          el('button', { type: 'button', class: 'keybind-key', ariaLabel: `Alterar atalho: ${action.label}`, data: { action: action.id },
+            onclick: () => startKeybindCapture(action.id) },
+          ...(editing ? [el('span', { class: 'keybind-wait', textContent: 'Aperte a combinação…' })] : keyCaps(binds[action.id]))))));
+    }
+    $('#keybind-list').replaceChildren(...rows);
+    if (editingKeybind) $(`#keybind-list [data-action="${editingKeybind}"]`)?.focus();
+  }
+  function setKeybind(id, combo) {
+    const binds = draftKeybinds();
+    const other = Keybinds.actionFor(binds, combo, id);
+    if (other) binds[other.id] = '';
+    binds[id] = combo;
+    $('#keybinds-data').value = JSON.stringify(binds);
+    const action = Keybinds.ACTIONS.find((a) => a.id === id);
+    $('#keybind-status').textContent = other ? `${Keybinds.format(combo)} saiu de "${other.label}" e agora é de "${action.label}".`
+      : combo ? '' : `"${action.label}" ficou sem atalho.`;
+    editingKeybind = null;
+    renderKeybindList();
+    preferences.refresh();
+  }
+  function startKeybindCapture(id) {
+    if (capturingKey) return;
+    capturingKey = true;
+    editingKeybind = id;
+    $('#keybind-status').textContent = '';
+    renderKeybindList();
+    const finish = () => {
+      document.removeEventListener('keydown', captureKeyHandler, true);
+      document.removeEventListener('pointerdown', cancelOnClick, true);
+      captureKeyHandler = null; capturingKey = false;
+    };
+    const cancelOnClick = () => { finish(); editingKeybind = null; renderKeybindList(); };
+    captureKeyHandler = (event) => {
+      event.preventDefault(); event.stopImmediatePropagation();
+      const plain = !event.ctrlKey && !event.altKey && !event.shiftKey && !event.metaKey;
+      if (plain && event.key === 'Escape') { cancelOnClick(); return; }
+      if (plain && (event.key === 'Backspace' || event.key === 'Delete')) { finish(); setKeybind(id, ''); return; }
+      const combo = Keybinds.fromEvent(event);
+      if (!combo) return; // só modificadores por enquanto: espera a tecla principal
+      const { code, ctrl, alt, meta } = Keybinds.parse(combo);
+      if (Keybinds.needsModifier(code) && !ctrl && !alt && !meta) {
+        $('#keybind-status').textContent = `Use ${Keybinds.format(combo)} junto com Ctrl ou Alt, senão ela dispara enquanto você digita.`;
+        return;
+      }
+      if (state.ptt.enabled && combo === state.ptt.code) {
+        $('#keybind-status').textContent = 'Essa tecla já é a do push-to-talk.';
+        return;
+      }
+      finish();
+      setKeybind(id, combo);
+    };
+    document.addEventListener('keydown', captureKeyHandler, true);
+    // Clicar em outro lugar cancela; o próprio clique do botão já passou.
+    setTimeout(() => { if (editingKeybind === id) document.addEventListener('pointerdown', cancelOnClick, true); });
+  }
+  $('#keybinds-reset').onclick = () => {
+    if (capturingKey) return;
+    $('#keybinds-data').value = JSON.stringify(Keybinds.DEFAULTS);
+    editingKeybind = null;
+    $('#keybind-status').textContent = 'Atalhos voltaram ao padrão. Salve para aplicar.';
+    renderKeybindList();
+    preferences.refresh();
+  };
+
   const dbToPct = (db) => Math.max(0, Math.min(100, ((db + 80) / 80) * 100));
   function drawMeter(db, open) {
     const threshold = $('#sens-auto').checked ? gateThreshold() : Number($('#sens-range').value);

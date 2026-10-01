@@ -7,7 +7,7 @@
     "start": "node server.js",
     "test": "node --test",
     "test:media-browser": "node tools/media-smoke.js",
-    "check": "node --check server.js && node --check channels.js && node --check communities.js && node --check avatar.js && node --check soundboard.js && node --check public/photo-editor.js && node --check public/sounds.js && node --check public/changelog.js && node --check public/channel-navigation.js && node --check public/app.js && node --check public/landing.js && node --check public/settings.js && node --check public/media-policy.js && node --check public/media-session.js && node --check public/mobile-stream.js && node --check downloads.js && node --check public/desktop.js && node --check public/download.js"
+    "check": "node --check server.js && node --check channels.js && node --check communities.js && node --check avatar.js && node --check soundboard.js && node --check public/photo-editor.js && node --check public/sounds.js && node --check public/changelog.js && node --check public/channel-navigation.js && node --check public/app.js && node --check public/landing.js && node --check public/keybinds.js && node --check public/settings.js && node --check public/media-policy.js && node --check public/media-session.js && node --check public/mobile-stream.js && node --check downloads.js && node --check public/desktop.js && node --check public/download.js"
   },
   "dependencies": {
     "@sapphi-red/web-noise-suppressor": "^0.4.1",

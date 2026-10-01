@@ -81,7 +81,7 @@ async function ui(t, invited = false, options = {}) {
   };
   let copied = '';
   Object.defineProperty(w.navigator, 'clipboard', { value: { writeText: async (text) => { copied = text; } } });
-  for (const file of ['icons.js', 'format.js', 'sounds.js', 'media-policy.js', 'settings.js', 'photo-editor.js', 'media-session.js', 'mobile-stream.js', 'changelog.js', 'channel-navigation.js', 'app.js', 'landing.js']) w.eval(fs.readFileSync(path.join(publicDir, file), 'utf8'));
+  for (const file of ['icons.js', 'format.js', 'sounds.js', 'media-policy.js', 'keybinds.js', 'settings.js', 'photo-editor.js', 'media-session.js', 'mobile-stream.js', 'changelog.js', 'channel-navigation.js', 'app.js', 'landing.js']) w.eval(fs.readFileSync(path.join(publicDir, file), 'utf8'));
   w.localStorage.setItem('seenVersion', w.APP_VERSION);
   t.after(() => { dom.window.close(); assert.deepEqual(errors.map((e) => e.message), []); });
   await settle();
@@ -288,4 +288,81 @@ test('the call soundboard opens the dedicated upload dialog; ordinary members ca
   assert.equal(!!app.d.querySelector('#app').inert, false);
   app.deliver('state', { ...s, ownerId: 'b'.repeat(16), myPerms: ['SOUNDBOARD', 'CONNECT'] }); await settle();
   app.d.querySelector('#sc-sounds').click(); assert.equal(app.d.querySelector('.sb-add').disabled, true);
+});
+
+test('keyboard shortcuts follow Discord defaults, can be rebound in settings and resolve conflicts', async (t) => {
+  const app = await ui(t);
+  await app.register();
+  const { d, w } = app;
+  const key = (code, mods = {}, target = d.body) => {
+    const event = new w.KeyboardEvent('keydown', { code, key: /^Key/.test(code) ? code.slice(3).toLowerCase() : code, bubbles: true, cancelable: true, ctrlKey: !!mods.ctrl, altKey: !!mods.alt, shiftKey: !!mods.shift });
+    target.dispatchEvent(event);
+    return event;
+  };
+  for (const name of ['Turma um', 'Turma dois']) {
+    d.querySelector('#btn-add-server').click(); await settle();
+    await app.clickText('Criar meu servidorDê um nome e convide seus amigos.');
+    d.querySelector('#new-server-name').value = name; await app.clickText('Criar servidor');
+    d.querySelector('#server-dialog .dialog-close').click();
+  }
+  // O som de mutar/ensurdecer mostra qual botão o atalho apertou (o fixture não tem permissão de falar).
+  const played = [];
+  w.Sounds.play = (name) => played.push(name);
+
+  // Padrão do Discord: Ctrl+Shift+M muta, também com o foco na caixa de mensagem.
+  assert.equal(key('KeyM', { ctrl: true, shift: true }, d.querySelector('#chat-input')).defaultPrevented, true);
+  assert.deepEqual(played.splice(0), ['mute']);
+  // Ctrl+Alt+↑/↓ troca de servidor.
+  key('ArrowUp', { ctrl: true, alt: true }); await settle();
+  assert.equal(d.querySelector('#server-header span').textContent, 'Turma um');
+  key('ArrowDown', { ctrl: true, alt: true }); await settle();
+  assert.equal(d.querySelector('#server-header span').textContent, 'Turma dois');
+
+  // Ctrl+/ abre a lista de atalhos nas configurações.
+  key('Slash', { ctrl: true }); await settle();
+  assert.equal(d.querySelector('#settings').classList.contains('hidden'), false);
+  assert.equal(d.querySelector('#page-accessibility').classList.contains('hidden'), false);
+  const keyButton = (id) => d.querySelector(`#keybind-list [data-action="${id}"]`);
+  assert.equal(keyButton('toggleMute').textContent, 'CtrlShiftM');
+  assert.equal(keyButton('disconnect').textContent, 'Sem atalho');
+
+  // Letra sozinha é recusada; Ctrl+Alt+M vira o novo atalho de mutar.
+  keyButton('toggleMute').click(); await settle();
+  key('KeyK'); await settle();
+  assert.match(d.querySelector('#keybind-status').textContent, /Ctrl ou Alt/);
+  key('KeyM', { ctrl: true, alt: true }); await settle();
+  assert.equal(keyButton('toggleMute').textContent, 'CtrlAltM');
+  assert.equal(d.querySelector('#settings-savebar').classList.contains('hidden'), false);
+
+  // Conflito: dar Ctrl+Alt+M para ensurdecer tira o atalho de mutar.
+  keyButton('toggleDeafen').click(); await settle();
+  key('KeyM', { ctrl: true, alt: true }); await settle();
+  assert.equal(keyButton('toggleDeafen').textContent, 'CtrlAltM');
+  assert.equal(keyButton('toggleMute').textContent, 'Sem atalho');
+  assert.match(d.querySelector('#keybind-status').textContent, /saiu de "Ativar ou desativar microfone"/);
+  // Esc cancela a edição sem mudar nada.
+  keyButton('disconnect').click(); await settle();
+  key('Escape'); await settle();
+  assert.equal(keyButton('disconnect').textContent, 'Sem atalho');
+  assert.equal(d.querySelector('#settings').classList.contains('hidden'), false);
+
+  d.querySelector('#settings-save').click(); await settle();
+  const saved = JSON.parse(w.localStorage.getItem('keybinds'));
+  assert.equal(saved.toggleMute, '');
+  assert.equal(saved.toggleDeafen, 'Ctrl+Alt+KeyM');
+  d.querySelector('#settings-close').click(); await settle();
+
+  // O atalho antigo não faz mais nada; o novo ensurdece.
+  played.length = 0;
+  key('KeyM', { ctrl: true, shift: true });
+  assert.deepEqual(played, []);
+  key('KeyM', { ctrl: true, alt: true });
+  assert.deepEqual(played, ['deafen']);
+
+  // Restaurar padrões volta ao Ctrl+Shift+M.
+  key('Comma', { ctrl: true }); await settle();
+  d.querySelector('#keybinds-reset').click(); await settle();
+  assert.equal(keyButton('toggleMute').textContent, 'CtrlShiftM');
+  d.querySelector('#settings-save').click(); await settle();
+  assert.equal(JSON.parse(w.localStorage.getItem('keybinds')).toggleMute, 'Ctrl+Shift+KeyM');
 });

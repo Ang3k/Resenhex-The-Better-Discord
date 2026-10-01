@@ -6,6 +6,7 @@ const path = require('node:path');
 const { uiohookKeycode } = require('../lib/ptt-keys');
 const { parseTitle, badgeName } = require('../lib/title-badge');
 const { createStore } = require('../lib/store');
+const { globalBindings, matchBinding } = require('../lib/keybinds');
 
 test('converte códigos de tecla do site para o gancho global', () => {
   assert.equal(uiohookKeycode('Backquote'), 41);
@@ -62,4 +63,23 @@ test('o registro grava linhas com data e nível e recomeça quando fica grande',
   createLog(file).info('de novo');
   assert.match(fs.readFileSync(file, 'utf8'), /^\S+ \[info\] de novo\n$/);
   fs.rmSync(dir, { recursive: true, force: true });
+});
+
+test('atalhos globais: converte combos do site e exige os mesmos modificadores', () => {
+  const binds = globalBindings([
+    { id: 'toggleMute', combo: 'Ctrl+Shift+KeyM' },
+    { id: 'toggleDeafen', combo: 'F13' },
+    { id: 'bad', combo: 'Hyper+KeyX' },
+    { id: 'noKey', combo: 'Ctrl+MouseButton4' },
+    { id: 'evil id!', combo: 'Ctrl+KeyA' },
+    null,
+  ]);
+  assert.deepEqual(binds.map((b) => b.id), ['toggleMute', 'toggleDeafen']);
+  const m = uiohookKeycode('KeyM');
+  assert.equal(matchBinding(binds, { keycode: m, ctrlKey: true, shiftKey: true })?.id, 'toggleMute');
+  assert.equal(matchBinding(binds, { keycode: m, ctrlKey: true, shiftKey: true, altKey: true }), null);
+  assert.equal(matchBinding(binds, { keycode: m, ctrlKey: true }), null);
+  assert.equal(matchBinding(binds, { keycode: uiohookKeycode('F13') })?.id, 'toggleDeafen');
+  assert.deepEqual(globalBindings('nada'), []);
+  assert.equal(globalBindings(Array.from({ length: 50 }, () => ({ id: 'toggleMute', combo: 'F13' }))).length, 20);
 });

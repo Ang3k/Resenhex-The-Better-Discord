@@ -12,6 +12,7 @@ const path = require('node:path');
 const { createStore } = require('./lib/store');
 const { parseTitle, badgeName } = require('./lib/title-badge');
 const { uiohookKeycode } = require('./lib/ptt-keys');
+const { globalBindings, matchBinding } = require('./lib/keybinds');
 const { createLog } = require('./lib/log');
 
 const APP_URL = new URL(process.env.RESENHEX_URL || 'https://resenhex.duckdns.org/');
@@ -353,35 +354,60 @@ ipcMain.on('desktop:pick-source:result', (event, id, choice) => {
   pick.finish(choice && typeof choice.id === 'string' ? { id: choice.id, audio: !!choice.audio } : null);
 });
 
-// ---------------- push-to-talk global ----------------
-// O site cuida da tecla com a janela em foco; com o app em segundo plano, o gancho global avisa o site.
-// Só a tecla configurada é repassada.
+// ---------------- push-to-talk e atalhos globais ----------------
+// O site cuida das teclas com a janela em foco; com o app em segundo plano, o gancho global avisa o site.
+// Só a tecla do push-to-talk e os atalhos que o site pediu (microfone e áudio) são repassados.
 let hook = null;
 let pttKey = null;
 let pttDown = false;
+let bindings = [];
+const held = new Set(); // segurar a tecla repete o keydown: o atalho dispara uma vez por toque
+
+function onGlobalKeydown(event) {
+  if (event.keycode === pttKey && !pttDown) { pttDown = true; site?.webContents.send('desktop:ptt', true); }
+  if (held.has(event.keycode)) return;
+  held.add(event.keycode);
+  const binding = matchBinding(bindings, event);
+  if (binding) site?.webContents.send('desktop:keybind', binding.id);
+}
+function onGlobalKeyup(event) {
+  held.delete(event.keycode);
+  if (event.keycode === pttKey && pttDown) { pttDown = false; site?.webContents.send('desktop:ptt', false); }
+}
+
+function updateHook() {
+  const needed = !!pttKey || bindings.length > 0;
+  try {
+    if (needed && !hook) {
+      hook = require('uiohook-napi').uIOhook;
+      hook.on('keydown', onGlobalKeydown);
+      hook.on('keyup', onGlobalKeyup);
+      hook.start();
+    } else if (!needed && hook) {
+      hook.stop();
+      hook.removeAllListeners();
+      hook = null;
+      held.clear();
+    }
+  } catch (error) {
+    log.warn('Atalhos globais indisponíveis:', error.message);
+    hook = null;
+  }
+}
 
 function setPushToTalk(config) {
   const key = config && config.enabled ? uiohookKeycode(config.code) : null;
   if (key === pttKey) return;
   pttKey = key;
   pttDown = false;
-  try {
-    if (pttKey && !hook) {
-      hook = require('uiohook-napi').uIOhook;
-      hook.on('keydown', (event) => { if (event.keycode === pttKey && !pttDown) { pttDown = true; site?.webContents.send('desktop:ptt', true); } });
-      hook.on('keyup', (event) => { if (event.keycode === pttKey && pttDown) { pttDown = false; site?.webContents.send('desktop:ptt', false); } });
-      hook.start();
-    } else if (!pttKey && hook) {
-      hook.stop();
-      hook.removeAllListeners();
-      hook = null;
-    }
-  } catch (error) {
-    log.warn('Push-to-talk global indisponível:', error.message);
-    hook = null;
-  }
+  updateHook();
 }
 
+ipcMain.on('desktop:set-keybinds', (event, list) => {
+  if (!fromSite(event)) return;
+  bindings = globalBindings(list);
+  updateHook();
+});
 ipcMain.on('desktop:set-ptt', (event, config) => { if (fromSite(event)) setPushToTalk(config); });
 ipcMain.on('desktop:set-theme', (event, colors) => {
   if (!fromSite(event) || !colors) return;
