@@ -68,7 +68,7 @@ test('o som do computador na transmissão deixa de fora o próprio app a partir 
   const { systemAudioDevice } = require('../lib/system-audio');
   assert.equal(systemAudioDevice('win32', '10.0.26100'), 'loopbackWithoutChrome');
   assert.equal(systemAudioDevice('win32', '10.0.19045'), 'loopbackWithoutChrome');
-  assert.equal(systemAudioDevice('win32', '10.0.19041'), 'loopbackWithoutChrome');
-  assert.equal(systemAudioDevice('win32', '10.0.18363'), 'loopback', 'antes do 2004 só existe a captura de tudo');
+  assert.equal(systemAudioDevice('win32', '10.0.19044'), 'loopback', 'Windows 10 21H2 aceita o pedido mas captura errado');
+  assert.equal(systemAudioDevice('win32', '10.0.18363'), 'loopback');
   assert.equal(systemAudioDevice('darwin', '15.0.0'), null);
 });

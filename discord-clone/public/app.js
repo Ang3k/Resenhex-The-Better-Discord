@@ -416,7 +416,7 @@
     // "active" = o Socket.IO já está conectando/reconectando; chamar connect() de novo
     // mandaria um segundo pedido de conexão e o servidor derrubaria a sessão.
     if (!socket.connected && !socket.active) socket.connect();
-    socket.emit('auth', { ...payload, serverId: localStorage.getItem('serverId'), invite: pendingInviteCode }, (res) => {
+    socket.emit('auth', { ...payload, serverId: localStorage.getItem('serverId'), invite: pendingInviteCode, version: window.APP_VERSION }, (res) => {
       if (res.error) {
         if (payload.token) localStorage.removeItem('token');
         setConnBanner(null);
@@ -429,6 +429,8 @@
       state.permNames = res.permNames;
       state.iceServers = res.iceServers;
       state.maxUploadMb = res.maxUploadMb;
+      // O servidor foi atualizado depois que esta página abriu: o código novo só vem recarregando.
+      $('#update-banner').classList.toggle('hidden', !res.version || res.version === window.APP_VERSION);
       $('#login-password').value = '';
       $('#login-confirm-password').value = '';
       $('#login').classList.add('hidden');
@@ -455,6 +457,8 @@
       if (state.server) render();
     });
   }
+
+  $('#update-reload').onclick = () => location.reload();
 
   function setConnBanner(text) {
     const banner = $('#conn-banner');

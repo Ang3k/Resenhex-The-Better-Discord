@@ -4,6 +4,20 @@
 // O título deve destacar as principais funcionalidades ou correções, com termos objetivos.
 window.CHANGELOG = [
   {
+    version: '0.99.3', date: '2026-09-30', name: 'Filtro de eco mais forte e aviso de versão nova',
+    summary: 'As vozes da chamada saem do som da transmissão também nos PCs com som espacial ou equalização de volume, e uma versão nova do Resenhex agora avisa.',
+    sections: [
+      { kind: 'fixed', items: [
+        'O filtro que tira as vozes da chamada do som da transmissão ficou bem mais forte nos PCs com som espacial, surround virtual ou equalização de volume ligados, onde antes sobrava uma voz abafada.',
+        'No app para Windows, a exclusão do som do Resenhex pelo próprio Windows passa a valer a partir do Windows 10 22H2. Em versões anteriores ela não funciona direito, e o filtro do Resenhex entra no lugar.',
+      ] },
+      { kind: 'new', items: [
+        'Quem transmite fica sabendo como o som do computador está indo: sem as vozes da chamada, com as vozes tiradas pelo filtro ou com as vozes junto, e o que fazer. O mesmo aparece em Conexão e diagnóstico.',
+        'Quando sai uma versão nova do Resenhex, aparece um aviso no topo com o botão Atualizar.',
+      ] },
+    ],
+  },
+  {
     version: '0.99.2', date: '2026-09-30', name: 'Transmissão sem eco das vozes da chamada',
     summary: 'O som do computador na transmissão de tela não leva mais junto as vozes de quem está na chamada.',
     sections: [

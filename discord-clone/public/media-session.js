@@ -258,19 +258,31 @@ window.MediaSession = function ({ state, socket, call, el, toast, voiceEntry, me
       audio: state.shareAudio ? { echoCancellation: false, noiseSuppression: false, autoGainControl: false, restrictOwnAudio: true } : false,
       selfBrowserSurface: 'exclude', surfaceSwitching: 'include', systemAudio: state.shareAudio ? 'include' : 'exclude',
     });
-    // Onde o navegador não sabe deixar o som do Resenhex de fora, o app mesmo o tira.
-    if (includesOwnAudio(stream)) await ownAudio?.clean(stream);
+    stream.audioMode = await audioMode(stream);
     return stream;
   }
   // O som do computador leva junto o que o próprio Resenhex toca (as vozes da chamada), a menos que
-  // o navegador (restrictOwnAudio, no Windows 11) ou o app de Windows o deixem de fora. O som de
-  // uma aba do navegador é só daquela aba.
-  function includesOwnAudio(stream) {
+  // o navegador (restrictOwnAudio, no Windows 11) ou o app de Windows o deixem de fora ('native');
+  // senão o filtro do Resenhex o tira ('filter'), ou, sem filtro, ele vai junto ('mixed'). O som
+  // de uma aba do navegador é só daquela aba ('tab'). Sem som: null.
+  async function audioMode(stream) {
     const audio = stream.getAudioTracks?.()[0];
-    if (!audio) return false;
+    if (!audio) return null;
     const settings = audio.getSettings?.() || {};
-    const surface = stream.getVideoTracks()[0]?.getSettings?.().displaySurface;
-    return surface !== 'browser' && settings.restrictOwnAudio !== true && settings.deviceId !== 'loopbackWithoutChrome';
+    if (stream.getVideoTracks()[0]?.getSettings?.().displaySurface === 'browser') return 'tab';
+    if (settings.restrictOwnAudio === true || settings.deviceId === 'loopbackWithoutChrome') return 'native';
+    return (await ownAudio?.clean(stream)) ? 'filter' : 'mixed';
+  }
+  // Quem transmite fica sabendo quando as vozes da chamada podem ir junto, e como evitar.
+  let filterNoticeShown = false;
+  function setAudioMode(mode) {
+    state.shareAudioMode = mode;
+    if (mode === 'mixed') mediaNotice('As vozes da chamada vão junto com o som do computador. Para transmitir sem eco, use o app do Resenhex ou compartilhe uma aba.');
+    if (mode !== 'filter' || filterNoticeShown) return;
+    filterNoticeShown = true;
+    mediaNotice(window.resenhexDesktop
+      ? 'Neste Windows o som do computador vem com as vozes da chamada. O Resenhex as tira, mas pode sobrar um pouco. No Windows 10 22H2 ou 11 elas ficam de fora.'
+      : 'Este navegador manda o som do computador com as vozes da chamada. O Resenhex as tira, mas pode sobrar um pouco. No app do Resenhex elas ficam de fora.');
   }
   function watchScreenTrack(track) {
     track.contentHint = presets[state.sharePreset].hint;
@@ -300,6 +312,7 @@ window.MediaSession = function ({ state, socket, call, el, toast, voiceEntry, me
         syncScreenSubscriptions();
         Sounds.play('stream');
         if (state.shareAudio && !stream.getAudioTracks().length) mediaNotice('Sua tela está sendo compartilhada sem áudio. Essa fonte ou navegador não forneceu som.');
+        setAudioMode(stream.audioMode);
       } else {
         track.onended = () => stopVideo(kind);
         for (const peer of state.peers.values()) addVideoTracks(peer, kind);
@@ -345,6 +358,7 @@ window.MediaSession = function ({ state, socket, call, el, toast, voiceEntry, me
       sendVoiceState();
       renderStage();
       mediaNotice(state.shareAudio && !current.getAudioTracks().length ? 'Tela trocada. A nova fonte não forneceu áudio.' : 'Tela trocada. Sua chamada continua conectada.');
+      setAudioMode(next.audioMode);
     } catch (error) {
       for (const { peer, sender, old, added } of changed.reverse()) {
         await MediaPolicy.enqueue(peer, async () => {
@@ -368,7 +382,7 @@ window.MediaSession = function ({ state, socket, call, el, toast, voiceEntry, me
     state.local[kind] = null;
     if (!stream) return;
     stream.getTracks().forEach((track) => { track.onended = track.onmute = track.onunmute = null; track.stop(); });
-    if (kind === 'screen') { state.sharePaused = false; ownAudio?.sync(null); syncScreenSubscriptions(); }
+    if (kind === 'screen') { state.sharePaused = false; state.shareAudioMode = null; ownAudio?.sync(null); syncScreenSubscriptions(); }
     else for (const peer of state.peers.values()) {
       for (const sender of peer.senders.camera) { if (active(peer)) peer.pc.removeTrack(sender); }
       peer.senders.camera = [];
@@ -395,7 +409,8 @@ window.MediaSession = function ({ state, socket, call, el, toast, voiceEntry, me
     const root = $('#diagnostics-peers');
     if (!root) return;
     $('#media-health').textContent = state.mediaHealth;
-    $('#diagnostics-summary').textContent = !state.voiceChannel ? 'Entre em uma chamada para ver as conexões.' : `${state.peers.size} conexões · ${viewers().length} espectadores da sua tela`;
+    const sound = { native: 'som sem as vozes da chamada', filter: 'vozes da chamada tiradas pelo filtro do Resenhex', mixed: 'som com as vozes da chamada', tab: 'som da aba' }[state.local.screen && state.shareAudioMode];
+    $('#diagnostics-summary').textContent = !state.voiceChannel ? 'Entre em uma chamada para ver as conexões.' : [`${state.peers.size} conexões`, `${viewers().length} espectadores da sua tela`, sound].filter(Boolean).join(' · ');
     const states = { connected: 'Conectado', connecting: 'Conectando', new: 'Preparando', disconnected: 'Reconectando', failed: 'Falha na conexão', closed: 'Encerrado' };
     root.replaceChildren(...[...state.peers].map(([sid, peer]) => {
       const stats = peer.stats || {};

@@ -74,6 +74,12 @@ function estimateDelay(ref, cap, windowLength, maxDelay, minDelay = 0) {
   return { delay, peak: best / mean };
 }
 
+// Os dois lados do som (esquerdo e direito) têm caminhos próprios: com som espacial ou surround
+// virtual ligados no Windows, cada ouvido recebe a voz com outra equalização e outro atraso.
+const CHANNELS = 2;
+// Caminho por canal, aceitando também o formato antigo (um só caminho para os dois lados).
+const pathsOf = (h) => (h instanceof Float32Array || typeof h?.[0] === 'number' ? [h, h] : h).map((p) => Float32Array.from(p));
+
 // hint: atraso e caminho da transmissão anterior no mesmo contexto, para começar a subtrair na hora.
 function createEstimator(sampleRate, send, hint = null) {
   const rate = sampleRate / DECIMATE;
@@ -82,22 +88,24 @@ function createEstimator(sampleRate, send, hint = null) {
   // Histórico em taxa cheia: quadros já guardados, mais o atraso máximo, mais o começo do caminho.
   const BACK = 3; // quadros aproveitados do que já foi gravado quando o atraso é confirmado
   const history = FRAME + (BACK - 1) * HOP + Math.ceil(MAX_DELAY_S * sampleRate) + PRE;
-  const ref = new Float32Array(history), cap = new Float32Array(history);
+  const ref = Array.from({ length: CHANNELS }, () => new Float32Array(history));
+  const cap = Array.from({ length: CHANNELS }, () => new Float32Array(history));
   let filled = 0;
   let decRef = new Float32Array(0), decCap = new Float32Array(0), accRef = 0, accCap = 0, accN = 0;
   const pendingRef = [], pendingCap = [];
   let sinceDelay = 0, sinceHop = 0;
   let delay = hint?.delay ?? null, candidate = null;
-  const sxr = new Float64Array(FRAME), sxi = new Float64Array(FRAME), sxx = new Float64Array(FRAME);
+  const sxr = [], sxi = [], sxx = [], sdd = [];
+  for (let c = 0; c < CHANNELS; c++) for (const s of [sxr, sxi, sxx, sdd]) s.push(new Float64Array(FRAME));
   const fr = new Float64Array(FRAME), fi = new Float64Array(FRAME), gr = new Float64Array(FRAME), gi = new Float64Array(FRAME);
   const hann = Float64Array.from({ length: FRAME }, (_, i) => 0.5 - 0.5 * Math.cos(2 * Math.PI * i / FRAME));
   let frames = 0;
   const stats = { delay, peak: 0, measurements: 0, updates: 0 };
-  if (hint?.h) send({ delay, pre: PRE, taps: TAPS, h: hint.h.slice() });
+  if (hint?.h) send({ delay, pre: PRE, taps: TAPS, h: pathsOf(hint.h) });
 
   const append = (a, b, keep) => { const c = new Float32Array(Math.min(keep, a.length + b.length)); const tail = a.subarray(Math.max(0, a.length - (c.length - b.length))); c.set(tail); c.set(b, tail.length); return c; };
 
-  function resetPath() { sxr.fill(0); sxi.fill(0); sxx.fill(0); frames = 0; }
+  function resetPath() { for (const s of [sxr, sxi, sxx, sdd]) for (const x of s) x.fill(0); frames = 0; }
 
   function measureDelay() {
     if (decRef.length < keepDec) return;
@@ -121,43 +129,69 @@ function createEstimator(sampleRate, send, hint = null) {
     const end = history - back, offset = delay - PRE;
     if (delay === null || end - FRAME - offset < history - filled) return;
     let power = 0;
-    for (let i = 0; i < FRAME; i++) {
-      const x = ref[end - FRAME - offset + i];
-      power += x * x;
-      fr[i] = x * hann[i]; fi[i] = 0;
-      gr[i] = cap[end - FRAME + i] * hann[i]; gi[i] = 0;
+    for (let c = 0; c < CHANNELS; c++) {
+      for (let i = end - FRAME - offset; i < end - offset; i++) power += ref[c][i] * ref[c][i];
     }
-    if (power / FRAME < MIN_REF_POWER) return;
-    fft(fr, fi); fft(gr, gi);
-    for (let k = 0; k < FRAME; k++) {
-      sxr[k] = sxr[k] * KEEP + fr[k] * gr[k] + fi[k] * gi[k]; // conj(X) * D
-      sxi[k] = sxi[k] * KEEP + fr[k] * gi[k] - fi[k] * gr[k];
-      sxx[k] = sxx[k] * KEEP + fr[k] * fr[k] + fi[k] * fi[k];
+    if (power / (FRAME * CHANNELS) < MIN_REF_POWER) return;
+    for (let c = 0; c < CHANNELS; c++) {
+      for (let i = 0; i < FRAME; i++) {
+        fr[i] = ref[c][end - FRAME - offset + i] * hann[i]; fi[i] = 0;
+        gr[i] = cap[c][end - FRAME + i] * hann[i]; gi[i] = 0;
+      }
+      fft(fr, fi); fft(gr, gi);
+      const xr = sxr[c], xi = sxi[c], xx = sxx[c], dd = sdd[c];
+      for (let k = 0; k < FRAME; k++) {
+        xr[k] = xr[k] * KEEP + fr[k] * gr[k] + fi[k] * gi[k]; // conj(X) * D
+        xi[k] = xi[k] * KEEP + fr[k] * gi[k] - fi[k] * gr[k];
+        xx[k] = xx[k] * KEEP + fr[k] * fr[k] + fi[k] * fi[k];
+        dd[k] = dd[k] * KEEP + gr[k] * gr[k] + gi[k] * gi[k];
+      }
     }
     if (++frames < MIN_FRAMES) return;
+    const h = [];
+    for (let c = 0; c < CHANNELS; c++) h.push(pathOf(c));
+    stats.updates++;
+    stats.h = h;
+    send({ delay, pre: PRE, taps: TAPS, h: h.map((p) => p.slice()) });
+  }
+
+  // Caminho de um canal: média do espectro cruzado sobre o da referência, de volta ao tempo.
+  // Onde a voz quase não tem energia e o jogo domina, a média ainda é só ruído: cada frequência
+  // entra na proporção da confiança que merece (estimador de Wiener com o ruído da própria medida).
+  function pathOf(c) {
+    const xr = sxr[c], xi = sxi[c], xx = sxx[c], dd = sdd[c];
     let mean = 0;
-    for (let k = 0; k < FRAME; k++) mean += sxx[k];
-    const floor = mean / FRAME * 1e-3 + 1e-12;
-    for (let k = 0; k < FRAME; k++) { const d = sxx[k] + floor; fr[k] = sxr[k] / d; fi[k] = sxi[k] / d; }
+    for (let k = 0; k < FRAME; k++) mean += xx[k];
+    const floor = mean / FRAME * 1e-6 + 1e-15;
+    const independent = Math.min(frames, (1 + KEEP) / (1 - KEEP)); // quadros independentes na média
+    for (let k = 0; k < FRAME; k++) {
+      const x = xx[k] + floor, hr = xr[k] / x, hi = xi[k] / x, h2 = hr * hr + hi * hi;
+      const other = Math.max(0, dd[k] - h2 * x); // o que a captura tem além do eco
+      const spread = other / (independent * x);     // variância da estimativa nesta frequência
+      const trust = h2 / (h2 + spread + 1e-30);
+      fr[k] = hr * trust; fi[k] = hi * trust;
+    }
     fft(fr, fi, true);
     const h = new Float32Array(TAPS);
     for (let t = 0; t < TAPS; t++) h[t] = fr[t] * (t >= TAPS - 256 ? (TAPS - t) / 256 : 1); // cauda suavizada
-    stats.updates++;
-    stats.h = h;
-    send({ delay, pre: PRE, taps: TAPS, h: h.slice() });
+    return h;
   }
 
   return {
     stats,
-    // Um bloco novo de referência e captura (mono, taxa cheia), alinhados no tempo do worklet.
+    // Um bloco novo de referência e captura (taxa cheia, [esquerdo, direito] ou mono), alinhados
+    // no tempo do worklet.
     push(r, c) {
-      const n = r.length;
-      ref.copyWithin(0, n); ref.set(r, history - n);
-      cap.copyWithin(0, n); cap.set(c, history - n);
+      const rs = r instanceof Float32Array ? [r, r] : r, cs = c instanceof Float32Array ? [c, c] : c;
+      const n = rs[0].length;
+      for (let ch = 0; ch < CHANNELS; ch++) {
+        ref[ch].copyWithin(0, n); ref[ch].set(rs[ch], history - n);
+        cap[ch].copyWithin(0, n); cap[ch].set(cs[ch], history - n);
+      }
       filled = Math.min(history, filled + n);
       pendingRef.length = pendingCap.length = 0;
       for (let i = 0; i < n; i++) {
-        accRef += r[i]; accCap += c[i];
+        accRef += (rs[0][i] + rs[1][i]) * 0.5; accCap += (cs[0][i] + cs[1][i]) * 0.5;
         if (++accN === DECIMATE) { pendingRef.push(accRef); pendingCap.push(accCap); accRef = accCap = accN = 0; }
       }
       decRef = append(decRef, Float32Array.from(pendingRef), keepDec);

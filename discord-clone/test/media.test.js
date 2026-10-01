@@ -166,7 +166,7 @@ function mediaHarness() {
     navigator: { mediaDevices: { getDisplayMedia: async () => stream([track('video'), track('audio')]) } }, Sounds: { play() {} } };
   vm.createContext(context);
   vm.runInContext(fs.readFileSync(path.join(__dirname, '../public/media-session.js'), 'utf8'), context);
-  const ownAudio = { cleaned: [], synced: [], async clean(s) { this.cleaned.push(s); }, sync(s) { this.synced.push(s); } };
+  const ownAudio = { cleaned: [], synced: [], works: true, async clean(s) { this.cleaned.push(s); return this.works; }, sync(s) { this.synced.push(s); } };
   const media = context.window.MediaSession({ state, socket: { on: (event, handler) => events.set(event, handler) }, call: async (event, payload) => { calls.push({ event, payload }); return {}; }, el: () => domNode, toast: (msg) => notices.push(msg), voiceEntry: (sid) => sid === 'self' ? self : { channel: 'room' }, member: () => ({}), render() {}, renderStage() {}, sendVoiceState() {}, preferCodec() {}, ownAudio });
   return { media, state, self, peer, screen, microphone, notices, context, events, calls, nodes, ownAudio, track, stream, clock: (value) => { clock = value; } };
 }
@@ -461,18 +461,33 @@ test('screen audio that carries the call is cleaned; excluded system audio and t
     return stream;
   };
   const cases = [
-    [{ displaySurface: 'monitor' }, { deviceId: 'loopback', restrictOwnAudio: false }, true],
-    [{ displaySurface: 'monitor' }, { deviceId: 'loopback', restrictOwnAudio: true }, false],
-    [{ displaySurface: 'monitor' }, { deviceId: 'loopbackWithoutChrome' }, false],
-    [{ displaySurface: 'browser' }, { deviceId: 'tab' }, false],
+    [{ displaySurface: 'monitor' }, { deviceId: 'loopback', restrictOwnAudio: false }, true, 'filter'],
+    [{ displaySurface: 'monitor' }, { deviceId: 'loopback', restrictOwnAudio: true }, false, 'native'],
+    [{ displaySurface: 'monitor' }, { deviceId: 'loopbackWithoutChrome' }, false, 'native'],
+    [{ displaySurface: 'browser' }, { deviceId: 'tab' }, false, 'tab'],
   ];
-  for (const [video, audio, cleaned] of cases) {
+  for (const [video, audio, cleaned, mode] of cases) {
     const stream = capture(video, audio);
     h.ownAudio.cleaned.length = 0;
     await h.media.startVideo('screen');
     assert.equal(h.ownAudio.cleaned.includes(stream), cleaned, JSON.stringify({ video, audio }));
+    assert.equal(h.state.shareAudioMode, mode);
     assert.equal(h.ownAudio.synced.at(-1), stream, 'the filter follows the live capture');
     h.media.stopVideo('screen');
     assert.equal(h.ownAudio.synced.at(-1), null, 'stopping the share releases the filter');
+    assert.equal(h.state.shareAudioMode, null);
+  }
+  assert.equal(h.notices.filter((text) => text.includes('pode sobrar um pouco')).length, 1, 'the filter notice is shown once');
+
+  // Sem como filtrar, quem transmite fica sabendo que as vozes vão junto, a cada transmissão.
+  h.ownAudio.works = false;
+  for (let i = 0; i < 2; i++) {
+    capture({ displaySurface: 'monitor' }, { deviceId: 'loopback' });
+    h.notices.length = 0;
+    await h.media.startVideo('screen');
+    assert.equal(h.state.shareAudioMode, 'mixed');
+    assert.match(h.state.mediaHealth, /vão junto/, 'mixed audio is announced');
+    if (i === 0) assert.ok(h.notices.some((text) => text.includes('vão junto')), 'and shown');
+    h.media.stopVideo('screen');
   }
 });

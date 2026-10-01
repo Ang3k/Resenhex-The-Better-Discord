@@ -12,6 +12,7 @@ const { decodeSound, soundName, MAX_SOUND_BYTES, MAX_SERVER_SOUNDS } = require('
 const { channelActions } = require('./channels');
 const { communityStore } = require('./communities');
 const { downloadRoutes } = require('./downloads');
+const { version: APP_VERSION } = require('./package.json');
 
 const PORT = process.env.PORT || 3000;
 const HOST = process.env.HOST || '0.0.0.0';
@@ -907,7 +908,9 @@ io.on('connection', (socket) => {
     const serverId = communities.choose(acc.id, payload.serverId || acc.lastServerId);
     online.set(socket.id, { accountId: acc.id, serverId, voice: null, muted: false, deafened: false, sharing: false, camera: false });
     save();
-    ack({ token, accountId: acc.id, serverId, sid: socket.id, iceServers: iceServers(), permNames: PERMS, maxUploadMb: MAX_UPLOAD_MB });
+    ack({ token, accountId: acc.id, serverId, sid: socket.id, iceServers: iceServers(), permNames: PERMS, maxUploadMb: MAX_UPLOAD_MB, version: APP_VERSION });
+    // Páginas de antes da 0.99.3 não mandam a versão nem sabem mostrar o aviso de atualização.
+    if (!payload.version) socket.emit('notice', 'Saiu uma versão nova do Resenhex. Aperte F5 para atualizar.');
     socket.emit('social', socialFor(acc));
     broadcastState();
   }

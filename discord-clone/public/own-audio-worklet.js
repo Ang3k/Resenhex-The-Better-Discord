@@ -3,14 +3,22 @@
 // O own-audio-estimator.js (um worker) mede o atraso e estima o caminho entre as duas; aqui, na
 // thread de áudio, só o que é leve e tem tempo certo:
 //   1. subtrair o eco estimado (convolução em partes, por sobreposição e descarte);
-//   2. abafar o pouco que sobra onde não há outro som por cima (supressão de resíduo);
-//   3. mandar referência e captura para o worker.
+//   2. acompanhar, por faixa de frequência, o quanto o volume do eco mudou desde que o caminho foi
+//      medido (a equalização de volume e os limitadores do Windows mudam o ganho a todo instante);
+//   3. abafar o pouco que sobra onde não há outro som por cima (supressão de resíduo);
+//   4. mandar referência e captura para o worker.
 const N = 128;               // bloco (um quantum do Web Audio)
 const F = 2 * N;             // tamanho da FFT dos blocos
 const RING = 1 << 17;        // histórico da referência (~2,7 s a 48 kHz)
 const SEND = 2048;           // amostras por mensagem para o worker
-const RESIDUAL = 0.003;      // resíduo esperado depois da subtração (-25 dB do eco estimado)
+const RESIDUAL = 0.001;      // resíduo esperado depois da subtração (-30 dB do eco estimado)
 const FLOOR = 0.1;           // o máximo que a supressão abafa (-20 dB)
+const GAIN_KEEP = 0.9;       // memória do ajuste de volume por faixa (~25 ms)
+// Faixas de frequência (em pontos de 187,5 Hz a 48 kHz) do ajuste de volume.
+const BANDS = [0, 2, 4, 6, 9, 13, 18, 25, 34, 46, 62, 84, F / 2 + 1];
+const NB = BANDS.length - 1;
+const BAND = new Uint8Array(F / 2 + 1);
+for (let b = 0; b < NB; b++) for (let k = BANDS[b]; k < BANDS[b + 1]; k++) BAND[k] = b;
 
 // FFT complexa radix-2 de tamanho F, com tabelas prontas.
 const REV = new Uint16Array(F), COS = new Float64Array(F / 2), SIN = new Float64Array(F / 2);
@@ -50,26 +58,33 @@ class OwnAudioRemover extends AudioWorkletProcessor {
     this.delay = -1;   // atraso da captura em relação à referência; -1 enquanto não se sabe
     this.pre = 0;
     this.parts = 0;    // partes do filtro com o caminho estimado; 0 = ainda sem estimativa
-    this.wr = null; this.wi = null;   // espectros das partes do caminho
+    this.wr = null; this.wi = null;   // espectros das partes do caminho, por canal
     this.xr = null; this.xi = null;   // espectros dos últimos blocos da referência, por canal
     this.re = new Float64Array(F);
     this.im = new Float64Array(F);
-    // Supressão de resíduo: blocos anteriores, espectros e ganho por frequência.
-    this.lastE = [new Float64Array(N), new Float64Array(N)];
-    this.lastY = new Float64Array(N);
-    this.overlap = [new Float64Array(N), new Float64Array(N)];
-    this.er = [new Float64Array(F), new Float64Array(F)];
-    this.ei = [new Float64Array(F), new Float64Array(F)];
-    this.yr = new Float64Array(F);
-    this.yi = new Float64Array(F);
-    this.gain = new Float64Array(F).fill(1);
+    // Depois da subtração, por canal: blocos anteriores, espectros, ajuste de volume por faixa e
+    // ganho da supressão por frequência.
+    const pair = (make) => [make(), make()];
+    this.lastE = pair(() => new Float64Array(N));
+    this.lastY = pair(() => new Float64Array(N));
+    this.overlap = pair(() => new Float64Array(N));
+    this.er = pair(() => new Float64Array(F));
+    this.ei = pair(() => new Float64Array(F));
+    this.yr = pair(() => new Float64Array(F));
+    this.yi = pair(() => new Float64Array(F));
+    this.cross = pair(() => new Float64Array(NB));
+    this.echo = pair(() => new Float64Array(NB));
+    this.total = pair(() => new Float64Array(NB));
+    this.adjust = pair(() => new Float64Array(NB));
+    this.sums = [new Float64Array(NB), new Float64Array(NB), new Float64Array(NB)];
+    this.gain = pair(() => new Float64Array(F / 2 + 1).fill(1));
     this.e = [new Float64Array(N), new Float64Array(N)];
     this.y = [new Float64Array(N), new Float64Array(N)];
     this.powIn = 0;
     this.powOut = 0;
     this.worse = 0;
-    this.sendRef = new Float32Array(SEND);
-    this.sendCap = new Float32Array(SEND);
+    this.sendRef = [new Float32Array(SEND), new Float32Array(SEND)];
+    this.sendCap = [new Float32Array(SEND), new Float32Array(SEND)];
     this.sendN = 0;
     this.estimator = null;
     this.port.onmessage = ({ data }) => {
@@ -79,15 +94,15 @@ class OwnAudioRemover extends AudioWorkletProcessor {
     };
   }
 
-  // Atraso e caminho vindos do worker. Atraso novo sem caminho ainda: subtração parada.
+  // Atraso e caminho (um por canal) vindos do worker. Atraso novo sem caminho ainda: subtração parada.
   setPath({ delay, pre, taps, h }) {
     if (!Number.isInteger(delay) || delay < pre + N) return;
     const parts = Math.ceil(taps / N);
     if (delay !== this.delay || parts * F !== this.xr?.[0].length) {
       this.xr = [new Float64Array(parts * F), new Float64Array(parts * F)];
       this.xi = [new Float64Array(parts * F), new Float64Array(parts * F)];
-      this.wr = new Float64Array(parts * F);
-      this.wi = new Float64Array(parts * F);
+      this.wr = [new Float64Array(parts * F), new Float64Array(parts * F)];
+      this.wi = [new Float64Array(parts * F), new Float64Array(parts * F)];
       this.parts = 0;
       this.worse = 0;
       this.powIn = this.powOut = 0;
@@ -96,21 +111,24 @@ class OwnAudioRemover extends AudioWorkletProcessor {
     this.pre = pre;
     if (!h) return;
     const { re, im } = this;
-    for (let p = 0; p < parts; p++) {
-      for (let i = 0; i < F; i++) { re[i] = i < N ? h[p * N + i] || 0 : 0; im[i] = 0; }
-      fft(re, im, false);
-      this.wr.set(re, p * F);
-      this.wi.set(im, p * F);
+    const paths = typeof h[0] === 'number' ? [h, h] : h;
+    for (let c = 0; c < 2; c++) {
+      for (let p = 0; p < parts; p++) {
+        for (let i = 0; i < F; i++) { re[i] = i < N ? paths[c][p * N + i] || 0 : 0; im[i] = 0; }
+        fft(re, im, false);
+        this.wr[c].set(re, p * F);
+        this.wi[c].set(im, p * F);
+      }
     }
     this.parts = parts;
   }
 
   // Eco estimado do bloco atual em this.y[c] (convolução em partes).
   predict() {
-    const { re, im, wr, wi, parts } = this, mask = RING - 1;
+    const { re, im, parts } = this, mask = RING - 1;
     const start = this.pos - (this.delay - this.pre) - F; // bloco anterior + atual da referência alinhada
     for (let c = 0; c < 2; c++) {
-      const xr = this.xr[c], xi = this.xi[c], ring = this.ref[c];
+      const xr = this.xr[c], xi = this.xi[c], ring = this.ref[c], wr = this.wr[c], wi = this.wi[c];
       xr.copyWithin(F, 0, (parts - 1) * F);
       xi.copyWithin(F, 0, (parts - 1) * F);
       for (let i = 0; i < F; i++) { re[i] = ring[(start + i) & mask]; im[i] = 0; }
@@ -129,43 +147,79 @@ class OwnAudioRemover extends AudioWorkletProcessor {
     }
   }
 
-  // Abafa as frequências em que o que sobrou é só resíduo do eco; onde há jogo ou música por cima,
-  // o ganho fica perto de 1. Sempre ligada (com ganho 1 sem estimativa), para o atraso não mudar.
-  suppress(outL, outR, active) {
-    const { er, ei, yr, yi, gain } = this;
+  // Depois da subtração, no domínio da frequência (blocos de 256 com janela de raiz de Hann): acerta
+  // o volume do eco por faixa e abafa o resíduo. Sempre ligado (sem mudar nada enquanto não há
+  // caminho), para o atraso da saída não mudar.
+  post(outL, outR, active) {
+    const outs = [outL, outR];
     for (let c = 0; c < 2; c++) {
-      const e = this.e[c], last = this.lastE[c], r = er[c], m = ei[c];
+      const r = this.er[c], m = this.ei[c], e = this.e[c], last = this.lastE[c], gain = this.gain[c];
       for (let i = 0; i < N; i++) { r[i] = last[i] * SQRT_HANN[i]; r[N + i] = e[i] * SQRT_HANN[N + i]; m[i] = m[N + i] = 0; }
       last.set(e);
       fft(r, m, false);
-    }
-    if (active) {
-      for (let i = 0; i < N; i++) {
-        const y = (this.y[0][i] + this.y[1][i]) * 0.5;
-        yr[i] = this.lastY[i] * SQRT_HANN[i]; yr[N + i] = y * SQRT_HANN[N + i]; yi[i] = yi[N + i] = 0;
-        this.lastY[i] = y;
+      if (active) {
+        const yr = this.yr[c], yi = this.yi[c], y = this.y[c], lastY = this.lastY[c];
+        for (let i = 0; i < N; i++) { yr[i] = lastY[i] * SQRT_HANN[i]; yr[N + i] = y[i] * SQRT_HANN[N + i]; yi[i] = yi[N + i] = 0; }
+        lastY.set(y);
+        fft(yr, yi, false);
+        this.follow(c, r, m, yr, yi);
+        this.shape(c, r, m, yr, yi, gain);
+      } else {
+        gain.fill(1);
+        this.lastY[c].fill(0);
+        this.cross[c].fill(0); this.echo[c].fill(0); this.total[c].fill(0); this.adjust[c].fill(0);
       }
-      fft(yr, yi, false);
-      for (let k = 0; k < F; k++) {
-        const pe = (er[0][k] ** 2 + ei[0][k] ** 2 + er[1][k] ** 2 + ei[1][k] ** 2) * 0.5;
-        const py = yr[k] ** 2 + yi[k] ** 2;
-        const target = Math.max(FLOOR, 1 - RESIDUAL * py / (pe + 1e-12));
-        // Abafa rápido e solta devagar, para não "piscar".
-        gain[k] = target < gain[k] ? target : gain[k] * 0.7 + target * 0.3;
+      for (let k = 0; k <= F / 2; k++) {
+        r[k] *= gain[k]; m[k] *= gain[k];
+        if (k && k < F / 2) { r[F - k] *= gain[k]; m[F - k] *= gain[k]; }
       }
-    } else {
-      gain.fill(1);
-      this.lastY.fill(0);
-    }
-    const outs = [outL, outR];
-    for (let c = 0; c < 2; c++) {
-      const r = er[c], m = ei[c], ov = this.overlap[c], out = outs[c];
-      for (let k = 0; k < F; k++) { r[k] *= gain[k]; m[k] *= gain[k]; }
       fft(r, m, true);
+      const ov = this.overlap[c], out = outs[c];
       for (let i = 0; i < N; i++) {
         out[i] = ov[i] + r[i] * SQRT_HANN[i];
         ov[i] = r[N + i] * SQRT_HANN[N + i];
       }
+    }
+  }
+
+  // Quanto do eco estimado (Y) ainda está no que sobrou (E), por faixa: a média de E·Y* sobre |Y|².
+  // Com o jogo alto por cima a medida oscila; o ajuste só entra na proporção da confiança nela.
+  follow(c, r, m, yr, yi) {
+    const [sc, se, st] = this.sums, cross = this.cross[c], echo = this.echo[c], total = this.total[c], adjust = this.adjust[c];
+    sc.fill(0); se.fill(0); st.fill(0);
+    for (let k = 0; k <= F / 2; k++) {
+      const b = BAND[k];
+      sc[b] += r[k] * yr[k] + m[k] * yi[k];
+      se[b] += yr[k] * yr[k] + yi[k] * yi[k];
+      st[b] += r[k] * r[k] + m[k] * m[k];
+    }
+    for (let b = 0; b < NB; b++) {
+      cross[b] = cross[b] * GAIN_KEEP + sc[b];
+      echo[b] = echo[b] * GAIN_KEEP + se[b];
+      total[b] = total[b] * GAIN_KEEP + st[b];
+      const g = cross[b] / (echo[b] + 1e-20);
+      const count = (BANDS[b + 1] - BANDS[b]) / (1 - GAIN_KEEP);
+      const spread = Math.max(0, total[b] - g * g * echo[b]) / (count * echo[b] + 1e-20);
+      adjust[b] = Math.max(-0.75, Math.min(3, g * (g * g / (g * g + spread + 1e-20))));
+    }
+    for (let k = 0; k <= F / 2; k++) {
+      const a = adjust[BAND[k]];
+      r[k] -= a * yr[k]; m[k] -= a * yi[k];
+      if (k && k < F / 2) { r[F - k] -= a * yr[F - k]; m[F - k] -= a * yi[F - k]; }
+    }
+  }
+
+  // Abafa as frequências em que o que sobrou é só resíduo do eco; onde há jogo ou música por cima,
+  // o ganho fica perto de 1.
+  shape(c, r, m, yr, yi, gain) {
+    const adjust = this.adjust[c];
+    for (let k = 0; k <= F / 2; k++) {
+      const a = 1 + adjust[BAND[k]];
+      const pe = r[k] * r[k] + m[k] * m[k];
+      const py = (yr[k] * yr[k] + yi[k] * yi[k]) * a * a;
+      const target = Math.max(FLOOR, 1 - RESIDUAL * py / (pe + 1e-12));
+      // Abafa rápido e solta devagar, para não "piscar".
+      gain[k] = target < gain[k] ? target : gain[k] * 0.7 + target * 0.3;
     }
   }
 
@@ -209,17 +263,16 @@ class OwnAudioRemover extends AudioWorkletProcessor {
         this.estimator?.postMessage({ lost: true });
       }
     }
-    this.suppress(outL, outR, active);
+    this.post(outL, outR, active);
 
-    for (let i = 0; i < n; i++) {
-      this.sendRef[this.sendN] = (refL[i] + refR[i]) * 0.5;
-      this.sendCap[this.sendN] = (capL[i] + capR[i]) * 0.5;
-      if (++this.sendN === SEND) {
-        this.estimator?.postMessage({ ref: this.sendRef, cap: this.sendCap }, [this.sendRef.buffer, this.sendCap.buffer]);
-        this.sendRef = new Float32Array(SEND);
-        this.sendCap = new Float32Array(SEND);
-        this.sendN = 0;
-      }
+    const sendRef = this.sendRef, sendCap = this.sendCap, at = this.sendN;
+    sendRef[0].set(refL, at); sendRef[1].set(refR, at);
+    sendCap[0].set(capL, at); sendCap[1].set(capR, at);
+    if ((this.sendN += n) >= SEND) {
+      this.estimator?.postMessage({ ref: sendRef, cap: sendCap }, [...sendRef, ...sendCap].map((x) => x.buffer));
+      this.sendRef = [new Float32Array(SEND), new Float32Array(SEND)];
+      this.sendCap = [new Float32Array(SEND), new Float32Array(SEND)];
+      this.sendN = 0;
     }
     return true;
   }

@@ -3,6 +3,14 @@
 Histórico de versões. A mesma lista aparece dentro do app em **Novidades** (menu do servidor ou rodapé das Configurações).
 O Resenhex ainda está antes da 1.0.
 
+## v0.99.3 — Filtro de eco mais forte e aviso de versão nova
+_30/09/2026_
+
+- O filtro que tira as vozes da chamada do som da transmissão ficou bem mais forte nos PCs com som espacial, surround virtual ou equalização de volume ligados, onde antes sobrava uma voz abafada.
+- Quem transmite fica sabendo como o som do computador está indo: sem as vozes da chamada, com as vozes tiradas pelo filtro ou com as vozes junto (e o que fazer). O mesmo aparece em Conexão e diagnóstico.
+- Quando sai uma versão nova do Resenhex, aparece um aviso no topo com o botão Atualizar. Antes, quem estava com a página aberta continuava na versão antiga sem saber.
+- App para Windows (1.0.3): a exclusão do som do Resenhex pelo próprio Windows passa a valer a partir do Windows 10 22H2. Em versões anteriores do Windows 10 ela não funciona direito, e o filtro do Resenhex entra no lugar.
+
 ## v0.99.2 — Transmissão sem eco das vozes da chamada
 _30/09/2026_
 
