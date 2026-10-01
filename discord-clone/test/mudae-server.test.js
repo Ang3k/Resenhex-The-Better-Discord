@@ -56,7 +56,7 @@ async function fixture(t) {
     }
     return socket;
   }
-  return { connect };
+  return { connect, base };
 }
 
 test('Salão do Mudae: comandos só no Salão, giro, prioridade, roubo, presença e reações', async (t) => {
@@ -158,4 +158,18 @@ test('Salão do Mudae: comandos só no Salão, giro, prioridade, roubo, presenç
   assert.ok(everyone.perms.includes('MUDAE'));
   assert.ok(!(await ana.call('role', { action: 'update', id: 'everyone', perms: everyone.perms.filter((p) => p !== 'MUDAE') })).error);
   assert.match((await send(beto, '$w')).error, /permissão para usar o Mudae/);
+});
+
+test('Salão do Mudae: a cena 3D e o Three.js vêm do próprio servidor', async (t) => {
+  const { base } = await fixture(t);
+  for (const url of ['/vendor/three/build/three.module.min.js', '/vendor/three/build/three.core.min.js',
+    '/vendor/three/addons/postprocessing/UnrealBloomPass.js', '/vendor/three/addons/objects/Reflector.js',
+    '/gacha/linha-do-tempo.mjs']) {
+    const res = await fetch(base + url);
+    assert.equal(res.status, 200, url);
+    assert.match(res.headers.get('content-type'), /javascript/, url);
+    await res.arrayBuffer();
+  }
+  const html = await (await fetch(base + '/')).text();
+  assert.match(html, /<script type="importmap">/);
 });

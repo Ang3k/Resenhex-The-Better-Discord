@@ -28,7 +28,7 @@ async function ui(t, invited = false, options = {}) {
   for (const [key, value] of Object.entries(options.storage || {})) w.localStorage.setItem(key, value);
   if (options.desktop) w.resenhexDesktop = { onPushToTalk() {}, setPushToTalk() {} };
   // Include the pre-paint decision and the landing script, in the HTML's real order.
-  for (const script of w.document.querySelectorAll('script:not([src])')) w.eval(script.textContent);
+  for (const script of w.document.querySelectorAll('script:not([src]):not([type="importmap"])')) w.eval(script.textContent);
   const events = [], handlers = new Map();
   const servers = [];
   let current = snapshot(null, '', servers);

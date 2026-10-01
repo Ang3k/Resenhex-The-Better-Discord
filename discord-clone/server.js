@@ -356,6 +356,10 @@ app.get('/baixar', (_req, res) => res.sendFile(path.join(__dirname, 'public', 'b
 app.get('/privacidade', (_req, res) => res.sendFile(path.join(__dirname, 'public', 'privacidade.html')));
 // Supressão de ruído por IA (RNNoise e GTCRN compilados para WebAssembly), usada no navegador.
 app.use('/vendor/noise', express.static(path.dirname(require.resolve('@sapphi-red/web-noise-suppressor')), { maxAge: '7d' }));
+// Three.js da cena 3D do Salão do Mudae, servido daqui (sem CDN): só o build e os addons.
+const threeDir = path.join(path.dirname(require.resolve('three')), '..');
+app.use('/vendor/three/build', express.static(path.join(threeDir, 'build'), { maxAge: '7d' }));
+app.use('/vendor/three/addons', express.static(path.join(threeDir, 'examples', 'jsm'), { maxAge: '7d' }));
 app.get('/config', (_req, res) => {
   res.json({ passwordRequired: false, hasOwner: Object.keys(db.accounts).length > 0, maxUploadMb: MAX_UPLOAD_MB });
 });
