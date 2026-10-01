@@ -1,6 +1,6 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { createMudae, parse, valueOf, rarityOf, normalize, ROLL_RESET_MS, CLAIM_RESET_MS, CLAIM_WINDOW_MS, SPIN_MS, PRIORITY_MS } = require('../mudae');
+const { createMudae, parse, valueOf, rarityOf, normalize, ROLL_RESET_MS, CLAIM_RESET_MS, CLAIM_WINDOW_MS, REVEAL_MS, revealDelay, PRIORITY_MS } = require('../mudae');
 
 const CATALOG = [
   [1, 'Satoru Gojou', 'Jujutsu Kaisen', 'b1-a.png', 'M', 900],
@@ -114,10 +114,10 @@ test('raridade pela posição e card com raridade', () => {
 
 test('Salão: ninguém casa durante o giro e quem rodou tem prioridade', () => {
   const { mudae, store, advance, now } = setup();
-  const revealAt = now() + SPIN_MS;
+  const revealAt = now() + revealDelay('common');
   const roll = { revealAt, rollerId: 'a', priority: PRIORITY_MS };
   assert.throws(() => mudae.claim(store, 'a', 1, roll), /girando/);
-  advance(SPIN_MS);
+  advance(revealDelay('common'));
   assert.throws(() => mudae.claim(store, 'b', 1, roll), /prioridade/);
   advance(PRIORITY_MS);
   mudae.claim(store, 'b', 1, roll);
@@ -187,4 +187,11 @@ test('várias fontes: raridade dentro de cada fonte, comandos com sufixo e ids e
   assert.equal(mudae.info(store, 'herói 1').card.id, 'g1');
   assert.equal(mudae.divorceId(store, 'a', 'g1').name, 'Herói 1');
   assert.equal(store.favorites.a, undefined);
+});
+
+test('Salão: a cápsula demora mais para abrir quanto mais rara', () => {
+  assert.deepEqual(REVEAL_MS, { common: 1950, rare: 2400, epic: 2850, legendary: 3850 });
+  assert.equal(revealDelay('epic'), 2850);
+  assert.equal(revealDelay('???'), 1950, 'raridade desconhecida conta como comum');
+  assert.equal(revealDelay(undefined), 1950);
 });

@@ -13,7 +13,7 @@ const { channelActions } = require('./channels');
 const { communityStore } = require('./communities');
 const { downloadRoutes } = require('./downloads');
 const { createDj } = require('./dj');
-const { createMudae, CLAIM_WINDOW_MS, SPIN_MS, PRIORITY_MS } = require('./mudae');
+const { createMudae, CLAIM_WINDOW_MS, revealDelay, PRIORITY_MS } = require('./mudae');
 const { youtubeSearch } = require('./youtube');
 const { version: APP_VERSION } = require('./package.json');
 
@@ -1154,7 +1154,7 @@ io.on('connection', (socket) => {
     if (/^[whm][a-z]?$/.test(cmd) && cmd !== 'mm') {
       const r = mudae.roll(store, acc.id, cmd);
       if (r.error) return only({ kind: 'error', text: r.error });
-      const revealAt = Date.now() + SPIN_MS;
+      const revealAt = Date.now() + revealDelay(r.card.rarity);
       postMudae(c, acc, command, { kind: 'roll', card: r.card, ownerId: r.ownerId, revealAt, priorityUntil: revealAt + PRIORITY_MS,
         expires: revealAt + CLAIM_WINDOW_MS, rollsLeft: r.rollsLeft }, { decoys: r.decoys });
       pushSalon(communities.currentId(), c.id);

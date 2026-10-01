@@ -7,8 +7,10 @@ const ROLLS_PER_HOUR = 10;
 const ROLL_RESET_MS = 60 * 60_000;
 const CLAIM_RESET_MS = 3 * 60 * 60_000;
 const CLAIM_WINDOW_MS = 45_000;
-// O Salão gira a roleta antes de mostrar o card; ninguém casa antes de ele aparecer.
-const SPIN_MS = 1600;
+// Quanto a cápsula do Salão leva para abrir, por raridade: cai, balança uma vez por degrau de cor
+// (e o lendário ainda trava antes de dourar). Tem que bater com public/gacha/linha-do-tempo.mjs.
+const REVEAL_MS = { common: 1950, rare: 2400, epic: 2850, legendary: 3850 };
+const revealDelay = (rarity) => REVEAL_MS[rarity] ?? REVEAL_MS.common;
 // Depois que o card aparece, quem rodou tem um tempinho só dele antes dos outros poderem roubar.
 const PRIORITY_MS = 3000;
 const DECOYS = 8;
@@ -237,4 +239,4 @@ function createMudae({ catalog, now = Date.now, random = Math.random, refSize = 
     card: (id) => (lookup(id) ? card(lookup(id)) : null) };
 }
 
-module.exports = { createMudae, parse, valueOf, rarityOf, normalize, SOURCES, ROLLS_PER_HOUR, ROLL_RESET_MS, CLAIM_RESET_MS, CLAIM_WINDOW_MS, SPIN_MS, PRIORITY_MS };
+module.exports = { createMudae, parse, valueOf, rarityOf, normalize, SOURCES, ROLLS_PER_HOUR, ROLL_RESET_MS, CLAIM_RESET_MS, CLAIM_WINDOW_MS, REVEAL_MS, revealDelay, PRIORITY_MS };

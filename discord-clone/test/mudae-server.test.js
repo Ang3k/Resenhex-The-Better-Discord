@@ -93,7 +93,7 @@ test('Salão do Mudae: comandos só no Salão, giro, prioridade, roubo, presenç
   assert.equal(roll.by, ana.auth.accountId);
   assert.equal(roll.mudae.card.rarity, 'common', 'um personagem sozinho é o último de 15 mil na escala proporcional');
   assert.equal(roll.mudae.decoys.length, 8);
-  assert.ok(Math.abs(roll.mudae.revealAt - roll.ts - 1600) < 50);
+  assert.ok(Math.abs(roll.mudae.revealAt - roll.ts - 1950) < 50);
   assert.equal(roll.mudae.priorityUntil - roll.mudae.revealAt, 3000);
   assert.equal(roll.mudae.expires - roll.mudae.revealAt, 45_000);
   await eventually(() => assert.equal(beto.presence.people.find((p) => p.id === ana.auth.accountId).rollsLeft, 9));
