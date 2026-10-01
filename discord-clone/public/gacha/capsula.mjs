@@ -34,11 +34,13 @@ function beamTexture() {
 // from: centro da cápsula na portinhola (mundo); to: ponto no chão onde ela para.
 // `group` é a raiz estática da cena (sempre visível, na origem): leva o corpo que se move, o respingo
 // parado no chão e a luz. A luz nunca sai da árvore nem é escondida, senão o número de luzes muda e os
-// materiais recompilam; sem cápsula, só a intensidade vai a zero.
+// materiais recompilam; sem cápsula, só a intensidade vai a zero. A raiz precisa ficar na origem do mundo,
+// sem escala: corpo, respingo e luz usam coordenadas do mundo.
 export function createCapsule({ from, to }) {
   const R = RADIUS;
   const group = new THREE.Group();
   const body = new THREE.Group();  // ponto de contato com o chão; anda, quica e leva tudo que acompanha a cápsula
+  body.visible = false;            // escondido até o primeiro update, para não aparecer na origem
   const tilt = new THREE.Group();  // balançada em volta do ponto de contato
   const ball = new THREE.Group();  // centro da esfera; gira ao rolar
   ball.position.y = R;
