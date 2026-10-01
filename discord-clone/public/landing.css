@@ -1,5 +1,6 @@
 /* Página inicial (primeira visita). Roxo como cor da marca, sempre em cores chapadas: nada de degradê, brilho ou vidro.
-   O topo e o fecho são faixas roxas; o resto fica num quase-preto arroxeado com painéis em roxo escuro. */
+   O topo e o fecho são faixas roxas; o resto fica num quase-preto arroxeado com painéis em roxo escuro.
+   O que chama atenção é o próprio app: o chat da prévia anda sozinho e o soundboard toca de verdade. */
 #landing {
   display: none;
   --ld-purple: #6b38e8;
@@ -57,7 +58,7 @@
 
 .ld-btn {
   display: inline-flex; align-items: center; justify-content: center; gap: 10px; height: 58px; padding: 0 30px; border-radius: 999px;
-  font-size: 17px; font-weight: 700; white-space: nowrap; transition: color .15s, background .15s, box-shadow .2s, transform .15s, filter .15s;
+  font-size: 17px; font-weight: 700; white-space: nowrap; transition: color .15s, background .15s, box-shadow .2s, transform .15s;
 }
 .ld-btn:active { transform: translateY(0) scale(.98) !important; }
 .ld-btn-light { background: #fff; color: #1e1f22 !important; }
@@ -68,7 +69,7 @@
 @keyframes ld-nudge { 50% { transform: translateY(2px); } }
 
 /* ---------- Prévia do app ---------- */
-.ld-preview { animation: ld-rise .8s cubic-bezier(.16, 1, .3, 1) .1s both; }
+.ld-preview { position: relative; animation: ld-rise .8s cubic-bezier(.16, 1, .3, 1) .1s both; }
 @keyframes ld-rise { from { opacity: 0; transform: translateY(28px) scale(.98); } }
 .ld-window {
   display: grid; grid-template-columns: 58px 176px minmax(0, 1fr); height: 390px; overflow: hidden;
@@ -111,7 +112,7 @@
   55%, 90% { box-shadow: 0 0 0 2px var(--bg-sidebar), 0 0 0 4px transparent; }
 }
 
-.ld-w-chat { display: flex; flex-direction: column; min-width: 0; }
+.ld-w-chat { display: flex; flex-direction: column; min-width: 0; min-height: 0; }
 .ld-w-head { display: flex; align-items: center; gap: 6px; height: 44px; flex-shrink: 0; padding: 0 16px; color: var(--text-strong); font-weight: 700; font-size: 14.5px; box-shadow: var(--shadow-header); }
 .ld-w-head .ico { color: var(--channel); }
 .ld-w-msgs { display: flex; flex-direction: column; justify-content: flex-end; gap: 16px; flex: 1; min-height: 0; padding: 16px 16px 6px; overflow: hidden; }
@@ -121,6 +122,9 @@
 .ld-msg p { margin: 2px 0 0; color: var(--text); line-height: 1.4; }
 .ld-react { display: inline-flex; gap: 4px; margin-top: 6px; padding: 2px 8px; border-radius: 8px; background: color-mix(in srgb, var(--brand) 18%, transparent); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--brand) 50%, transparent); color: var(--text-strong); font-size: 12px; font-weight: 600; }
 .ld-msg-new { animation: ld-msg-in .5s cubic-bezier(.16, 1, .3, 1) 1.4s both; }
+.ld-msg-live { animation: ld-msg-in .45s cubic-bezier(.16, 1, .3, 1) both; }
+.ld-react.pop { animation: ld-react-pop .4s cubic-bezier(.3, 1.6, .5, 1) both; }
+@keyframes ld-react-pop { from { opacity: 0; scale: .4; } }
 @keyframes ld-msg-in { from { opacity: 0; transform: translateY(12px); } }
 .ld-w-typing { display: flex; align-items: center; gap: 3px; height: 22px; padding: 0 16px; color: var(--interactive); font-size: 11.5px; font-weight: 600; }
 .ld-w-typing i { width: 5px; height: 5px; border-radius: 50%; background: var(--interactive); animation: ld-dot 1.2s ease-in-out infinite; }
@@ -269,6 +273,36 @@
 .ld-footer nav a { color: var(--ld-muted) !important; font-size: 14.5px; font-weight: 600; transition: color .15s; }
 .ld-footer nav a:hover { color: #fff !important; }
 
+/* ---------- Soundboard ---------- */
+.ld-pads { position: relative; z-index: 1; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; width: min(400px, 100%); padding: 14px; }
+.ld-pads-title { grid-column: 1 / -1; display: flex; align-items: center; gap: 6px; margin: 2px 2px 4px; color: var(--text-strong); font-size: 14px; font-weight: 700; }
+.ld-pads-title .ico { color: var(--interactive); }
+.ld-pad {
+  position: relative; display: grid; justify-items: center; gap: 6px; padding: 14px 6px 12px; overflow: hidden; border: 0; border-radius: 10px;
+  background: var(--bg-input); color: var(--text); font: inherit; font-size: 13.5px; font-weight: 600; cursor: pointer;
+  transition: background .15s, color .15s, transform .1s;
+  -webkit-tap-highlight-color: transparent;
+}
+.ld-pad:hover { background: var(--hover-strong); color: var(--text-strong); }
+.ld-pad:active, .ld-pad.hit { transform: scale(.96); }
+.ld-pad:focus-visible { outline: 2px solid var(--ld-purple); outline-offset: 2px; }
+.ld-pad-emoji { font-size: 28px; line-height: 1; transition: transform .2s cubic-bezier(.3, 1.6, .5, 1); }
+.ld-pad:hover .ld-pad-emoji { transform: scale(1.12); }
+.ld-pad.playing { box-shadow: inset 0 0 0 2px var(--ld-purple); color: var(--text-strong); }
+.ld-pad.playing::after {
+  content: ''; position: absolute; left: 0; bottom: 0; height: 3px; width: 100%; background: var(--ld-purple);
+  transform-origin: left; animation: ld-pad-progress var(--dur, 1s) linear both;
+}
+@keyframes ld-pad-progress { from { transform: scaleX(0); } }
+.ld-burst {
+  position: absolute; z-index: 2; left: 0; top: 0; font-size: 24px; line-height: 1; pointer-events: none;
+  animation: ld-burst .9s cubic-bezier(.2, .7, .4, 1) forwards;
+}
+@keyframes ld-burst {
+  from { opacity: 1; transform: translate(-50%, -50%) scale(.6); }
+  to { opacity: 0; transform: translate(calc(-50% + var(--dx)), calc(-50% - var(--dy))) scale(1); }
+}
+
 /* ---------- Telas menores ---------- */
 @media (max-width: 1080px) {
   .ld-hero { grid-template-columns: minmax(0, 1fr); gap: 56px; padding-top: 40px; text-align: center; justify-items: center; }
@@ -311,6 +345,8 @@
   .ld-msg small { display: none; }
   .ld-float-invite { display: none; }
   .ld-invite-btn { display: none; }
+  .ld-pads { gap: 8px; padding: 10px; }
+  .ld-pad { font-size: 12.5px; }
 }
 
 /* Movimento reduzido: tudo parado e visível. */
