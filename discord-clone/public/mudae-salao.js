@@ -19,6 +19,7 @@ window.MudaeSalon = function ({ state, el, Icon, call, onSocket, member, avatar,
   // Cena 3D da lojinha de gashapon (public/gacha): só é baixada na Mesa e com WebGL2.
   // Se falhar uma vez (sem módulos, placa de vídeo caiu), fica a roleta de fotos até recarregar.
   let gachaBroken = false;
+  let gachaLoad = 0;
   const canGacha = () => !gachaBroken && typeof window.WebGL2RenderingContext === 'function';
   const CUES = { crank: 'gachaClack', bounce: 'gachaBounce', wobble: 'gachaWobble', lock: 'gachaLock', pop: 'gachaPop' };
   // A fonte escolhida para os rolls fica guardada neste navegador.
@@ -28,7 +29,7 @@ window.MudaeSalon = function ({ state, el, Icon, call, onSocket, member, avatar,
   const S = {
     channel: null, tab: 'mesa', sideOpen: false, side: 'chat',
     people: [], status: null, statusAt: 0,
-    stage: null, spinning: null, queue: [], arriving: new Set(), legendaryUntil: 0, legendaryBy: null, gacha: null, gachaLoading: false,
+    stage: null, spinning: null, queue: [], arriving: new Set(), legendaryUntil: 0, legendaryBy: null, gacha: null, gachaLoading: false, gachaPlayed: null,
     album: null, albumOwner: null, query: '', filter: 'all', albumSource: 'all', sort: 'value', shown: PAGE,
     sources: null, source: savedSource(),
     ranking: null, favorite: null,
@@ -93,7 +94,7 @@ window.MudaeSalon = function ({ state, el, Icon, call, onSocket, member, avatar,
   // ---------- estrutura ----------
   function mount(channel) {
     S.channel = channel.id;
-    Object.assign(S, { tab: 'mesa', stage: null, spinning: null, queue: [], arriving: new Set(), legendaryUntil: 0, album: null, ranking: null, sideOpen: false, side: 'chat', people: [], gacha: null, gachaLoading: false });
+    Object.assign(S, { tab: 'mesa', stage: null, spinning: null, queue: [], arriving: new Set(), legendaryUntil: 0, album: null, ranking: null, sideOpen: false, side: 'chat', people: [], gacha: null, gachaLoading: false, gachaPlayed: null });
     nodes.tabs = el('div', { class: 'salon-tabs', role: 'tablist' });
     nodes.status = el('div', { class: 'salon-status' });
     nodes.body = el('div', { class: 'salon-body' });
@@ -120,6 +121,7 @@ window.MudaeSalon = function ({ state, el, Icon, call, onSocket, member, avatar,
     clearInterval(ticker);
     S.gacha?.dispose();
     S.gacha = null;
+    gachaLoad++;
     nodes.scene = null;
     ticker = null;
     root.replaceChildren();
@@ -273,13 +275,19 @@ window.MudaeSalon = function ({ state, el, Icon, call, onSocket, member, avatar,
   // O palco: banner, card (ou roleta girando), botão de casar e reações.
   function renderStage() {
     if (!nodes.stage?.isConnected) return;
-    if (S.spinning) return renderActions();
+    // Girando: só os botões mudam. Com a cápsula, um palco novo (voltou para a Mesa no meio do giro) é remontado girando.
+    if (S.spinning && (S.spinning !== S.gachaPlayed || nodes.cardSlot?.isConnected)) return renderActions();
     const m = S.stage && byId(S.stage);
     nodes.cardSlot = el('div', { class: 'salon-card-slot' });
     nodes.actions = el('div', { class: 'salon-actions' });
     nodes.banner = el('div', { class: 'salon-banner' });
     nodes.floats = el('div', { class: 'salon-floats', ariaHidden: 'true' });
     nodes.stage.replaceChildren(nodes.scene, el('div', { class: 'salon-stage-glow' }), nodes.banner, nodes.cardSlot, nodes.actions, reactionBar(), nodes.floats);
+    const spinning = S.spinning && byId(S.spinning);
+    if (spinning) {
+      spinningLayout(spinning);
+      return renderBanner();
+    }
     if (m) {
       const owner = m.mudae.ownerId;
       nodes.cardSlot.append(cardNode(m.mudae.card, { size: 'big' }),
@@ -397,12 +405,14 @@ window.MudaeSalon = function ({ state, el, Icon, call, onSocket, member, avatar,
     if (!canGacha() || S.gacha || S.gachaLoading || !nodes.scene) return;
     const channel = S.channel;
     const host = nodes.scene;
+    // Cada carga tem um número: uma que ficou para trás (saiu do Salão no meio) não pode ligar a cena nem destravar a próxima.
+    const load = ++gachaLoad;
     S.gachaLoading = true;
     try {
       const { create } = await import('/gacha/cena.mjs');
       const gacha = await create(host, { now, reducedMotion: reducedMotion(), colors: rarityColors(),
         onCue: (name) => Sounds.play(CUES[name]), onLost: dropGacha });
-      if (S.channel !== channel || nodes.scene !== host) return gacha.dispose();
+      if (load !== gachaLoad || S.channel !== channel || nodes.scene !== host || S.gacha) return gacha.dispose();
       S.gacha = gacha;
       nodes.stage?.classList.add('gacha');
       // Um roll que já estava girando na roleta de fotos termina nela; a cena só entra no próximo.
@@ -412,7 +422,7 @@ window.MudaeSalon = function ({ state, el, Icon, call, onSocket, member, avatar,
       gachaBroken = true;
       console.warn('Salão do Mudae: cena 3D indisponível, usando a roleta de fotos.', error);
     } finally {
-      S.gachaLoading = false;
+      if (load === gachaLoad) S.gachaLoading = false;
     }
   }
 
@@ -444,13 +454,11 @@ window.MudaeSalon = function ({ state, el, Icon, call, onSocket, member, avatar,
   function gachaSpin(m, duration) {
     const d = m.mudae;
     S.spinning = m.id;
+    S.gachaPlayed = m.id;
     renderStage();
     renderRollBar();
     new Image().src = d.card.image;
-    nodes.cardSlot.replaceChildren(el('div', { class: 'salon-card big salon-card-ghost', ariaHidden: 'true' }),
-      el('div', { class: 'salon-stage-caption', textContent: (m.by === me() ? 'Você está' : whoName(m.by) + ' está') + ' rodando…' }));
-    nodes.stage.dataset.rarity = 'spinning';
-    renderActions();
+    spinningLayout(m);
     S.gacha.play({ id: m.id, rarity: d.card.rarity || 'common', ts: m.ts, revealAt: d.revealAt ?? m.ts });
     const channel = S.channel;
     setTimeout(() => {
@@ -462,15 +470,25 @@ window.MudaeSalon = function ({ state, el, Icon, call, onSocket, member, avatar,
     }, duration);
   }
 
-  // A carta nasce de dentro da cápsula aberta (com a cena 3D) ou só vira (com a roleta).
-  function emerge(card) {
-    const from = S.gacha && nodes.stage?.classList.contains('gacha') ? S.gacha.cardAnchor() : null;
+  // Palco de um giro com a cápsula: a carta fica escondida (o fantasma guarda o lugar) e só os botões aparecem.
+  function spinningLayout(m) {
+    nodes.cardSlot.replaceChildren(el('div', { class: 'salon-card big salon-card-ghost', ariaHidden: 'true' }),
+      el('div', { class: 'salon-stage-caption', textContent: (m.by === me() ? 'Você está' : whoName(m.by) + ' está') + ' rodando…' }));
+    nodes.stage.dataset.rarity = 'spinning';
+    renderActions();
+  }
+
+  // A carta nasce de dentro da cápsula aberta (se foi a cápsula que girou este roll) ou só vira (com a roleta).
+  function emerge(card, id) {
+    const from = S.gacha && S.gachaPlayed === id && nodes.stage?.classList.contains('gacha') ? S.gacha.cardAnchor() : null;
     if (!from) return card.classList.add('revealing');
     const box = nodes.stage.getBoundingClientRect();
     const r = card.getBoundingClientRect();
     card.style.setProperty('--from-x', Math.round(from.x - (r.left - box.left + r.width / 2)) + 'px');
     card.style.setProperty('--from-y', Math.round(from.y - (r.top - box.top + r.height / 2)) + 'px');
     card.classList.add('emerging');
+    // Sem a classe, a inclinação do mouse volta a valer na carta.
+    card.addEventListener('animationend', () => card.classList.remove('emerging'), { once: true });
   }
 
   // ---------- a roleta ----------
@@ -525,7 +543,7 @@ window.MudaeSalon = function ({ state, el, Icon, call, onSocket, member, avatar,
   function reveal(m, animate) {
     const rarity = m.mudae.card.rarity || 'common';
     const card = nodes.cardSlot?.querySelector('.salon-card');
-    if (animate && card) emerge(card);
+    if (animate && card) emerge(card, m.id);
     Sounds.play({ legendary: 'mudaeLegendary', epic: 'mudaeEpic', rare: 'mudaeRare', common: 'mudaeCommon' }[rarity]);
     if (rarity === 'legendary') {
       S.legendaryUntil = Date.now() + 5000;

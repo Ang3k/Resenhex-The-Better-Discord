@@ -154,12 +154,12 @@
 /* Cena 3D da lojinha de gashapon (public/gacha), atrás de tudo no palco. */
 .salon-gacha { position: absolute; inset: 0; z-index: -1; pointer-events: none; }
 .salon-gacha canvas { display: block; width: 100%; height: 100%; }
-.salon-stage.gacha { background: #070818; }
+.salon-stage.gacha { background: #070818; } /* igual ao scene.background de gacha/cena.mjs */
 .salon-stage.gacha .salon-stage-glow { display: none; }
-.salon-stage.gacha .salon-stage-caption { color: rgba(255, 255, 255, .88); text-shadow: 0 1px 3px rgba(0, 0, 0, .85); }
+.salon-stage.gacha :is(.salon-stage-caption, .salon-wait, .salon-claim-caption, .salon-owned) { color: rgba(255, 255, 255, .88); text-shadow: 0 1px 3px rgba(0, 0, 0, .85); }
 .salon-card.salon-card-ghost { aspect-ratio: 2 / 3; visibility: hidden; }
 /* A carta sai da cápsula: pequena e de lado no ponto da cápsula, sobe até o lugar e vira de frente. */
-.salon-card.emerging { animation: salon-emerge .75s cubic-bezier(.2, 1.15, .35, 1) both; }
+.salon-card.emerging { animation: salon-emerge .75s cubic-bezier(.2, 1.15, .35, 1); }
 @keyframes salon-emerge {
   from { transform: perspective(800px) translate(var(--from-x, 0), var(--from-y, 0)) scale(.12) rotateY(90deg); opacity: 0; }
   25% { opacity: 1; }

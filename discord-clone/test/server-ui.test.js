@@ -579,9 +579,14 @@ test('Salão do Mudae: tela própria com palco, mesa ao vivo, presença, álbum 
 });
 
 test('Salão do Mudae: se a cena 3D não carregar, o palco segue com a revelação de sempre', async (t) => {
+  const warnings = [];
   const app = await ui(t, false, {
-    // Navegador "com WebGL2", mas o import() da cena falha (no jsdom não há módulos): tem que cair na roleta.
-    setup: (w) => { w.WebGL2RenderingContext = function WebGL2RenderingContext() {}; },
+    // Navegador "com WebGL2", mas o import() da cena falha: dentro do eval do jsdom o Node resolve /gacha/cena.mjs
+    // a partir da raiz do disco (ERR_MODULE_NOT_FOUND). Tem que cair na roleta e avisar no console.
+    setup: (w) => {
+      w.WebGL2RenderingContext = function WebGL2RenderingContext() {};
+      w.console.warn = (...args) => warnings.push(args.map(String).join(' '));
+    },
     reply: { 'mudae:presence': () => ({ ok: true, rollsLeft: 9, rollsMax: 10, rollResetIn: 600_000, claimReady: true, claimResetIn: 0 }), 'mudae:profile': () => ({ summary: null }) },
   });
   await app.register();
@@ -594,6 +599,7 @@ test('Salão do Mudae: se a cena 3D não carregar, o palco segue com a revelaç�
   app.deliver('state', st); await settle();
   [...app.d.querySelectorAll('.channel-entry')].find((b) => b.textContent.includes('salão-mudae')).click(); await settle(); await settle();
   assert.equal(app.d.querySelector('.salon-stage').classList.contains('gacha'), false);
+  assert.ok(warnings.some((text) => text.includes('cena 3D indisponível')), 'a carga da cena falhou e caiu na roleta');
 
   const now = Date.now();
   const card = { id: 176754, name: 'Frieren', series: 'Frieren', image: 'https://s4.anilist.co/x.png', value: 1149, rank: 15, rarity: 'epic' };
