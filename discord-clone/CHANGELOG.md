@@ -3,6 +3,18 @@
 Histórico de versões. A mesma lista aparece dentro do app em **Novidades** (menu do servidor ou rodapé das Configurações).
 O Resenhex ainda está antes da 1.0.
 
+## v0.99.9 — Salão do Mudae: roleta de personagens ao vivo
+_01/10/2026_
+
+- **Salão do Mudae**: um tipo novo de canal com tela própria. No palco fica a roleta, embaixo os botões `$w` (waifu), `$h` (husbando) e `$m` (qualquer um), e a **Mesa ao vivo** mostra os rolls de todo mundo.
+- A roleta gira para todos ao mesmo tempo e para no personagem, em quatro raridades (comum, raro, épico, lendário). **Lendário** dá banner, flash e fanfarra para a sala toda.
+- **Casar** em até 45 segundos. Quem rodou tem 3 segundos só dele; depois, qualquer um pode **roubar**, e o chat conta.
+- **10 rolls por hora** e **1 casamento a cada 3 horas**. A aba **No salão** mostra quem está jogando e os rolls de cada um.
+- **Meu harem** virou um álbum de cards com busca, filtros e ordem, e um **favorito** que aparece no seu perfil. O **Ranking** do servidor mostra o valor de cada harem e o mural dos lendários.
+- **25 mil personagens de cinco fontes**: anime, jogos (Genshin, Zelda, League of Legends, Final Fantasy…), quadrinhos (Marvel, DC…), desenhos (Simpsons, Hora de Aventura, Disney, Pixar…) e séries (Game of Thrones, Stranger Things, La Casa de Papel…). Os botões de fonte no Salão, ou `$wa`, `$wg`, `$wc`, `$wd` e `$ws`, rodam só de uma fonte; a raridade é contada dentro de cada fonte.
+- Reações rápidas flutuam no palco.
+- **Modo simplificado**, para quem prefere o Mudae original: o Salão vira um chat comum, com o card completo e o botão Casar no chat. Vale só para você; **Abrir o Salão** volta para a roleta. `$w`, `$h` e `$m` só funcionam no Salão; a permissão **Usar o Mudae** controla quem joga.
+
 ## v0.99.8 — Zoom na transmissão de tela e DJ em destaque
 _01/10/2026_
 

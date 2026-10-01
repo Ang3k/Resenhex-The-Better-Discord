@@ -4,3 +4,5 @@ data.json.*
 uploads/
 *.log
 downloads/
+tools/mudae-chaves.json
+tools/mudae-cache/

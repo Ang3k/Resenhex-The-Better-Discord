@@ -13,6 +13,7 @@ const { channelActions } = require('./channels');
 const { communityStore } = require('./communities');
 const { downloadRoutes } = require('./downloads');
 const { createDj } = require('./dj');
+const { createMudae, CLAIM_WINDOW_MS, SPIN_MS, PRIORITY_MS } = require('./mudae');
 const { youtubeSearch } = require('./youtube');
 const { version: APP_VERSION } = require('./package.json');
 
@@ -57,6 +58,7 @@ const PERMS = {
   SOUNDBOARD: 'Usar efeitos sonoros',
   MANAGE_SOUNDBOARD: 'Gerenciar efeitos sonoros',
   MUSIC: 'Usar o DJ (pedir e controlar músicas)',
+  MUDAE: 'Usar o Mudae (rodar e casar com personagens)',
 };
 // Efeitos sonoros que podem ser tocados na chamada (o som é gerado no navegador de cada um).
 const SOUNDBOARD = ['grilo', 'trovao', 'aplausos', 'badumtss', 'buzina', 'fail', 'vitoria', 'suspense'];
@@ -88,7 +90,7 @@ function defaultDb() {
     sessions: {},
     // A posição no array é a hierarquia: índice maior = cargo mais alto.
     roles: [
-      { id: 'everyone', name: '@everyone', color: '', hoist: false, perms: ['SEND_MESSAGES', 'CONNECT', 'SPEAK', 'STREAM', 'SOUNDBOARD', 'MUSIC'] },
+      { id: 'everyone', name: '@everyone', color: '', hoist: false, perms: ['SEND_MESSAGES', 'CONNECT', 'SPEAK', 'STREAM', 'SOUNDBOARD', 'MUSIC', 'MUDAE'] },
       { id: newId(), name: 'Moderador', color: '#3498db', hoist: true, perms: ['KICK', 'TIMEOUT', 'MUTE_MEMBERS', 'MOVE_MEMBERS', 'MANAGE_MESSAGES', 'MENTION_EVERYONE'] },
       { id: newId(), name: 'Admin', color: '#e74c3c', hoist: true, perms: ['ADMIN'] },
     ],
@@ -461,6 +463,33 @@ app.get('/servers/:serverId/sounds/:soundId', (req, res) => {
 // Cada sala tem a sua fila ("idDoServidor:idDaSala"). Só a busca passa pelo servidor;
 // o vídeo toca no player oficial do YouTube de cada pessoa.
 const dj = createDj({ newId, onChange: () => broadcastState() });
+
+// Catálogo do Mudae: lido uma vez. Sem o arquivo, os comandos só avisam que não tem personagens.
+const MUDAE_CATALOG = process.env.MUDAE_CATALOG || path.join(__dirname, 'mudae-catalogo.json');
+const mudae = createMudae({ catalog: fs.existsSync(MUDAE_CATALOG) ? JSON.parse(fs.readFileSync(MUDAE_CATALOG, 'utf8')) : [] });
+const MUDAE_REACTIONS = ['😱', '🔥', '💖', '😂', '💀'];
+
+// Quem está com um Salão do Mudae aberto (salon na sessão do socket), para a aba "No salão":
+// cada um com os rolls que sobram e se ainda pode casar.
+function salonSockets(serverId, channelId) {
+  return [...online].filter(([, s]) => s.salon === channelId && s.salonServerId === serverId);
+}
+function pushSalon(serverId, channelId) {
+  if (!channelId || !serverId) return;
+  communities.run(serverId, () => {
+    const store = (db.mudae ||= { claims: {}, usage: {} });
+    const sockets = salonSockets(serverId, channelId);
+    const people = [...new Set(sockets.map(([, s]) => s.accountId))].map((id) => ({ id, ...mudae.status(store, id) }));
+    for (const [sid] of sockets) io.to(sid).emit('mudae:presence', { channel: channelId, people });
+  });
+}
+function leaveSalon(s) {
+  if (!s?.salon) return;
+  const { salon, salonServerId } = s;
+  s.salon = null;
+  s.salonServerId = null;
+  pushSalon(salonServerId, salon);
+}
 const youtube = youtubeSearch(process.env.YOUTUBE_ORIGIN ? { origin: process.env.YOUTUBE_ORIGIN } : {});
 const djKey = (serverId, channelId) => serverId + ':' + channelId;
 
@@ -815,6 +844,7 @@ const cleanColor = (c, fallback = '#5865f2') => (/^#[0-9a-f]{6}$/i.test(c) ? c :
 
 // Trocar de servidor só muda o que a pessoa está vendo: a chamada continua (como no Discord).
 function selectServer(socket, accountId, id) {
+  leaveSalon(online.get(socket.id));
   online.get(socket.id).serverId = id;
   db.accounts[accountId].lastServerId = id;
   save();
@@ -1078,7 +1108,127 @@ io.on('connection', (socket) => {
 
   on('chat:history', (acc, { channel }) => {
     const messages = db.messages[chatTarget(acc, channel).id] || [];
-    return { messages, authors: publicProfiles(messages.map((msg) => msg.authorId)) };
+    // "now" deixa o navegador acertar o relógio (o tempo para casar num roll do Mudae).
+    return { messages, authors: publicProfiles(messages.map((msg) => msg.authorId)), now: Date.now() };
+  });
+
+  // ---------------- Mudae ----------------
+  // O Mudae mora nos Salões (canais de texto com mudae: true). As respostas são mensagens do bot
+  // ("by" é quem usou o comando). Erros e o $tu voltam só para quem pediu (como as mensagens
+  // efêmeras do Discord) e não são gravados. "live" vai junto só no envio (as fotos da roleta).
+  const postMudae = (c, acc, command, data, live = null) => {
+    const list = (db.messages[c.id] ||= []);
+    const msg = { id: newId(), authorId: null, bot: 'mudae', by: acc.id, command, ts: Date.now(), mudae: data };
+    list.push(msg);
+    while (list.length > MAX_MESSAGES) deleteAttachments(list.shift());
+    (acc.lastRead ||= {})[c.id] = msg.ts;
+    emitToChat(c, 'chat:message', { channel: c.id, msg: live ? { ...msg, mudae: { ...data, ...live } } : msg });
+    save();
+    return msg;
+  };
+  const mudaeAllowed = (acc) => {
+    if (!can(acc, 'MUDAE')) fail('Você não tem permissão para usar o Mudae.');
+    if (timedOut(acc)) fail('Você está de castigo.');
+  };
+  const mudaeStore = () => (db.mudae ||= { claims: {}, usage: {} });
+  const salonOf = (acc, id) => {
+    const c = textChannel(acc, id);
+    if (!c.mudae) fail('Isso só funciona no Salão do Mudae.');
+    return c;
+  };
+  const memberId = (id) => (typeof id === 'string' && communities.joined(id) ? id : null);
+  // Ids do catálogo: números (anime) ou texto com a fonte na frente ("g1942", "c4000-1699").
+  const charKey = (id) => (typeof id === 'number' || typeof id === 'string' ? String(id).slice(0, 64) : fail('Personagem inválido.'));
+
+  function mudaeCommand(acc, c, { cmd, arg }, command) {
+    mudaeAllowed(acc);
+    if (!allow('mudae:' + acc.id, 8, 5000)) fail('Calma! Comandos do Mudae rápidos demais.');
+    const only = (data) => ({ ephemeral: { command, ...data } });
+    // Fora do Salão, o bot só aponta o caminho.
+    if (!c.mudae) {
+      const salon = db.channels.find((ch) => ch.mudae && canView(acc, ch));
+      return only({ kind: 'redirect', channel: salon?.id || null, name: salon?.name || null });
+    }
+    if (!mudae.size) return only({ kind: 'error', text: 'O Mudae ainda não tem personagens neste servidor.' });
+    const store = mudaeStore();
+    if (/^[whm][a-z]?$/.test(cmd) && cmd !== 'mm') {
+      const r = mudae.roll(store, acc.id, cmd);
+      if (r.error) return only({ kind: 'error', text: r.error });
+      const revealAt = Date.now() + SPIN_MS;
+      postMudae(c, acc, command, { kind: 'roll', card: r.card, ownerId: r.ownerId, revealAt, priorityUntil: revealAt + PRIORITY_MS,
+        expires: revealAt + CLAIM_WINDOW_MS, rollsLeft: r.rollsLeft }, { decoys: r.decoys });
+      pushSalon(communities.currentId(), c.id);
+    } else if (cmd === 'mm') {
+      const ownerId = memberId(/<@(\w+)>/.exec(arg)?.[1]) || acc.id;
+      postMudae(c, acc, command, { kind: 'harem', ownerId, ...mudae.harem(store, ownerId) });
+    } else if (cmd === 'im') {
+      if (!arg) return only({ kind: 'error', text: 'Diga o nome do personagem: **$im Gojo**' });
+      const r = mudae.info(store, arg);
+      if (!r) return only({ kind: 'error', text: `Nenhum personagem encontrado para **${arg.slice(0, 80)}**.` });
+      postMudae(c, acc, command, { kind: 'info', card: r.card, ownerId: r.ownerId });
+    } else if (cmd === 'divorce') {
+      if (!arg) return only({ kind: 'error', text: 'Diga o nome do personagem: **$divorce Gojo**' });
+      const card = mudae.divorce(store, acc.id, arg);
+      if (!card) return only({ kind: 'error', text: `Você não tem ninguém chamado **${arg.slice(0, 80)}** no seu harem.` });
+      postMudae(c, acc, command, { kind: 'divorce', card, ownerId: acc.id });
+    } else if (cmd === 'tu') {
+      return only({ kind: 'status', ...mudae.status(store, acc.id) });
+    }
+    return { ok: true };
+  }
+
+  on('mudae:claim', (acc, { channel, id }) => {
+    const { c, msg } = findMessage(acc, channel, id);
+    if (c.dm || msg.bot !== 'mudae' || msg.mudae?.kind !== 'roll') fail('Isso não é um roll do Mudae.');
+    mudaeAllowed(acc);
+    if (!allow('mudae-claim:' + acc.id, 6, 5000)) fail('Calma! Cliques rápidos demais.');
+    const d = msg.mudae;
+    mudae.claim(mudaeStore(), acc.id, d.card.id, { revealAt: d.revealAt ?? msg.ts, rollerId: msg.by, priority: d.priorityUntil ? PRIORITY_MS : 0 });
+    d.ownerId = acc.id;
+    emitToChat(c, 'chat:update', { channel: c.id, msg });
+    // Casar com o roll de outra pessoa é um roubo, e o chat conta isso.
+    postMudae(c, acc, null, { kind: 'married', card: d.card, ownerId: acc.id, from: msg.by && msg.by !== acc.id ? msg.by : null });
+    if (c.mudae) pushSalon(communities.currentId(), c.id);
+  });
+
+  // Entrar ou sair da tela de um Salão (channel: null ao sair).
+  on('mudae:presence', (acc, { channel }) => {
+    const s = online.get(socket.id);
+    const c = channel ? salonOf(acc, channel) : null;
+    if (c && s.salon === c.id && s.salonServerId === communities.currentId()) return { ok: true, ...mudae.status(mudaeStore(), acc.id), sources: mudae.sources };
+    leaveSalon(s);
+    if (c) {
+      s.salon = c.id;
+      s.salonServerId = communities.currentId();
+      pushSalon(s.salonServerId, c.id);
+    }
+    return { ok: true, ...(c ? { ...mudae.status(mudaeStore(), acc.id), sources: mudae.sources } : {}) };
+  });
+
+  // Reações rápidas no palco: só para quem está no Salão agora, sem gravar.
+  on('mudae:react', (acc, { channel, id, emoji }) => {
+    const c = salonOf(acc, channel);
+    if (!MUDAE_REACTIONS.includes(emoji)) fail('Reação inválida.');
+    if (!allow('mudae-react:' + acc.id, 8, 4000)) return { ok: true };
+    for (const [sid] of salonSockets(communities.currentId(), c.id)) io.to(sid).emit('mudae:reaction', { channel: c.id, id: String(id || '').slice(0, 32), emoji, by: acc.id });
+  });
+
+  on('mudae:harem', (acc, { ownerId }) => mudae.album(mudaeStore(), memberId(ownerId) || acc.id));
+  on('mudae:ranking', () => mudae.ranking(mudaeStore(), (id) => communities.joined(id)));
+  on('mudae:profile', (acc, { accountId }) => ({ summary: memberId(accountId) ? mudae.summary(mudaeStore(), accountId) : null }));
+
+  on('mudae:favorite', (acc, { charId }) => {
+    mudaeAllowed(acc);
+    mudae.setFavorite(mudaeStore(), acc.id, charId === null ? null : charKey(charId));
+    save();
+  });
+
+  // Divórcio pelo álbum (por id); a notícia sai no Salão aberto.
+  on('mudae:divorce', (acc, { channel, charId }) => {
+    mudaeAllowed(acc);
+    const c = salonOf(acc, channel);
+    const card = mudae.divorceId(mudaeStore(), acc.id, charKey(charId));
+    postMudae(c, acc, null, { kind: 'divorce', card, ownerId: acc.id });
   });
 
   const findMessage = (acc, channel, id) => {
@@ -1093,6 +1243,9 @@ io.on('connection', (socket) => {
     const c = chatTarget(acc, channel);
     text = String(text || '').trim().slice(0, 4000);
     const peer = c.dm ? dmPeer(acc, c.dm) : null;
+    // Comandos do Mudae ($w, $mm…) viram resposta do bot, não mensagem.
+    const mudaeCmd = !c.dm && !attachments?.length && mudae.parse(text);
+    if (mudaeCmd) return mudaeCommand(acc, c, mudaeCmd, text.split(/\s/)[0].toLowerCase());
     if (!c.dm && !can(acc, 'SEND_MESSAGES')) fail('Você não tem permissão para enviar mensagens.');
     if (!c.dm && timedOut(acc)) fail('Você está de castigo.');
     if (!allow('chat:' + acc.id, 10, 5000)) fail('Você está enviando mensagens rápido demais. Espere um pouco.');
@@ -1642,6 +1795,7 @@ io.on('connection', (socket) => {
   });
 
   socket.on('disconnect', () => {
+    leaveSalon(online.get(socket.id));
     leaveVoice(socket);
     online.delete(socket.id);
     broadcastState();

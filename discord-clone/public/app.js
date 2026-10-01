@@ -383,6 +383,22 @@
   const canWrite = () => (inDm() ? !!member(dmPeerId(state.textChannel)) && state.social.friends.includes(dmPeerId(state.textChannel)) : canSend());
 
   const fmtCtx = { member: (id) => member(id), role: (id) => roleById(id), onUser: (id, e) => (e.type === 'contextmenu' ? openMemberMenu(id, e) : (e.stopPropagation(), openProfile(id, e.currentTarget || e.target))) };
+  // Mudae (mudae.js): cards de personagem, harem e o botão de casar nas respostas do bot.
+  const mudae = MudaeUI({ state, el, Icon, call, member, avatar, nameColor, Format, fmtCtx, openProfile: (id, anchor) => openProfile(id, anchor),
+    openImage: (url) => openLightbox({ url }), openChannel: (id) => openTextChannel(id), renderMessages: (end) => renderMessages(end), keepBottom: () => keepBottom() });
+  // Salão do Mudae (mudae-salao.js): a tela própria dos canais com mudae: true. Quem prefere o Mudae
+  // original liga o modo simplificado: o canal vira um chat comum, com os cards completos no chat.
+  const mudaeSimple = () => { try { return localStorage.getItem('mudaeSimples') === '1'; } catch { return false; } };
+  function setMudaeSimple(on) {
+    try { localStorage.setItem('mudaeSimples', on ? '1' : '0'); } catch { /* sem armazenamento: vale até recarregar */ }
+    simpleFallback = on;
+    render();
+  }
+  let simpleFallback = null;
+  const salonMode = () => !(simpleFallback ?? mudaeSimple());
+  const salon = MudaeSalon({ state, el, Icon, call, onSocket: (event, handler) => socket.on(event, handler), member, avatar, nameColor, toast,
+    confirmDialog: (opts) => confirmDialog(opts), openProfile: (id, anchor) => openProfile(id, anchor), openImage: (url) => openLightbox({ url }),
+    openChannel: (id) => openTextChannel(id), closeProfile: () => closeProfile(), setSimple: (on) => setMudaeSimple(on), ui: mudae, Sounds });
 
   function mentionsMe(msg) {
     const m = msg.mentions;
@@ -627,8 +643,9 @@
     $('#profile-server-display').textContent = meMember().name;
     // Entrar numa chamada a partir do Início leva de volta para o servidor.
     if (state.home && state.view === 'voice' && state.voiceChannel) leaveHome();
-    $('#app').classList.toggle('hide-members', !state.showMembers || state.home);
-    $('#btn-members').classList.toggle('hidden', state.home);
+    const salonOpen = !state.home && state.view === 'chat' && !!channelById(state.textChannel)?.mudae && salonMode();
+    $('#app').classList.toggle('hide-members', !state.showMembers || state.home || salonOpen);
+    $('#btn-members').classList.toggle('hidden', state.home || salonOpen);
     $('#btn-members').classList.toggle('active', state.showMembers);
     $('#rail-home').classList.toggle('active', state.home);
     renderServerRail();
@@ -1166,6 +1183,12 @@
     $('#chat-view').classList.toggle('hidden', !!inVoiceView || friendsPage);
     $('#friends-view').classList.toggle('hidden', !friendsPage);
     $('#voice-view').classList.toggle('hidden', !inVoiceView);
+    if (friendsPage || inVoiceView) {
+      $('#btn-salon').classList.add('hidden');
+      $('#main').classList.remove('salon-mode');
+      $('#salon-view').classList.add('hidden');
+      salon.sync(null);
+    }
     if (friendsPage) {
       setHeader('users', 'Amigos');
       renderFriends();
@@ -1178,19 +1201,26 @@
       return;
     }
     const c = channelById(state.textChannel);
+    const salonChannel = !inVoiceView && !friendsPage && c?.mudae && salonMode() ? c : null;
+    $('#btn-salon').classList.toggle('hidden', !c?.mudae || !!salonChannel || inVoiceView || friendsPage);
+    $('#main').classList.toggle('salon-mode', !!salonChannel);
+    $('#salon-view').classList.toggle('hidden', !salonChannel);
+    salon.sync(salonChannel);
     if (!c) return $('#header-title').replaceChildren();
     if (c.type === 'dm') {
       $('#header-title').replaceChildren(
         el('div', { class: 'avatar-wrap' }, avatar(c.peer, 'small'), el('span', { class: 'status ' + (c.peer.online ? 'online' : 'offline') })),
         el('span', { class: 'title-text', textContent: c.peer.name }),
         el('span', { class: 'title-sub', textContent: c.peer.online ? 'Online' : 'Offline' }));
-    } else setHeader('hash', c.name, c.topic || (c.private ? 'Canal privado' : ''));
+    } else setHeader(c.mudae ? 'dice' : 'hash', c.name, c.topic || (c.mudae ? 'Salão do Mudae' : c.private ? 'Canal privado' : ''));
     if (!state.messages[c.id]) {
       state.messages[c.id] = [];
       call('chat:history', { channel: c.id }).then((res) => {
         if (!res) return;
         for (const author of res.authors || []) state.messageAuthors.set(author.id, author);
+        mudae.sync(res.now);
         state.messages[c.id] = res.messages;
+        salon.onHistory(c.id);
         if (state.textChannel === c.id) renderMessages(true);
       });
     }
@@ -1243,13 +1273,15 @@
     }
     const list = state.messages[state.textChannel] || [];
     const epoch = JSON.stringify([state.server.members.map((m) => [m.id, m.name, m.color, m.avatarUrl, m.avatarCrop, m.roles]), [...new Set(list.map((msg) => msg.authorId))].map((id) => state.messageAuthors.get(id)), state.server.roles.map((r) => [r.id, r.name, r.color]),
-      hasPerm('MANAGE_MESSAGES'), canWrite(), inDm(), state.replyTo?.id, dayKey(Date.now())]);
+      hasPerm('MANAGE_MESSAGES'), canWrite(), inDm(), state.replyTo?.id, dayKey(Date.now()), salon.channel === state.textChannel]);
     const nodes = [welcomeNode(channel)];
     let prev = null;
     for (const msg of list) {
       const newDay = !prev || dayKey(prev.ts) !== dayKey(msg.ts);
       if (newDay) nodes.push(dayNode(msg.ts));
-      const continued = !!(prev && !newDay && !msg.replyTo && prev.authorId === msg.authorId && (msg.authorId || prev.authorName === msg.authorName) && msg.ts - prev.ts < 5 * 60 * 1000);
+      const continued = msg.bot
+        ? !!(prev?.bot && !newDay && !msg.command && !msg.ephemeral && !prev.ephemeral && msg.ts - prev.ts < 5 * 60 * 1000)
+        : !!(prev && !newDay && !msg.replyTo && !prev.bot && prev.authorId === msg.authorId && (msg.authorId || prev.authorName === msg.authorName) && msg.ts - prev.ts < 5 * 60 * 1000);
       const replied = msg.replyTo ? list.find((m) => m.id === msg.replyTo) || null : null;
       const sig = JSON.stringify([msg, continued, state.editing === msg.id, epoch, replied && [replied.text, replied.authorId, !!replied.attachments]]);
       let entry = msgNodes.get(msg.id);
@@ -1279,13 +1311,15 @@
   }
 
   function buildMessage(msg, continued, replied, replyMissing) {
-    const author = member(msg.authorId);
-    const name = author?.name || msg.authorName || 'Usuário removido';
-    const mine = msg.authorId === state.me.accountId;
+    const bot = msg.bot === 'mudae';
+    const author = bot ? null : member(msg.authorId);
+    const name = bot ? 'Mudae' : author?.name || msg.authorName || 'Usuário removido';
+    const mine = !bot && msg.authorId === state.me.accountId;
     const row = el('div', {
-      class: 'msg' + (continued ? ' continued' : '') + (mentionsMe(msg) && !inDm() ? ' mentioned' : '') + (state.replyTo?.id === msg.id ? ' replying' : ''),
+      class: 'msg' + (continued ? ' continued' : '') + (mentionsMe(msg) && !inDm() ? ' mentioned' : '') + (state.replyTo?.id === msg.id ? ' replying' : '') + (msg.ephemeral ? ' ephemeral' : ''),
       data: { id: msg.id },
     });
+    if (bot) row.append(mudae.invocation(msg) || '');
     const openMenu = (e) => author && (e.type === 'contextmenu' ? openMemberMenu(author.id, e) : (e.stopPropagation(), openProfile(author.id, e.currentTarget)));
 
     if (replied || replyMissing) {
@@ -1302,16 +1336,18 @@
     if (continued) {
       row.append(el('span', { class: 'hover-time', textContent: hhmm(msg.ts), tip: formatStamp(msg.ts) }));
     } else {
-      const av = avatar(author || { name, color: msg.authorColor });
+      const av = bot ? mudae.botAvatar() : avatar(author || { name, color: msg.authorColor });
       av.onclick = openMenu;
       av.oncontextmenu = openMenu;
       row.append(av);
       body.append(el('div', {},
-        el('span', { class: 'msg-author', style: { color: nameColor(author) || msg.authorColor || '' }, textContent: name, onclick: openMenu, oncontextmenu: openMenu }),
+        el('span', { class: 'msg-author' + (bot ? ' bot' : ''), style: { color: nameColor(author) || msg.authorColor || '' }, textContent: name, onclick: openMenu, oncontextmenu: openMenu }),
+        bot ? el('span', { class: 'bot-tag', textContent: 'BOT' }) : null,
         el('span', { class: 'msg-time', textContent: formatStamp(msg.ts), tip: new Date(msg.ts).toLocaleString('pt-BR', { dateStyle: 'full', timeStyle: 'short' }) })));
     }
 
-    if (state.editing === msg.id) {
+    if (bot) body.append(...mudae.body(msg, salon.channel === state.textChannel ? salon : null));
+    else if (state.editing === msg.id) {
       const input = el('textarea', { class: 'msg-edit', value: Format.toDisplay(msg.text, fmtCtx), maxLength: 4000, rows: 1 });
       input.onkeydown = async (e) => {
         if (e.key === 'Escape') { state.editing = null; renderMessages(); }
@@ -1345,6 +1381,7 @@
         canWrite() ? el('button', { class: 'reaction add', tip: 'Adicionar reação', ariaLabel: 'Adicionar reação', onclick: (e) => openEmojiPicker(e.currentTarget, (em) => react(msg.id, em)) }, Icon('smilePlus', 16)) : null));
     }
     row.append(body);
+    if (msg.ephemeral) return row;
 
     const actions = el('div', { class: 'msg-actions' });
     const action = (label, icon, onclick, cls = '') => el('button', { class: cls, tip: label, ariaLabel: label, onclick }, Icon(icon, 20));
@@ -1495,6 +1532,17 @@
       closeAutocomplete();
       return;
     }
+    const mudaeCmd = !inDm() && !state.pending.length && mudae.isCommand(text);
+    if (mudaeCmd && salon.channel === state.textChannel && /^\$(mm|harem)(\s|$)/i.test(text)) {
+      const raw = Format.toRaw(text, state.server.members, state.server.roles);
+      salon.openHarem(/<@(\w+)>/.exec(raw)?.[1] || state.me.accountId);
+      input.value = '';
+      autoresize();
+      closeAutocomplete();
+      return;
+    }
+    const divorce = mudaeCmd && mudae.divorceTarget(text);
+    if (divorce && !await confirmDialog({ title: 'Divorciar?', text: `"${divorce}" sai do seu harem e qualquer pessoa vai poder casar com esse personagem de novo.`, confirm: 'Divorciar' })) return;
     const draft = { value: input.value, pending: state.pending, replyTo: state.replyTo };
     const payload = {
       channel: state.textChannel,
@@ -1509,6 +1557,7 @@
     renderComposer();
     renderMessages();
     const res = await call('chat:send', payload);
+    if (res?.ephemeral) mudae.ephemeral(payload.channel, res.ephemeral);
     if (!res && (state.textChannel !== payload.channel || !input.value)) {
       // Deu erro: devolve o rascunho.
       if (state.textChannel === payload.channel) {
@@ -1579,6 +1628,13 @@
       ac = { items: commands, index: 0, start: 0, title: 'COMANDOS DO DJ' };
       return renderAutocomplete();
     }
+    const dollar = !inDm() && /^\$(\S*)$/.exec(before);
+    if (dollar) {
+      const commands = mudae.suggestions(dollar[1]);
+      if (!commands.length) return closeAutocomplete();
+      ac = { items: commands, index: 0, start: 0, title: 'COMANDOS DO MUDAE' };
+      return renderAutocomplete();
+    }
     const m = /(^|\s)@([^\s@]{0,32})$/.exec(before);
     if (!m) return closeAutocomplete();
     const q = m[2].toLowerCase();
@@ -1606,7 +1662,7 @@
       type: 'button',
       class: 'ac-item' + (i === ac.index ? ' active' : ''),
       onmousedown: (e) => { e.preventDefault(); applyAutocomplete(item); },
-    }, item.member ? avatar(item.member, 'small') : el('span', { class: 'ac-at' }, Icon(item.command ? 'disc' : 'at', 18)),
+    }, item.member ? avatar(item.member, 'small') : el('span', { class: 'ac-at' }, Icon(item.icon || (item.command ? 'disc' : 'at'), 18)),
     el('span', { style: { color: item.color || '' }, textContent: item.label }),
     item.hint ? el('span', { class: 'ac-hint', textContent: item.hint }) : null,
     item.note ? el('span', { class: 'muted-text', textContent: item.note }) : null)));
@@ -1736,6 +1792,8 @@
   // ---------------- chat (eventos) ----------------
   socket.on('chat:message', ({ channel, msg, author }) => {
     if (author) state.messageAuthors.set(author.id, author);
+    if (msg.bot) mudae.sync(msg.ts);
+    if (msg.bot) queueMicrotask(() => salon.onMessage(channel, msg));
     state.messages[channel]?.push(msg);
     if (msg.authorId !== state.me?.accountId) {
       if (isViewing(channel)) markRead(channel);
@@ -1758,7 +1816,7 @@
       state.social.dms.sort((a, b) => b.last - a.last);
       renderHomeNav();
     }
-    if (channel === state.textChannel) renderMessages(msg.authorId === state.me?.accountId);
+    if (channel === state.textChannel) renderMessages(msg.authorId === state.me?.accountId || msg.by === state.me?.accountId);
   });
 
   socket.on('chat:update', ({ channel, msg }) => {
@@ -1766,6 +1824,7 @@
     const i = list ? list.findIndex((m) => m.id === msg.id) : -1;
     if (i >= 0) list[i] = msg;
     if (channel === state.textChannel) renderMessages();
+    if (msg.bot) salon.onUpdate(channel, msg);
   });
 
   socket.on('chat:delete', ({ channel, id }) => {
@@ -2493,7 +2552,7 @@
   $('#create-channel-private').onchange = (e) => $('#create-channel-roles').classList.toggle('hidden', !e.target.checked);
   $('#create-channel-name').oninput = (e) => {
     // Canais de texto usam nomes-com-hifen, como no Discord.
-    if ($('#create-channel-form').ctype.value === 'text') e.target.value = e.target.value.toLowerCase().replace(/\s/g, '-');
+    if ($('#create-channel-form').ctype.value !== 'voice') e.target.value = e.target.value.toLowerCase().replace(/\s/g, '-');
   };
   $('#create-channel-form').onsubmit = async (e) => {
     e.preventDefault();
@@ -2512,7 +2571,7 @@
     } finally { form.busy = false; submit.disabled = false; }
     if (!res) return;
     closeCreateChannel();
-    if (type === 'text') openTextChannel(res.id);
+    if (type !== 'voice') openTextChannel(res.id);
   };
   $('#create-channel').addEventListener('keydown', (e) => {
     if (e.key === 'Escape') { e.stopPropagation(); closeCreateChannel(); }
@@ -2798,6 +2857,7 @@
             el('div', { class: 'pc-since' }, el('span', { class: 'pc-server-mini', textContent: initials(serverName()) }), new Date(m.since).toLocaleDateString('pt-BR', { day: 'numeric', month: 'short', year: 'numeric' }))) : null,
           el('div', { class: 'pc-section' }, el('div', { class: 'pc-label', textContent: roles.length ? `CARGOS — ${roles.length}` : 'CARGOS' }),
             el('div', { class: 'pc-roles' }, roleChips.length ? roleChips : el('span', { class: 'muted-text', textContent: 'Sem cargos' }))),
+          state.home ? null : salon.profileSection(m.id, () => profileFor?.id === m.id && renderProfile()),
           voiceBox),
         actions.length ? el('div', { class: 'pc-actions' }, actions) : null));
     card.classList.remove('hidden');
@@ -2828,6 +2888,7 @@
     TIMEOUT: ['Castigar membros', 'Quem está de castigo não envia mensagens, não fala e não transmite por um tempo.'],
     SEND_MESSAGES: ['Enviar mensagens', 'Permite enviar mensagens, arquivos e reações nos canais de texto.'],
     MANAGE_MESSAGES: ['Gerenciar mensagens', 'Permite apagar mensagens de outros membros.'],
+    MUDAE: ['Usar o Mudae', 'Permite rodar personagens ($w, $h, $m), casar com eles e ver haréns nos canais de texto.'],
     MENTION_EVERYONE: ['Mencionar @everyone e @here', 'Permite notificar todo mundo do servidor de uma vez.'],
     CONNECT: ['Conectar', 'Permite entrar nos canais de voz.'],
     SPEAK: ['Falar', 'Permite falar nos canais de voz. Sem ela, o membro só escuta.'],
@@ -2841,7 +2902,7 @@
   const PERM_GROUPS = [
     ['Permissões gerais do servidor', ['ADMIN', 'MANAGE_ROLES', 'MANAGE_CHANNELS', 'MANAGE_SOUNDBOARD']],
     ['Permissões de membros', ['KICK', 'BAN', 'TIMEOUT']],
-    ['Permissões de canais de texto', ['SEND_MESSAGES', 'MANAGE_MESSAGES', 'MENTION_EVERYONE']],
+    ['Permissões de canais de texto', ['SEND_MESSAGES', 'MANAGE_MESSAGES', 'MENTION_EVERYONE', 'MUDAE']],
     ['Permissões de canais de voz', ['CONNECT', 'SPEAK', 'STREAM', 'SOUNDBOARD', 'MUSIC', 'MUTE_MEMBERS', 'MOVE_MEMBERS']],
   ];
   const ROLE_COLORS = ['#1abc9c', '#2ecc71', '#3498db', '#9b59b6', '#e91e63', '#f1c40f', '#e67e22', '#e74c3c', '#95a5a6', '#607d8b',
@@ -4798,6 +4859,7 @@
     if (matchMedia('(max-width:1100px)').matches) { const open = !$('#app').classList.contains('members-open'); closePanels(); $('#app').classList.toggle('members-open', open); $('#sidebar-backdrop').classList.toggle('hidden', !open); }
     else { state.showMembers = !state.showMembers; localStorage.setItem('showMembers', state.showMembers); render(); }
   };
+  $('#btn-salon').onclick = () => setMudaeSimple(false);
   $('#btn-return-call').onclick = () => returnToCall();
   document.addEventListener('keydown', (event) => { if (event.key === 'Escape') closePanels(); });
   // Existing rows contain a separate edit button. Keep their actions keyboard-accessible.

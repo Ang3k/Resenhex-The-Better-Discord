@@ -4,6 +4,25 @@
 // O título deve destacar as principais funcionalidades ou correções, com termos objetivos.
 window.CHANGELOG = [
   {
+    version: '0.99.9', date: '2026-10-01', name: 'Salão do Mudae: roleta de personagens ao vivo',
+    summary: 'Um canal novo, o Salão do Mudae: rode personagens de anime, jogos, quadrinhos, desenhos e séries numa roleta que todo mundo vê, case antes dos outros (ou roube!) e monte o seu álbum.',
+    sections: [
+      { kind: 'new', items: [
+        'Crie um canal do tipo Salão do Mudae. Ele abre uma tela própria: o palco com a roleta, os botões $w (waifu), $h (husbando) e $m (qualquer um) e a Mesa ao vivo com os rolls de todo mundo.',
+        'A roleta gira para todos ao mesmo tempo e para no personagem, em quatro raridades: comum, raro, épico e lendário. Lendário dá banner, flash e fanfarra para a sala toda.',
+        'Clique em Casar em até 45 segundos. Quem rodou tem 3 segundos só dele; depois disso, qualquer um pode roubar, e o chat conta o roubo.',
+        'Cada pessoa tem 10 rolls por hora e pode casar uma vez a cada 3 horas. A pílula no topo mostra quanto falta, e a aba No salão mostra quem está jogando e os rolls de cada um.',
+        'Meu harem virou um álbum de cards: busca, filtros por raridade, ordem por valor, data, obra ou nome, e um favorito que aparece no seu perfil.',
+        'Ranking do servidor pelo valor do harem, com o mural dos lendários e de quem é cada um.',
+        'São 25 mil personagens de cinco fontes: anime, jogos (Genshin, Zelda, League of Legends, Final Fantasy…), quadrinhos (Marvel, DC…), desenhos (Simpsons, Hora de Aventura, Disney, Pixar…) e séries (Game of Thrones, Stranger Things, La Casa de Papel…).',
+        'Os botões de fonte no Salão, ou $wa, $wg, $wc, $wd e $ws (e o mesmo com $h e $m), rodam só de uma fonte. A raridade é contada dentro de cada fonte, então a chance de lendário é a mesma em todas.',
+        'Reações rápidas (😱 🔥 💖 😂 💀) flutuam no palco para todo mundo que está no Salão.',
+        'Prefere o Mudae original? O botão Modo simplificado mostra o Salão como um chat comum, com o card completo e o botão Casar no chat. É só para você, e Abrir o Salão volta para a roleta.',
+        'Os comandos $w, $h e $m funcionam só no Salão; em outro canal o Mudae mostra o caminho. A permissão "Usar o Mudae" nos cargos libera ou bloqueia o jogo.',
+      ] },
+    ],
+  },
+  {
     version: '0.99.8', date: '2026-10-01', name: 'Zoom na transmissão de tela e DJ em destaque',
     summary: 'Aproxime qualquer parte da tela compartilhada, e o vídeo do DJ pode ocupar o palco da chamada num layout próprio de música.',
     sections: [

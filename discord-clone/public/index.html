@@ -24,6 +24,8 @@
   <link rel="stylesheet" href="landing.css">
   <link rel="stylesheet" href="profile-media.css">
   <link rel="stylesheet" href="music.css">
+  <link rel="stylesheet" href="mudae.css">
+  <link rel="stylesheet" href="mudae-salao.css">
   <link rel="stylesheet" href="brand.css">
   <script>
     // Quem chega pela primeira vez vê a página inicial; quem já entrou neste navegador, veio por convite
@@ -374,6 +376,11 @@
         <div id="header-title">
 </div>
         <div class="header-tools">
+          <button type="button" id="btn-salon" class="salon-open-btn hidden" title="Voltar para o Salão do Mudae (roleta, mesa ao vivo e álbum)">
+<span data-icon="dice" data-size="16">
+</span>
+<span>Abrir o Salão</span>
+</button>
           <button type="button" id="btn-return-call" class="call-return hidden" title="Voltar à chamada">
 <span data-icon="phone" data-size="16">
 </span>
@@ -383,6 +390,8 @@
 </button>
         </div>
       </header>
+
+      <section id="salon-view" class="hidden" aria-label="Salão do Mudae"></section>
 
       <section id="chat-view">
         <div id="notify-banner" class="hidden">
@@ -871,6 +880,15 @@
 </span>
 </label>
       <label class="type-option">
+<input type="radio" name="ctype" value="mudae">
+<span class="type-icon" data-icon="dice" data-size="24">
+</span>
+        <span>
+<strong>Salão do Mudae</strong>
+<span class="muted-text">Roleta de personagens de anime com a turma, ao vivo</span>
+</span>
+</label>
+      <label class="type-option">
 <input type="radio" name="ctype" value="voice">
 <span class="type-icon" data-icon="volume" data-size="24">
 </span>
@@ -950,6 +968,8 @@
   <script src="channel-navigation.js"></script>
   <script src="desktop.js"></script>
   <script src="music.js"></script>
+  <script src="mudae.js"></script>
+  <script src="mudae-salao.js"></script>
   <script src="app.js">
 </script>
   <script src="landing.js"></script>

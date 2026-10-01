@@ -249,9 +249,9 @@ window.ChannelNavigation = function ({ state, el, Icon, call, toast, hasPerm, re
     const active = c.type === 'text' ? state.view === 'chat' && state.textChannel === c.id : state.voiceChannel === c.id;
     const entry = el('button', { type: 'button', class: 'channel-entry', title: c.topic || c.name,
       data: { focusKey: (admin ? 'admin-' : '') + 'open-' + c.id },
-      ariaLabel: `${c.type === 'text' ? 'Canal de texto' : 'Canal de voz'} ${c.name}${c.private ? ', privado' : ''}`,
+      ariaLabel: `${c.mudae ? 'Salão do Mudae' : c.type === 'text' ? 'Canal de texto' : 'Canal de voz'} ${c.name}${c.private ? ', privado' : ''}`,
       onclick: () => admin ? editChannel(c.id) : open(c) },
-    el('span', { class: 'icon' }, Icon(c.type === 'text' ? 'hash' : 'volume', 18)),
+    el('span', { class: 'icon' }, Icon(c.mudae ? 'dice' : c.type === 'text' ? 'hash' : 'volume', 18)),
     el('span', { class: 'channel-name', textContent: c.name }),
     c.private ? el('span', { class: 'lock', title: c.allowedRoles.length ? 'Canal privado' : 'Somente administradores' }, Icon('lock', 14)) : null);
     const row = el('div', { class: 'channel grouped-channel' + (active && !admin ? ' active' : '') + (unread && !admin ? ' unread' : ''),

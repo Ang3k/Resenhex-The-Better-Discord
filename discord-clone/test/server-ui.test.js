@@ -25,6 +25,7 @@ async function ui(t, invited = false, options = {}) {
   Object.defineProperty(w.navigator, 'userAgent', { value: options.userAgent || 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)' });
   if (options.name) w.localStorage.setItem('name', options.name);
   if (options.token) w.localStorage.setItem('token', options.token);
+  for (const [key, value] of Object.entries(options.storage || {})) w.localStorage.setItem(key, value);
   if (options.desktop) w.resenhexDesktop = { onPushToTalk() {}, setPushToTalk() {} };
   // Include the pre-paint decision and the landing script, in the HTML's real order.
   for (const script of w.document.querySelectorAll('script:not([src])')) w.eval(script.textContent);
@@ -55,7 +56,8 @@ async function ui(t, invited = false, options = {}) {
         } else if (event === 'server:delete') {
           servers.splice(servers.findIndex((s) => s.id === payload.id), 1);
           current = snapshot(servers[0]?.id || null, servers[0]?.name || '', servers); push();
-        } else if (event === 'server:invite') result = { code, name: current.serverName };
+        } else if (options.reply?.[event]) result = options.reply[event](payload);
+        else if (event === 'server:invite') result = { code, name: current.serverName };
         else if (event === 'server:join') {
           if (!servers.some((s) => s.id === 'invited')) servers.push({ id: 'invited', name: 'Turma convidada', icon: null, owner: false });
           current = snapshot('invited', 'Turma convidada', servers); result = { id: 'invited' }; push();
@@ -81,7 +83,7 @@ async function ui(t, invited = false, options = {}) {
   };
   let copied = '';
   Object.defineProperty(w.navigator, 'clipboard', { value: { writeText: async (text) => { copied = text; } } });
-  for (const file of ['icons.js', 'format.js', 'sounds.js', 'media-policy.js', 'keybinds.js', 'settings.js', 'photo-editor.js', 'media-session.js', 'mobile-stream.js', 'stream-zoom.js', 'changelog.js', 'channel-navigation.js', 'music.js', 'app.js', 'landing.js']) w.eval(fs.readFileSync(path.join(publicDir, file), 'utf8'));
+  for (const file of ['icons.js', 'format.js', 'sounds.js', 'media-policy.js', 'keybinds.js', 'settings.js', 'photo-editor.js', 'media-session.js', 'mobile-stream.js', 'stream-zoom.js', 'changelog.js', 'channel-navigation.js', 'music.js', 'mudae.js', 'mudae-salao.js', 'app.js', 'landing.js']) w.eval(fs.readFileSync(path.join(publicDir, file), 'utf8'));
   w.localStorage.setItem('seenVersion', w.APP_VERSION);
   t.after(() => { dom.window.close(); assert.deepEqual(errors.map((e) => e.message), []); });
   await settle();
@@ -459,4 +461,155 @@ test('keyboard shortcuts follow Discord defaults, can be rebound in settings and
   assert.equal(keyButton('toggleMute').textContent, 'CtrlShiftM');
   d.querySelector('#settings-save').click(); await settle();
   assert.equal(JSON.parse(w.localStorage.getItem('keybinds')).toggleMute, 'Ctrl+Shift+KeyM');
+});
+
+test('Mudae: card do roll com botão de casar, dono depois do claim e resposta só para quem pediu', async (t) => {
+  const status = { command: '$tu', kind: 'status', rollsLeft: 3, rollsMax: 10, rollResetIn: 10 * 60_000, claimReady: true, claimResetIn: 0 };
+  const app = await ui(t, false, { reply: { 'chat:send': (p) => (p.text === '$tu' ? { ephemeral: status } : { ok: true }) } });
+  await app.register();
+  app.d.querySelector('#btn-add-server').click(); await settle();
+  await app.clickText('Criar meu servidorDê um nome e convide seus amigos.');
+  app.d.querySelector('#new-server-name').value = 'Turma'; await app.clickText('Criar servidor');
+  app.d.querySelector('#server-dialog .dialog-close').click();
+
+  const now = Date.now();
+  const card = { id: 176754, name: 'Frieren', series: 'Frieren: Beyond Journey’s End', image: 'https://s4.anilist.co/file/anilistcdn/character/large/b176754.png', value: 1149, rank: 15 };
+  const roll = { id: 'roll1', authorId: null, bot: 'mudae', by: userId, command: '$w', ts: now, mudae: { kind: 'roll', card, ownerId: null, expires: now + 45_000, rollsLeft: 2 } };
+  app.deliver('chat:message', { channel: 'server-1-chat', msg: roll }); await settle();
+  const row = app.d.querySelector('[data-id="roll1"]');
+  assert.equal(row.querySelector('.msg-author').textContent, 'Mudae');
+  assert.equal(row.querySelector('.bot-tag').textContent, 'BOT');
+  assert.match(row.querySelector('.mudae-invocation').textContent, /Ana\s*usou\s*\$w/);
+  assert.equal(row.querySelector('.mudae-name').textContent, 'Frieren');
+  assert.equal(row.querySelector('.mudae-img').src, card.image);
+  assert.match(row.textContent, /2 rolls restantes/);
+  assert.match(row.querySelector('.mudae-claim').textContent, /Casar\s*45s/);
+
+  row.querySelector('.mudae-claim').click(); await settle();
+  const last = () => JSON.parse(JSON.stringify(app.events.at(-1)));
+  assert.deepEqual(last(), { event: 'mudae:claim', payload: { channel: 'server-1-chat', id: 'roll1' } });
+  app.deliver('chat:update', { channel: 'server-1-chat', msg: { ...roll, mudae: { ...roll.mudae, ownerId: userId } } });
+  app.deliver('chat:message', { channel: 'server-1-chat', msg: { id: 'wed', authorId: null, bot: 'mudae', by: userId, command: null, ts: now + 1, mudae: { kind: 'married', card, ownerId: userId } } });
+  await settle();
+  const owned = app.d.querySelector('[data-id="roll1"]');
+  assert.ok(owned.querySelector('.mudae-card.owned'));
+  assert.equal(owned.querySelector('.mudae-claim'), null);
+  assert.match(owned.textContent, /Pertence a Ana/);
+  const wed = app.d.querySelector('[data-id="wed"]');
+  assert.ok(wed.classList.contains('continued'), 'o aviso de casamento fica colado no card');
+  assert.match(wed.textContent, /Ana e Frieren agora são casados/);
+
+  const input = app.d.querySelector('#chat-input');
+  input.value = '$tu';
+  input.dispatchEvent(new app.w.KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true })); await settle();
+  assert.deepEqual(last(), { event: 'chat:send', payload: { channel: 'server-1-chat', text: '$tu', attachments: [] } });
+  const only = app.d.querySelector('.msg.ephemeral');
+  assert.match(only.textContent, /Você tem 3 de 10 rolls nesta hora\. Eles voltam em 10 min\./);
+  assert.match(only.textContent, /pode casar/);
+  assert.match(only.textContent, /Só você pode ver esta mensagem/);
+  [...only.querySelectorAll('button')].find((b) => b.textContent === 'Ignorar').click(); await settle();
+  assert.equal(app.d.querySelector('.msg.ephemeral'), null);
+});
+
+test('Salão do Mudae: tela própria com palco, mesa ao vivo, presença, álbum e volta ao chat comum', async (t) => {
+  const album = { ownerId: userId, total: 1, value: 1149, favorite: null, chars: [] };
+  const app = await ui(t, false, { reply: { 'mudae:presence': () => ({ ok: true, rollsLeft: 9, rollsMax: 10, rollResetIn: 600_000, claimReady: true, claimResetIn: 0 }), 'mudae:harem': () => album, 'mudae:profile': () => ({ summary: null }) } });
+  await app.register();
+  app.d.querySelector('#btn-add-server').click(); await settle();
+  await app.clickText('Criar meu servidorDê um nome e convide seus amigos.');
+  app.d.querySelector('#new-server-name').value = 'Turma'; await app.clickText('Criar servidor');
+  app.d.querySelector('#server-dialog .dialog-close').click();
+  const st = snapshot('server-1', 'Turma', [{ id: 'server-1', name: 'Turma', icon: null, owner: true }]);
+  st.channels.push({ id: 'server-1-salon', name: 'salão-mudae', type: 'text', mudae: true, topic: '', categoryId: 'text', private: false, allowedRoles: [] });
+  app.deliver('state', st); await settle();
+
+  const entry = [...app.d.querySelectorAll('.channel-entry')].find((b) => b.textContent.includes('salão-mudae'));
+  assert.match(entry.getAttribute('aria-label'), /^Salão do Mudae/);
+  entry.click(); await settle();
+  const last = (event) => JSON.parse(JSON.stringify(app.events.filter((e) => e.event === event).at(-1) || null));
+  assert.deepEqual(last('mudae:presence').payload, { channel: 'server-1-salon' });
+  assert.equal(app.d.querySelector('#salon-view').classList.contains('hidden'), false);
+  assert.ok(app.d.querySelector('#main').classList.contains('salon-mode'));
+  assert.ok(app.d.querySelector('#app').classList.contains('hide-members'), 'a coluna do chat fica no lugar da lista de membros');
+  assert.deepEqual([...app.d.querySelectorAll('.salon-tab')].map((b) => b.textContent), ['Mesa', 'Meu harem', 'Ranking']);
+  assert.equal(app.d.querySelector('.salon-status').textContent, '9/10 rolls · casamento disponível 💍');
+  assert.match(app.d.querySelector('.salon-stage-caption').textContent, /Rode para começar/);
+
+  // Um roll de outra pessoa chega com o palco livre: vai para o palco e para a mesa ao vivo.
+  const now = Date.now();
+  const card = { id: 176754, name: 'Frieren', series: 'Frieren', image: 'https://s4.anilist.co/x.png', value: 1149, rank: 15, rarity: 'legendary' };
+  const friend = { ...person, id: 'c'.repeat(16), name: 'Caio' };
+  const roll = { id: 'roll1', authorId: null, bot: 'mudae', by: friend.id, command: '$m', ts: now, mudae: { kind: 'roll', card, ownerId: null, revealAt: now - 400, priorityUntil: now + 2600, expires: now + 44_600, rollsLeft: 8 } };
+  app.deliver('chat:message', { channel: 'server-1-salon', msg: roll }); await settle();
+  assert.equal(app.d.querySelector('.salon-card-slot .salon-card-name').textContent, 'Frieren');
+  assert.ok(app.d.querySelector('.salon-card-slot .salon-card').classList.contains('r-legendary'));
+  const claim = app.d.querySelector('.salon-claim');
+  assert.equal(claim.disabled, true, 'quem rodou ainda tem prioridade');
+  assert.match(app.d.querySelector('.salon-claim-caption').textContent, /prioridade de/);
+  assert.equal(app.d.querySelectorAll('.salon-live-strip .salon-card').length, 1);
+  assert.ok(app.d.querySelector('.mudae-roll-line'), 'no chat do Salão o roll vira uma linha');
+
+  // Presença: a aba "No salão" mostra as pessoas com os rolls.
+  app.deliver('mudae:presence', { channel: 'server-1-salon', people: [{ id: userId, rollsLeft: 9, rollsMax: 10, claimReady: true, rollResetIn: 1, claimResetIn: 1 }] }); await settle();
+  assert.equal(app.d.querySelector('.salon-count').textContent, '1');
+  [...app.d.querySelectorAll('.salon-side-tab')].find((b) => b.textContent.startsWith('No salão')).click(); await settle();
+  assert.equal(app.d.querySelectorAll('#salon-people .salon-dots span.on').length, 9);
+  assert.ok(app.d.querySelector('#chat-view').classList.contains('salon-people-open'));
+
+  // $mm no chat do Salão abre o álbum em vez de postar.
+  [...app.d.querySelectorAll('.salon-side-tab')].find((b) => b.textContent === 'Chat').click(); await settle();
+  const input = app.d.querySelector('#chat-input');
+  input.value = '$mm';
+  input.dispatchEvent(new app.w.KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true })); await settle();
+  assert.deepEqual(last('mudae:harem').payload, { ownerId: userId });
+  assert.equal(app.events.some((e) => e.event === 'chat:send' && e.payload.text === '$mm'), false);
+  assert.match(app.d.querySelector('.salon-album').textContent, /Seu harem/);
+
+  // Voltar ao canal comum desmonta o Salão e devolve o chat inteiro.
+  [...app.d.querySelectorAll('.salon-side-tab')].find((b) => b.textContent.startsWith('No salão')).click(); await settle();
+  [...app.d.querySelectorAll('.channel-entry')].find((b) => b.textContent.includes('geral')).click(); await settle();
+  assert.deepEqual(last('mudae:presence').payload, { channel: null });
+  assert.equal(app.d.querySelector('#salon-view').classList.contains('hidden'), true);
+  assert.equal(app.d.querySelector('#main').classList.contains('salon-mode'), false);
+  assert.equal(app.d.querySelector('#chat-view').classList.contains('salon-people-open'), false);
+  assert.equal(app.d.querySelector('#salon-side-tabs'), null);
+});
+
+test('Mudae no modo simplificado: o Salão vira chat com cards completos que esperam o giro e a vez de quem rodou', async (t) => {
+  const app = await ui(t, false, { storage: { mudaeSimples: '1' } });
+  await app.register();
+  app.d.querySelector('#btn-add-server').click(); await settle();
+  await app.clickText('Criar meu servidorDê um nome e convide seus amigos.');
+  app.d.querySelector('#new-server-name').value = 'Turma'; await app.clickText('Criar servidor');
+  app.d.querySelector('#server-dialog .dialog-close').click();
+  const st = snapshot('server-1', 'Turma', [{ id: 'server-1', name: 'Turma', icon: null, owner: true }]);
+  st.channels.push({ id: 'server-1-salon', name: 'salão-mudae', type: 'text', mudae: true, topic: '', categoryId: 'text', private: false, allowedRoles: [] });
+  app.deliver('state', st); await settle();
+  [...app.d.querySelectorAll('.channel-entry')].find((b) => b.textContent.includes('salão-mudae')).click(); await settle();
+  assert.equal(app.d.querySelector('#salon-view').classList.contains('hidden'), true, 'sem a tela do Salão');
+  assert.equal(app.d.querySelector('#btn-salon').classList.contains('hidden'), false, 'com o botão para voltar ao Salão');
+  assert.equal(app.events.some((e) => e.event === 'mudae:presence'), false);
+
+  const now = Date.now();
+  const card = { id: 'g1', name: 'Geralt of Rivia', series: 'The Witcher', image: 'https://images.igdb.com/x.jpg', value: 900, rank: 4, rarity: 'legendary', source: 'g' };
+  const roll = { id: 'r1', authorId: null, bot: 'mudae', by: 'c'.repeat(16), command: '$wg', ts: now, mudae: { kind: 'roll', card, ownerId: null, revealAt: now + 400, priorityUntil: now + 1000, expires: now + 45_400, rollsLeft: 5 } };
+  app.deliver('chat:message', { channel: 'server-1-salon', msg: roll }); await settle();
+  const button = () => app.d.querySelector('[data-id="r1"] .mudae-claim');
+  assert.ok(app.d.querySelector('[data-id="r1"] .mudae-card'), 'card completo no chat, como no Mudae original');
+  assert.match(app.d.querySelector('[data-id="r1"] .mudae-series').textContent, /🎮 The Witcher/);
+  assert.equal(app.d.querySelector('[data-id="r1"] .mudae-rarity-tag').textContent, 'Lendário');
+  assert.match(button().textContent, /Girando…/);
+  assert.equal(button().disabled, true);
+  await new Promise((r) => setTimeout(r, 650));
+  assert.match(button().textContent, /Vez de/);
+  assert.equal(button().disabled, true);
+  await new Promise((r) => setTimeout(r, 700));
+  assert.match(button().textContent, /^Casar/);
+  assert.equal(button().disabled, false);
+
+  // Voltar ao Salão pelo botão do topo.
+  app.d.querySelector('#btn-salon').click(); await settle();
+  assert.equal(app.w.localStorage.getItem('mudaeSimples'), '0');
+  assert.equal(app.d.querySelector('#salon-view').classList.contains('hidden'), false);
+  assert.ok(app.d.querySelector('[data-id="r1"] .mudae-roll-line'), 'no Salão o roll vira linha compacta');
 });

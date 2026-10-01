@@ -82,10 +82,12 @@ function channelActions(db, newId) {
       if (action === 'create' || action === 'duplicate') {
         if (db.channels.length >= MAX_CHANNELS) fail('Limite de 500 canais atingido.');
         const source = action === 'duplicate' ? channel(id) : null;
-        const nextType = source?.type || type;
+        // O Salão do Mudae é um canal de texto com mudae: true (só a tela muda).
+        const salon = source ? !!source.mudae : type === 'mudae';
+        const nextType = source?.type || (salon ? 'text' : type);
         if (!['text', 'voice'].includes(nextType)) fail('Tipo inválido.');
         const next = {
-          id: newId(), type: nextType, name: cleanName(name, nextType),
+          id: newId(), type: nextType, name: cleanName(name, nextType), ...(salon ? { mudae: true } : {}),
           categoryId: categoryId(payload.categoryId === undefined ? source?.categoryId ?? null : payload.categoryId),
           topic: source ? source.topic : topic(payload.topic ?? ''),
           ...(source ? { private: source.private, allowedRoles: [...source.allowedRoles] } : access(payload)),
@@ -109,7 +111,8 @@ function channelActions(db, newId) {
         move(db.channels, current, payload.beforeId ?? null, db.channels.filter((c) => c.categoryId === target));
         current.categoryId = target;
       } else if (action === 'delete') {
-        if (current.type === 'text' && db.channels.filter((c) => c.type === 'text').length === 1) fail('O servidor precisa de pelo menos um canal de texto.');
+        const plainText = (c) => c.type === 'text' && !c.mudae;
+        if (plainText(current) && db.channels.filter(plainText).length === 1) fail('O servidor precisa de pelo menos um canal de texto.');
         db.channels = db.channels.filter((c) => c.id !== id);
         delete db.messages[id];
       } else fail('Ação desconhecida.');

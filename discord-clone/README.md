@@ -22,6 +22,7 @@ Plataforma própria de chat e voz para você e seus amigos, inspirada no Discord
 - **Câmera** e **compartilhamento de tela** com perfis de qualidade (720p 30 fps, 1080p 30 fps e 1080p 60 fps), áudio do sistema e estatísticas ao vivo; dá para usar câmera e tela ao mesmo tempo; clique na tela para abrir em tela cheia
 - **Foto de perfil ajustável**, com arraste, zoom e prévia circular, incluindo GIF animado de até 5 MB e 1024 pixels por lado. Em **Meu perfil**, use **Mudar foto** ou **Ajustar foto** e salve as alterações.
 - **Efeitos sonoros (soundboard)**: botão 🎵 na chamada reúne sons prontos e até 32 sons personalizados por servidor, com pré-escuta. **Adicionar efeito sonoro** abre o envio de um áudio de até 8 segundos e 5 MB. A permissão **Gerenciar efeitos sonoros** controla o envio e a remoção; **Usar efeitos sonoros** controla a reprodução na sala, com limite contra spam. Volume e silenciamento continuam independentes.
+- **Salão do Mudae**: um canal com tela própria onde a turma roda personagens de anime numa roleta ao vivo, casa (ou rouba) e monta um álbum (veja [Mudae](#mudae))
 - **DJ da sala (músicas do YouTube)**: botão do disco na chamada, ou `/play nome da música` em qualquer chat. A música toca para todo mundo da sala de voz, no mesmo ponto, com fila, pausar, pular e parar para todos e volume só seu (veja [DJ da sala](#dj-da-sala-músicas-do-youtube))
 - **Mutar / ensurdecer** (botões na barra da chamada e no painel do usuário, também pelos atalhos `Ctrl+Shift+M` / `Ctrl+Shift+D`) e **push-to-talk** (apertar uma tecla para falar)
 - **Volume individual** e **mutar para mim** (só afeta o que você ouve)
@@ -122,6 +123,40 @@ Na chamada, o botão do disco abre o DJ: busque no YouTube ou cole um link (víd
 - **Limites:** 20 buscas por minuto e 12 comandos do DJ a cada 20 segundos por pessoa.
 - **Pelos termos do YouTube** o player não pode ficar escondido: o vídeo aparece no bloco do DJ no palco ou na capinha do painel da chamada.
 - Para testar a busca sem internet, `YOUTUBE_ORIGIN` aponta para um YouTube de mentira (é o que `test/dj-server.test.js` faz).
+
+## Mudae
+
+O Mudae mora no **Salão do Mudae**, um canal de texto com `mudae: true` (crie em **Criar canal → Salão do Mudae**). Ele abre uma tela própria: **Mesa** (palco com a roleta, botões de roll e a Mesa ao vivo com os rolls de todo mundo), **Meu harem** (álbum) e **Ranking**. À direita ficam o chat do canal e a aba **No salão**.
+
+| Comando | O que faz |
+|---|---|
+| `$w` / `$h` / `$m` | roda uma waifu, um husbando ou qualquer personagem (também pelos botões) |
+| `$wa` `$wg` `$wc` `$wd` `$ws` (e o mesmo com `$h` e `$m`) | só de uma fonte: **a**nime, **g**ames (jogos), **c**omics (quadrinhos), **d**esenhos ou **s**éries. No Salão, os botões de fonte fazem o mesmo |
+| `$mm` / `$mm @pessoa` | abre o seu álbum ou o de outra pessoa |
+| `$im nome` | mostra um personagem, a posição no ranking e quem casou com ele |
+| `$divorce nome` | solta um personagem do seu harem (pede confirmação; também pelo álbum) |
+| `$tu` | rolls restantes e quando dá para casar de novo (só você vê) |
+
+- **Só no Salão:** em outro canal, os comandos respondem (só para quem pediu) com o caminho até o Salão.
+- **Modo simplificado** (botão no topo do Salão, guardado no navegador de cada pessoa): o canal aparece como chat comum, com os cards completos e o botão Casar no chat, como no Mudae original. Os rolls, casamentos e limites são os mesmos de quem está na roleta; o botão do card espera o giro e a vez de quem rodou. **Abrir o Salão**, no topo, volta para a tela da roleta.
+- **Roleta:** o servidor sorteia na hora e manda o resultado com 8 fotos-isca e o `revealAt` (agora + 1,6 s). Cada navegador gira até o `revealAt`; ninguém casa antes disso. Em aba escondida o card aparece mesmo assim, na hora certa.
+- **Regras:** 10 rolls por hora e 1 casamento a cada 3 horas por pessoa, contados pelo relógio. Depois que o card aparece, quem rodou tem 3 s de prioridade; depois, qualquer um casa (e o chat conta o roubo). A janela total é de 45 s. Cada personagem tem um só dono por servidor.
+- **Raridade** pela posição dentro da própria fonte, em proporção: os 0,67% mais populares são lendários, até 6,7% épicos, até 33% raros, o resto comum (numa fonte de 15 mil: 1–100, até 1.000, até 5.000). Assim a chance de lendário não muda com o tamanho da fonte. Lendário toma o palco de todos, com banner, flash e fanfarra.
+- **Palco:** o seu roll sempre vai para o palco; o de um amigo só se o palco estiver livre (senão entra na Mesa ao vivo); lendário de qualquer um sempre.
+- **Personagens:** `mudae-catalogo.json`, gerado no seu computador por `node tools/mudae-catalogo.js` (um módulo por fonte em `tools/mudae-fontes/`, cada uma com cache em `tools/mudae-cache/`). O servidor lê o arquivo uma vez e nunca chama essas APIs: um roll é só um sorteio na memória. As fotos vão direto do site de cada fonte para o navegador.
+
+  | Fonte | Quantos | De onde | Popularidade | Chave |
+  |---|---|---|---|---|
+  | 🎌 Anime | 15.000 | AniList (5 mil mais favoritados + elenco das obras mais populares) | favoritos | não precisa |
+  | 🎮 Jogos | ~1.900 | IGDB (personagens com retrato) + wikis do Fandom de 25 jogos (Genshin, Star Rail, LoL, Zelda, Mario, Final Fantasy…) | nota do jogo / tamanho do artigo ou categoria de jogáveis | `igdbClientId` e `igdbClientSecret` (conta de desenvolvedor da Twitch) |
+  | 🦸 Quadrinhos | ~2.900 | Wikidata (popularidade) + Comic Vine (foto, gênero, editora). Sem mangá, pessoas reais, figuras religiosas e gibis licenciados de outras mídias | Wikipédias com artigo | `comicVineKey` |
+  | 📺 Desenhos | ~2.500 | wikis do Fandom de 26 franquias (Simpsons, Hora de Aventura, Disney, Pixar…) | tamanho do artigo, por franquia | não precisa |
+  | 🎬 Séries | ~3.000 | TMDB: séries mais votadas, sem animação, reality e séries sobre gente real; a foto é a do ator | votos da série e posição nos créditos | `tmdbKey` |
+
+  As chaves ficam em `tools/mudae-chaves.json`, fora do Git: `{ "igdbClientId": "…", "igdbClientSecret": "…", "comicVineKey": "…", "tmdbKey": "…" }`. `node tools/mudae-catalogo.js jogos series` baixa de novo só essas fontes; `--juntar` só monta o catálogo com os caches que já existem. O Ranking do Salão mostra os créditos das fontes (o TMDB pede o aviso).
+- **Dados:** cada servidor guarda quem casou com quem, os favoritos e os horários de uso de cada pessoa. Os rolls são mensagens do bot no canal (entram no limite de 300), sem as fotos-isca. Presença e reações não são gravadas.
+- **Permissão:** **Usar o Mudae** (ligada para o @everyone, inclusive nos servidores existentes).
+- Para testar com outros personagens, `MUDAE_CATALOG` aponta para outro catálogo (é o que `test/mudae-server.test.js` faz).
 
 ## Rodando localmente
 
@@ -317,12 +352,15 @@ discord-clone/
 ├── downloads.js       # /download (instalador e atualizações do app de Windows) e o link fixo do instalador
 ├── dj.js              # DJ de cada sala de voz: fila, música atual e o relógio que sincroniza todo mundo
 ├── youtube.js         # busca no YouTube para o DJ (o áudio toca no player oficial de cada pessoa)
+├── mudae.js           # Mudae: sorteio, limites de rolls e casamentos, harem (personagens em mudae-catalogo.json)
 ├── desktop/           # app para Windows (Electron): janela, bandeja, push-to-talk global, escolha de tela, atualização
 └── public/
     ├── index.html     # layout (servidores, canais, chat, palco de voz, membros)
     ├── icons.js       # ícones SVG e o logo do Resenhex
     ├── style.css      # tema escuro estilo Discord
     ├── music.js       # DJ na chamada: player do YouTube sincronizado, painel de busca e fila, comandos /play
+    ├── mudae.js       # respostas do Mudae no chat: cards, linhas compactas do Salão, $im e $tu
+    ├── mudae-salao.js # tela do Salão do Mudae: roleta, Mesa ao vivo, álbum, ranking e presença
     └── app.js         # lógica do cliente: chat, menus de moderação, configurações, WebRTC (voz/tela)
 ```
 

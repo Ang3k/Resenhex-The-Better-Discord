@@ -2,7 +2,7 @@ const crypto = require('node:crypto');
 const { AsyncLocalStorage } = require('node:async_hooks');
 const { migrateChannels } = require('./channels');
 
-const SERVER_FIELDS = new Set(['ownerId', 'serverName', 'serverIcon', 'roles', 'channels', 'categories', 'soundboardMigrated', 'soundboard', 'musicMigrated']);
+const SERVER_FIELDS = new Set(['ownerId', 'serverName', 'serverIcon', 'roles', 'channels', 'categories', 'soundboardMigrated', 'soundboard', 'musicMigrated', 'mudae', 'mudaeMigrated']);
 const MEMBER_FIELDS = new Set(['roles', 'banned', 'serverMuted', 'serverDeafened', 'timeoutUntil', 'nickname']);
 const inviteCode = () => crypto.randomBytes(18).toString('base64url');
 
@@ -40,6 +40,13 @@ function communityStore(root, newId, defaultDb) {
       if (everyone && !everyone.perms.includes('MUSIC')) everyone.perms.push('MUSIC');
       server.musicMigrated = true;
     }
+    // O Mudae também chegou depois: liberado para todo mundo.
+    if (!server.mudaeMigrated) {
+      const everyone = server.roles.find((role) => role.id === 'everyone');
+      if (everyone && !everyone.perms.includes('MUDAE')) everyone.perms.push('MUDAE');
+      server.mudaeMigrated = true;
+    }
+    server.mudae ||= { claims: {}, usage: {} };
   }
   const context = new AsyncLocalStorage();
   const empty = { ownerId: null, serverName: '', serverIcon: null, roles: [], channels: [], categories: [], members: {}, soundboard: [] };
@@ -79,7 +86,7 @@ function communityStore(root, newId, defaultDb) {
     const template = defaultDb();
     const id = newId();
     const server = { id, ownerId: accountId, serverName: name, serverIcon: null, roles: template.roles,
-      channels: template.channels.map((c) => ({ ...c, id: newId() })), members: {}, inviteCode: inviteCode(), soundboardMigrated: true, musicMigrated: true, soundboard: [] };
+      channels: template.channels.map((c) => ({ ...c, id: newId() })), members: {}, inviteCode: inviteCode(), soundboardMigrated: true, musicMigrated: true, mudaeMigrated: true, soundboard: [], mudae: { claims: {}, usage: {} } };
     migrateChannels(server);
     root.servers[id] = server;
     join(accountId, server);

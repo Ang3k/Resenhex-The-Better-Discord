@@ -1,0 +1,111 @@
+/* Mudae: respostas do bot no chat (cards de personagem, harem, casamentos e mensagens só para você). */
+
+/* Autor "Mudae" com a etiqueta BOT, como os bots do Discord. */
+.msg .avatar.mudae-avatar { display: grid; place-items: center; background: var(--brand-gradient); color: #fff; cursor: default; }
+.mudae-avatar svg { fill: currentColor; }
+.msg-author.bot { cursor: default; }
+.msg-author.bot:hover { text-decoration: none; }
+.bot-tag {
+  display: inline-flex; align-items: center; height: 15px; padding: 0 4px; margin-left: 4px; border-radius: 3px;
+  background: var(--brand); color: #fff; font-size: 10px; font-weight: 600; line-height: 15px; vertical-align: 2px; letter-spacing: .02em;
+}
+
+/* "Fulano usou $w" acima da resposta. */
+.mudae-invocation { cursor: default; }
+.msg .mudae-invocation .avatar { width: 16px; height: 16px; font-size: 8px; margin: 0; grid-column: auto; flex-shrink: 0; }
+.mudae-invocation .reply-author { cursor: pointer; }
+.mudae-invocation .reply-author:hover { text-decoration: underline; }
+.mudae-cmd { color: var(--link); font-weight: 500; }
+.mudae-muted { color: var(--text-muted); }
+
+/* Card (como um embed do Discord): borda colorida à esquerda, amarela livre, vermelha com dono. */
+.mudae-card {
+  position: relative; display: flex; flex-direction: column; gap: 2px;
+  width: fit-content; min-width: 220px; max-width: min(100%, 320px); margin-top: 4px; padding: 10px 16px 14px 12px;
+  background: var(--bg-sidebar); border-left: 4px solid var(--yellow); border-radius: 4px;
+}
+.mudae-card.owned { border-left-color: var(--red); }
+.mudae-card.harem { border-left-color: var(--brand); min-width: min(100%, 320px); max-width: min(100%, 540px); }
+.mudae-name { font-size: 16px; font-weight: 700; line-height: 1.3; color: var(--text-strong); overflow-wrap: anywhere; }
+.mudae-series { font-size: 14px; color: var(--text); overflow-wrap: anywhere; }
+.mudae-value { display: flex; align-items: center; gap: 4px; margin-top: 2px; font-size: 14px; color: var(--text); }
+.mudae-value strong { color: var(--text-strong); font-variant-numeric: tabular-nums; }
+.mudae-kakera { display: inline-flex; color: var(--brand); }
+.mudae-hint { margin-top: 4px; font-size: 13px; color: var(--text-muted); }
+.mudae-img {
+  display: block; width: 225px; max-width: 100%; aspect-ratio: 225 / 350; margin-top: 10px; object-fit: cover;
+  border-radius: 4px; background: var(--bg-panel); cursor: zoom-in;
+}
+.mudae-img.missing { display: grid; place-items: center; font-size: 64px; font-weight: 700; color: var(--text-muted); cursor: default; }
+.mudae-footer { display: flex; align-items: center; gap: 6px; margin-top: 8px; font-size: 12px; color: var(--text-muted); }
+.mudae-footer strong { font-weight: 600; }
+.mudae-footer.warn { color: var(--yellow); }
+.msg .mudae-card .avatar { width: 20px; height: 20px; font-size: 9px; margin: 0; grid-column: auto; flex-shrink: 0; cursor: default; }
+
+/* Botão de casar: a barra embaixo esvazia nos 45 segundos. */
+.mudae-actions { display: flex; gap: 8px; margin-top: 8px; }
+.mudae-claim {
+  position: relative; overflow: hidden; display: inline-flex; align-items: center; gap: 6px; height: 34px; padding: 0 14px 0 10px;
+  border: 0; border-radius: 4px; font: inherit; font-size: 14px; font-weight: 600; cursor: pointer;
+  background: color-mix(in srgb, var(--red) 16%, var(--bg-input)); color: var(--text-strong);
+  transition: background .15s ease, transform .1s ease, opacity .15s ease;
+}
+.mudae-claim:hover:not(:disabled) { background: var(--red); }
+.mudae-claim:active:not(:disabled) { transform: translateY(1px); }
+.mudae-claim:focus-visible { outline: 2px solid var(--link); outline-offset: 2px; }
+.mudae-heart { display: inline-flex; color: var(--red); transition: color .15s ease; }
+.mudae-heart svg { fill: currentColor; }
+.mudae-claim:hover:not(:disabled) .mudae-heart { color: #fff; }
+.mudae-claim:hover:not(:disabled) .mudae-heart svg { animation: mudae-beat .9s ease-in-out infinite; }
+.mudae-timer { min-width: 26px; font-size: 12px; font-weight: 500; color: var(--text-muted); font-variant-numeric: tabular-nums; }
+.mudae-claim:hover:not(:disabled) .mudae-timer { color: rgba(255, 255, 255, .8); }
+.mudae-drain {
+  position: absolute; left: 0; bottom: 0; width: 100%; height: 2px; background: var(--red);
+  transform-origin: left; animation-name: mudae-drain; animation-timing-function: linear; animation-fill-mode: forwards;
+}
+.mudae-claim:hover:not(:disabled) .mudae-drain { background: rgba(255, 255, 255, .7); }
+.mudae-claim.pending { opacity: .7; cursor: progress; }
+.mudae-claim.expired { background: var(--bg-input); color: var(--text-muted); cursor: not-allowed; opacity: .7; }
+.mudae-claim.expired .mudae-heart { color: var(--text-muted); }
+@keyframes mudae-drain { from { transform: scaleX(1); } to { transform: scaleX(0); } }
+@keyframes mudae-beat { 0%, 100% { transform: scale(1); } 15% { transform: scale(1.22); } 30% { transform: scale(1); } 45% { transform: scale(1.12); } }
+
+/* Casamentos e divórcios. */
+.mudae-line { color: var(--text); }
+.mudae-line strong { color: var(--text-strong); }
+.msg-new .mudae-line.married { animation: mudae-pop .5s cubic-bezier(.2, 1.4, .4, 1); transform-origin: left center; }
+@keyframes mudae-pop { from { transform: scale(.85); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+
+/* Harem: lista paginada com a foto do personagem em destaque ao lado. */
+.mudae-harem-head { display: flex; align-items: center; gap: 8px; }
+.msg .mudae-card .avatar.mudae-head-avatar { width: 24px; height: 24px; font-size: 10px; }
+.mudae-harem-body { display: flex; align-items: flex-start; gap: 16px; margin-top: 8px; }
+.mudae-harem-list { flex: 1; min-width: 0; margin: 0; padding: 0; list-style: none; font-size: 14px; line-height: 1.6; color: var(--text); }
+.mudae-harem-list li { padding: 0 4px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; border-radius: 3px; outline: none; }
+.mudae-li-rank { display: inline-block; min-width: 24px; color: var(--text-muted); font-size: 12px; font-variant-numeric: tabular-nums; }
+.mudae-harem-list li:hover, .mudae-harem-list li:focus-visible { background: var(--hover); }
+.mudae-harem-list strong { color: var(--text-strong); font-weight: 600; }
+.mudae-li-value { margin-left: 6px; font-size: 12px; color: var(--text-muted); font-variant-numeric: tabular-nums; }
+.mudae-img.mudae-thumb { width: 110px; margin-top: 2px; flex-shrink: 0; }
+.mudae-pager { display: flex; align-items: center; gap: 8px; margin-top: 10px; font-size: 12px; color: var(--text-muted); }
+.mudae-pager button {
+  display: grid; place-items: center; width: 30px; height: 26px; border: 0; border-radius: 4px;
+  background: var(--bg-input); color: var(--interactive); cursor: pointer; transition: background .15s ease, color .15s ease;
+}
+.mudae-pager button:hover { background: var(--hover-strong); color: var(--text-strong); }
+
+/* $tu e mensagens "só você pode ver". */
+.mudae-status { display: grid; gap: 2px; color: var(--text); }
+.mudae-status strong { color: var(--text-strong); }
+.mudae-status .mudae-ok { color: var(--green); }
+.msg.ephemeral, .msg.ephemeral:hover { background: color-mix(in srgb, var(--brand) 7%, transparent); }
+.mudae-ephemeral { display: flex; align-items: center; gap: 4px; margin-top: 4px; font-size: 12px; color: var(--text-muted); }
+.mudae-ephemeral .link-button { padding: 0; border: 0; background: none; font: inherit; color: var(--link); cursor: pointer; }
+.mudae-ephemeral .link-button:hover { text-decoration: underline; }
+
+@media (max-width: 520px) {
+  .mudae-img.mudae-thumb { display: none; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .mudae-claim:hover:not(:disabled) .mudae-heart svg, .msg-new .mudae-line.married { animation: none; }
+}
