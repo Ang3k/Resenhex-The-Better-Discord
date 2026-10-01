@@ -14,6 +14,7 @@ const { parseTitle, badgeName } = require('./lib/title-badge');
 const { uiohookKeycode } = require('./lib/ptt-keys');
 const { globalBindings, matchBinding } = require('./lib/keybinds');
 const { createLog } = require('./lib/log');
+const { systemAudioDevice } = require('./lib/system-audio');
 
 const APP_URL = new URL(process.env.RESENHEX_URL || 'https://resenhex.duckdns.org/');
 const ORIGIN = APP_URL.origin;
@@ -330,7 +331,8 @@ async function pickDisplayMedia(request, callback) {
     const source = choice && sources.find((item) => item.id === choice.id);
     if (!source) return deny(callback);
     const streams = { video: { id: source.id, name: source.name } };
-    if (request.audioRequested && choice.audio && process.platform === 'win32') streams.audio = 'loopback';
+    const audio = systemAudioDevice(process.platform, process.getSystemVersion());
+    if (request.audioRequested && choice.audio && audio) streams.audio = audio;
     try { callback(streams); } catch (error) { log.warn('Captura de tela:', error.message); }
   };
   const timer = setTimeout(() => finish(null), 120000);

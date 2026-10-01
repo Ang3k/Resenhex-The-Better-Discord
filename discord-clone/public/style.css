@@ -633,6 +633,19 @@ blockquote { margin: 2px 0; padding: 0 8px 0 12px; border-left: 4px solid #4e505
   box-shadow: var(--shadow-float);
 }
 
+#update-banner {
+  position: fixed; top: 0; left: 50%; transform: translateX(-50%); z-index: 44;
+  display: flex; align-items: center; gap: 12px; max-width: calc(100vw - 32px);
+  background: var(--brand); color: #fff; font-size: 14px; font-weight: 600; padding: 6px 8px 6px 16px; border-radius: 0 0 8px 8px;
+  box-shadow: var(--shadow-float);
+}
+#update-banner button {
+  background: #fff; color: var(--brand); border: 0; border-radius: 4px; padding: 4px 12px;
+  font: inherit; cursor: pointer; white-space: nowrap;
+}
+#update-banner button:hover { background: #ebedff; }
+#conn-banner:not(.hidden) ~ #update-banner { display: none; }
+
 /* ---------- Telas menores ---------- */
 @media (max-width: 1000px) {
   #app, #app.hide-members { grid-template-columns: 72px 220px minmax(0, 1fr); }

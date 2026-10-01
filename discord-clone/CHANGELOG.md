@@ -3,6 +3,30 @@
 Histórico de versões. A mesma lista aparece dentro do app em **Novidades** (menu do servidor ou rodapé das Configurações).
 O Resenhex ainda está antes da 1.0.
 
+## v0.99.4 — Atalhos de teclado e chamada que continua ao trocar de servidor
+_30/09/2026_
+
+- Atalhos de teclado com os padrões do Discord: Ctrl+Shift+M muta, Ctrl+Shift+D ensurdece, Ctrl+Alt+A volta para a chamada, Alt+↑/↓ troca de canal, Alt+Shift+↑/↓ vai para o canal não lido, Ctrl+Alt+↑/↓ troca de servidor, Ctrl+/ mostra a lista.
+- Em **Acessibilidade e atalhos** dá para trocar qualquer atalho apertando a combinação nova, tirar o atalho, voltar ao padrão e definir atalhos para câmera, tela, supressão de ruído e sair da chamada.
+- App para Windows (1.0.4): mutar e ensurdecer funcionam também com o Resenhex em segundo plano, por exemplo no meio do jogo.
+- Trocar de servidor não tira mais você da chamada: dá para olhar os outros servidores e voltar, e o servidor da chamada ganha um alto-falante na barra lateral.
+- Página inicial em roxo, com o chat da prévia ao vivo e um soundboard para testar.
+
+## v0.99.3 — Filtro de eco mais forte e aviso de versão nova
+_30/09/2026_
+
+- O filtro que tira as vozes da chamada do som da transmissão ficou bem mais forte nos PCs com som espacial, surround virtual ou equalização de volume ligados, onde antes sobrava uma voz abafada.
+- Quem transmite fica sabendo como o som do computador está indo: sem as vozes da chamada, com as vozes tiradas pelo filtro ou com as vozes junto (e o que fazer). O mesmo aparece em Conexão e diagnóstico.
+- Quando sai uma versão nova do Resenhex, aparece um aviso no topo com o botão Atualizar. Antes, quem estava com a página aberta continuava na versão antiga sem saber.
+- App para Windows (1.0.3): a exclusão do som do Resenhex pelo próprio Windows passa a valer a partir do Windows 10 22H2. Em versões anteriores do Windows 10 ela não funciona direito, e o filtro do Resenhex entra no lugar.
+
+## v0.99.2 — Transmissão sem eco das vozes da chamada
+_30/09/2026_
+
+- Ao transmitir a tela com o som do computador, as vozes da chamada iam junto e quem assistia se ouvia de volta. Agora o som da transmissão leva só o jogo, o vídeo ou a música.
+- No app para Windows, o próprio Windows deixa o som do Resenhex de fora da captura (Windows 10 versão 2004 ou mais novo).
+- No navegador, o Chrome e o Edge fazem isso sozinhos no Windows 11. No Windows 10, o Resenhex tira as vozes e os efeitos sonoros da captura; nos primeiros segundos de conversa ele ainda está aprendendo e um pouco pode escapar.
+
 ## v0.99.1 — Ajuste do banner do perfil
 _30/09/2026_
 
