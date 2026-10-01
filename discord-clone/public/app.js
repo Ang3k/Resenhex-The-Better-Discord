@@ -292,7 +292,7 @@
   const hasPerm = (p) => state.server?.myPerms.includes(p);
   const timedOut = (m) => m && m.timeoutUntil > Date.now();
   const canSend = () => hasPerm('SEND_MESSAGES') && !timedOut(meMember());
-  const canVideo = () => hasPerm('STREAM') && !timedOut(meMember());
+  const canVideo = () => callPerm('STREAM') && !timedOut(callMe());
 
   function topPos(m) {
     if (isOwner(m.id)) return Infinity;
@@ -324,8 +324,17 @@
     return best;
   }
 
-  const voiceEntries = (channel) => state.server.voice.filter((v) => v.channel === channel);
-  const voiceEntry = (sid) => state.server.voice.find((v) => v.sid === sid);
+  // A chamada pode ser de outro servidor (dá para navegar sem sair dela): tudo que é da chamada
+  // vem de state.server.call, que o servidor manda junto com o estado.
+  const callInfo = () => (state.voiceChannel && state.server?.call?.channel.id === state.voiceChannel ? state.server.call : null);
+  const voiceEntries = (channel) => (channel && channel === callInfo()?.channel.id ? callInfo().voice : state.server.voice).filter((v) => v.channel === channel);
+  const voiceEntry = (sid) => (callInfo()?.voice || state.server.voice).find((v) => v.sid === sid);
+  const callChannelName = () => callInfo()?.channel.name || channelById(state.voiceChannel)?.name || '';
+  const callMember = (id) => callInfo()?.members.find((m) => m.id === id) || member(id);
+  const callMe = () => callMember(state.me.accountId);
+  const callPerm = (p) => (callInfo() ? callInfo().myPerms.includes(p) : hasPerm(p));
+  const callSounds = () => callInfo()?.soundboard || state.server.soundboard || [];
+  const inCallServer = () => !callInfo() || callInfo().serverId === state.server.serverId;
   // Conversa privada: id "dm-<conta>-<conta>". Aparece como um canal de texto, com a outra pessoa em "peer".
   const isDm = (id) => typeof id === 'string' && id.startsWith('dm-');
   const dmPeerId = (id) => id.slice(3).split('-').find((x) => x !== state.me?.accountId);
@@ -443,7 +452,7 @@
         $('#messages').dataset.channel = '';
         setConnBanner(null);
         toast('Reconectado!', 'info');
-        if (opts.rejoin) joinVoice(opts.rejoin, { keepView: opts.view !== 'voice' });
+        if (opts.rejoin) joinVoice(opts.rejoin, { keepView: opts.view !== 'voice', serverId: opts.rejoinServer });
       }
       call('chat:unread').then((r) => {
         if (!r) return;
@@ -489,7 +498,7 @@
   socket.on('disconnect', (reason) => {
     if (reason === 'io client disconnect' || state.removed || !state.me) return;
     reconnecting = true;
-    if (state.voiceChannel) rejoinVoice = { channel: state.voiceChannel, view: state.view };
+    if (state.voiceChannel) rejoinVoice = { channel: state.voiceChannel, serverId: callInfo()?.serverId, view: state.view };
     leaveVoice(false, false);
     setConnBanner('Conexão perdida. Tentando reconectar…');
   });
@@ -499,7 +508,7 @@
     reconnecting = false;
     const rejoin = rejoinVoice;
     rejoinVoice = null;
-    authenticate({ token }, { reconnect: true, rejoin: rejoin?.channel, view: rejoin?.view });
+    authenticate({ token }, { reconnect: true, rejoin: rejoin?.channel, rejoinServer: rejoin?.serverId, view: rejoin?.view });
   });
 
   socket.on('notice', (text) => toast(text, 'info'));
@@ -511,7 +520,8 @@
     if (switching) {
       nicknameDialog?.close(true);
       saveComposerDraft();
-      leaveVoice(false, false);
+      // A chamada continua ao trocar de servidor; só a tela volta para o chat do servidor novo.
+      if (state.view === 'voice') state.view = 'chat';
       state.home = !s.serverId;
       state.textChannel = null;
       state.serverChannel = null;
@@ -628,7 +638,7 @@
     const mentions = serverMentions + dmMessages;
     const peer = state.home && channelById(state.textChannel)?.name;
     const where = state.home ? (peer ? '@' + peer : 'Amigos')
-      : state.view === 'voice' && state.voiceChannel ? channelById(state.voiceChannel)?.name : '#' + (channelById(state.textChannel)?.name || '');
+      : state.view === 'voice' && state.voiceChannel ? callChannelName() : '#' + (channelById(state.textChannel)?.name || '');
     document.title = (mentions ? `(${mentions}) ` : entries.length ? '• ' : '') + (state.home ? `${where} | Resenhex` : `${where} | ${serverName()} | Resenhex`);
   }
 
@@ -704,12 +714,14 @@
 
   function renderServerRail() {
     const servers = state.server.servers || [];
-    if (!changed('servers', [servers, state.server.serverId, state.home])) return;
+    const callServer = state.voiceChannel ? callInfo()?.serverId : null;
+    if (!changed('servers', [servers, state.server.serverId, state.home, callServer])) return;
     $('#server-list').replaceChildren(...servers.map((server) => {
       const selected = server.id === state.server.serverId;
       return el('button', { type: 'button', id: selected ? 'rail-server' : '', class: 'rail-item server-entry' + (selected && !state.home ? ' active' : ''),
         ariaLabel: server.name, ariaCurrent: selected && !state.home ? 'true' : 'false', data: { tip: server.name, tipPos: 'right', serverId: server.id },
         onclick: () => switchServer(server.id) }, el('span', { class: 'rail-pill' }), serverIcon(server.name, server.icon),
+      server.id === callServer ? el('span', { class: 'rail-call', ariaHidden: 'true' }, Icon('volume', 12)) : null,
       selected ? el('span', { id: 'server-badge', class: 'badge rail-badge hidden' }) : null);
     }));
     $('#nav-to-server .channel-name').textContent = state.server.serverId ? 'Voltar ao servidor' : 'Criar ou entrar em servidor';
@@ -721,6 +733,16 @@
     const result = await call('server:select', { id });
     if (result) { closePanels(); refreshServerUnread(); }
     return !!result;
+  }
+
+  // "Voltar para a chamada": se ela for de outro servidor, abre esse servidor primeiro.
+  async function returnToCall() {
+    const serverId = callInfo()?.serverId;
+    if (serverId && serverId !== state.server.serverId && !(await switchServer(serverId))) return;
+    if (!state.voiceChannel) return;
+    if (state.home) leaveHome();
+    state.view = 'voice';
+    render();
   }
 
   function refreshServerUnread() {
@@ -1117,7 +1139,7 @@
     }
     if (inVoiceView) {
       const n = voiceEntries(state.voiceChannel).length;
-      setHeader('volume', channelById(state.voiceChannel)?.name || '', `${n} ${n === 1 ? 'pessoa' : 'pessoas'} na chamada`);
+      setHeader('volume', callChannelName(), `${n} ${n === 1 ? 'pessoa' : 'pessoas'} na chamada`);
       renderStage();
       return;
     }
@@ -1724,7 +1746,7 @@
     const wanted = new Set();
 
     for (const v of voiceEntries(state.voiceChannel)) {
-      const m = member(v.accountId);
+      const m = callMember(v.accountId);
       if (!m) continue;
       const self = v.sid === state.me.sid;
       const remote = self ? state.local : state.peers.get(v.sid)?.remote || {};
@@ -1957,13 +1979,13 @@
   }
 
   function renderControls() {
-    const me = meMember();
+    const me = callMe();
     const inVoice = !!state.voiceChannel;
-    const forcedMute = me.serverMuted || timedOut(me) || !hasPerm('SPEAK');
+    const forcedMute = me.serverMuted || timedOut(me) || !callPerm('SPEAK');
     const micOff = state.muted || state.deafened || forcedMute;
     const deaf = state.deafened || me.serverDeafened;
     $('#voice-panel').classList.toggle('hidden', !inVoice);
-    $('#voice-room-name').textContent = inVoice ? `${channelById(state.voiceChannel)?.name || ''} / ${serverName()}` : '';
+    $('#voice-room-name').textContent = inVoice ? `${callChannelName()} / ${callInfo()?.serverName || serverName()}` : '';
 
     const mute = $('#btn-mute');
     setControlIcon(mute, micOff ? 'micOff' : 'mic');
@@ -3451,8 +3473,8 @@
 
   // Estou impedido de falar agora? (mudo, surdo, servidor, castigo ou push-to-talk solto)
   function selfSilent() {
-    const me = meMember();
-    return state.muted || state.deafened || !!me?.serverDeafened || !!me?.serverMuted || timedOut(me) || !hasPerm('SPEAK')
+    const me = callMe();
+    return state.muted || state.deafened || !!me?.serverDeafened || !!me?.serverMuted || timedOut(me) || !callPerm('SPEAK')
       || (state.ptt.enabled && !state.pttHeld)
       || !!micTest // testando o microfone: os outros não te ouvem
       || (!state.ptt.enabled && !gate.open); // abaixo da sensibilidade de entrada
@@ -3510,7 +3532,7 @@
   // Aplica mudo/surdo (meu, do servidor e local) em tudo que toca ou transmite.
   function applyAudio() {
     if (!state.server || !state.me) return;
-    const me = meMember();
+    const me = callMe();
     if (!me) return;
     const iCantHear = state.deafened || me.serverDeafened;
     if (iCantHear) Sounds.stopBoard();
@@ -3537,7 +3559,7 @@
   }
 
   function sendVoiceState() {
-    const me = meMember();
+    const me = callMe();
     socket.emit('voice:state', {
       muted: state.muted || state.deafened,
       deafened: state.deafened || !!me?.serverDeafened,
@@ -3606,7 +3628,8 @@
     try {
       if (state.voiceChannel) leaveVoice(true, false);
       state.micStream = await getMicStream();
-      const res = await call('voice:join', { channel });
+      // opts.serverId: sala de outro servidor (reconectar ou ser movido enquanto olha outro servidor).
+      const res = await call('voice:join', { channel, serverId: opts.serverId ?? state.server.serverId });
       if (!res) {
         releaseMic(state.micStream);
         state.micStream = null;
@@ -3655,9 +3678,11 @@
     toast(reason, 'info');
   });
 
-  socket.on('voice:force-move', ({ channel, by }) => {
-    joinVoice(channel);
-    toast(`${by} moveu você para ${channelById(channel)?.name || 'outro canal'}.`, 'info');
+  socket.on('voice:force-move', ({ channel, serverId, by }) => {
+    const keepView = !!serverId && serverId !== state.server.serverId;
+    joinVoice(channel, { serverId, keepView }).then(() => {
+      if (state.voiceChannel === channel) toast(`${by} moveu você para ${callChannelName() || 'outro canal'}.`, 'info');
+    });
   });
 
   socket.on('voice:stop-share', () => {
@@ -3798,12 +3823,12 @@
   });
 
   socket.on('sound', ({ sound, from }) => {
-    if (!state.voiceChannel || state.deafened || meMember()?.serverDeafened || state.sbMuted || state.localMuted.has(from)) return;
-    const custom = (state.server.soundboard || []).find((s) => s.id === sound);
+    if (!state.voiceChannel || state.deafened || callMe()?.serverDeafened || state.sbMuted || state.localMuted.has(from)) return;
+    const custom = callSounds().find((s) => s.id === sound);
     if (custom) Sounds.playCustom(custom.url, state.sbVolume, localStorage.getItem('token')).catch((error) => toast(error.message));
     else Sounds.playBoard(sound, state.sbVolume);
     const b = custom ? { label: custom.name, emoji: '🔊' } : Sounds.board[sound];
-    if (b && from !== state.me.accountId) toast(`${member(from)?.name || 'Alguém'} tocou ${b.emoji} ${b.label}`, 'info');
+    if (b && from !== state.me.accountId) toast(`${callMember(from)?.name || 'Alguém'} tocou ${b.emoji} ${b.label}`, 'info');
   });
 
   function setSbMuted(v) {
@@ -3906,7 +3931,7 @@
 
   function openSoundboard(anchor) {
     const menu = $('#context-menu');
-    const allowed = hasPerm('SOUNDBOARD') && !timedOut(meMember());
+    const allowed = callPerm('SOUNDBOARD') && !timedOut(callMe());
     const makeCard = (id, s) => el('div', { class: 'sb-card' }, el('button', {
       class: 'sb-btn', disabled: !allowed, tip: allowed ? 'Tocar para a sala' : 'Sem permissão para efeitos sonoros',
       ariaLabel: 'Tocar ' + s.label + ' para a sala', onclick: () => call('sound:play', { sound: id }),
@@ -3916,7 +3941,7 @@
       else Sounds.playBoard(id, state.sbVolume);
     } }, Icon('headphones', 12), 'Ouvir'));
     const grid = el('div', { class: 'sb-grid' }, Object.entries(Sounds.board).map(([id, s]) => makeCard(id, s)));
-    const custom = state.server.soundboard || [];
+    const custom = callSounds();
     const customGrid = el('div', { class: 'sb-grid' }, custom.map((s) => makeCard(s.id, { label: s.name, emoji: '🔊', url: s.url })));
     const vol = el('input', { type: 'range', min: 0, max: 100, value: Math.round(state.sbVolume * 100) });
     const volLabel = el('span', { textContent: `Volume dos efeitos: ${vol.value}%` });
@@ -3979,8 +4004,8 @@
     }
   }
 
-  const { isWatching, setWatching, getWatchQuality, setWatchQuality, syncViewerQuality, addVideoTracks, syncScreenSubscriptions, videoBitrates, tuneSenders, applySharePreset, setSharePreset, captureScreen, watchScreenTrack, switchScreen, startVideo, stopVideo, scheduleRecovery, renderDiagnostics, updateStreamStats, mediaNotice } = MediaSession({ state, socket, call, el, toast, voiceEntry, member, render, renderStage, sendVoiceState, preferCodec });
-  const mobileStream = MobileStream({ state, el, Icon, toast, member, voiceEntry, syncViewerQuality, openWatchQualityMenu, toggleStreamMute, togglePip });
+  const { isWatching, setWatching, getWatchQuality, setWatchQuality, syncViewerQuality, addVideoTracks, syncScreenSubscriptions, videoBitrates, tuneSenders, applySharePreset, setSharePreset, captureScreen, watchScreenTrack, switchScreen, startVideo, stopVideo, scheduleRecovery, renderDiagnostics, updateStreamStats, mediaNotice } = MediaSession({ state, socket, call, el, toast, voiceEntry, member: callMember, render, renderStage, sendVoiceState, preferCodec });
+  const mobileStream = MobileStream({ state, el, Icon, toast, member: callMember, voiceEntry, syncViewerQuality, openWatchQualityMenu, toggleStreamMute, togglePip });
 
   function openWatchQualityMenu(sid, anchor) {
     const menu = $('#context-menu');
@@ -4454,7 +4479,7 @@
     if (matchMedia('(max-width:1100px)').matches) { const open = !$('#app').classList.contains('members-open'); closePanels(); $('#app').classList.toggle('members-open', open); $('#sidebar-backdrop').classList.toggle('hidden', !open); }
     else { state.showMembers = !state.showMembers; localStorage.setItem('showMembers', state.showMembers); render(); }
   };
-  $('#btn-return-call').onclick = () => { if (state.home) leaveHome(); state.view = 'voice'; render(); };
+  $('#btn-return-call').onclick = () => returnToCall();
   document.addEventListener('keydown', (event) => { if (event.key === 'Escape') closePanels(); });
   // Existing rows contain a separate edit button. Keep their actions keyboard-accessible.
   function keyboardRows() {

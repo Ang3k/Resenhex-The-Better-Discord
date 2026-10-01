@@ -159,8 +159,61 @@ test('moderation affects only that membership and preserves global sessions and 
   assert.ok(!(await friend.call('server:join', { code: invite.code })).error);
   const voice = friend.last.channels.find((c) => c.type === 'voice').id;
   await friend.call('voice:join', { channel: voice });
+  // Trocar de servidor não derruba a chamada; um banimento derruba.
   await friend.call('server:select', { id: original });
+  await eventually(() => assert.equal(owner.last.voice.some((v) => v.accountId === friend.auth.accountId), true));
+  let kicked = null; friend.on('voice:force-leave', (e) => { kicked = e; });
+  assert.ok(!(await owner.call('mod', { action: 'ban', target: friend.auth.accountId })).error);
   await eventually(() => assert.equal(owner.last.voice.some((v) => v.accountId === friend.auth.accountId), false));
+  await eventually(() => assert.match(kicked?.reason || '', /banido/));
+  assert.equal(friend.last.call, null);
+});
+
+test('switching servers keeps the call; call data, moderation and sounds stay tied to the call server', async (t) => {
+  const { connect } = await fixture(t);
+  const owner = await connect('Dono'); const friend = await connect('Amigo');
+  const original = owner.last.serverId;
+  const room = owner.last.channels.find((c) => c.type === 'voice');
+  assert.ok(!(await owner.call('voice:join', { channel: room.id })).error);
+  assert.ok(!(await friend.call('voice:join', { channel: room.id })).error);
+  const other = (await owner.call('server:create', { name: 'Outro lugar' })).id;
+  // O dono agora olha o servidor novo, mas continua na chamada do original.
+  assert.equal(owner.last.serverId, other);
+  assert.equal(owner.last.voice.length, 0);
+  assert.equal(owner.last.call.serverId, original);
+  assert.equal(owner.last.call.channel.id, room.id);
+  assert.deepEqual(owner.last.call.voice.map((v) => v.accountId).sort(), [owner.auth.accountId, friend.auth.accountId].sort());
+  assert.ok(owner.last.call.members.some((m) => m.id === friend.auth.accountId));
+  assert.ok(owner.last.call.myPerms.includes('SPEAK'));
+  await eventually(() => assert.equal(friend.last.voice.filter((v) => v.channel === room.id).length, 2));
+  // Mudo/transmissão e efeitos sonoros continuam valendo na sala do servidor original.
+  assert.ok(!(await owner.call('voice:state', { muted: true })).error);
+  await eventually(() => assert.equal(friend.last.voice.find((v) => v.accountId === owner.auth.accountId).muted, true));
+  const heard = new Promise((r) => friend.once('sound', r));
+  assert.ok(!(await owner.call('sound:play', { sound: 'buzina' })).error);
+  assert.equal((await heard).from, owner.auth.accountId);
+  // Sinalização WebRTC segue entre os dois, mesmo vendo servidores diferentes.
+  const signal = new Promise((r) => friend.once('signal', r));
+  owner.emit('signal', { to: friend.auth.sid, data: { ping: 1 } });
+  assert.equal((await signal).from, owner.auth.sid);
+  // Um moderador do servidor da chamada ainda consegue mover e desconectar quem olha outro servidor.
+  const moderator = await connect({ token: owner.auth.token, serverId: original });
+  const second = await moderator.call('channel', { action: 'create', type: 'voice', name: 'sala-2' });
+  assert.ok(second.id, second.error);
+  const moved = new Promise((r) => friend.once('voice:force-move', r));
+  assert.ok(!(await moderator.call('mod', { action: 'move', target: friend.auth.accountId, value: second.id })).error);
+  assert.equal((await moved).serverId, original);
+  assert.ok(!(await friend.call('server:select', { id: original })).error);
+  const rejoined = await owner.call('voice:join', { channel: second.id, serverId: original });
+  assert.ok(!rejoined.error, rejoined.error);
+  assert.equal(owner.last.call.channel.id, second.id);
+  assert.equal(owner.last.serverId, other);
+  // Entrar numa sala de um servidor do qual não participa é recusado.
+  assert.ok((await friend.call('voice:join', { channel: room.id, serverId: other })).error);
+  const left = new Promise((r) => owner.once('voice:force-leave', r));
+  assert.ok(!(await moderator.call('mod', { action: 'disconnect', target: owner.auth.accountId })).error);
+  await left;
+  await eventually(() => assert.equal(owner.last.call, null));
 });
 
 test('new servers support groups, private channels and role management without changing the original server', async (t) => {

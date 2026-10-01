@@ -553,6 +553,11 @@ function socketsOf(accountId, local = false) {
   return [...online].filter(([, s]) => s.accountId === accountId && (!local || s.serverId === communities.currentId())).map(([sid]) => io.sockets.sockets.get(sid)).filter(Boolean);
 }
 
+// Sessões da conta que estão numa chamada do servidor atual (podem estar vendo outro servidor).
+function voiceSocketsOf(accountId) {
+  return [...online].filter(([, s]) => s.accountId === accountId && s.voice && s.voiceServerId === communities.currentId()).map(([sid]) => io.sockets.sockets.get(sid)).filter(Boolean);
+}
+
 function publicMember(a, onlineIds) {
   return {
     id: a.id,
@@ -585,7 +590,7 @@ function sharedState() {
   return {
     members: accounts.filter((a) => communities.joined(a.id)).map((a) => publicMember(a, onlineIds)),
     bans: accounts.filter((a) => a.banned).map((a) => ({ id: a.id, name: a.name })),
-    voice: [...online].filter(([, s]) => s.voice && s.serverId === communities.currentId()).map(([sid, s]) => {
+    voice: [...online].filter(([, s]) => s.voice && s.voiceServerId === communities.currentId()).map(([sid, s]) => {
       const a = db.accounts[s.accountId];
       return {
         sid,
@@ -629,6 +634,26 @@ function stateFor(acc, shared = sharedState()) {
   };
 }
 
+// A chamada em que a sessão está, vista do servidor da chamada (roda no contexto dele).
+// Vai junto com o estado para a chamada continuar funcionando enquanto a pessoa olha outro servidor.
+function callFor(s, shared) {
+  const acc = db.accounts[s.accountId];
+  const channel = db.channels.find((c) => c.id === s.voice);
+  if (!acc || !channel) return null;
+  const voice = shared.voice.filter((v) => v.channel === s.voice);
+  const ids = new Set([acc.id, ...voice.map((v) => v.accountId)]);
+  return {
+    serverId: communities.currentId(),
+    serverName: db.serverName || 'Resenha',
+    channel: { id: channel.id, name: channel.name },
+    voice,
+    members: shared.members.filter((m) => ids.has(m.id)),
+    roles: db.roles,
+    myPerms: [...permsOf(acc)],
+    soundboard: db.soundboard.map((x) => ({ id: x.id, name: x.name, duration: x.duration, url: '/servers/' + communities.currentId() + '/sounds/' + x.id })),
+  };
+}
+
 function clearScreenWatchers(sharer) {
   for (const viewer of online.values()) {
     viewer.watching?.delete(sharer);
@@ -660,15 +685,24 @@ function leaveVoice(socket) {
   s.watching?.clear();
   s.screenQuality?.clear();
   s.voice = null;
+  s.voiceServerId = null;
   s.sharing = false;
   s.camera = false;
+}
+
+// Tira da chamada quem está numa sala do servidor atual e perdeu acesso a ele.
+function dropVoice(accountId, reason) {
+  for (const socket of voiceSocketsOf(accountId)) {
+    leaveVoice(socket);
+    socket.emit('voice:force-leave', { reason });
+  }
 }
 
 // Aplica as regras de voz depois de qualquer mudança de cargo, canal ou castigo.
 function enforceVoice() {
   for (const [sid, s] of online) {
     if (!s.voice) continue;
-    communities.run(s.serverId, () => {
+    communities.run(s.voiceServerId, () => {
       const acc = db.accounts[s.accountId];
       const channel = db.channels.find((c) => c.id === s.voice);
       const socket = io.sockets.sockets.get(sid);
@@ -699,11 +733,15 @@ function flushBroadcast() {
   broadcastQueued = false;
   enforceVoice();
   const shared = new Map();
+  const sharedOf = (id) => {
+    if (!shared.has(id)) shared.set(id, sharedState());
+    return shared.get(id);
+  };
   for (const [sid, s] of online) {
+    const call = s.voice ? communities.run(s.voiceServerId, () => callFor(s, sharedOf(s.voiceServerId))) : null;
     communities.run(s.serverId, () => {
       const acc = db.accounts[s.accountId];
-      if (!shared.has(s.serverId)) shared.set(s.serverId, sharedState());
-      if (acc) io.sockets.sockets.get(sid)?.emit('state', stateFor(acc, shared.get(s.serverId)));
+      if (acc) io.sockets.sockets.get(sid)?.emit('state', { ...stateFor(acc, sharedOf(s.serverId)), call });
     });
   }
 }
@@ -727,8 +765,8 @@ function emitToViewers(channel, event, payload) {
 const cleanName = (s, max = 32) => String(s || '').trim().replace(/\s+/g, ' ').slice(0, max);
 const cleanColor = (c, fallback = '#5865f2') => (/^#[0-9a-f]{6}$/i.test(c) ? c : fallback);
 
+// Trocar de servidor só muda o que a pessoa está vendo: a chamada continua (como no Discord).
 function selectServer(socket, accountId, id) {
-  leaveVoice(socket);
   online.get(socket.id).serverId = id;
   db.accounts[accountId].lastServerId = id;
   save();
@@ -737,6 +775,7 @@ function selectServer(socket, accountId, id) {
 
 function removeMembership(accountId, reason) {
   communities.membership(accountId).active = false;
+  dropVoice(accountId, reason);
   for (const socket of socketsOf(accountId, true)) {
     selectServer(socket, accountId, communities.choose(accountId));
     socket.emit('server:removed', { reason });
@@ -751,9 +790,11 @@ io.on('connection', (socket) => {
   };
 
   // Todo handler que exige login passa por aqui; responde {error} quando falha.
-  const on = (event, handler) => {
+  // voice: true roda o handler no servidor da chamada, que pode não ser o que a pessoa está vendo.
+  const on = (event, handler, { voice = false } = {}) => {
     socket.on(event, (payload, ack) => {
-      communities.run(online.get(socket.id)?.serverId ?? null, () => {
+      const s = online.get(socket.id);
+      communities.run((voice && s?.voice ? s.voiceServerId : s?.serverId) ?? null, () => {
         const acc = me();
         const reply = typeof ack === 'function' ? ack : () => {};
         if (!acc) return reply({ error: 'Não autenticado' });
@@ -835,9 +876,13 @@ io.on('connection', (socket) => {
       if (account.lastServerId === id) account.lastServerId = communities.choose(account.id);
     }
     for (const [sid, session] of online) {
-      if (session.serverId !== id) continue;
       const affected = io.sockets.sockets.get(sid);
       if (!affected) continue;
+      if (session.voice && session.voiceServerId === id) {
+        leaveVoice(affected);
+        affected.emit('voice:force-leave', { reason: `O servidor ${community.serverName} foi excluído.` });
+      }
+      if (session.serverId !== id) continue;
       selectServer(affected, session.accountId, communities.choose(session.accountId));
       affected.emit('server:removed', { reason: `O servidor ${community.serverName} foi excluído.` });
     }
@@ -905,7 +950,7 @@ io.on('connection', (socket) => {
     }
     const token = payload.token || createSession(acc.id);
     const serverId = communities.choose(acc.id, payload.serverId || acc.lastServerId);
-    online.set(socket.id, { accountId: acc.id, serverId, voice: null, muted: false, deafened: false, sharing: false, camera: false });
+    online.set(socket.id, { accountId: acc.id, serverId, voice: null, voiceServerId: null, muted: false, deafened: false, sharing: false, camera: false });
     save();
     ack({ token, accountId: acc.id, serverId, sid: socket.id, iceServers: iceServers(), permNames: PERMS, maxUploadMb: MAX_UPLOAD_MB });
     socket.emit('social', socialFor(acc));
@@ -1234,18 +1279,27 @@ io.on('connection', (socket) => {
   });
 
   // --- Voz ---
-  on('voice:join', (acc, { channel }) => {
-    const c = db.channels.find((ch) => ch.id === channel && ch.type === 'voice');
-    if (!c || !canView(acc, c)) fail('Canal não encontrado');
-    if (!can(acc, 'CONNECT')) fail('Você não tem permissão para entrar em canais de voz.');
-    leaveVoice(socket);
-    const room = 'voice:' + c.id;
-    // Quem entra recebe a lista dos que já estão na sala e inicia as conexões com eles.
-    const peers = [...(io.sockets.adapter.rooms.get(room) || [])];
-    socket.join(room);
-    online.get(socket.id).voice = c.id;
-    broadcastState();
-    return { peers };
+  // serverId é opcional: sem ele, a sala é do servidor que a pessoa está vendo. Com ele, dá para
+  // voltar à chamada de outro servidor (ao reconectar ou ao ser movido enquanto olha outro servidor).
+  on('voice:join', (acc, { channel, serverId }) => {
+    const s = online.get(socket.id);
+    const target = serverId === undefined ? s.serverId : serverId;
+    if (target !== s.serverId && (typeof target !== 'string' || !communities.joined(acc.id, target))) fail('Canal não encontrado');
+    return communities.run(target, () => {
+      const me = db.accounts[acc.id];
+      const c = db.channels.find((ch) => ch.id === channel && ch.type === 'voice');
+      if (!me || !c || !canView(me, c)) fail('Canal não encontrado');
+      if (!can(me, 'CONNECT')) fail('Você não tem permissão para entrar em canais de voz.');
+      leaveVoice(socket);
+      const room = 'voice:' + c.id;
+      // Quem entra recebe a lista dos que já estão na sala e inicia as conexões com eles.
+      const peers = [...(io.sockets.adapter.rooms.get(room) || [])];
+      socket.join(room);
+      s.voice = c.id;
+      s.voiceServerId = target;
+      broadcastState();
+      return { peers };
+    });
   });
 
   on('voice:leave', () => {
@@ -1264,7 +1318,7 @@ io.on('connection', (socket) => {
     s.paused = s.sharing && !!paused;
     s.camera = !!camera && video;
     broadcastState();
-  });
+  }, { voice: true });
 
   // Watching is explicit, ephemeral and limited to the same authorized voice room.
   on('screen:watch', (acc, { target, watching, quality }) => {
@@ -1287,7 +1341,7 @@ io.on('connection', (socket) => {
     viewer.screenQuality.set(target, demand);
     io.to(target).emit('screen:quality', { viewer: socket.id, demand });
     broadcastState();
-  });
+  }, { voice: true });
 
   // Only subscribed viewers can request quality. Resize updates go to the source,
   // not into persistent state or a server-wide broadcast.
@@ -1303,7 +1357,7 @@ io.on('connection', (socket) => {
     viewer.screenQuality ||= new Map();
     viewer.screenQuality.set(target, demand);
     io.to(target).emit('screen:quality', { viewer: socket.id, demand });
-  });
+  }, { voice: true });
 
   // Efeito sonoro: todo mundo da sala toca o mesmo som.
   on('sound:play', (acc, { sound }) => {
@@ -1314,7 +1368,7 @@ io.on('connection', (socket) => {
     if (timedOut(acc)) fail('Você está de castigo.');
     if (!allow('sound:' + acc.id, 4, 10000)) fail('Calma! Muitos efeitos sonoros seguidos.');
     io.to('voice:' + s.voice).emit('sound', { sound, from: acc.id });
-  });
+  }, { voice: true });
 
   on('sound:remove', (acc, { id }) => {
     if (!can(acc, 'MANAGE_SOUNDBOARD')) fail('Você não pode gerenciar os efeitos deste servidor.');
@@ -1329,7 +1383,7 @@ io.on('connection', (socket) => {
   socket.on('signal', ({ to, data } = {}) => {
     const from = online.get(socket.id);
     const target = online.get(to);
-    if (!from || !target || !from.voice || from.voice !== target.voice || from.serverId !== target.serverId) return;
+    if (!from || !target || !from.voice || from.voice !== target.voice || from.voiceServerId !== target.voiceServerId) return;
     io.to(to).emit('signal', { from: socket.id, data });
   });
 
@@ -1351,18 +1405,14 @@ io.on('connection', (socket) => {
       case 'disconnect':
         need('MOVE_MEMBERS');
         if (!self) needRank();
-        for (const s of socketsOf(t.id, true)) {
-          if (!online.get(s.id).voice) continue;
-          leaveVoice(s);
-          s.emit('voice:force-leave', { reason: `${acc.name} desconectou você da voz.` });
-        }
+        dropVoice(t.id, `${acc.name} desconectou você da voz.`);
         break;
       case 'move': {
         need('MOVE_MEMBERS');
         if (!self) needRank();
         const c = db.channels.find((ch) => ch.id === value && ch.type === 'voice');
         if (!c || !canView(t, c)) fail('Essa pessoa não pode entrar nesse canal.');
-        for (const s of socketsOf(t.id, true)) if (online.get(s.id).voice) s.emit('voice:force-move', { channel: c.id, by: acc.name });
+        for (const s of voiceSocketsOf(t.id)) s.emit('voice:force-move', { channel: c.id, serverId: communities.currentId(), by: acc.name });
         break;
       }
       case 'timeout': {
