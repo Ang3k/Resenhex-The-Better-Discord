@@ -3,6 +3,16 @@
 Histórico de versões. A mesma lista aparece dentro do app em **Novidades** (menu do servidor ou rodapé das Configurações).
 O Resenhex ainda está antes da 1.0.
 
+## v0.99.5 — DJ da sala: músicas do YouTube na chamada
+_30/09/2026_
+
+- Na chamada, o botão do disco abre o **DJ**: busque no YouTube ou cole um link, e a música entra na fila da sala. Também dá para digitar `/play` e o nome da música em qualquer chat.
+- Todo mundo na sala ouve a mesma música no mesmo ponto. Quem entra no meio já começa de onde a música está.
+- Pausar, pular e parar valem para a sala toda (`/pausar`, `/continuar`, `/pular`, `/parar` e `/fila` no chat). Quem pode usar o DJ é a permissão nova **Usar o DJ**, ligada para todos.
+- O volume da música é só seu e separado das vozes. Dá para silenciar a música só para você, e ensurdecer também silencia a música.
+- O vídeo aparece num bloco do palco, e o que está tocando aparece no painel da chamada e na lista de canais. Lives do YouTube também tocam.
+- Se a sala esvazia, a música espera no ponto em que parou por 5 minutos. Se um clipe não pode tocar fora do YouTube para a maior parte da sala, o DJ toca outra versão da mesma busca.
+
 ## v0.99.4 — Atalhos de teclado e chamada que continua ao trocar de servidor
 _30/09/2026_
 

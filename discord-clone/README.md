@@ -21,6 +21,7 @@ Plataforma própria de chat e voz para você e seus amigos, inspirada no Discord
 - **Câmera** e **compartilhamento de tela** com perfis de qualidade (720p 30 fps, 1080p 30 fps e 1080p 60 fps), áudio do sistema e estatísticas ao vivo; dá para usar câmera e tela ao mesmo tempo; clique na tela para abrir em tela cheia
 - **Foto de perfil ajustável**, com arraste, zoom e prévia circular, incluindo GIF animado de até 5 MB e 1024 pixels por lado. Em **Meu perfil**, use **Mudar foto** ou **Ajustar foto** e salve as alterações.
 - **Efeitos sonoros (soundboard)**: botão 🎵 na chamada reúne sons prontos e até 32 sons personalizados por servidor, com pré-escuta. **Adicionar efeito sonoro** abre o envio de um áudio de até 8 segundos e 5 MB. A permissão **Gerenciar efeitos sonoros** controla o envio e a remoção; **Usar efeitos sonoros** controla a reprodução na sala, com limite contra spam. Volume e silenciamento continuam independentes.
+- **DJ da sala (músicas do YouTube)**: botão do disco na chamada, ou `/play nome da música` em qualquer chat. A música toca para todo mundo da sala de voz, no mesmo ponto, com fila, pausar, pular e parar para todos e volume só seu (veja [DJ da sala](#dj-da-sala-músicas-do-youtube))
 - **Mutar / ensurdecer** (botões na barra da chamada e no painel do usuário, também pelos atalhos `Ctrl+Shift+M` / `Ctrl+Shift+D`) e **push-to-talk** (apertar uma tecla para falar)
 - **Volume individual** e **mutar para mim** (só afeta o que você ouve)
 - **Cargos e permissões** estilo Discord, com hierarquia
@@ -106,6 +107,20 @@ Navegador ──Socket.IO──► server.js (chat + sinalização)
 ```
 
 O servidor só repassa as mensagens de texto e a "sinalização" (quem entrou na sala, ofertas e respostas WebRTC). O áudio e o vídeo vão **direto entre os navegadores** (malha P2P). Por isso o servidor pode ser pequeno e barato. O limite prático fica em torno de **6 a 8 pessoas por sala** (cada pessoa envia o áudio/tela para cada uma das outras). Para mais gente do que isso seria preciso um SFU (ex.: LiveKit ou mediasoup).
+
+## DJ da sala (músicas do YouTube)
+
+Na chamada, o botão do disco abre o DJ: busque no YouTube ou cole um link (vídeo, shorts, live, youtu.be ou YouTube Music). No chat, os comandos são `/play <música ou link>`, `/pular`, `/pausar`, `/continuar`, `/parar` e `/fila`; eles valem para a sala de voz em que você está e não viram mensagem.
+
+**Como funciona:** o servidor não toca nem baixa áudio. Ele guarda a fila de cada sala e o instante em que a música começou. Cada pessoa toca o vídeo no **player oficial do YouTube**, no próprio navegador, e o `public/music.js` mantém o player no mesmo ponto que o resto da sala (corrige quando passa de 1,5 s de diferença). Por isso não há bloqueio de IP do servidor, não gasta banda da VPS e o volume da música é separado das vozes.
+
+- **Busca:** `youtube.js` usa a mesma API interna que o site do YouTube usa para pesquisar (sem chave e sem cota). Só dá para tocar o que veio de uma busca feita pelo servidor, então ninguém inventa título ou duração.
+- **Fila:** `dj.js`, até 50 músicas por sala. A música acaba sozinha no servidor pelo tempo (com 2,5 s de folga) ou quando os players avisam. Sala vazia: a música espera 5 minutos no ponto em que parou e volta sozinha se alguém entrar; depois a fila é esquecida. Reiniciar o servidor também limpa as filas.
+- **Clipe bloqueado:** alguns clipes de gravadora não tocam fora do YouTube. Quando a maior parte da sala avisa, o DJ toca outra versão da mesma busca (ou pula). Se só um aparelho não consegue (país, idade), só ele fica sem a música.
+- **Permissão:** **Usar o DJ** (ligada para o @everyone, inclusive nos servidores existentes) controla pedir, pausar, pular, parar e tirar da fila. É preciso estar na sala.
+- **Limites:** 20 buscas por minuto e 12 comandos do DJ a cada 20 segundos por pessoa.
+- **Pelos termos do YouTube** o player não pode ficar escondido: o vídeo aparece no bloco do DJ no palco ou na capinha do painel da chamada.
+- Para testar a busca sem internet, `YOUTUBE_ORIGIN` aponta para um YouTube de mentira (é o que `test/dj-server.test.js` faz).
 
 ## Rodando localmente
 
@@ -299,11 +314,14 @@ Depois é só preencher `TURN_URL`, `TURN_USERNAME` e `TURN_CREDENTIAL`.
 discord-clone/
 ├── server.js          # Express + Socket.IO: contas, cargos/permissões, moderação, chat e sinalização WebRTC
 ├── downloads.js       # /download (instalador e atualizações do app de Windows) e o link fixo do instalador
+├── dj.js              # DJ de cada sala de voz: fila, música atual e o relógio que sincroniza todo mundo
+├── youtube.js         # busca no YouTube para o DJ (o áudio toca no player oficial de cada pessoa)
 ├── desktop/           # app para Windows (Electron): janela, bandeja, push-to-talk global, escolha de tela, atualização
 └── public/
     ├── index.html     # layout (servidores, canais, chat, palco de voz, membros)
     ├── icons.js       # ícones SVG e o logo do Resenhex
     ├── style.css      # tema escuro estilo Discord
+    ├── music.js       # DJ na chamada: player do YouTube sincronizado, painel de busca e fila, comandos /play
     └── app.js         # lógica do cliente: chat, menus de moderação, configurações, WebRTC (voz/tela)
 ```
 
@@ -316,3 +334,4 @@ discord-clone/
 - O servidor guarda as últimas 300 mensagens de cada canal. As mais antigas, e os arquivos delas, são apagadas.
 - Não dá para trocar senha nem nome pela interface
 - Chamada em malha P2P: boa para grupos pequenos (até ~6 a 8 pessoas por sala)
+- DJ: no celular, com a tela bloqueada, o navegador costuma pausar o player do YouTube. Às vezes o YouTube mostra um anúncio para alguém; essa pessoa fica uns segundos atrás e depois volta para o ponto certo. Quem usa caixa de som em vez de fone pode deixar a música vazar pelo microfone.

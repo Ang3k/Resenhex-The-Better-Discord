@@ -22,6 +22,7 @@
   <link rel="stylesheet" href="desktop.css">
   <link rel="stylesheet" href="landing.css">
   <link rel="stylesheet" href="profile-media.css">
+  <link rel="stylesheet" href="music.css">
   <link rel="stylesheet" href="brand.css">
   <script>
     // Quem chega pela primeira vez vê a página inicial; quem já entrou neste navegador, veio por convite
@@ -314,6 +315,8 @@
     <!-- Painel de voz e do usuário: atravessa a faixa dos servidores e a dos canais, como no Discord -->
     <div id="dock">
       <div class="dock-card">
+        <!-- DJ da chamada: o que está tocando (music.js) -->
+        <div id="dj-mini" class="hidden"></div>
         <div id="voice-panel" class="hidden">
           <div class="vp-row">
             <div class="vp-info">
@@ -443,6 +446,7 @@
 </button>
           <button type="button" id="sc-sounds" class="sc-btn" aria-label="Efeitos sonoros">
 </button>
+          <button type="button" id="sc-music" class="sc-btn" data-icon="disc" data-size="24" data-tip="DJ: tocar música do YouTube" aria-label="DJ: músicas do YouTube"></button>
           <button type="button" id="sc-leave" class="sc-btn hangup" data-icon="phone" data-tip="Desconectar" aria-label="Desconectar">
 </button>
         </div>
@@ -933,6 +937,7 @@
   <script src="changelog.js"></script>
   <script src="channel-navigation.js"></script>
   <script src="desktop.js"></script>
+  <script src="music.js"></script>
   <script src="app.js">
 </script>
   <script src="landing.js"></script>

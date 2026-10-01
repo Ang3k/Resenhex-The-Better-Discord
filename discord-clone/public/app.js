@@ -336,6 +336,8 @@
   const callPerm = (p) => (callInfo() ? callInfo().myPerms.includes(p) : hasPerm(p));
   const callSounds = () => callInfo()?.soundboard || state.server.soundboard || [];
   const inCallServer = () => !callInfo() || callInfo().serverId === state.server.serverId;
+  // DJ da chamada (music.js): fila de músicas do YouTube tocando junto para a sala.
+  const dj = MusicDJ({ state, el, Icon, toast, call, callInfo, callPerm, callMe, timedOut, callChannelName });
   // Conversa privada: id "dm-<conta>-<conta>". Aparece como um canal de texto, com a outra pessoa em "peer".
   const isDm = (id) => typeof id === 'string' && id.startsWith('dm-');
   const dmPeerId = (id) => id.slice(3).split('-').find((x) => x !== state.me?.accountId);
@@ -613,6 +615,7 @@
     renderMembers();
     renderMain();
     renderControls();
+    dj.render();
     updateTitle();
     // Só redesenha as configurações se algo delas mudou; senão perderia o que está sendo editado.
     $('#server-header span').textContent = serverName();
@@ -1060,7 +1063,7 @@
   function renderChannels() {
     const s = state.server;
     if (!s || channelNavigation.dragging) return;
-    if (!changed('channels', [s.channels, s.categories, s.voice, state.me.accountId,
+    if (!changed('channels', [s.channels, s.categories, s.voice, s.music, state.me.accountId,
       s.members.map((m) => [m.id, m.name, m.color, m.avatarUrl, m.avatarCrop, m.serverMuted, m.serverDeafened, m.timeoutUntil]),
       state.unread, state.textChannel, state.view, state.voiceChannel, [...state.collapsed], [...state.localMuted], s.myPerms])) return;
     channelNavigation.render();
@@ -1084,7 +1087,7 @@
           onclick: (e) => { e.stopPropagation(); openProfile(m.id, e.currentTarget); },
           oncontextmenu: (e) => openMemberMenu(m.id, e),
         }, avatar(m, 'small' + (state.speaking.has(v.sid) ? ' speaking' : ''), v.sid), el('span', { class: 'name', textContent: m.name }), flags);
-    }));
+    }), dj.voiceRow(c.id));
   }
 
   function renderMembers() {
@@ -1459,6 +1462,13 @@
     const text = input.value.trim();
     if (state.pending.some((p) => p.uploading)) return toast('Espere os arquivos terminarem de enviar.', 'info');
     if (!text && !state.pending.length) return;
+    // Comandos do DJ (/play, /pular…) não viram mensagem.
+    if (text.startsWith('/') && !state.pending.length && dj.command(text)) {
+      input.value = '';
+      autoresize();
+      closeAutocomplete();
+      return;
+    }
     const draft = { value: input.value, pending: state.pending, replyTo: state.replyTo };
     const payload = {
       channel: state.textChannel,
@@ -1536,6 +1546,13 @@
   function updateAutocomplete() {
     const input = $('#chat-input');
     const before = input.value.slice(0, input.selectionStart);
+    const slash = /^\/(\S*)$/.exec(before);
+    if (slash) {
+      const commands = dj.suggestions(slash[1]);
+      if (!commands.length) return closeAutocomplete();
+      ac = { items: commands, index: 0, start: 0, title: 'COMANDOS DO DJ' };
+      return renderAutocomplete();
+    }
     const m = /(^|\s)@([^\s@]{0,32})$/.exec(before);
     if (!m) return closeAutocomplete();
     const q = m[2].toLowerCase();
@@ -1559,12 +1576,13 @@
   function renderAutocomplete() {
     const box = $('#autocomplete');
     box.classList.remove('hidden');
-    box.replaceChildren(el('div', { class: 'menu-section', textContent: 'MEMBROS E CARGOS' }), ...ac.items.map((item, i) => el('button', {
+    box.replaceChildren(el('div', { class: 'menu-section', textContent: ac.title || 'MEMBROS E CARGOS' }), ...ac.items.map((item, i) => el('button', {
       type: 'button',
       class: 'ac-item' + (i === ac.index ? ' active' : ''),
       onmousedown: (e) => { e.preventDefault(); applyAutocomplete(item); },
-    }, item.member ? avatar(item.member, 'small') : el('span', { class: 'ac-at' }, Icon('at', 18)),
+    }, item.member ? avatar(item.member, 'small') : el('span', { class: 'ac-at' }, Icon(item.command ? 'disc' : 'at', 18)),
     el('span', { style: { color: item.color || '' }, textContent: item.label }),
+    item.hint ? el('span', { class: 'ac-hint', textContent: item.hint }) : null,
     item.note ? el('span', { class: 'muted-text', textContent: item.note }) : null)));
   }
 
@@ -1825,6 +1843,8 @@
         m.serverDeafened || v.deafened ? Icon('headphonesOff', 16) : '');
       renderTileControls(tile, { kind: 'user', self, sid: v.sid, accountId: m.id, camera: !!camStream });
     }
+    const djTile = dj.stageTile(stage);
+    if (djTile) wanted.add(djTile);
 
     for (const tile of [...stage.children]) {
       if (!wanted.has(tile.dataset.key)) tile.remove();
@@ -2777,6 +2797,7 @@
     STREAM: ['Vídeo', 'Permite ligar a câmera e compartilhar a tela nos canais de voz.'],
     SOUNDBOARD: ['Usar efeitos sonoros', 'Permite tocar os efeitos do soundboard (grilo, trovão…) na chamada.'],
     MANAGE_SOUNDBOARD: ['Gerenciar efeitos sonoros', 'Permite adicionar e remover os efeitos personalizados deste servidor.'],
+    MUSIC: ['Usar o DJ', 'Permite pedir músicas do YouTube na chamada e pausar, pular ou parar o DJ para a sala toda.'],
     MUTE_MEMBERS: ['Silenciar e ensurdecer membros', 'Permite silenciar ou ensurdecer outras pessoas para todo o servidor.'],
     MOVE_MEMBERS: ['Mover membros', 'Permite mover e desconectar membros entre canais de voz.'],
   };
@@ -2784,7 +2805,7 @@
     ['Permissões gerais do servidor', ['ADMIN', 'MANAGE_ROLES', 'MANAGE_CHANNELS', 'MANAGE_SOUNDBOARD']],
     ['Permissões de membros', ['KICK', 'BAN', 'TIMEOUT']],
     ['Permissões de canais de texto', ['SEND_MESSAGES', 'MANAGE_MESSAGES', 'MENTION_EVERYONE']],
-    ['Permissões de canais de voz', ['CONNECT', 'SPEAK', 'STREAM', 'SOUNDBOARD', 'MUTE_MEMBERS', 'MOVE_MEMBERS']],
+    ['Permissões de canais de voz', ['CONNECT', 'SPEAK', 'STREAM', 'SOUNDBOARD', 'MUSIC', 'MUTE_MEMBERS', 'MOVE_MEMBERS']],
   ];
   const ROLE_COLORS = ['#1abc9c', '#2ecc71', '#3498db', '#9b59b6', '#e91e63', '#f1c40f', '#e67e22', '#e74c3c', '#95a5a6', '#607d8b',
     '#11806a', '#1f8b4c', '#206694', '#71368a', '#ad1457', '#c27c0e', '#a84300', '#992d22', '#979c9f', '#546e7a'];
@@ -4170,6 +4191,7 @@
   $('#sc-mic').onclick = () => $('#btn-mute').click();
   $('#sc-deaf').onclick = () => $('#btn-deafen').click();
   $('#sc-sounds').onclick = (e) => openSoundboard(e.currentTarget);
+  $('#sc-music').onclick = (e) => dj.openPanel(e.currentTarget);
   $('#sc-cam').onclick = () => $('#btn-camera').click();
   $('#sc-screen').onclick = (e) => {
     if (!canVideo() && !state.local.screen) return;

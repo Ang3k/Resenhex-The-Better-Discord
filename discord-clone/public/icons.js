@@ -41,6 +41,13 @@ window.Icon = (() => {
     link: '<path d="M10 13a5 5 0 0 0 7.5.5l3-3a5 5 0 0 0-7-7l-1.8 1.7"/><path d="M14 11a5 5 0 0 0-7.5-.5l-3 3a5 5 0 0 0 7 7l1.7-1.7"/>',
     userCog: '<circle cx="10" cy="7" r="4"/><path d="M10.3 15H7a4 4 0 0 0-4 4v2"/><circle cx="18" cy="18" r="3"/><path d="M18 13.5v1.5M18 21v1.5M22.5 18H21M15 18h-1.5"/>',
     pause: '<circle cx="12" cy="12" r="10"/><path d="M10 15V9M14 15V9"/>',
+    // DJ (músicas na chamada)
+    play: '<path d="M7 4.5v15L19 12z"/>',
+    pauseBars: '<path d="M8 5v14M16 5v14"/>',
+    skip: '<path d="M5 4.5v15L16 12z"/><path d="M19 5v14"/>',
+    stop: '<rect x="5.5" y="5.5" width="13" height="13" rx="2"/>',
+    disc: '<circle cx="12" cy="12" r="10"/><path class="groove" d="M6 12a6 6 0 0 1 6-6M18 12a6 6 0 0 1-6 6"/><circle cx="12" cy="12" r="2"/>',
+    listMusic: '<path d="M21 15V6"/><circle cx="18.5" cy="15.5" r="2.5"/><path d="M12 12H3M16 6H3M12 18H3"/>',
     refresh: '<path d="M3 12a9 9 0 0 1 15-6.7L21 8M21 3v5h-5M21 12a9 9 0 0 1-15 6.7L3 16M3 21v-5h5"/>',
     // Cada barra é um traço separado para o equalizador animado (motion.css).
     waves: '<path d="M2 12h2M22 12h-2"/><path class="bar" d="M6 8v8"/><path class="bar" d="M10 5v14"/><path class="bar" d="M14 8v8"/><path class="bar" d="M18 10v4"/>',

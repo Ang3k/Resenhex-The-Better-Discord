@@ -12,6 +12,8 @@ const { decodeSound, soundName, MAX_SOUND_BYTES, MAX_SERVER_SOUNDS } = require('
 const { channelActions } = require('./channels');
 const { communityStore } = require('./communities');
 const { downloadRoutes } = require('./downloads');
+const { createDj } = require('./dj');
+const { youtubeSearch } = require('./youtube');
 const { version: APP_VERSION } = require('./package.json');
 
 const PORT = process.env.PORT || 3000;
@@ -54,6 +56,7 @@ const PERMS = {
   STREAM: 'Vídeo (câmera e compartilhar tela)',
   SOUNDBOARD: 'Usar efeitos sonoros',
   MANAGE_SOUNDBOARD: 'Gerenciar efeitos sonoros',
+  MUSIC: 'Usar o DJ (pedir e controlar músicas)',
 };
 // Efeitos sonoros que podem ser tocados na chamada (o som é gerado no navegador de cada um).
 const SOUNDBOARD = ['grilo', 'trovao', 'aplausos', 'badumtss', 'buzina', 'fail', 'vitoria', 'suspense'];
@@ -85,7 +88,7 @@ function defaultDb() {
     sessions: {},
     // A posição no array é a hierarquia: índice maior = cargo mais alto.
     roles: [
-      { id: 'everyone', name: '@everyone', color: '', hoist: false, perms: ['SEND_MESSAGES', 'CONNECT', 'SPEAK', 'STREAM', 'SOUNDBOARD'] },
+      { id: 'everyone', name: '@everyone', color: '', hoist: false, perms: ['SEND_MESSAGES', 'CONNECT', 'SPEAK', 'STREAM', 'SOUNDBOARD', 'MUSIC'] },
       { id: newId(), name: 'Moderador', color: '#3498db', hoist: true, perms: ['KICK', 'TIMEOUT', 'MUTE_MEMBERS', 'MOVE_MEMBERS', 'MANAGE_MESSAGES', 'MENTION_EVERYONE'] },
       { id: newId(), name: 'Admin', color: '#e74c3c', hoist: true, perms: ['ADMIN'] },
     ],
@@ -454,6 +457,26 @@ app.get('/servers/:serverId/sounds/:soundId', (req, res) => {
     res.sendFile(path.join(SOUND_DIR, sound.file));
   });
 });
+// ---------------- DJ (músicas do YouTube nas salas de voz) ----------------
+// Cada sala tem a sua fila ("idDoServidor:idDaSala"). Só a busca passa pelo servidor;
+// o vídeo toca no player oficial do YouTube de cada pessoa.
+const dj = createDj({ newId, onChange: () => broadcastState() });
+const youtube = youtubeSearch(process.env.YOUTUBE_ORIGIN ? { origin: process.env.YOUTUBE_ORIGIN } : {});
+const djKey = (serverId, channelId) => serverId + ':' + channelId;
+
+app.get('/music/search', async (req, res) => {
+  res.set('Cache-Control', 'no-store');
+  const acc = authFromToken(req);
+  if (!acc) return res.status(401).json({ error: 'Entre de novo para buscar músicas.' });
+  if (!allow('music-search:' + acc.id, 20, 60_000)) return res.status(429).json({ error: 'Muitas buscas seguidas. Espere um pouco.' });
+  try {
+    res.json({ items: await youtube.search(String(req.query.q || '').slice(0, 300)) });
+  } catch (error) {
+    if (error.status || error.name === 'TimeoutError' || error.name === 'TypeError') console.error('Busca do DJ falhou:', error.message);
+    res.status(400).json({ error: error.name === 'TimeoutError' || error.name === 'TypeError' ? 'O YouTube demorou para responder. Tente de novo.' : error.message });
+  }
+});
+
 app.post('/profile/banner', express.raw({ type: () => true, limit: MAX_BANNER_UPLOAD }), (req, res) => {
   const acc = authFromToken(req);
   if (!acc) return res.status(401).json({ error: 'Não autenticado' });
@@ -630,6 +653,9 @@ function stateFor(acc, shared = sharedState()) {
     categories: db.categories.filter((g) => perms.has('MANAGE_CHANNELS') || visibleChannels.some((c) => c.categoryId === g.id)),
     members: shared.members,
     voice: shared.voice.filter((v) => db.channels.some((c) => c.id === v.channel && canView(acc, c))),
+    // O que o DJ está tocando em cada sala, para aparecer na lista de canais.
+    music: Object.fromEntries(visibleChannels.filter((c) => c.type === 'voice')
+      .map((c) => [c.id, dj.summary(djKey(communities.currentId(), c.id))]).filter(([, summary]) => summary)),
     myPerms: [...perms],
     bans: perms.has('BAN') ? shared.bans : [],
   };
@@ -652,7 +678,20 @@ function callFor(s, shared) {
     roles: db.roles,
     myPerms: [...permsOf(acc)],
     soundboard: db.soundboard.map((x) => ({ id: x.id, name: x.name, duration: x.duration, url: '/servers/' + communities.currentId() + '/sounds/' + x.id })),
+    music: dj.view(djKey(communities.currentId(), channel.id)),
   };
+}
+
+// Avisa o DJ de cada sala quantas pessoas estão nela (sala vazia pausa e, depois, esquece a fila).
+// Roda antes de mandar o estado, então a pausa já vai junto no mesmo envio.
+function syncDjRooms() {
+  const counts = new Map();
+  for (const s of online.values()) if (s.voice) counts.set(djKey(s.voiceServerId, s.voice), (counts.get(djKey(s.voiceServerId, s.voice)) || 0) + 1);
+  for (const key of dj.keys()) {
+    const [serverId, channelId] = key.split(':');
+    if (!communities.root.servers[serverId]?.channels.some((c) => c.id === channelId && c.type === 'voice')) dj.drop(key);
+    else dj.occupancy(key, counts.get(key) || 0);
+  }
 }
 
 function clearScreenWatchers(sharer) {
@@ -731,8 +770,9 @@ function broadcastState() {
 
 function flushBroadcast() {
   if (!broadcastQueued) return;
-  broadcastQueued = false;
   enforceVoice();
+  syncDjRooms();
+  broadcastQueued = false;
   const shared = new Map();
   const sharedOf = (id) => {
     if (!shared.has(id)) shared.set(id, sharedState());
@@ -1381,6 +1421,43 @@ io.on('connection', (socket) => {
     save(); broadcastState(); removeSoundIfUnused(sound.file);
     return { ok: true };
   });
+
+  // DJ da sala em que a pessoa está. Rodam no servidor da chamada (voice: true).
+  const roomKey = () => {
+    const s = online.get(socket.id);
+    if (!s.voice) fail('Entre numa sala de voz para usar o DJ.');
+    return djKey(s.voiceServerId, s.voice);
+  };
+  const djUser = (acc) => {
+    const key = roomKey();
+    if (!can(acc, 'MUSIC')) fail('Você não tem permissão para usar o DJ.');
+    if (timedOut(acc)) fail('Você está de castigo.');
+    if (!allow('music:' + acc.id, 12, 20_000)) fail('Calma! Muitos comandos do DJ seguidos.');
+    return { key, by: { id: acc.id, name: acc.nickname || acc.name } };
+  };
+
+  on('music:add', (acc, { videoId, query }) => {
+    const { key, by } = djUser(acc);
+    const track = typeof videoId === 'string' && youtube.known(videoId);
+    if (!track) fail('Busque a música de novo para adicionar.');
+    return dj.add(key, track, by, typeof query === 'string' ? youtube.alternatives(query, videoId) : []);
+  }, { voice: true });
+
+  on('music:control', (acc, { action, trackId }) => {
+    const { key, by } = djUser(acc);
+    if (action === 'remove') dj.remove(key, trackId, by);
+    else if (['skip', 'pause', 'resume', 'stop'].includes(action)) dj[action](key, by);
+    else fail('Comando do DJ desconhecido.');
+  }, { voice: true });
+
+  // O que o player de cada um viu: a música acabou, não pode tocar aqui ou tem esta duração.
+  on('music:report', (acc, { trackId, ended, error, duration }) => {
+    const key = roomKey();
+    if (typeof trackId !== 'string' || !allow('music-report:' + socket.id, 20, 10_000)) return;
+    if (ended === true) dj.ended(key, trackId);
+    else if (Number.isInteger(error)) dj.failed(key, trackId, error, socket.id);
+    else if (typeof duration === 'number') dj.measured(key, trackId, duration);
+  }, { voice: true });
 
   // Repassa ofertas/respostas/ICE entre dois participantes da mesma sala.
   socket.on('signal', ({ to, data } = {}) => {

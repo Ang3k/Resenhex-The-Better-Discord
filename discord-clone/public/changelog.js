@@ -4,6 +4,20 @@
 // O título deve destacar as principais funcionalidades ou correções, com termos objetivos.
 window.CHANGELOG = [
   {
+    version: '0.99.5', date: '2026-09-30', name: 'DJ da sala: músicas do YouTube na chamada',
+    summary: 'Peça uma música do YouTube e todo mundo na sala de voz ouve junto, no mesmo ponto, cada um no próprio volume.',
+    sections: [
+      { kind: 'new', items: [
+        'Na chamada, o botão do disco abre o DJ: busque no YouTube ou cole um link, e a música entra na fila da sala. Também dá para digitar /play e o nome da música em qualquer chat.',
+        'Todo mundo na sala ouve a mesma música no mesmo ponto. Quem entra no meio já começa de onde a música está.',
+        'Pausar, pular e parar valem para a sala toda (/pausar, /continuar, /pular, /parar e /fila no chat). Quem pode usar o DJ é a permissão nova Usar o DJ, ligada para todos.',
+        'O volume da música é só seu e separado das vozes. Dá para silenciar a música só para você, e ensurdecer também silencia a música.',
+        'O vídeo aparece num bloco do palco, e o que está tocando aparece no painel da chamada e na lista de canais. Lives do YouTube também tocam.',
+        'Se a sala esvazia, a música espera no ponto em que parou por 5 minutos. Se um clipe não pode tocar fora do YouTube, o DJ toca outra versão da mesma busca.',
+      ] },
+    ],
+  },
+  {
     version: '0.99.4', date: '2026-09-30', name: 'Atalhos de teclado e chamada que continua ao trocar de servidor',
     summary: 'Atalhos do Discord para mutar, ensurdecer e navegar, configuráveis, e no app para Windows eles funcionam com o jogo aberto.',
     sections: [
