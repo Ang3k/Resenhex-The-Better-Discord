@@ -6,6 +6,14 @@ import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.j
 
 const CAPSULE_COLORS = ['#f4f1ea', '#3ba7ff', '#b46cff', '#ff7aa8', '#7fe0b0', '#ffc53d'];
 const BALL_R = 0.052;
+// Monte de cápsulas: passos da grade, dentro da cúpula (por dentro: 0,58 × 0,5 × 0,46).
+const PITCH_X = 0.108;   // entre cápsulas da mesma fileira
+const PITCH_Z = 0.095;   // entre fileiras
+const PITCH_Y = 0.085;   // entre camadas
+const WALL_GAP = 0.006;  // folga entre a cápsula e o acrílico
+const LIMIT_X = 0.29 - BALL_R - WALL_GAP;
+const LIMIT_Z = 0.23 - BALL_R - WALL_GAP;
+const FLOOR_Y = BALL_R + WALL_GAP; // centro mais baixo possível
 // Limite de cápsulas do monte (camadas de 18, 13, 18 e 13 posições): nunca corta nada à força.
 const BALLS = 62;
 
@@ -52,7 +60,7 @@ export function createMachine({ color = '#c9b6f2', trim = '#c9ccd6', scale = 1, 
   };
 
   part(new RoundedBoxGeometry(0.66, 0.06, 0.54, 2, 0.02), accent, 0, 0.03, 0, group);  // base (firme: não treme com o corpo)
-  part(new RoundedBoxGeometry(0.62, 0.7, 0.5, 4, 0.05), paint, 0, 0.41, 0);            // corpo
+  part(new RoundedBoxGeometry(0.62, 0.73, 0.5, 4, 0.05), paint, 0, 0.395, 0);          // corpo (afundado na base: sem fresta ao tremer)
   part(new RoundedBoxGeometry(0.32, 0.28, 0.03, 2, 0.012), metal, 0, 0.56, 0.255);     // placa do mecanismo
   part(new RoundedBoxGeometry(0.28, 0.22, 0.03, 2, 0.03), dark, 0, 0.21, 0.252);       // portinhola
   part(new THREE.BoxGeometry(0.3, 0.02, 0.05), metal, 0, 0.33, 0.27);                  // aba da portinhola
@@ -94,40 +102,38 @@ export function createMachine({ color = '#c9b6f2', trim = '#c9ccd6', scale = 1, 
         const jz = (random() * 2 - 1) * 0.015;
         const jy = (random() * 2 - 1) * 0.008;
         const hue = Math.floor(random() * CAPSULE_COLORS.length);
-        if (pts.length >= BALLS || random() < skip) continue;
-        pts.push({ x: (gx - (cols - 1) / 2) * 0.108 + jx, y: 0.067 + layer * 0.085 + jy, z: (gz - 1.5) * 0.095 + (layer % 2) * 0.0317 + jz, hue });
+        if (random() < skip) continue;
+        pts.push({ x: (gx - (cols - 1) / 2) * PITCH_X + jx, y: FLOOR_Y + 0.009 + layer * PITCH_Y + jy, z: (gz - 1.5) * PITCH_Z + (layer % 2) * PITCH_Z / 3 + jz, hue });
       }
     }
   }
-  const touch = BALL_R * 2 - 0.001;
+  const touch = BALL_R * 2 - 0.001; // tolerância de 1 mm: a passada para quando ninguém entra mais que isso
   for (let pass = 0; pass < 12; pass++) {
     for (let i = 0; i < pts.length; i++) {
       for (let j = i + 1; j < pts.length; j++) {
         const a = pts[i], b = pts[j];
         const dx = b.x - a.x, dy = b.y - a.y, dz = b.z - a.z;
         const d = Math.hypot(dx, dy, dz);
-        if (d >= touch || d === 0) continue;
+        if (d >= touch) continue;
         const push = (touch - d) / 2 / d;
         a.x -= dx * push; a.y -= dy * push; a.z -= dz * push;
         b.x += dx * push; b.y += dy * push; b.z += dz * push;
       }
     }
     for (const p of pts) { // sempre dentro da cúpula
-      p.x = Math.max(-0.232, Math.min(0.232, p.x));
-      p.z = Math.max(-0.172, Math.min(0.172, p.z));
-      p.y = Math.max(0.058, Math.min(0.42, p.y));
+      p.x = Math.max(-LIMIT_X, Math.min(LIMIT_X, p.x));
+      p.z = Math.max(-LIMIT_Z, Math.min(LIMIT_Z, p.z));
+      p.y = Math.max(FLOOR_Y, p.y);
     }
   }
   const matrix = new THREE.Matrix4();
   const tint = new THREE.Color();
-  let count = 0;
-  for (const p of pts) {
+  pts.forEach((p, i) => {
     matrix.makeTranslation(p.x, p.y, p.z);
-    balls.setMatrixAt(count, matrix);
-    balls.setColorAt(count, tint.set(CAPSULE_COLORS[p.hue]));
-    count++;
-  }
-  balls.count = count;
+    balls.setMatrixAt(i, matrix);
+    balls.setColorAt(i, tint.set(CAPSULE_COLORS[p.hue]));
+  });
+  balls.count = pts.length;
   const pile = new THREE.Group();
   pile.add(balls);
   dome.add(pile);
