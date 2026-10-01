@@ -214,7 +214,7 @@ export async function create(host, { now = () => Date.now(), reducedMotion = fal
       }
 
       // Primeiro mede a tela: alguns quadros sem desenhar, para saber se ela roda a 60, 48, 30 Hz...
-      if (!animating && !display) {
+      if (!animating && !display && !dirty) {
         lastFrame = time;
         if (gap > 0 && gap <= 250) displayGaps.push(gap);
         if (displayGaps.length >= DISPLAY_TICKS) display = median(displayGaps);
@@ -226,7 +226,7 @@ export async function create(host, { now = () => Date.now(), reducedMotion = fal
       if (!animating && reducedMotion && !dirty && probeDone) return;
       if (!animating && probeDone && gap < 1000 / IDLE_FPS - 2) { schedule(); return; }
       lastFrame = time;
-      if (!animating && !probeDone && pendingQuality === null) measure(gap);
+      if (!animating && !probeDone && display && pendingQuality === null) measure(gap);
       try {
         draw(time / 1000);
       } catch (error) {
@@ -270,7 +270,9 @@ export async function create(host, { now = () => Date.now(), reducedMotion = fal
     function fireCues() {
       const t = elapsed();
       for (const c of cues(current.rarity)) {
-        if (c.at > current.lastT && c.at <= t && t - c.at < 250 && (!reducedMotion || c.name === 'pop')) onCue(c.name);
+        if (c.at > current.lastT && c.at <= t && t - c.at < 250 && (!reducedMotion || c.name === 'pop')) {
+          try { onCue(c.name); } catch (error) { console.warn(error); } // um erro de som não derruba a cena
+        }
       }
       current.lastT = t;
     }
