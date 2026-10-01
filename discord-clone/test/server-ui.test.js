@@ -83,6 +83,7 @@ async function ui(t, invited = false, options = {}) {
   };
   let copied = '';
   Object.defineProperty(w.navigator, 'clipboard', { value: { writeText: async (text) => { copied = text; } } });
+  options.setup?.(w);
   for (const file of ['icons.js', 'format.js', 'sounds.js', 'media-policy.js', 'keybinds.js', 'settings.js', 'photo-editor.js', 'media-session.js', 'mobile-stream.js', 'stream-zoom.js', 'changelog.js', 'channel-navigation.js', 'music.js', 'mudae.js', 'mudae-salao.js', 'app.js', 'landing.js']) w.eval(fs.readFileSync(path.join(publicDir, file), 'utf8'));
   w.localStorage.setItem('seenVersion', w.APP_VERSION);
   t.after(() => { dom.window.close(); assert.deepEqual(errors.map((e) => e.message), []); });
@@ -534,6 +535,8 @@ test('Salão do Mudae: tela própria com palco, mesa ao vivo, presença, álbum 
   assert.deepEqual([...app.d.querySelectorAll('.salon-tab')].map((b) => b.textContent), ['Mesa', 'Meu harem', 'Ranking']);
   assert.equal(app.d.querySelector('.salon-status').textContent, '9/10 rolls · casamento disponível 💍');
   assert.match(app.d.querySelector('.salon-stage-caption').textContent, /Rode para começar/);
+  assert.ok(app.d.querySelector('.salon-stage > .salon-gacha'), 'camada da cena 3D no fundo do palco');
+  assert.equal(app.d.querySelector('.salon-stage').classList.contains('gacha'), false, 'sem WebGL fica a roleta de fotos');
 
   // Um roll de outra pessoa chega com o palco livre: vai para o palco e para a mesa ao vivo.
   const now = Date.now();
@@ -573,6 +576,31 @@ test('Salão do Mudae: tela própria com palco, mesa ao vivo, presença, álbum 
   assert.equal(app.d.querySelector('#main').classList.contains('salon-mode'), false);
   assert.equal(app.d.querySelector('#chat-view').classList.contains('salon-people-open'), false);
   assert.equal(app.d.querySelector('#salon-side-tabs'), null);
+});
+
+test('Salão do Mudae: se a cena 3D não carregar, o palco segue com a revelação de sempre', async (t) => {
+  const app = await ui(t, false, {
+    // Navegador "com WebGL2", mas o import() da cena falha (no jsdom não há módulos): tem que cair na roleta.
+    setup: (w) => { w.WebGL2RenderingContext = function WebGL2RenderingContext() {}; },
+    reply: { 'mudae:presence': () => ({ ok: true, rollsLeft: 9, rollsMax: 10, rollResetIn: 600_000, claimReady: true, claimResetIn: 0 }), 'mudae:profile': () => ({ summary: null }) },
+  });
+  await app.register();
+  app.d.querySelector('#btn-add-server').click(); await settle();
+  await app.clickText('Criar meu servidorDê um nome e convide seus amigos.');
+  app.d.querySelector('#new-server-name').value = 'Turma'; await app.clickText('Criar servidor');
+  app.d.querySelector('#server-dialog .dialog-close').click();
+  const st = snapshot('server-1', 'Turma', [{ id: 'server-1', name: 'Turma', icon: null, owner: true }]);
+  st.channels.push({ id: 'server-1-salon', name: 'salão-mudae', type: 'text', mudae: true, topic: '', categoryId: 'text', private: false, allowedRoles: [] });
+  app.deliver('state', st); await settle();
+  [...app.d.querySelectorAll('.channel-entry')].find((b) => b.textContent.includes('salão-mudae')).click(); await settle(); await settle();
+  assert.equal(app.d.querySelector('.salon-stage').classList.contains('gacha'), false);
+
+  const now = Date.now();
+  const card = { id: 176754, name: 'Frieren', series: 'Frieren', image: 'https://s4.anilist.co/x.png', value: 1149, rank: 15, rarity: 'epic' };
+  const roll = { id: 'roll1', authorId: null, bot: 'mudae', by: 'c'.repeat(16), command: '$m', ts: now, mudae: { kind: 'roll', card, ownerId: null, revealAt: now + 1500, priorityUntil: now + 4500, expires: now + 46_500, rollsLeft: 8 } };
+  app.deliver('chat:message', { channel: 'server-1-salon', msg: roll }); await settle();
+  assert.equal(app.d.querySelector('.salon-card-ghost'), null, 'sem cena 3D não há cápsula');
+  assert.equal(app.d.querySelector('.salon-card-slot .salon-card-name').textContent, 'Frieren');
 });
 
 test('Mudae no modo simplificado: o Salão vira chat com cards completos que esperam o giro e a vez de quem rodou', async (t) => {

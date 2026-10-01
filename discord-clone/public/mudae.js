@@ -85,7 +85,7 @@ window.MudaeUI = function ({ state, el, Icon, call, member, avatar, nameColor, F
     const bar = el('span', { class: 'mudae-drain' });
     const btn = el('button', { type: 'button', class: 'mudae-claim', ariaLabel: 'Casar com ' + d.card.name },
       el('span', { class: 'mudae-heart' }, Icon('heart', 18)), label, timer, bar);
-    // Rolls do Salão giram por ~1,6 s e quem rodou tem 3 s só dele: o card do chat espera junto.
+    // Rolls do Salão giram até o revealAt do servidor (uns 2 a 4 s, conforme a raridade) e quem rodou tem 3 s só dele: o card do chat espera junto.
     const reveal = d.revealAt ?? msg.ts;
     const mine = msg.by === state.me.accountId;
     const update = (left) => {
