@@ -156,6 +156,11 @@
 .salon-gacha canvas { display: block; width: 100%; height: 100%; }
 .salon-stage.gacha { background: #070818; } /* igual ao scene.background de gacha/cena.mjs */
 .salon-stage.gacha .salon-stage-glow { display: none; }
+.salon-stage.gacha .salon-card.placeholder { visibility: hidden; pointer-events: none; }
+.salon-stage.gacha .salon-card-slot:has(.placeholder) .salon-stage-caption {
+  position: absolute; left: 50%; bottom: 56px; transform: translateX(-50%); white-space: nowrap;
+  padding: 6px 12px; border-radius: 999px; background: rgba(7, 8, 24, .65);
+}
 .salon-stage.gacha :is(.salon-stage-caption, .salon-wait, .salon-claim-caption, .salon-owned) { color: rgba(255, 255, 255, .88); text-shadow: 0 1px 3px rgba(0, 0, 0, .85); }
 .salon-card.salon-card-ghost { aspect-ratio: 2 / 3; visibility: hidden; }
 /* A carta sai da cápsula: pequena e de lado no ponto da cápsula, sobe até o lugar e vira de frente. */

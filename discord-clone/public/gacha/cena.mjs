@@ -6,21 +6,22 @@ import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
 import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
-import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
+import { createEffects, createEnvironment } from './efeitos.mjs';
 import { state as timeline, duration, cues, AFTER } from './linha-do-tempo.mjs';
 import { createShop } from './loja.mjs';
 import { createMachine } from './maquina.mjs';
-import { createCapsule } from './capsula.mjs';
+import { createCapsule, RADIUS } from './capsula.mjs';
+import { createFesta } from './festa.mjs';
 
 // Cores das cápsulas por raridade (o Salão manda as do tema; a comum é sempre branca).
 const COLORS = { common: '#f4f1ea', rare: '#3ba7ff', epic: '#b46cff', legendary: '#ffc53d' };
 // Onde a cápsula para: o centro do círculo de luz da lâmpada, na frente da máquina do meio.
 const SPOT = new THREE.Vector3(0, 0, 1.45);
 // As máquinas pastel dos lados; a do meio é a lavanda com frisos dourados.
-const SIDES = [[-1.95, '#9fd8c0'], [-1.12, '#f4a9b8'], [1.12, '#a9cff4'], [1.95, '#f4d98a']];
+const SIDES = [[-1.95, '#80b4a1'], [-1.12, '#d093a6'], [1.12, '#8facbf'], [1.95, '#d4bd80']];
 // Enquadramento: [largura, altura] de cena que precisa caber em tela larga e em tela em pé.
-const FRAME = { fov: 36, wide: [4.9, 4.2], tall: [2.5, 4.2], eye: 2.1, look: new THREE.Vector3(0, 1.35, 0) };
-const SKY = new THREE.Color('#5b4b9a');
+const FRAME = { fov: 36, wide: [6.1, 4.6], tall: [2.65, 4.6], eye: 2.15, look: new THREE.Vector3(0, 1.58, 0.65) };
+const SKY = new THREE.Color('#7086a9');
 const GOLD = new THREE.Color('#ffc53d');
 const QUALITY_KEY = 'gachaQuality';
 const QUALITY_TTL = 7 * 24 * 3600 * 1000; // depois de uma semana volta a tentar o máximo (a máquina pode ter melhorado)
@@ -30,7 +31,8 @@ const PROBE_FRAMES = 120; // quadros desenhados, sem limite de fps, para medir a
 const PROBE_WARMUP = 20; // os primeiros quadros depois de iniciar/trocar de qualidade não contam
 const COMPILE_TIMEOUT = 3000;
 
-// Qualidade: 3 tudo; 2 sem reflexo; 1 sem reflexo, bloom e sombras; 0 isso e resolução 1x.
+// Qualidade: 3 tudo; 2 sem reflexo e sombra da lâmpada; 1 sem AO, névoa, bloom e sombras;
+// 0 isso e resolução 1x. O tratamento de cor é leve e permanece nos níveis baixos.
 // Guardada como { q, at }; o valor expira para a máquina poder se recuperar.
 function readQuality() {
   try {
@@ -49,10 +51,11 @@ function median(list) {
 }
 
 // host: elemento que recebe o canvas (ocupa o palco todo). Rejeita se não houver WebGL2 (ou se a montagem falhar).
-export async function create(host, { now = () => Date.now(), reducedMotion = false, colors = {}, onCue = () => {}, onLost = () => {} } = {}) {
+export async function create(host, { now = () => Date.now(), reducedMotion = false, cinematic = true, colors = {}, onCue = () => {}, onLost = () => {}, onMachine = null, profile = null } = {}) {
   const canvas = document.createElement('canvas');
   // 'default': a cena fica a maior parte do tempo parada, não vale acordar a placa de vídeo dedicada.
   const renderer = new THREE.WebGLRenderer({ canvas, antialias: false, stencil: false, powerPreference: 'default' });
+  profile?.init(renderer); // instrumentação opcional da bancada local, ausente no Salão
   let teardown = null; // vira dispose() assim que ele existe; antes disso só dá para soltar o renderer
   try {
     // O alvo do compositor é HalfFloat: sem uma dessas extensões a cena sairia preta.
@@ -60,60 +63,83 @@ export async function create(host, { now = () => Date.now(), reducedMotion = fal
       throw new Error('WebGL sem render em ponto flutuante');
     }
     renderer.toneMapping = THREE.ACESFilmicToneMapping;
-    renderer.toneMappingExposure = 1.05;
-    renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    renderer.toneMappingExposure = 0.96;
+    renderer.shadowMap.type = THREE.PCFShadowMap;
+    renderer.shadowMap.autoUpdate = false; // cenário parado reaproveita as sombras
     const palette = {};
     for (const [key, value] of Object.entries(COLORS)) palette[key] = new THREE.Color(key !== 'common' && colors[key] ? colors[key] : value);
 
     // Luz de ambiente para as partes de metal (metalness 0.85) não ficarem pretas só com luzes diretas.
-    const pmrem = new THREE.PMREMGenerator(renderer);
-    const room = new RoomEnvironment();
-    const environment = pmrem.fromScene(room, 0.04).texture;
-    room.dispose();
-    pmrem.dispose();
+    const environment = createEnvironment(renderer);
 
     const scene = new THREE.Scene();
-    scene.environment = environment;
-    scene.environmentIntensity = 0.35;
-    scene.background = new THREE.Color('#070818');
-    scene.fog = new THREE.Fog('#070818', 7, 16);
+    scene.environment = environment.texture;
+    scene.environmentIntensity = 0.48;
+    scene.background = new THREE.Color('#080e1b');
+    scene.fog = new THREE.Fog('#080e1b', 8, 19);
     const camera = new THREE.PerspectiveCamera(FRAME.fov, 1, 0.1, 40);
 
-    const shop = createShop();
+    const shop = createShop({ environment: environment.texture });
     scene.add(shop.group);
     for (const [x, color] of SIDES) {
       const side = createMachine({ color, seed: Math.round(x * 10) + 50 });
-      side.group.position.x = x;
+      side.group.position.set(x, 0.08, 0);
+      side.group.rotation.y = x < 0 ? 0.025 : -0.025;
       scene.add(side.group);
     }
-    const hero = createMachine({ color: '#c9b6f2', trim: '#e8c46a', scale: 1.12, seed: 7, hero: true });
+    const hero = createMachine({ color: '#b7a6ca', trim: '#c5ab70', scale: 1.12, seed: 7, hero: true });
+    hero.group.position.y = 0.08;
     scene.add(hero.group);
     hero.group.updateMatrixWorld(true);
     const capsule = createCapsule({ from: hero.group.localToWorld(hero.exit.clone()), to: SPOT });
     scene.add(capsule.group);
+    // Faíscas, confete, onda no chão, corações e ondinhas da chuva.
+    const festa = createFesta({ spot: SPOT, radius: RADIUS });
+    scene.add(festa.group);
 
-    const hemi = new THREE.HemisphereLight(SKY.clone(), '#140c1c', 0.7);
-    const lamp = new THREE.SpotLight('#ffc98a', 38, 0, 0.62, 0.7, 2);
+    const hemi = new THREE.HemisphereLight(SKY.clone(), '#111622', 0.26);
+    // A direção lateral revela os gomos do toldo e os caixilhos;
+    // vitrines e neon preenchem a sombra com luz quente/rosa, em vez de elevar todo o ambiente.
+    const streetLight = new THREE.DirectionalLight('#a6c0eb', 0.78);
+    streetLight.position.set(-3.6, 6.4, 5);
+    streetLight.target.position.set(0, 1.2, -0.25);
+    streetLight.shadow.mapSize.set(1024, 1024);
+    Object.assign(streetLight.shadow.camera, { left: -4.8, right: 4.8, top: 4.3, bottom: -3.1, near: 0.5, far: 18 });
+    streetLight.shadow.camera.updateProjectionMatrix();
+    streetLight.shadow.bias = -0.00015;
+    streetLight.shadow.normalBias = 0.012;
+    streetLight.shadow.radius = 2.8;
+    streetLight.shadow.intensity = 0.85;
+    const lamp = new THREE.SpotLight('#ffc98a', 14, 0, 0.68, 0.85, 2);
     lamp.position.set(0, 2.12, 0.3);
     lamp.target.position.copy(SPOT);
-    lamp.shadow.mapSize.set(1024, 1024);
-    lamp.shadow.bias = -0.0004;
-    const pink = new THREE.PointLight('#ff4fd8', 5, 6, 2);
-    pink.position.set(-0.8, 2.95, 0.3);
-    const cyan = new THREE.PointLight('#3ee8ff', 3.5, 6, 2);
-    cyan.position.set(0.9, 2.95, 0.3);
-    scene.add(hemi, lamp, lamp.target, pink, cyan);
+    lamp.shadow.mapSize.set(512, 512);
+    lamp.shadow.camera.near = 0.1;
+    lamp.shadow.camera.far = 7;
+    lamp.shadow.bias = -0.0001;
+    lamp.shadow.normalBias = 0.008;
+    lamp.shadow.radius = 2.5;
+    lamp.shadow.intensity = 0.8;
+    const pink = new THREE.PointLight('#ff4fd8', 2.6, 5, 2);
+    pink.position.set(-0.55, 3.15, 0.05);
+    const cyan = new THREE.PointLight('#3ee8ff', 2.2, 5, 2);
+    cyan.position.set(0.65, 3.1, 0.05);
+    scene.add(hemi, streetLight, streetLight.target, lamp, lamp.target, pink, cyan);
 
     const target = new THREE.WebGLRenderTarget(1, 1, { type: THREE.HalfFloatType, samples: 4 });
     const composer = new EffectComposer(renderer, target);
     const renderPass = new RenderPass(scene, camera);
-    const bloom = new UnrealBloomPass(new THREE.Vector2(1, 1), 0.8, 0.5, 0.85);
+    const effects = createEffects(scene, camera, lamp);
+    const bloom = new UnrealBloomPass(new THREE.Vector2(1, 1), 0.46, 0.5, 1.05);
     const outputPass = new OutputPass();
     composer.addPass(renderPass);
+    composer.addPass(effects.contact);
+    composer.addPass(effects.atmosphere);
     composer.addPass(bloom);
+    composer.addPass(effects.grade);
     composer.addPass(outputPass);
 
-    let quality = readQuality();
+    let quality = Number.isInteger(profile?.quality) && profile.quality >= 0 && profile.quality <= 3 ? profile.quality : readQuality();
     let pendingQuality = null; // nível novo pedido pela medição; só entra com a cena parada, no começo de um quadro
     let width = 1;
     let height = 1;
@@ -127,27 +153,42 @@ export async function create(host, { now = () => Date.now(), reducedMotion = fal
     let started = false; // só vira true depois de compilar os shaders; antes disso o laço não roda
     let dead = false;
     let disposed = false;
-    let display = 0; // intervalo de quadro da tela (mediana), em ms; 0 = ainda não medido
+    let display = profile ? 1000 / 60 : 0; // na bancada o nível fica fixo para comparar a mesma resolução
     let displayGaps = [];
-    let probeDone = false;
+    let probeDone = !!profile;
     let warm = PROBE_WARMUP;
     let samples = [];
     const anchor = new THREE.Vector3();
+    let festaBusy = false; // confete ou corações ainda no ar: o laço segue a 60 fps
+    let rollable = false;  // dá para clicar na máquina do meio e girar
+    let hovering = false;
+    const raycaster = new THREE.Raycaster();
+    const pointer = new THREE.Vector2();
 
     // Devolve true se as sombras ligaram/desligaram (os shaders precisam ser recompilados).
     function applyQuality() {
+      canvas.dataset.quality = String(quality);
       shop.setReflection(quality >= 3);
-      bloom.enabled = quality >= 2;
+      hero.setQuality(quality);
+      bloom.enabled = cinematic && quality >= 2;
+      effects.setQuality(quality, cinematic);
       const shadows = quality >= 2;
-      const changed = renderer.shadowMap.enabled !== shadows;
+      const changed = renderer.shadowMap.enabled !== shadows || lamp.castShadow !== (quality >= 3);
       if (changed) {
         renderer.shadowMap.enabled = shadows;
-        lamp.castShadow = shadows;
+        streetLight.castShadow = shadows;
+        lamp.castShadow = quality >= 3;
+        renderer.shadowMap.needsUpdate = true;
         scene.traverse((o) => { for (const m of [].concat(o.material || [])) m.needsUpdate = true; });
       }
       resize();
       return changed;
     }
+    if (profile?.manual) profile.setQuality = (next) => {
+      if (!Number.isInteger(next) || next < 0 || next > 3 || dead) return;
+      quality = next;
+      if (applyQuality()) recompile();
+    };
 
     function resize() {
       const box = host.getBoundingClientRect();
@@ -157,26 +198,28 @@ export async function create(host, { now = () => Date.now(), reducedMotion = fal
       sized = true;
       width = w;
       height = h;
-      const ratio = Math.min(window.devicePixelRatio || 1, quality === 0 ? 1 : width < 700 ? 1.5 : 2);
+      const ratio = Math.min(profile?.pixelRatio || window.devicePixelRatio || 1, quality === 0 ? 1 : width < 700 ? 1.5 : 2);
       renderer.setPixelRatio(ratio);
       renderer.setSize(width, height, false);
       composer.setPixelRatio(ratio);
       composer.setSize(width, height);
       shop.setSize(width * ratio, height * ratio);
+      festa.setScale(height * ratio / (2 * Math.tan(THREE.MathUtils.degToRad(FRAME.fov / 2))));
       dirty = true;
       wake();
     }
 
     // dolly: 0 = câmera parada; 1 = aproximada no roll (o lendário empurra mais).
-    function frame(dolly) {
+    // jitterX/jitterY: tremida da câmera (o lendário travando e explodindo).
+    function frame(dolly, jitterX = 0, jitterY = 0) {
       lastDolly = dolly;
       const aspect = width / height;
       const half = Math.tan(THREE.MathUtils.degToRad(FRAME.fov / 2));
       const [needW, needH] = aspect < 1 ? FRAME.tall : FRAME.wide;
       const dist = Math.max(needH / 2 / half, needW / 2 / (half * aspect)) * (1 - 0.16 * dolly);
       camera.aspect = aspect;
-      camera.position.set(0, FRAME.eye - 0.3 * dolly, FRAME.look.z + dist);
-      camera.lookAt(FRAME.look.x, FRAME.look.y - 0.45 * dolly, FRAME.look.z);
+      camera.position.set((aspect < 1 ? 0.22 : 0.55) + jitterX, FRAME.eye - 0.15 * dolly + jitterY, FRAME.look.z + dist);
+      camera.lookAt(FRAME.look.x, FRAME.look.y - 0.5 * dolly, FRAME.look.z + 0.3 * dolly);
       camera.updateProjectionMatrix();
     }
 
@@ -185,6 +228,7 @@ export async function create(host, { now = () => Date.now(), reducedMotion = fal
 
     // Nunca há mais de um quadro agendado: todo agendamento passa por aqui.
     function schedule() {
+      if (profile?.manual) return;
       if (!raf) raf = requestAnimationFrame(loop);
     }
 
@@ -199,7 +243,7 @@ export async function create(host, { now = () => Date.now(), reducedMotion = fal
     function loop(time) {
       raf = 0;
       if (!visible || dead || document.hidden || !sized) return;
-      const animating = busy();
+      const animating = busy() || festaBusy;
       const gap = time - lastFrame;
 
       // A troca de qualidade só entra com a cena parada, nunca no meio de um roll.
@@ -252,6 +296,8 @@ export async function create(host, { now = () => Date.now(), reducedMotion = fal
     }
 
     function draw(sec) {
+      profile?.begin(renderer);
+      if (dirty || busy()) renderer.shadowMap.needsUpdate = true;
       dirty = false;
       const s = current ? timeline(current.rarity, elapsed(), { reduced: reducedMotion }) : null;
       hero.setCrank(s ? s.crank : 0);
@@ -260,11 +306,17 @@ export async function create(host, { now = () => Date.now(), reducedMotion = fal
       if (current && !current.resting) fireCues();
       const gold = s ? s.gold : 0;
       hemi.color.copy(SKY).lerp(GOLD, gold);
-      hemi.intensity = 0.7 + 1.6 * gold;
-      shop.update(sec, { reduced: reducedMotion });
-      frame(reducedMotion || !s ? 0 : s.camera + 0.35 * gold);
+      hemi.intensity = 0.26 + 1.3 * gold;
+      const fx = festa.update({ rarity: current?.rarity, t: current && !current.resting ? elapsed() : Infinity, sec, palette, reduced: reducedMotion, rain: quality >= 1 });
+      festaBusy = fx.busy;
+      shop.update(sec, { reduced: reducedMotion, tint: fx.tint, tintAmount: fx.tintAmount });
+      const jitter = reducedMotion ? 0 : fx.shake * 0.035;
+      frame(reducedMotion || !s ? 0 : s.camera + 0.35 * gold, jitter * Math.sin(sec * 71), jitter * Math.sin(sec * 53 + 1.3));
+      effects.update(reducedMotion ? 0 : sec, gold);
       composer.render();
+      profile?.end(renderer, { quality, width, height });
     }
+    if (profile?.manual) profile.render = (sec = performance.now() / 1000) => { if (!dead && sized) draw(sec); };
 
     // Toca cada som uma vez, só se a linha do tempo acabou de passar por ele (quem entra no meio não ouve tudo de uma vez).
     function fireCues() {
@@ -306,6 +358,39 @@ export async function create(host, { now = () => Date.now(), reducedMotion = fal
       return { x: ((anchor.x + 1) / 2) * width, y: ((1 - anchor.y) / 2) * height };
     }
 
+    // Casou com o roll em cena: corações e o neon piscando ('claim'), ou roubo ('steal').
+    function celebrate(kind) {
+      festa.celebrate(kind, performance.now() / 1000);
+      festaBusy = true;
+      dirty = true;
+      wake();
+    }
+
+    // A máquina do meio vira um botão (o Salão liga quando a pessoa tem rolls e não está girando).
+    function hit(event) {
+      const box = canvas.getBoundingClientRect();
+      pointer.set(((event.clientX - box.left) / box.width) * 2 - 1, -((event.clientY - box.top) / box.height) * 2 + 1);
+      raycaster.setFromCamera(pointer, camera);
+      return raycaster.intersectObject(hero.group, true).length > 0;
+    }
+    function hover(on) {
+      if (on === hovering) return;
+      hovering = on;
+      canvas.style.cursor = on ? 'pointer' : '';
+      canvas.title = on ? 'Girar a máquina' : '';
+      hero.setHover(on);
+      dirty = true;
+      wake();
+    }
+    function setRollable(on) {
+      rollable = !!on && !!onMachine;
+      canvas.style.pointerEvents = rollable ? 'auto' : '';
+      if (!rollable) hover(false);
+    }
+    canvas.addEventListener('pointermove', (event) => hover(rollable && hit(event)));
+    canvas.addEventListener('pointerleave', () => hover(false));
+    canvas.addEventListener('click', (event) => { if (rollable && hit(event)) onMachine(); });
+
     function setVisible(on) {
       visible = on;
       if (on) { dirty = true; wake(); }
@@ -325,14 +410,16 @@ export async function create(host, { now = () => Date.now(), reducedMotion = fal
         o.geometry?.dispose();
         if (o.isInstancedMesh) o.dispose(); // solta os buffers das instâncias
         for (const m of [].concat(o.material || [])) {
-          for (const value of Object.values(m)) if (value?.isTexture) value.dispose();
+          for (const value of Object.values(m)) if (value?.isTexture && value !== environment.texture) value.dispose();
           m.dispose();
         }
       });
       shop.dispose();
+      festa.dispose();
       environment.dispose();
       renderPass.dispose();
       bloom.dispose();
+      effects.dispose();
       outputPass.dispose();
       composer.dispose();
       renderer.dispose();
@@ -364,9 +451,11 @@ export async function create(host, { now = () => Date.now(), reducedMotion = fal
     } catch { /* compila no primeiro desenho */ }
     clearTimeout(timer);
     if (dead) throw new Error('Contexto WebGL perdido');
+    // Aquece também os passes de pós-produção antes de liberar o primeiro roll.
+    if (sized) draw(performance.now() / 1000);
     started = true;
     wake();
-    return { play, rest, cardAnchor, setVisible, dispose };
+    return { play, rest, cardAnchor, setVisible, celebrate, setRollable, dispose };
   } catch (error) {
     if (teardown) teardown();
     else { renderer.dispose(); renderer.forceContextLoss(); }

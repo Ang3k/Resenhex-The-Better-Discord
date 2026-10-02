@@ -126,7 +126,7 @@ Na chamada, o botão do disco abre o DJ: busque no YouTube ou cole um link (víd
 
 ## Mudae
 
-O Mudae mora no **Salão do Mudae**, um canal de texto com `mudae: true` (crie em **Criar canal → Salão do Mudae**). Ele abre uma tela própria: **Mesa** (palco com a roleta, botões de roll e a Mesa ao vivo com os rolls de todo mundo), **Meu harem** (álbum) e **Ranking**. À direita ficam o chat do canal e a aba **No salão**.
+O Mudae mora no **Salão do Mudae**, um canal de texto com `mudae: true` (crie em **Criar canal → Salão do Mudae**). Ele abre uma tela própria: **Mesa** (palco com a lojinha de gashapon em 3D, botões de roll e a Mesa ao vivo com os rolls de todo mundo), **Meu harem** (álbum) e **Ranking**. À direita ficam o chat do canal e a aba **No salão**.
 
 | Comando | O que faz |
 |---|---|
@@ -139,7 +139,7 @@ O Mudae mora no **Salão do Mudae**, um canal de texto com `mudae: true` (crie e
 
 - **Só no Salão:** em outro canal, os comandos respondem (só para quem pediu) com o caminho até o Salão.
 - **Modo simplificado** (botão no topo do Salão, guardado no navegador de cada pessoa): o canal aparece como chat comum, com os cards completos e o botão Casar no chat, como no Mudae original. Os rolls, casamentos e limites são os mesmos de quem está na roleta; o botão do card espera o giro e a vez de quem rodou. **Abrir o Salão**, no topo, volta para a tela da roleta.
-- **Roleta:** o servidor sorteia na hora e manda o resultado com 8 fotos-isca e o `revealAt` (agora + 1,6 s). Cada navegador gira até o `revealAt`; ninguém casa antes disso. Em aba escondida o card aparece mesmo assim, na hora certa.
+- **Cápsula 3D:** o servidor sorteia na hora e manda o resultado com o `revealAt` (de 1,95 s no comum a 3,85 s no lendário, `REVEAL_MS` em `mudae.js`). No palco, uma cena Three.js feita só com código (`public/gacha/`) mostra a cápsula caindo, balançando e abrindo até o `revealAt`; ninguém casa antes disso. Sem WebGL2 o palco usa a roleta com 8 fotos-isca. Em aba escondida o card aparece mesmo assim, na hora certa. A prévia `node tools/gacha-preview.cjs` (http://127.0.0.1:38147/preview) mostra cada fase sem contas.
 - **Regras:** 10 rolls por hora e 1 casamento a cada 3 horas por pessoa, contados pelo relógio. Depois que o card aparece, quem rodou tem 3 s de prioridade; depois, qualquer um casa (e o chat conta o roubo). A janela total é de 45 s. Cada personagem tem um só dono por servidor.
 - **Raridade** pela posição dentro da própria fonte, em proporção: os 0,67% mais populares são lendários, até 6,7% épicos, até 33% raros, o resto comum (numa fonte de 15 mil: 1–100, até 1.000, até 5.000). Assim a chance de lendário não muda com o tamanho da fonte. Lendário toma o palco de todos, com banner, flash e fanfarra.
 - **Palco:** o seu roll sempre vai para o palco; o de um amigo só se o palco estiver livre (senão entra na Mesa ao vivo); lendário de qualquer um sempre.

@@ -3,32 +3,36 @@
 import * as THREE from 'three';
 
 export const RADIUS = 0.13;
-// Altura em metros que vale "1" no hop da linha do tempo. A cápsula sai da portinhola com hop 0.4 (da
-// linha do tempo), então o centro dela começa a 0.4 * HOP + RADIUS do chão: HOP, o 0.4 da linha do tempo,
-// RADIUS e a altura da portinhola (`exit.y` da máquina) precisam continuar combinando.
-const HOP = 0.26;
 const DARK = new THREE.Color('#2a2a38');
 const DOT_LUMA = 1.6;  // luminância dos pontinhos acesos: passa do limiar do bloom em qualquer cor
-const BEAM_LUMA = 1.3; // idem para o feixe
+const BEAM_LUMA = 1.15;
 const luma = (c) => Math.max(0.2126 * c.r + 0.7152 * c.g + 0.0722 * c.b, 0.15); // linear, sem divisão por ~0
 
-// Feixe de luz: some no topo e também na base (sem anel brilhante no chão). O alphaMap usa o canal verde;
-// a linha 0 do canvas é o topo do cilindro.
-function beamTexture() {
-  const canvas = document.createElement('canvas');
-  canvas.width = 1;
-  canvas.height = 128;
-  const g = canvas.getContext('2d');
-  const grad = g.createLinearGradient(0, 0, 0, 128);
-  grad.addColorStop(0, '#000');
-  grad.addColorStop(0.85, '#fff');
-  grad.addColorStop(1, '#000');
-  g.fillStyle = grad;
-  g.fillRect(0, 0, 1, 128);
-  const texture = new THREE.CanvasTexture(canvas);
-  texture.generateMipmaps = false;
-  texture.minFilter = texture.magFilter = THREE.LinearFilter;
-  return texture;
+// A luz na névoa perde intensidade nas bordas e no alto. Assim a revelação ilumina a loja sem cobri-la.
+function beamMaterial() {
+  return new THREE.ShaderMaterial({
+    uniforms: { color: { value: new THREE.Color() }, opacity: { value: 0 } },
+    transparent: true, depthWrite: false, blending: THREE.AdditiveBlending,
+    vertexShader: `
+      varying vec2 vUv; varying vec3 vNormal; varying vec3 vView;
+      void main() {
+        vUv = uv; vNormal = normalize(normalMatrix * normal);
+        vec4 positionInView = modelViewMatrix * vec4(position, 1.0);
+        vView = -positionInView.xyz;
+        gl_Position = projectionMatrix * positionInView;
+      }
+    `,
+    fragmentShader: `
+      uniform vec3 color; uniform float opacity;
+      varying vec2 vUv; varying vec3 vNormal; varying vec3 vView;
+      void main() {
+        float edge = pow(max(dot(normalize(vNormal), normalize(vView)), 0.0), 1.5);
+        float fade = smoothstep(0.0, 0.06, vUv.y) * (1.0 - smoothstep(0.15, 1.0, vUv.y));
+        float rays = 0.8 + 0.14 * sin(vUv.x * 75.0) + 0.06 * sin(vUv.x * 133.0);
+        gl_FragColor = vec4(color, opacity * edge * fade * rays);
+      }
+    `,
+  });
 }
 
 // from: centro da cápsula na portinhola (mundo); to: ponto no chão onde ela para.
@@ -38,6 +42,8 @@ function beamTexture() {
 // sem escala: corpo, respingo e luz usam coordenadas do mundo.
 export function createCapsule({ from, to }) {
   const R = RADIUS;
+  // O hop inicial é 0.4: converter a altura real da portinhola mantém a saída alinhada, inclusive sobre a calçada.
+  const hopHeight = Math.max(0, from.y - to.y - R) / 0.4;
   const group = new THREE.Group();
   const body = new THREE.Group();  // ponto de contato com o chão; anda, quica e leva tudo que acompanha a cápsula
   body.visible = false;            // escondido até o primeiro update, para não aparecer na origem
@@ -49,7 +55,7 @@ export function createCapsule({ from, to }) {
   tilt.add(ball);
 
   const shell = new THREE.MeshPhysicalMaterial({ color: '#ffffff', roughness: 0.22, clearcoat: 1, clearcoatRoughness: 0.08, side: THREE.DoubleSide });
-  const clear = new THREE.MeshPhysicalMaterial({ color: '#ffffff', roughness: 0.03, clearcoat: 1, transparent: true, opacity: 0.32, depthWrite: false, side: THREE.DoubleSide });
+  const clear = new THREE.MeshPhysicalMaterial({ color: '#ffffff', roughness: 0.03, clearcoat: 1, transparent: true, opacity: 0.22, depthWrite: false, side: THREE.DoubleSide });
   const bottom = new THREE.Mesh(new THREE.SphereGeometry(R, 40, 20, 0, Math.PI * 2, Math.PI / 2, Math.PI / 2), shell);
   const top = new THREE.Mesh(new THREE.SphereGeometry(R, 40, 20, 0, Math.PI * 2, 0, Math.PI / 2), clear);
   const seam = new THREE.Mesh(new THREE.TorusGeometry(R * 1.01, R * 0.07, 10, 48), shell);
@@ -82,9 +88,8 @@ export function createCapsule({ from, to }) {
   group.add(splash);
 
   // Feixe de luz que sobe quando a cápsula abre.
-  const beam = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.3, 3.2, 32, 1, true),
-    new THREE.MeshBasicMaterial({ alphaMap: beamTexture(), transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, side: THREE.DoubleSide }));
-  beam.position.y = R + 1.6;
+  const beam = new THREE.Mesh(new THREE.CylinderGeometry(0.38, 0.09, 3, 48, 1, true), beamMaterial());
+  beam.position.y = R + 1.5;
   body.add(beam);
 
   const start = new THREE.Vector3(from.x, 0, from.z);
@@ -104,7 +109,7 @@ export function createCapsule({ from, to }) {
     if (!shown) { light.intensity = 0; return; }
     body.position.lerpVectors(start, end, s.travel);
     // Balançar em volta do ponto de contato afundaria a esfera R * (1 - cos): sobe isso de volta.
-    body.position.y = s.hop * HOP + R * (1 - Math.cos(s.tilt));
+    body.position.y = to.y + s.hop * hopHeight + R * (1 - Math.cos(s.tilt));
     ball.rotation.x = s.travel * spins;
     tilt.rotation.z = s.tilt;
 
@@ -119,10 +124,10 @@ export function createCapsule({ from, to }) {
     color.copy(palette[s.colorFrom]).lerp(palette[s.colorTo], s.colorMix);
     const L = luma(color);
     shell.color.copy(color);
-    shell.emissive.copy(color).multiplyScalar(0.25 + 0.5 * s.glow);
+    shell.emissive.copy(color).multiplyScalar(0.2 + 0.4 * s.glow);
     light.color.copy(color);
-    light.position.set(body.position.x, body.position.y + R * 2 + 0.2, body.position.z);
-    light.intensity = s.glow * 1.5 + s.beam * 2;
+    light.position.set(body.position.x, body.position.y + R * 2 + 0.55, body.position.z);
+    light.intensity = s.glow * 2 + s.beam * 2;
 
     // Pontinhos e feixe são normalizados pela luminância para passarem do limiar do bloom em qualquer cor.
     dots.visible = s.showDots > 0.01;
@@ -141,8 +146,8 @@ export function createCapsule({ from, to }) {
     }
 
     beam.visible = s.beam > 0.01;
-    beam.material.color.copy(color).multiplyScalar(BEAM_LUMA / L);
-    beam.material.opacity = s.beam * 0.75;
+    beam.material.uniforms.color.value.copy(color).multiplyScalar(BEAM_LUMA / L);
+    beam.material.uniforms.opacity.value = s.beam * 0.32;
     beam.scale.set(0.6 + 0.4 * s.beam, 1, 0.6 + 0.4 * s.beam);
   }
 

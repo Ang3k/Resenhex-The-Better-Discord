@@ -259,9 +259,12 @@ window.MudaeSalon = function ({ state, el, Icon, call, onSocket, member, avatar,
     const cmd = (kind) => '$' + kind + S.source;
     nodes.rollBar.replaceChildren(...[filters,
       el('div', { class: 'salon-roll-buttons' }, btn(cmd('w'), 'Waifu', true), btn(cmd('h'), 'Husbando'), btn(cmd('m'), 'Qualquer um'))].filter(Boolean));
+    // Com a cena 3D, a máquina do meio também gira (quando os botões estão liberados).
+    S.gacha?.setRollable(!empty && !mySpin);
   }
 
   async function roll(cmd) {
+    S.lastKind = cmd[1];
     const res = await call('chat:send', { channel: S.channel, text: cmd });
     if (res?.ephemeral?.text) toast(plain(res.ephemeral.text), 'info');
   }
@@ -308,6 +311,11 @@ window.MudaeSalon = function ({ state, el, Icon, call, onSocket, member, avatar,
   function idleStage() {
     const legend = rolls().filter((m) => m.mudae.card.rarity === 'legendary').at(-1);
     delete nodes.stage.dataset.rarity;
+    // Com a cena 3D a máquina é a estrela do palco (e dá para clicar nela): sem carta grande, só a legenda embaixo.
+    if (S.gacha) {
+      return nodes.cardSlot.append(el('div', { class: 'salon-card big placeholder' }),
+        el('div', { class: 'salon-stage-caption' }, legend ? `🔥 Último lendário: ${whoName(legend.by)} · ` : '', 'Clique na máquina para rodar!'));
+    }
     if (legend) {
       nodes.cardSlot.append(cardNode(legend.mudae.card, { size: 'big' }),
         el('div', { class: 'salon-stage-caption' }, '🔥 ', el('span', { textContent: `Último lendário: ${whoName(legend.by)}, ${ago(legend.ts)}` })));
@@ -411,12 +419,13 @@ window.MudaeSalon = function ({ state, el, Icon, call, onSocket, member, avatar,
     try {
       const { create } = await import('/gacha/cena.mjs');
       const gacha = await create(host, { now, reducedMotion: reducedMotion(), colors: rarityColors(),
-        onCue: (name) => Sounds.play(CUES[name]), onLost: dropGacha });
+        onCue: (name) => Sounds.play(CUES[name]), onLost: dropGacha, onMachine: machineRoll });
       if (load !== gachaLoad || S.channel !== channel || nodes.scene !== host || S.gacha) return gacha.dispose();
       S.gacha = gacha;
       nodes.stage?.classList.add('gacha');
       // Um roll que já estava girando na roleta de fotos termina nela; a cena só entra no próximo.
-      if (!S.spinning) restGacha(S.stage && byId(S.stage));
+      if (!S.spinning) renderStage();
+      renderRollBar();
       gacha.setVisible(S.tab === 'mesa');
     } catch (error) {
       gachaBroken = true;
@@ -433,6 +442,13 @@ window.MudaeSalon = function ({ state, el, Icon, call, onSocket, member, avatar,
     gachaBroken = true;
     nodes.stage?.classList.remove('gacha');
     nodes.scene?.replaceChildren();
+  }
+
+  // Clique na máquina: o mesmo tipo do último roll (waifu, husbando ou qualquer um), na fonte escolhida.
+  function machineRoll() {
+    const s = S.status;
+    if (s && !s.rollsLeft) return toast(`Seus rolls voltam em ${minutes(s.rollResetIn - (Date.now() - S.statusAt))}`, 'info');
+    roll('$' + (S.lastKind || 'w') + S.source);
   }
 
   function restGacha(m) {
@@ -797,6 +813,9 @@ window.MudaeSalon = function ({ state, el, Icon, call, onSocket, member, avatar,
       }
       renderLive();
     } else if (d.kind === 'married' || d.kind === 'divorce') {
+      // Casou com o personagem que está no palco: a cena comemora (corações, ou roubo se o roll era de outra pessoa).
+      const stageMsg = d.kind === 'married' && S.stage && byId(S.stage);
+      if (stageMsg && stageMsg.mudae.card.id === d.card?.id) S.gacha?.celebrate(d.from ? 'steal' : 'claim');
       if (S.tab === 'harem' && S.albumOwner && (d.ownerId === S.albumOwner)) loadAlbum(S.albumOwner);
       if (S.tab === 'ranking') loadRanking();
       if (d.ownerId === me() && d.kind === 'married') call('mudae:profile', { accountId: me() }).then((res) => { S.favorite = res?.summary?.favorite || S.favorite; });

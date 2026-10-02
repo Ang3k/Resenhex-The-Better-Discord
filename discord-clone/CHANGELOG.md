@@ -3,6 +3,15 @@
 Histórico de versões. A mesma lista aparece dentro do app em **Novidades** (menu do servidor ou rodapé das Configurações).
 O Resenhex ainda está antes da 1.0.
 
+## v0.99.10 — Salão do Mudae: máquina de cápsulas 3D
+_01/10/2026_
+
+- O palco do Salão virou uma **lojinha de gashapon em 3D**: o botão da máquina gira, a cápsula cai, quica no chão molhado e para embaixo da lâmpada, para todo mundo ao mesmo tempo.
+- A cápsula **balança subindo de cor** (branca, azul, roxa) e solta faíscas; o **lendário** trava, doura e deixa a loja inteira dourada.
+- **Cada raridade abre do seu jeito** (faíscas, anel azul, espiral roxa, confete no lendário), com uma onda de luz no chão e o neon piscando na cor. A carta sai de dentro da cápsula e vira de frente.
+- **Clique na máquina** para rodar o mesmo tipo do último roll. **Casou?** Corações sobem na loja (roxos, se foi roubo).
+- Comum abre em uns 2 segundos; quanto mais rara, mais suspense. Sem aceleração 3D, fica a roleta de fotos; em máquinas fracas a cena reduz os efeitos sozinha.
+
 ## v0.99.9 — Salão do Mudae: roleta de personagens ao vivo
 _01/10/2026_
 

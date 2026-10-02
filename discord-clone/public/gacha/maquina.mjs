@@ -39,17 +39,44 @@ function starShape(outer, inner) {
   return shape;
 }
 
+function brushedMetal() {
+  const canvas = document.createElement('canvas');
+  canvas.width = canvas.height = 128;
+  const g = canvas.getContext('2d');
+  g.fillStyle = '#808080'; g.fillRect(0, 0, 128, 128);
+  for (let y = 0; y < 128; y++) {
+    const value = 115 + (y * 47 % 27);
+    g.fillStyle = `rgb(${value},${value},${value})`; g.fillRect(0, y, 128, 1);
+  }
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.wrapS = texture.wrapT = THREE.RepeatWrapping;
+  texture.repeat.set(2, 3);
+  return texture;
+}
+
+function machineLabel(hero) {
+  const canvas = document.createElement('canvas'); canvas.width = 256; canvas.height = 40;
+  const g = canvas.getContext('2d');
+  g.fillStyle = '#dfddd1'; g.fillRect(0, 0, 256, 40);
+  g.fillStyle = '#3c414a'; g.font = 'bold 24px sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle';
+  g.fillText(hero ? 'GACHA ★' : 'CAPSULE TOYS', 128, 21);
+  const texture = new THREE.CanvasTexture(canvas); texture.colorSpace = THREE.SRGBColorSpace;
+  return texture;
+}
+
 export function createMachine({ color = '#c9b6f2', trim = '#c9ccd6', scale = 1, seed = 1, hero = false } = {}) {
   const group = new THREE.Group();
   const body = new THREE.Group(); // o que treme quando o botão gira
   group.add(body);
   group.scale.setScalar(scale);
 
-  const paint = new THREE.MeshStandardMaterial({ color, roughness: 0.55, metalness: 0.08 });
-  const metal = new THREE.MeshStandardMaterial({ color: '#c3c7d2', roughness: 0.3, metalness: 0.85 });
-  const accent = new THREE.MeshStandardMaterial({ color: trim, roughness: 0.3, metalness: 0.85 });
+  const brush = brushedMetal();
+  const paint = new THREE.MeshPhysicalMaterial({ color, roughness: 0.44, metalness: 0.06, clearcoat: 0.35, clearcoatRoughness: 0.28 });
+  const metal = new THREE.MeshStandardMaterial({ color: '#9198a5', roughness: 0.38, metalness: 0.82, bumpMap: brush, bumpScale: 0.0012 });
+  const accent = new THREE.MeshStandardMaterial({ color: trim, roughness: 0.38, metalness: 0.7 });
   const dark = new THREE.MeshStandardMaterial({ color: '#0d0a12', roughness: 0.9 });
-  const glass = new THREE.MeshPhysicalMaterial({ color: '#ffffff', roughness: 0.04, transparent: true, opacity: 0.16, clearcoat: 1, clearcoatRoughness: 0.05, depthWrite: false });
+  const glass = new THREE.MeshPhysicalMaterial({ color: '#ffffff', roughness: hero ? 0.018 : 0.06, transmission: hero ? 0.9 : 0, thickness: 0.007, ior: 1.47,
+    transparent: !hero, opacity: hero ? 1 : 0.13, clearcoat: 0.5, clearcoatRoughness: 0.1, depthWrite: hero, envMapIntensity: 0.7 });
   const part = (geometry, material, x, y, z, parent = body) => {
     const mesh = new THREE.Mesh(geometry, material);
     mesh.position.set(x, y, z);
@@ -64,6 +91,7 @@ export function createMachine({ color = '#c9b6f2', trim = '#c9ccd6', scale = 1, 
   part(new RoundedBoxGeometry(0.32, 0.28, 0.03, 2, 0.012), metal, 0, 0.56, 0.255);     // placa do mecanismo
   part(new RoundedBoxGeometry(0.28, 0.22, 0.03, 2, 0.03), dark, 0, 0.21, 0.252);       // portinhola
   part(new THREE.BoxGeometry(0.3, 0.02, 0.05), metal, 0, 0.33, 0.27);                  // aba da portinhola
+  part(new THREE.PlaneGeometry(0.29, 0.045), new THREE.MeshBasicMaterial({ map: machineLabel(hero) }), 0, 0.722, 0.251);
   part(new RoundedBoxGeometry(0.64, 0.05, 0.52, 2, 0.02), accent, 0, 0.785, 0);        // friso
   if (hero) part(new THREE.ExtrudeGeometry(starShape(0.032, 0.015), { depth: 0.008, bevelEnabled: false }), accent, 0, 0.38, 0.2505);
 
@@ -75,6 +103,16 @@ export function createMachine({ color = '#c9b6f2', trim = '#c9ccd6', scale = 1, 
   disc.rotation.x = Math.PI / 2;
   part(new RoundedBoxGeometry(0.17, 0.04, 0.045, 2, 0.015), accent, 0, 0, 0.03, knob);
   part(new THREE.SphereGeometry(0.018, 16, 12), metal, 0, 0, 0.055, knob);
+  // A fenda da moeda e o aro recuado deixam o mecanismo legível sem brilho branco na placa toda.
+  part(new RoundedBoxGeometry(0.052, 0.011, 0.004, 1, 0.003), dark, 0.096, 0.642, 0.274);
+  const screws = new THREE.InstancedMesh(new THREE.CylinderGeometry(0.009, 0.009, 0.005, 8), metal, 4);
+  const screw = new THREE.Object3D();
+  screw.rotation.x = Math.PI / 2;
+  for (let i = 0; i < 4; i++) {
+    screw.position.set(i % 2 ? 0.133 : -0.133, i < 2 ? 0.673 : 0.447, 0.273);
+    screw.updateMatrix(); screws.setMatrixAt(i, screw.matrix);
+  }
+  body.add(screws);
 
   // Cúpula de acrílico e tampa.
   const dome = new THREE.Group();
@@ -84,12 +122,23 @@ export function createMachine({ color = '#c9b6f2', trim = '#c9ccd6', scale = 1, 
   shell.castShadow = false;
   shell.receiveShadow = false;
   shell.renderOrder = 2;
+  // Reflexos estreitos do acrílico: ajudam a ler a cúpula com bloom desligado também.
+  const glint = new THREE.MeshBasicMaterial({ color: '#e0efff', transparent: true, opacity: 0.22, depthWrite: false });
+  const glints = new THREE.InstancedMesh(new THREE.PlaneGeometry(0.009, 0.33), glint, 2);
+  const glintMatrix = new THREE.Matrix4();
+  glintMatrix.makeTranslation(-0.215, 0.26, 0.232); glints.setMatrixAt(0, glintMatrix);
+  glintMatrix.makeTranslation(0.215, 0.28, 0.232); glints.setMatrixAt(1, glintMatrix);
+  glints.renderOrder = 3;
+  dome.add(glints);
   part(new RoundedBoxGeometry(0.62, 0.07, 0.5, 3, 0.03), paint, 0, 0.535, 0, dome);
 
   // Cápsulas de dentro, num monte: fileiras alternadas com 5 e 4 cápsulas (como um favo de mel) e
   // camadas alternadas encaixadas nos vãos, com cores sorteadas pela semente. O tremido sorteado
   // deixa o monte irregular; depois algumas passadas afastam as que ficaram entrando uma na outra.
-  const balls = new THREE.InstancedMesh(new THREE.SphereGeometry(BALL_R, 16, 12), new THREE.MeshStandardMaterial({ roughness: 0.32, metalness: 0.05 }), BALLS);
+  const balls = new THREE.InstancedMesh(new THREE.SphereGeometry(BALL_R, 16, 8, 0, Math.PI * 2, Math.PI / 2, Math.PI / 2),
+    new THREE.MeshPhysicalMaterial({ roughness: 0.3, clearcoat: 0.4, clearcoatRoughness: 0.18 }), BALLS);
+  const lids = new THREE.InstancedMesh(new THREE.SphereGeometry(BALL_R, 16, 8, 0, Math.PI * 2, 0, Math.PI / 2),
+    new THREE.MeshPhysicalMaterial({ color: '#d3e0e6', roughness: 0.18, clearcoat: 0.6, transparent: !hero, opacity: hero ? 1 : 0.3, depthWrite: hero }), BALLS);
   const random = rng(seed);
   const pts = [];
   for (let layer = 0; layer < 4; layer++) {
@@ -127,21 +176,37 @@ export function createMachine({ color = '#c9b6f2', trim = '#c9ccd6', scale = 1, 
     }
   }
   const matrix = new THREE.Matrix4();
+  const capsuleRotation = new THREE.Euler();
   const tint = new THREE.Color();
   pts.forEach((p, i) => {
-    matrix.makeTranslation(p.x, p.y, p.z);
+    capsuleRotation.set((random() - 0.5) * 1.8, random() * Math.PI * 2, (random() - 0.5) * 1.8);
+    matrix.makeRotationFromEuler(capsuleRotation);
+    matrix.setPosition(p.x, p.y, p.z);
     balls.setMatrixAt(i, matrix);
+    lids.setMatrixAt(i, matrix);
     balls.setColorAt(i, tint.set(CAPSULE_COLORS[p.hue]));
   });
   balls.count = pts.length;
+  lids.count = pts.length;
   const pile = new THREE.Group();
-  pile.add(balls);
+  pile.add(balls, lids);
   dome.add(pile);
 
   return {
     group,
+    setQuality(level) {
+      if (!hero) return;
+      const physical = level >= 2;
+      glass.transmission = physical ? 0.9 : 0;
+      glass.transparent = !physical;
+      glass.opacity = physical ? 1 : 0.13;
+      glass.depthWrite = physical;
+      glass.needsUpdate = true;
+    },
     // De onde a cápsula sai (centro dela, em coordenadas da máquina sem escala; ignora a tremida: a cena converte com localToWorld).
     exit: new THREE.Vector3(0, 0.21, 0.3),
+    // Mouse em cima da máquina do meio (dá para clicar e girar): a pintura acende um pouco.
+    setHover(on) { paint.emissive.set(on ? '#2c2342' : '#000000'); accent.emissive.set(on ? '#3a2c10' : '#000000'); },
     // turn: 0..1 de uma volta inteira.
     setCrank(turn) { knob.rotation.z = -turn * Math.PI * 2; },
     // amount: 0..1; sec: relógio da cena, para a tremida.

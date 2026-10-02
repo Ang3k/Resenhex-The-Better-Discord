@@ -4,6 +4,25 @@
 // O título deve destacar as principais funcionalidades ou correções, com termos objetivos.
 window.CHANGELOG = [
   {
+    version: '0.99.10', date: '2026-10-01', name: 'Salão do Mudae: máquina de cápsulas 3D',
+    summary: 'O palco do Salão virou uma lojinha de gashapon em 3D: a cápsula cai da máquina, balança mudando de cor e abre com o personagem saindo de dentro, com faíscas, confete e corações.',
+    sections: [
+      { kind: 'new', items: [
+        'Quando alguém roda, o botão da máquina gira, uma cápsula cai, quica no chão molhado e para embaixo da lâmpada. Todo mundo no Salão vê ao mesmo tempo.',
+        'A cápsula balança antes de abrir, soltando faíscas, e a cor sobe a cada balançada: branca, azul, roxa. O lendário trava, fica dourado e deixa a loja inteira dourada.',
+        'Cada raridade abre do seu jeito: faíscas, um anel azul, uma espiral roxa ou, no lendário, uma chuva de confete. Uma onda de luz corre pelo chão e o neon pisca na cor da raridade.',
+        'A carta do personagem sai de dentro da cápsula aberta e vira de frente. Dá para casar assim que ela aparece.',
+        'Clique na máquina do meio para rodar: ela repete o tipo do seu último roll (waifu, husbando ou qualquer um).',
+        'Casou? Corações sobem na loja para todo mundo ver. Roubou o roll de alguém? Os corações são roxos.',
+        'Com o Salão parado, a lojinha continua viva: chuva fina, ondinhas nas poças, pétalas caindo e o neon piscando.',
+      ] },
+      { kind: 'improved', items: [
+        'Comum abre rápido (uns 2 segundos); quanto mais rara, mais balançadas e mais suspense.',
+        'Em computadores sem aceleração 3D, ou se a placa de vídeo falhar, o Salão continua com a roleta de fotos. Em máquinas mais fracas a cena reduz os efeitos sozinha.',
+      ] },
+    ],
+  },
+  {
     version: '0.99.9', date: '2026-10-01', name: 'Salão do Mudae: roleta de personagens ao vivo',
     summary: 'Um canal novo, o Salão do Mudae: rode personagens de anime, jogos, quadrinhos, desenhos e séries numa roleta que todo mundo vê, case antes dos outros (ou roube!) e monte o seu álbum.',
     sections: [
