@@ -19,6 +19,9 @@ O Resenhex chegou à versão 1.0 em 4 de outubro de 2026.
 - Ligar a câmera durante a transmissão não faz mais a tela piscar.
 - Salão do Mudae: carta sem quadro preto e giro sem esperar fotos lentas.
 
+### Corrigido
+- Login aberto por link de convite com as cores do app, sem o roxo azulado, e aviso do convite em roxo.
+
 ## v1.0.0 — Resenhex 1.0 🎉
 _04/10/2026 · junta as versões 0.99.14 a 0.99.16_
 

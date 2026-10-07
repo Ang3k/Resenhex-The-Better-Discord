@@ -444,6 +444,7 @@
     const message = notice || (pendingInvitePreview ? `Você recebeu um convite para ${pendingInvitePreview.name}. Entre ou crie sua conta para aceitar.` : '');
     $('#login-notice').textContent = message;
     $('#login-notice').classList.toggle('hidden', !message);
+    $('#login-notice').classList.toggle('info', !notice && !!message);
   }
 
   $('#login-switch').onclick = (e) => {
@@ -536,6 +537,7 @@
     if (invite) {
       $('#login-notice').textContent = invite.error || `Convite para ${invite.name}. Entre ou crie sua conta para aceitar.`;
       $('#login-notice').classList.remove('hidden');
+      $('#login-notice').classList.toggle('info', !invite.error);
     }
     $('#login-name').value = localStorage.getItem('name') || '';
     const token = localStorage.getItem('token');

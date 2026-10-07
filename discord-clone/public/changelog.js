@@ -22,6 +22,9 @@ window.CHANGELOG = [
         'Salão do Mudae: a mesa ao vivo fica sempre inteira na tela; a carta do palco se ajusta ao espaço que sobra, e em telas baixas o botão de casar vai para o lado dela.',
         'Salão do Mudae: molduras novas e mais discretas para comum, raro, épico e lendário.',
       ] },
+      { kind: 'fixed', items: [
+        'A tela de login aberta por um link de convite usava um roxo azulado diferente do resto do app. Agora ela segue as cores do Resenhex, e o aviso do convite aparece em roxo, não em amarelo de alerta.',
+      ] },
     ],
   },
   {

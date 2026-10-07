@@ -182,7 +182,8 @@ input[type=color]::-moz-color-swatch { border: 0; border-radius: 10px; }
 /* ---------- Tela de entrada ---------- */
 /* Entrada: a mesma família roxa da página pública, com superfícies sólidas. */
 .auth { background: var(--bg-rail); isolation: isolate; }
-:root:not([data-theme=midnight]):not([data-theme=contrast]) .auth {
+/* O roxo da página inicial só vale para quem chegou por ela; convite e volta ao login usam as cores do app. */
+:root[data-landing=on]:not([data-theme=midnight]):not([data-theme=contrast]) .auth {
   --brand: #6b38e8; --brand-hover: #5a2ad0;
   --bg-rail: #120b22; --bg-main: #1f1640; --bg-input: #26174f;
 }
@@ -215,4 +216,5 @@ input[type=color]::-moz-color-swatch { border: 0; border-radius: 10px; }
 .auth-card .btn-primary:active { transform: translateY(0) scale(.99); }
 .auth-card .switch a { font-weight: 600; color: color-mix(in srgb, var(--brand) 70%, #fff); }
 .auth-card .notice { border-radius: 10px; }
+.auth-card .notice.info { background: color-mix(in srgb, var(--brand) 12%, transparent); border-color: color-mix(in srgb, var(--brand) 45%, transparent); color: var(--text-strong); }
 #login-color-label { flex-direction: row !important; align-items: center; justify-content: space-between; }
