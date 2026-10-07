@@ -26,9 +26,10 @@
   <link rel="stylesheet" href="music.css">
   <link rel="stylesheet" href="mudae.css">
   <link rel="stylesheet" href="mudae-salao.css">
+  <link rel="stylesheet" href="dm-call.css">
+  <link rel="stylesheet" href="gif-picker.css">
   <link rel="stylesheet" href="brand.css">
-  <!-- A cena 3D do Salão do Mudae (public/gacha) importa "three" por este mapa; só baixa ao abrir a Mesa. -->
-  <script type="importmap">{ "imports": { "three": "/vendor/three/build/three.module.min.js", "three/addons/": "/vendor/three/addons/" } }</script>
+  <link rel="stylesheet" href="call-stage.css">
   <script>
     // Quem chega pela primeira vez vê a página inicial; quem já entrou neste navegador, veio por convite
     // ou usa o app de desktop vai direto para o Resenhex. Decidido antes de pintar, para não piscar.
@@ -386,8 +387,11 @@
           <button type="button" id="btn-return-call" class="call-return hidden" title="Voltar à chamada">
 <span data-icon="phone" data-size="16">
 </span>
-<span>Em chamada</span>
+<span class="call-return-label">Em chamada</span>
+<time class="call-time" data-call-time datetime="PT0S">00:00</time>
 </button>
+          <button type="button" id="btn-dm-call" class="icon-btn hidden" data-icon="phone" data-tip="Começar chamada de voz" aria-label="Começar chamada de voz"></button>
+          <button type="button" id="btn-dm-video" class="icon-btn hidden" data-icon="camera" data-tip="Começar chamada de vídeo" aria-label="Começar chamada de vídeo"></button>
           <button type="button" id="btn-members" class="icon-btn" data-icon="users" aria-label="Lista de membros">
 </button>
         </div>
@@ -396,6 +400,7 @@
       <section id="salon-view" class="hidden" aria-label="Salão do Mudae"></section>
 
       <section id="chat-view">
+        <div id="dm-call-banner-slot"></div>
         <div id="notify-banner" class="hidden">
           <span>Quer ser avisado quando alguém mencionar você?</span>
           <button type="button" id="notify-enable">Ativar notificações</button>
@@ -429,6 +434,8 @@
             <input type="file" id="file-input" multiple hidden>
             <textarea id="chat-input" rows="1" maxlength="4000" autocomplete="off">
 </textarea>
+            <button type="button" id="btn-gif" class="hidden" data-icon="gif" data-size="22" data-tip="GIFs" aria-label="GIFs">
+</button>
             <button type="button" id="btn-emoji" data-icon="smile" data-size="22" data-tip="Emoji" aria-label="Emoji">
 </button>
           </form>
@@ -445,7 +452,16 @@
       </section>
 
       <section id="voice-view" class="hidden">
+        <div id="stage-toolbar" class="hidden">
+          <div class="stage-summary"><span class="stage-live-dot"></span><span id="stage-summary"></span></div>
+          <div class="stage-layout" role="group" aria-label="Visualização da chamada">
+            <button type="button" id="stage-grid" aria-label="Ver em grade" aria-pressed="true">Grade</button>
+            <button type="button" id="stage-focus" aria-label="Destacar uma tela" aria-pressed="false">Destaque</button>
+          </div>
+        </div>
         <div id="stage">
+          <div id="stage-primary" aria-label="Telas da chamada"></div>
+          <div id="stage-strip" class="hidden" role="group" aria-label="Outras telas e participantes"></div>
 </div>
         <div id="stage-controls">
           <button type="button" id="sc-mic" class="sc-btn" aria-label="Microfone">
@@ -459,9 +475,11 @@
           <button type="button" id="sc-sounds" class="sc-btn" aria-label="Efeitos sonoros">
 </button>
           <button type="button" id="sc-music" class="sc-btn" data-icon="disc" data-size="24" data-tip="DJ: tocar música do YouTube" aria-label="DJ: músicas do YouTube"></button>
+          <button type="button" id="sc-chat" class="sc-btn hidden" aria-label="Ampliar a chamada"></button>
           <button type="button" id="sc-leave" class="sc-btn hangup" data-icon="phone" data-tip="Desconectar" aria-label="Desconectar">
 </button>
         </div>
+        <div id="dm-call-resizer" role="separator" aria-orientation="horizontal" aria-label="Altura da chamada" aria-valuemin="200" tabindex="0"></div>
       </section>
     </main>
 
@@ -533,57 +551,106 @@
 <div class="eyebrow">SEU ESPAÇO</div>
 <h1>Meu perfil</h1>
 <p class="section-description">Um toque seu em cada conversa.</p>
+<div class="profile-customization">
+<div class="profile-editing">
+<div class="profile-group" role="group" aria-labelledby="profile-group-media">
+<div class="profile-group-head"><h2 id="profile-group-media">Imagens</h2><p>Escolha uma imagem, ajuste o enquadramento ou remova. GIFs animados também valem.</p></div>
+<div class="profile-media-list">
+<div class="profile-media-card profile-media-photo" data-profile-media="photo">
+<div class="profile-media-thumb-wrap"><div id="profile-photo-thumb" class="profile-media-thumb avatar" aria-hidden="true"></div></div>
+<div class="profile-media-main">
+<div class="profile-media-copy"><h3>Foto de perfil</h3><p id="profile-photo-status" class="hint" role="status">Seu rosto nas conversas.</p></div>
+<div class="profile-media-actions">
+<button id="profile-photo-choose" type="button" class="profile-media-choose" data-draft-action><span data-icon="upload" data-size="16"></span><span class="if-empty">Escolher foto</span><span class="if-filled">Trocar</span></button>
+<button id="profile-photo-adjust" type="button" class="secondary profile-media-adjust" data-draft-action><span data-icon="crop" data-size="16"></span>Ajustar</button>
+<button id="profile-photo-remove" type="button" class="secondary profile-media-remove" data-draft-action data-tip="Remover foto" aria-label="Remover foto"><span data-icon="trash" data-size="16"></span></button>
+</div>
+</div>
+<input id="profile-photo-file" type="file" accept="image/png,image/jpeg,image/webp,image/gif" data-draft-action hidden>
+<input id="profile-avatar" type="hidden">
+<input id="profile-avatar-crop" type="hidden" value="">
+</div>
+<div class="profile-media-card profile-media-banner" data-profile-media="banner">
+<div class="profile-media-thumb-wrap"><div id="profile-banner-thumb" class="profile-media-thumb" aria-hidden="true"><span data-icon="panelTop" data-size="20"></span></div></div>
+<div class="profile-media-main">
+<div class="profile-media-copy"><h3>Banner</h3><p id="profile-banner-status" class="hint" role="status">A faixa no topo do seu cartão.</p></div>
+<div class="profile-media-actions">
+<button id="profile-banner-choose" type="button" class="profile-media-choose" data-draft-action><span data-icon="upload" data-size="16"></span><span class="if-empty">Escolher banner</span><span class="if-filled">Trocar</span></button>
+<button id="profile-banner-adjust" type="button" class="secondary profile-media-adjust" data-draft-action><span data-icon="crop" data-size="16"></span>Ajustar</button>
+<button id="profile-banner-remove" type="button" class="secondary profile-media-remove" data-draft-action data-tip="Remover banner" aria-label="Remover banner"><span data-icon="trash" data-size="16"></span></button>
+</div>
+</div>
+<input id="profile-banner-file" type="file" accept="image/png,image/jpeg,image/webp,image/gif" data-draft-action hidden>
+<input id="profile-banner" type="hidden">
+<input id="profile-banner-crop" type="hidden" value="">
+</div>
+<div class="profile-media-card profile-media-background" data-profile-media="background">
+<div class="profile-media-thumb-wrap"><div id="profile-background-thumb" class="profile-media-thumb" aria-hidden="true"><span data-icon="layers" data-size="20"></span></div></div>
+<div class="profile-media-main">
+<div class="profile-media-copy"><h3>Fundo</h3><p id="profile-background-status" class="hint" role="status">Fica atrás do nome e das informações.</p></div>
+<div class="profile-media-actions">
+<button id="profile-background-choose" type="button" class="profile-media-choose" data-draft-action><span data-icon="upload" data-size="16"></span><span class="if-empty">Escolher fundo</span><span class="if-filled">Trocar</span></button>
+<button id="profile-background-adjust" type="button" class="secondary profile-media-adjust" data-draft-action><span data-icon="crop" data-size="16"></span>Ajustar</button>
+<button id="profile-background-remove" type="button" class="secondary profile-media-remove" data-draft-action data-tip="Remover fundo" aria-label="Remover fundo"><span data-icon="trash" data-size="16"></span></button>
+</div>
+</div>
+<input id="profile-background-file" type="file" accept="image/png,image/jpeg,image/webp,image/gif" data-draft-action hidden>
+<input id="profile-background" type="hidden">
+<input id="profile-background-crop" type="hidden" value="">
+</div>
+</div>
+<p class="hint profile-format-note"><span data-icon="info" data-size="14"></span>PNG, JPG ou WebP de até 8 MB · GIF animado de até 5 MB.</p>
+</div>
+<div class="profile-group profile-color-group" role="group" aria-labelledby="profile-group-color">
+<div class="profile-group-head"><h2 id="profile-group-color">Cor do perfil</h2><p>Pinta a foto quando você não tem uma e o banner padrão.</p></div>
+<div class="profile-swatches" role="group" aria-label="Cor do perfil">
+<button type="button" class="profile-swatch" data-profile-color="#5865f2" style="--swatch:#5865f2" aria-label="Anil" aria-pressed="false" data-draft-action></button>
+<button type="button" class="profile-swatch" data-profile-color="#9b59b6" style="--swatch:#9b59b6" aria-label="Roxo" aria-pressed="false" data-draft-action></button>
+<button type="button" class="profile-swatch" data-profile-color="#eb459e" style="--swatch:#eb459e" aria-label="Rosa" aria-pressed="false" data-draft-action></button>
+<button type="button" class="profile-swatch" data-profile-color="#ed4245" style="--swatch:#ed4245" aria-label="Vermelho" aria-pressed="false" data-draft-action></button>
+<button type="button" class="profile-swatch" data-profile-color="#f0b232" style="--swatch:#f0b232" aria-label="Âmbar" aria-pressed="false" data-draft-action></button>
+<button type="button" class="profile-swatch" data-profile-color="#23a55a" style="--swatch:#23a55a" aria-label="Verde" aria-pressed="false" data-draft-action></button>
+<button type="button" class="profile-swatch" data-profile-color="#1abc9c" style="--swatch:#1abc9c" aria-label="Turquesa" aria-pressed="false" data-draft-action></button>
+<button type="button" class="profile-swatch" data-profile-color="#3498db" style="--swatch:#3498db" aria-label="Azul" aria-pressed="false" data-draft-action></button>
+<label class="swatch profile-swatch profile-swatch-custom" data-tip="Outra cor"><span data-icon="pencil" data-size="14"></span><input id="profile-color" type="color" aria-label="Escolher outra cor"></label>
+</div>
+</div>
+<div id="profile-server-identity" class="profile-group profile-server-identity hidden" role="group" aria-labelledby="profile-group-name">
+<div class="profile-group-head"><h2 id="profile-group-name">Nome no servidor</h2><p>Visível só em <span id="profile-server-label"></span>.</p></div>
+<div class="profile-name-row"><strong id="profile-server-display"></strong>
+<button id="profile-name-edit" type="button" class="secondary" data-draft-action><span data-icon="pencil" data-size="16"></span>Editar nome</button></div>
+</div>
+</div>
+<aside class="profile-preview-column" aria-label="Prévia do perfil">
+<div class="profile-preview-label"><span class="profile-live-dot" aria-hidden="true"></span>Prévia ao vivo</div>
 <div class="profile-preview">
 <div id="profile-preview-banner" class="profile-cover">
+<button type="button" class="profile-preview-spot profile-preview-spot-banner" data-profile-edit="banner" data-draft-action><span data-icon="pencil" data-size="14"></span>Banner</button>
 </div>
 <div class="profile-preview-body">
 <div id="profile-preview-bg" class="profile-preview-bg" aria-hidden="true"></div>
+<button type="button" class="profile-preview-spot profile-preview-spot-background" data-profile-edit="background" data-draft-action><span data-icon="pencil" data-size="14"></span>Fundo</button>
+<div class="profile-preview-avatar-wrap">
 <div id="profile-preview-avatar" class="avatar">
 </div>
-<div>
+<button type="button" class="profile-preview-edit-photo" data-profile-edit="photo" aria-label="Mudar foto" data-tip="Mudar foto" data-draft-action><span data-icon="pencil" data-size="14"></span></button>
+</div>
+<div class="profile-preview-info">
 <strong id="profile-preview-name">
 </strong>
-<span>Prévia do seu perfil</span>
+<span class="pc-tag profile-preview-tag"><span class="pc-dot online"></span>Online</span>
+</div>
+<div class="profile-chat-preview">
+<span class="profile-chat-label">No chat</span>
+<div class="profile-chat-message">
+<div id="profile-preview-chat-avatar" class="avatar" aria-hidden="true"></div>
+<div class="profile-chat-text"><div><strong id="profile-preview-chat-name"></strong><time>hoje às 21:07</time></div><p>Bora uma call hoje? 🎮</p></div>
 </div>
 </div>
 </div>
-<div class="setting-group">
-<div id="profile-server-identity" class="profile-server-identity hidden">
-<div><h3>Nome no servidor</h3><span id="profile-server-label" class="hint"></span><strong id="profile-server-display"></strong></div>
-<button id="profile-name-edit" type="button" data-draft-action>Editar nome no servidor</button>
 </div>
-<h3>Identidade</h3>
-<div class="profile-photo-actions">
-  <button id="profile-photo-choose" type="button" data-draft-action>Mudar foto</button>
-  <button id="profile-photo-adjust" type="button" class="secondary" data-draft-action>Ajustar foto</button>
-  <button id="profile-photo-remove" type="button" class="secondary" data-draft-action>Remover foto</button>
-  <input id="profile-photo-file" type="file" accept="image/png,image/jpeg,image/webp,image/gif" data-draft-action hidden>
-  <input id="profile-avatar" type="hidden">
-</div>
-<input id="profile-avatar-crop" type="hidden" value="">
-<p id="profile-photo-status" class="hint" role="status">PNG, JPG ou WebP de até 8 MB, ou GIF animado de até 5 MB. Ajuste o enquadramento e salve para aplicar.</p>
-<div class="profile-photo-actions">
-  <button id="profile-banner-choose" type="button" data-draft-action>Mudar banner</button>
-  <button id="profile-banner-adjust" type="button" class="secondary" data-draft-action>Ajustar banner</button>
-  <button id="profile-banner-remove" type="button" class="secondary" data-draft-action>Remover banner</button>
-  <input id="profile-banner-file" type="file" accept="image/png,image/jpeg,image/webp,image/gif" data-draft-action hidden>
-  <input id="profile-banner" type="hidden">
-</div>
-<input id="profile-banner-crop" type="hidden" value="">
-<p id="profile-banner-status" class="hint" role="status">PNG, JPG ou WebP de até 8 MB, ou GIF animado de até 5 MB. Ajuste o enquadramento e salve para aplicar.</p>
-<div class="profile-photo-actions">
-  <button id="profile-background-choose" type="button" data-draft-action>Mudar fundo</button>
-  <button id="profile-background-adjust" type="button" class="secondary" data-draft-action>Ajustar fundo</button>
-  <button id="profile-background-remove" type="button" class="secondary" data-draft-action>Remover fundo</button>
-  <input id="profile-background-file" type="file" accept="image/png,image/jpeg,image/webp,image/gif" data-draft-action hidden>
-  <input id="profile-background" type="hidden">
-</div>
-<input id="profile-background-crop" type="hidden" value="">
-<p id="profile-background-status" class="hint" role="status">PNG, JPG ou WebP de até 8 MB, ou GIF animado de até 5 MB. O fundo fica atrás do nome e das informações, com escurecimento para manter o texto legível.</p>
-<label>Cor do avatar<input id="profile-color" type="color">
-<span class="hint">Usada como fundo quando você não tem uma foto de perfil.</span>
-</label>
-<p class="hint">Seu nome de usuário identifica sua conta. As preferências de dispositivos e aparência ficam neste navegador.</p>
+<p class="hint profile-preview-note">Clique em qualquer parte da prévia para trocar. Nada muda até você salvar.</p>
+</aside>
 </div>
 </section>
 <section id="page-voice" data-settings-page="voice" role="tabpanel" aria-labelledby="tab-voice">
@@ -962,16 +1029,20 @@
 </script>
   <script src="photo-editor.js"></script>
   <script src="own-audio.js"></script>
+  <script src="media-sfu.js"></script>
   <script src="media-session.js">
 </script>
   <script src="mobile-stream.js"></script>
   <script src="stream-zoom.js"></script>
   <script src="changelog.js"></script>
+  <script src="confetti.js"></script>
   <script src="channel-navigation.js"></script>
   <script src="desktop.js"></script>
   <script src="music.js"></script>
   <script src="mudae.js"></script>
   <script src="mudae-salao.js"></script>
+  <script src="dm-call.js"></script>
+  <script src="gif-picker.js"></script>
   <script src="app.js">
 </script>
   <script src="landing.js"></script>

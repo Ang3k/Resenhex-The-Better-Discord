@@ -15,6 +15,8 @@ const { downloadRoutes } = require('./downloads');
 const { createDj } = require('./dj');
 const { createMudae, CLAIM_WINDOW_MS, revealDelay, PRIORITY_MS } = require('./mudae');
 const { youtubeSearch } = require('./youtube');
+const { createDmCalls } = require('./dm-calls');
+const { cleanGif } = require('./gifs');
 const { version: APP_VERSION } = require('./package.json');
 
 const PORT = process.env.PORT || 3000;
@@ -22,7 +24,7 @@ const HOST = process.env.HOST || '0.0.0.0';
 const DATA_FILE = process.env.DATA_FILE || path.join(__dirname, 'data.json');
 const MAX_MESSAGES = 300;
 const UPLOAD_DIR = process.env.UPLOAD_DIR || path.join(__dirname, 'uploads');
-const MAX_UPLOAD_MB = Number(process.env.MAX_UPLOAD_MB) || 25;
+const MAX_UPLOAD_MB = Number(process.env.MAX_UPLOAD_MB) || 50;
 // Instalador e atualizações do app de desktop (enviados por deploy/publicar-app.ps1).
 const DOWNLOAD_DIR = process.env.DOWNLOAD_DIR || path.join(__dirname, 'downloads');
 const MAX_ATTACHMENTS = 10;
@@ -270,6 +272,8 @@ const MAX_BLOCKS = 500;
 const pairKey = (a, b) => [a, b].sort().join('-');
 const dmIdOf = (a, b) => 'dm-' + pairKey(a, b);
 const isDmId = (id) => typeof id === 'string' && id.startsWith('dm-');
+// Chamada numa conversa privada: a sala de voz tem o id da conversa e não pertence a servidor nenhum.
+const isDmCall = (s) => !!s?.voice && isDmId(s.voice);
 const friendshipOf = (a, b) => db.friendships[pairKey(a, b)];
 const areFriends = (a, b) => friendshipOf(a, b)?.status === 'friends';
 const hasBlocked = (blocker, target) => (db.blocks[blocker] || []).includes(target);
@@ -333,6 +337,21 @@ setInterval(() => {
 // ---------------- sessões conectadas ----------------
 // socket.id -> { accountId, voice: idDoCanal|null, muted, deafened, sharing, paused, camera }
 const online = new Map();
+const { mediaSfu } = require('./media-sfu');
+// O LiveKit caiu: quem está numa sala que usava o SFU reconecta em P2P.
+let mediaSwitched = () => {};
+const media = mediaSfu({ onSwitch: (...args) => mediaSwitched(...args), membership: (sid) => {
+  const s = online.get(sid);
+  if (!s?.voice) return null;
+  return communities.run(s.voiceServerId, () => {
+    const acc = db.accounts[s.accountId];
+    if (!acc) return null;
+    const dm = isDmCall(s);
+    return { server: s.voiceServerId, channel: s.voice,
+      speak: dm || (can(acc, 'SPEAK') && !acc.serverMuted && !acc.serverDeafened && !timedOut(acc)),
+      stream: dm || (can(acc, 'STREAM') && !timedOut(acc)), deafened: !dm && !!acc.serverDeafened };
+  });
+} });
 
 // Manda a lista de amigos/conversas atualizada para quem está conectado.
 function pushSocial(...accountIds) {
@@ -346,6 +365,11 @@ function pushSocial(...accountIds) {
 }
 
 const app = express();
+app.post('/api/media/webhook', express.text({ type: 'application/webhook+json', limit: '128kb' }), async (req, res) => {
+  try { await media.webhook(req.body, req.headers.authorization); res.sendStatus(204); }
+  catch { res.sendStatus(401); }
+});
+app.get('/vendor/livekit-client.js', (_req, res) => res.sendFile(path.join(path.dirname(require.resolve('livekit-client')), 'livekit-client.umd.js')));
 app.use((req, _res, next) => {
   const account = communities.root.accounts[db.sessions[req.get('x-token')]];
   communities.run(req.get('x-server-id') || account?.lastServerId || communities.root.defaultServerId, next);
@@ -611,13 +635,47 @@ app.use((err, req, res, _next) => {
 const server = http.createServer(app);
 const io = new Server(server, { maxHttpBufferSize: 1e6 });
 
+// Toque e mensagem de chamada das conversas privadas (dm-calls.js).
+mediaSwitched = (server, channel, transport) => {
+  for (const [sid, s] of online) if (s.voice === channel && (s.voiceServerId ?? null) === (server ?? null)) io.to(sid).emit('media:switch', { transport });
+};
+const emitToAccount = (accountId, event, payload) => { for (const [sid, s] of online) if (s.accountId === accountId) io.to(sid).emit(event, payload); };
+const emitToDm = (dm, event, payload) => { for (const id of db.dms[dm]?.users || []) emitToAccount(id, event, payload); };
+const dmCalls = createDmCalls({
+  ringMs: Number(process.env.DM_RING_MS) || 30_000,
+  messages: (dm) => db.messages[dm] || [],
+  newId,
+  emit: emitToAccount,
+  post: (dm, msg) => {
+    const list = (db.messages[dm] ||= []);
+    // Para quem recebe, a chamada conta como menção (badge vermelho), como as mensagens diretas.
+    msg.mentions = { users: db.dms[dm].users.filter((u) => u !== msg.authorId), roles: [], everyone: false };
+    list.push(msg);
+    while (list.length > MAX_MESSAGES) deleteAttachments(list.shift());
+    db.dms[dm].closed = {}; // a conversa volta para a lista dos dois, como numa mensagem nova
+    emitToDm(dm, 'chat:message', { channel: dm, msg, author: publicProfiles([msg.authorId])[0] });
+    pushSocial(...db.dms[dm].users);
+    save();
+  },
+  update: (dm, msg) => { emitToDm(dm, 'chat:update', { channel: dm, msg }); save(); },
+  changed: () => broadcastState(),
+});
+// Contas de uma sala de voz (para saber quem continua na chamada privada).
+const roomAccounts = (room) => [...online.values()].filter((s) => s.voice === room).map((s) => s.accountId);
+// Os dois ainda podem se falar? Mesma regra das mensagens diretas.
+const dmCallAllowed = (dm, accountId) => {
+  const conversation = db.dms[dm];
+  const peer = conversation?.users.find((u) => u !== accountId);
+  return !!conversation?.users.includes(accountId) && !!db.accounts[peer] && areFriends(accountId, peer) && !hasBlocked(accountId, peer) && !hasBlocked(peer, accountId);
+};
+
 function socketsOf(accountId, local = false) {
   return [...online].filter(([, s]) => s.accountId === accountId && (!local || s.serverId === communities.currentId())).map(([sid]) => io.sockets.sockets.get(sid)).filter(Boolean);
 }
 
 // Sessões da conta que estão numa chamada do servidor atual (podem estar vendo outro servidor).
 function voiceSocketsOf(accountId) {
-  return [...online].filter(([, s]) => s.accountId === accountId && s.voice && s.voiceServerId === communities.currentId()).map(([sid]) => io.sockets.sockets.get(sid)).filter(Boolean);
+  return [...online].filter(([, s]) => s.accountId === accountId && s.voice && !isDmCall(s) && s.voiceServerId === communities.currentId()).map(([sid]) => io.sockets.sockets.get(sid)).filter(Boolean);
 }
 
 function publicMember(a, onlineIds) {
@@ -654,22 +712,26 @@ function sharedState() {
   return {
     members: accounts.filter((a) => communities.joined(a.id)).map((a) => publicMember(a, onlineIds)),
     bans: accounts.filter((a) => a.banned).map((a) => ({ id: a.id, name: a.name })),
-    voice: [...online].filter(([, s]) => s.voice && s.voiceServerId === communities.currentId()).map(([sid, s]) => {
-      const a = db.accounts[s.accountId];
-      return {
-        sid,
-        accountId: s.accountId,
-        channel: s.voice,
-        muted: s.muted,
-        deafened: s.deafened,
-        sharing: s.sharing,
-        paused: s.paused,
-        camera: s.camera,
-        viewers: [...online].filter(([, viewer]) => viewer.voice === s.voice && viewer.watching?.has(sid)).map(([viewerId]) => viewerId),
-        // "silenced": ninguém deve ouvir essa pessoa (mutada pelo servidor, de castigo ou sem permissão de falar).
-        silenced: !!a.serverMuted || timedOut(a) || !can(a, 'SPEAK'),
-      };
-    }),
+    voice: [...online].filter(([, s]) => s.voice && !isDmCall(s) && s.voiceServerId === communities.currentId()).map(([sid, s]) => voiceEntry(sid, s)),
+  };
+}
+
+// Uma pessoa na sala de voz, como os outros participantes a veem.
+function voiceEntry(sid, s) {
+  const a = db.accounts[s.accountId];
+  return {
+    sid,
+    accountId: s.accountId,
+    channel: s.voice,
+    muted: s.muted,
+    deafened: s.deafened,
+    sharing: s.sharing,
+    paused: s.paused,
+    camera: s.camera,
+    viewers: [...online].filter(([, viewer]) => viewer.voice === s.voice && viewer.watching?.has(sid)).map(([viewerId]) => viewerId),
+    // "silenced": ninguém deve ouvir essa pessoa (mutada pelo servidor, de castigo ou sem permissão de falar).
+    // Numa chamada privada não há cargos nem castigo.
+    silenced: isDmCall(s) ? false : !!a.serverMuted || timedOut(a) || !can(a, 'SPEAK'),
   };
 }
 
@@ -704,6 +766,7 @@ function stateFor(acc, shared = sharedState()) {
 // A chamada em que a sessão está, vista do servidor da chamada (roda no contexto dele).
 // Vai junto com o estado para a chamada continuar funcionando enquanto a pessoa olha outro servidor.
 function callFor(s, shared) {
+  if (isDmCall(s)) return dmCallFor(s);
   const acc = db.accounts[s.accountId];
   const channel = db.channels.find((c) => c.id === s.voice);
   if (!acc || !channel) return null;
@@ -719,6 +782,28 @@ function callFor(s, shared) {
     myPerms: [...permsOf(acc)],
     soundboard: db.soundboard.map((x) => ({ id: x.id, name: x.name, duration: x.duration, url: '/servers/' + communities.currentId() + '/sounds/' + x.id })),
     music: dj.view(djKey(communities.currentId(), channel.id)),
+  };
+}
+
+// A chamada de uma conversa privada, no mesmo formato da chamada de servidor.
+function dmCallFor(s) {
+  const conversation = db.dms[s.voice];
+  if (!conversation) return null;
+  const peer = conversation.users.find((u) => u !== s.accountId);
+  const [peerProfile] = publicProfiles([peer]);
+  return {
+    serverId: null,
+    serverName: 'Mensagens diretas',
+    dm: true,
+    peerId: peer,
+    ringing: dmCalls.ringing(s.voice),
+    channel: { id: s.voice, name: peerProfile?.name || 'Conversa' },
+    voice: [...online].filter(([, other]) => other.voice === s.voice).map(([sid, other]) => voiceEntry(sid, other)),
+    members: publicProfiles(conversation.users),
+    roles: [],
+    myPerms: ['CONNECT', 'SPEAK', 'STREAM', 'SOUNDBOARD'],
+    soundboard: [],
+    music: null,
   };
 }
 
@@ -757,6 +842,7 @@ function screenQuality(value = { mode: 'auto', maxHeight: 1080, background: fals
 function leaveVoice(socket) {
   const s = online.get(socket.id);
   if (!s || !s.voice) return;
+  media.leave(socket.id, s.voiceServerId, s.voice).catch(() => {});
   const room = 'voice:' + s.voice;
   socket.to(room).emit('voice:peer-left', { id: socket.id });
   socket.leave(room);
@@ -764,10 +850,29 @@ function leaveVoice(socket) {
   for (const target of s.watching || []) io.to(target).emit('screen:quality', { viewer: socket.id, demand: null });
   s.watching?.clear();
   s.screenQuality?.clear();
+  const dm = isDmCall(s) ? s.voice : null;
+  const left = { server: s.voiceServerId, channel: s.voice };
   s.voice = null;
   s.voiceServerId = null;
+  if (![...online.values()].some((o) => o.voice === left.channel && o.voiceServerId === left.server)) media.vacate(left.server, left.channel);
   s.sharing = false;
   s.camera = false;
+  if (dm) dmCalls.left(dm, s.accountId, roomAccounts(dm));
+}
+
+// Uma conta fica numa chamada só: entrar por outra aba ou aparelho tira as sessões anteriores.
+// Devolve os sockets tirados (para quem entrou não tentar se conectar com eles).
+function dropOtherVoiceSessions(socket, accountId) {
+  const dropped = [];
+  for (const [sid, s] of online) {
+    if (sid === socket.id || s.accountId !== accountId || !s.voice) continue;
+    const other = io.sockets.sockets.get(sid);
+    if (!other) continue;
+    leaveVoice(other);
+    other.emit('voice:force-leave', { reason: 'Você entrou na chamada em outra aba ou aparelho.' });
+    dropped.push(sid);
+  }
+  return dropped;
 }
 
 // Tira da chamada quem está numa sala do servidor atual e perdeu acesso a ele.
@@ -782,6 +887,14 @@ function dropVoice(accountId, reason) {
 function enforceVoice() {
   for (const [sid, s] of online) {
     if (!s.voice) continue;
+    if (isDmCall(s)) {
+      const socket = io.sockets.sockets.get(sid);
+      if (socket && !dmCallAllowed(s.voice, s.accountId)) {
+        leaveVoice(socket);
+        socket.emit('voice:force-leave', { reason: 'A chamada terminou: vocês não são mais amigos.' });
+      }
+      continue;
+    }
     communities.run(s.voiceServerId, () => {
       const acc = db.accounts[s.accountId];
       const channel = db.channels.find((c) => c.id === s.voice);
@@ -820,6 +933,7 @@ function flushBroadcast() {
   };
   for (const [sid, s] of online) {
     const call = s.voice ? communities.run(s.voiceServerId, () => callFor(s, sharedOf(s.voiceServerId))) : null;
+    if (s.voice) media.sync(sid).catch(() => {});
     communities.run(s.serverId, () => {
       const acc = db.accounts[s.accountId];
       if (acc) io.sockets.sockets.get(sid)?.emit('state', { ...stateFor(acc, sharedOf(s.serverId)), call });
@@ -883,8 +997,8 @@ io.on('connection', (socket) => {
         try {
           const result = handler(acc, payload || {});
           // Quem fez a ação recebe o estado novo antes da confirmação.
-          flushBroadcast();
-          reply(result || { ok: true });
+          if (result && typeof result.then === 'function') result.then((value) => { flushBroadcast(); reply(value || { ok: true }); }, (err) => reply({ error: err.message }));
+          else { flushBroadcast(); reply(result || { ok: true }); }
         } catch (err) {
           reply({ error: err.message });
         }
@@ -1034,10 +1148,12 @@ io.on('connection', (socket) => {
     const serverId = communities.choose(acc.id, payload.serverId || acc.lastServerId);
     online.set(socket.id, { accountId: acc.id, serverId, voice: null, voiceServerId: null, muted: false, deafened: false, sharing: false, camera: false });
     save();
-    ack({ token, accountId: acc.id, serverId, sid: socket.id, iceServers: iceServers(), permNames: PERMS, maxUploadMb: MAX_UPLOAD_MB, version: APP_VERSION });
+    ack({ token, accountId: acc.id, serverId, sid: socket.id, iceServers: iceServers(), permNames: PERMS, maxUploadMb: MAX_UPLOAD_MB, version: APP_VERSION, gifKey: process.env.KLIPY_KEY || null });
     // Páginas de antes da 0.99.3 não mandam a versão nem sabem mostrar o aviso de atualização.
     if (!payload.version) socket.emit('notice', 'Saiu uma versão nova do Resenhex. Aperte F5 para atualizar.');
     socket.emit('social', socialFor(acc));
+    // Alguém está ligando: o toque aparece também na sessão que acabou de entrar.
+    for (const ring of dmCalls.ringsFor(acc.id)) socket.emit('dm:ring', ring);
     broadcastState();
   }
 
@@ -1243,12 +1359,12 @@ io.on('connection', (socket) => {
     return { c, list, i, msg: list[i] };
   };
 
-  on('chat:send', (acc, { channel, text, attachments, replyTo }) => {
+  on('chat:send', (acc, { channel, text, attachments, replyTo, gif }) => {
     const c = chatTarget(acc, channel);
     text = String(text || '').trim().slice(0, 4000);
     const peer = c.dm ? dmPeer(acc, c.dm) : null;
     // Comandos do Mudae ($w, $mm…) viram resposta do bot, não mensagem.
-    const mudaeCmd = !c.dm && !attachments?.length && mudae.parse(text);
+    const mudaeCmd = !c.dm && !attachments?.length && !gif && mudae.parse(text);
     if (mudaeCmd) return mudaeCommand(acc, c, mudaeCmd, text.split(/\s/)[0].toLowerCase());
     if (!c.dm && !can(acc, 'SEND_MESSAGES')) fail('Você não tem permissão para enviar mensagens.');
     if (!c.dm && timedOut(acc)) fail('Você está de castigo.');
@@ -1258,7 +1374,8 @@ io.on('connection', (socket) => {
     if (ups.some((up) => !up || up.uploaderId !== acc.id || up.messageId
       || (up.serverId !== undefined && up.serverId !== (c.dm ? null : communities.currentId()))
       || (up.channelId && up.channelId !== c.id))) fail('Anexo inválido, envie o arquivo de novo.');
-    if (!text && !ups.length) return;
+    if (gif !== undefined) gif = cleanGif(gif);
+    if (!text && !ups.length && !gif) return;
     const list = (db.messages[c.id] ||= []);
     const replied = replyTo ? list.find((m) => m.id === replyTo) : null;
     const msg = { id: newId(), authorId: acc.id, text, ts: Date.now() };
@@ -1266,6 +1383,7 @@ io.on('connection', (socket) => {
       msg.attachments = ups.map((up) => ({ id: up.id, name: up.name, size: up.size, type: up.type, url: '/uploads/' + up.file }));
       ups.forEach((up) => (up.messageId = msg.id));
     }
+    if (gif) msg.gif = gif;
     if (replied) msg.replyTo = replied.id;
     msg.mentions = mentionsFor(acc, c, text, replied?.authorId);
     list.push(msg);
@@ -1283,9 +1401,10 @@ io.on('connection', (socket) => {
     const { c, list, msg } = findMessage(acc, channel, id);
     text = String(text || '').trim().slice(0, 4000);
     if (msg.authorId !== acc.id) fail('Só dá para editar suas mensagens.');
+    if (msg.call) fail('Não dá para editar o aviso de uma chamada.');
     if (c.dm) dmPeer(acc, c.dm);
     else if (timedOut(acc)) fail('Você está de castigo.');
-    if (!text && !msg.attachments?.length) return;
+    if (!text && !msg.attachments?.length && !msg.gif) return;
     msg.text = text;
     msg.edited = Date.now();
     msg.mentions = mentionsFor(acc, c, text, list.find((m) => m.id === msg.replyTo)?.authorId);
@@ -1486,10 +1605,16 @@ io.on('connection', (socket) => {
   });
 
   // --- Voz ---
+  on('voice:media', (_acc, { fallback } = {}) => {
+    if (!allow('voice-media:' + socket.id, 30, 60_000)) throw new Error('Muitas reconexões seguidas. Aguarde um minuto.');
+    return media.credentials(socket.id, { fallback: fallback === true });
+  }, { voice: true });
   // serverId é opcional: sem ele, a sala é do servidor que a pessoa está vendo. Com ele, dá para
   // voltar à chamada de outro servidor (ao reconectar ou ao ser movido enquanto olha outro servidor).
-  on('voice:join', (acc, { channel, serverId }) => {
+  on('voice:join', (acc, { channel, serverId, dm, silent, mediaVersion }) => {
+    if (media.enabled && mediaVersion !== 1) fail('Recarregue o Resenhex para usar o novo servidor de mídia.');
     const s = online.get(socket.id);
+    if (dm !== undefined) return joinDmCall(acc, s, dm, silent === true);
     const target = serverId === undefined ? s.serverId : serverId;
     if (target !== s.serverId && (typeof target !== 'string' || !communities.joined(acc.id, target))) fail('Canal não encontrado');
     return communities.run(target, () => {
@@ -1504,9 +1629,44 @@ io.on('connection', (socket) => {
       socket.join(room);
       s.voice = c.id;
       s.voiceServerId = target;
+      const dropped = dropOtherVoiceSessions(socket, acc.id);
       broadcastState();
-      return { peers };
+      return { peers: peers.filter((p) => !dropped.includes(p)) };
     });
+  });
+
+  // Chamada privada: entra na sala da conversa. Quem chega numa sala vazia começa a chamada e
+  // o amigo recebe o toque; quem chega com o outro lá dentro atende.
+  function joinDmCall(acc, s, dm, silent) {
+    const conversation = isDmId(dm) && db.dms[dm];
+    if (!conversation || !conversation.users.includes(acc.id)) fail('Conversa não encontrada');
+    if (!dmCallAllowed(dm, acc.id)) fail('Só dá para ligar para amigos.');
+    leaveVoice(socket);
+    const room = 'voice:' + dm;
+    const peers = [...(io.sockets.adapter.rooms.get(room) || [])];
+    socket.join(room);
+    s.voice = dm;
+    s.voiceServerId = null;
+    // A aba antiga sai depois desta entrar: com a conta ainda na sala, a chamada não acaba.
+    const dropped = dropOtherVoiceSessions(socket, acc.id);
+    dmCalls.joined(dm, acc.id, conversation.users.find((u) => u !== acc.id), { first: !peers.length, silent });
+    broadcastState();
+    return { peers: peers.filter((p) => !dropped.includes(p)) };
+  }
+
+  // Ligar de novo para quem não atendeu (só quem está na chamada, esperando).
+  on('dm:ring', (acc, { dm }) => {
+    const s = online.get(socket.id);
+    if (!isDmCall(s) || s.voice !== dm) fail('Entre na chamada para ligar.');
+    if (!allow('dm-ring:' + acc.id, 5, 60_000)) fail('Calma! Muitas ligações seguidas.');
+    const peer = db.dms[dm].users.find((u) => u !== acc.id);
+    if (roomAccounts(dm).includes(peer)) return;
+    dmCalls.ring(dm, acc.id, peer);
+  });
+
+  on('dm:ring:decline', (acc, { dm }) => {
+    const from = isDmId(dm) ? dmCalls.decline(dm, acc.id) : null;
+    if (from) emitToAccount(from, 'notice', `${acc.name} recusou a chamada.`);
   });
 
   on('voice:leave', () => {
@@ -1516,7 +1676,7 @@ io.on('connection', (socket) => {
 
   on('voice:state', (acc, { muted, deafened, sharing, paused, camera }) => {
     const s = online.get(socket.id);
-    const video = !!s.voice && can(acc, 'STREAM') && !timedOut(acc);
+    const video = !!s.voice && (isDmCall(s) || (can(acc, 'STREAM') && !timedOut(acc)));
     s.muted = !!muted;
     s.deafened = !!deafened;
     s.sharing = !!sharing && video;
@@ -1526,6 +1686,13 @@ io.on('connection', (socket) => {
     s.camera = !!camera && video;
     broadcastState();
   }, { voice: true });
+
+  // Quem assiste continua autorizado na sala de quem transmite (canal visível ou amizade, na privada).
+  const inSameRoom = (acc, source) => {
+    if (isDmCall(source)) return dmCallAllowed(source.voice, acc.id);
+    const channel = db.channels.find((c) => c.id === source.voice);
+    return !!channel && canView(acc, channel) && can(acc, 'CONNECT');
+  };
 
   // Watching is explicit, ephemeral and limited to the same authorized voice room.
   on('screen:watch', (acc, { target, watching, quality }) => {
@@ -1539,8 +1706,7 @@ io.on('connection', (socket) => {
       broadcastState();
       return;
     }
-    const channel = db.channels.find((c) => c.id === source?.voice);
-    if (!viewer.voice || !source?.sharing || viewer.voice !== source.voice || !channel || !canView(acc, channel) || !can(acc, 'CONNECT')) fail('Essa transmissão não está disponível nesta sala.');
+    if (!viewer.voice || !source?.sharing || viewer.voice !== source.voice || !inSameRoom(acc, source)) fail('Essa transmissão não está disponível nesta sala.');
     const demand = screenQuality(quality);
     viewer.watching ||= new Set();
     viewer.watching.add(target);
@@ -1554,9 +1720,8 @@ io.on('connection', (socket) => {
   // not into persistent state or a server-wide broadcast.
   on('screen:quality', (acc, { target, quality }) => {
     const viewer = online.get(socket.id), source = online.get(target);
-    const channel = db.channels.find((c) => c.id === source?.voice);
     if (!viewer.voice || !source?.sharing || !viewer.watching?.has(target) || viewer.voice !== source.voice
-        || !channel || !canView(acc, channel) || !can(acc, 'CONNECT')) fail('Essa transmissão não está disponível nesta sala.');
+        || !inSameRoom(acc, source)) fail('Essa transmissão não está disponível nesta sala.');
     const demand = screenQuality(quality);
     if (!allow('screen-quality:' + socket.id + ':' + target, 24, 5000)) fail('Aguarde antes de ajustar a transmissão novamente.');
     const previous = viewer.screenQuality?.get(target);
@@ -1569,10 +1734,14 @@ io.on('connection', (socket) => {
   // Efeito sonoro: todo mundo da sala toca o mesmo som.
   on('sound:play', (acc, { sound }) => {
     const s = online.get(socket.id);
-    if (!SOUNDBOARD.includes(sound) && !db.soundboard.some((s) => s.id === sound)) fail('Som desconhecido');
     if (!s.voice) fail('Entre numa sala de voz para usar efeitos sonoros.');
-    if (!can(acc, 'SOUNDBOARD')) fail('Você não tem permissão para usar efeitos sonoros.');
-    if (timedOut(acc)) fail('Você está de castigo.');
+    if (isDmCall(s)) {
+      if (!SOUNDBOARD.includes(sound)) fail('Som desconhecido');
+    } else {
+      if (!SOUNDBOARD.includes(sound) && !db.soundboard.some((s) => s.id === sound)) fail('Som desconhecido');
+      if (!can(acc, 'SOUNDBOARD')) fail('Você não tem permissão para usar efeitos sonoros.');
+      if (timedOut(acc)) fail('Você está de castigo.');
+    }
     if (!allow('sound:' + acc.id, 4, 10000)) fail('Calma! Muitos efeitos sonoros seguidos.');
     io.to('voice:' + s.voice).emit('sound', { sound, from: acc.id });
   }, { voice: true });
@@ -1590,6 +1759,7 @@ io.on('connection', (socket) => {
   const roomKey = () => {
     const s = online.get(socket.id);
     if (!s.voice) fail('Entre numa sala de voz para usar o DJ.');
+    if (isDmCall(s)) fail('O DJ não funciona em chamadas privadas.');
     return djKey(s.voiceServerId, s.voice);
   };
   const djUser = (acc) => {
@@ -1628,6 +1798,7 @@ io.on('connection', (socket) => {
     const from = online.get(socket.id);
     const target = online.get(to);
     if (!from || !target || !from.voice || from.voice !== target.voice || from.voiceServerId !== target.voiceServerId) return;
+    if (!media.allowsP2p(from.voiceServerId, from.voice)) return;
     io.to(to).emit('signal', { from: socket.id, data });
   });
 
@@ -1811,6 +1982,9 @@ function formatMinutes(m) {
   if (m < 1440) return `${Math.round(m / 60)} h`;
   return `${Math.round(m / 1440)} dia(s)`;
 }
+
+// Chamadas privadas abertas antes de reiniciar: quem estava nelas tem um minuto para voltar.
+setTimeout(() => dmCalls.sweep(Object.keys(db.dms)), 60_000).unref();
 
 server.listen(PORT, HOST, () => {
   console.log(`Resenhex rodando em http://${HOST}:${PORT}`);

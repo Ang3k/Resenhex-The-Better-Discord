@@ -67,6 +67,10 @@ let retryTimer = null;
 
 const isAppUrl = (url) => { try { return new URL(url).origin === ORIGIN; } catch { return false; } };
 const fromSite = (event) => isAppUrl(event.senderFrame?.url || '');
+ipcMain.handle('desktop:media-capabilities', (event) => {
+  if (!fromSite(event)) throw new Error('Origem não autorizada.');
+  return { videoEncode: app.getGPUFeatureStatus().video_encode || 'unknown' };
+});
 
 // ---------------- janela ----------------
 function createWindow(hidden) {

@@ -1,10 +1,12 @@
 // Fachadas da rua: volumes em planos diferentes, janelas recuadas e detalhes de escala.
 // As peças repetidas usam instâncias e compartilham o mapa de sombras da loja.
 import * as THREE from 'three';
+import { freezeStaticTransforms } from './geometria.mjs';
 
 export function createStreet({ plaster }) {
   const group = new THREE.Group();
   const batches = new Map();
+  let district = 'near';
   const materials = {
     plaster: new THREE.MeshStandardMaterial({ map: plaster, bumpMap: plaster, bumpScale: 0.016, roughness: 0.94 }),
     stone: new THREE.MeshStandardMaterial({ color: '#6c747b', roughness: 0.86 }),
@@ -19,8 +21,8 @@ export function createStreet({ plaster }) {
   const cylinderGeometry = new THREE.CylinderGeometry(1, 1, 1, 8);
   const part = new THREE.Object3D();
   function piece(material, dimensions, position, { color = '#ffffff', rotation = 0, cylinder = false } = {}) {
-    const key = material + (cylinder ? ':pipe' : ':box');
-    if (!batches.has(key)) batches.set(key, { material: materials[material], cylinder, pieces: [] });
+    const key = district + ':' + material + (cylinder ? ':pipe' : ':box');
+    if (!batches.has(key)) batches.set(key, { material: materials[material], cylinder, district, pieces: [] });
     part.position.set(...position); part.scale.set(...dimensions); part.rotation.set(0, 0, rotation); part.updateMatrix();
     batches.get(key).pieces.push({ matrix: part.matrix.clone(), color: new THREE.Color(color) });
   }
@@ -65,7 +67,17 @@ export function createStreet({ plaster }) {
     { x: -5.4, z: -4.9, w: 2.8, h: 5.9, d: 2.0, color: '#555b68', rows: 5, seed: 13 },
     { x: 5.55, z: -5.4, w: 2.65, h: 6.5, d: 2.0, color: '#53616a', rows: 6, seed: 19 },
   ];
+  // A rua continua além do palco, inclusive no enquadramento panorâmico.
+  // As fachadas distantes entram nos mesmos lotes, sem uma chamada por janela.
+  for (const side of [-1, 1]) {
+    for (let n = 0; n < 6; n++) {
+      buildings.push({ x: side * (7.15 + n * 3.5), z: -2.8 - (n % 3) * 0.65,
+        w: 3.6, h: 5.1 + ((n + (side > 0 ? 1 : 0)) % 3) * 0.65, d: 2.2,
+        color: side < 0 ? '#616467' : '#596775', rows: 4, seed: 25 + n * 7 + (side > 0 ? 3 : 0), district: `${side}:${Math.floor(n / 2)}` });
+    }
+  }
   for (const b of buildings) {
+    district = b.district || 'near';
     const front = b.z + b.d / 2;
     box('plaster', b.w, b.h, b.d, b.x, b.h / 2, b.z, { color: b.color });
     box('stone', b.w + 0.12, 0.16, b.d + 0.12, b.x, 0.17, b.z);
@@ -94,7 +106,23 @@ export function createStreet({ plaster }) {
     if (b.seed < 10) airConditioner(b.x - b.w * 0.22, b.h - 0.65, front + 0.01);
   }
 
+  // Calçada, meio-fio e sarjeta ligam as construções ao chão, sem terminar nas máquinas.
+  district = 'pavement';
+  for (const side of [-1, 1]) {
+    box('stone', 26, 0.1, 1.65, side * 16.05, 0.025, -1.0, { color: '#91909f' });
+    box('stone', 26, 0.13, 0.12, side * 16.05, 0.015, -0.12, { color: '#858694' });
+    for (let n = 0; n < 38; n++) {
+      box('recess', 0.012, 0.005, 1.65, side * (3.45 + n * 0.68), 0.078, -1.0);
+    }
+    for (let n = 0; n < 3; n++) {
+      const x = side * (4.15 + n * 3.4);
+      box('iron', 0.48, 0.018, 0.16, x, 0.012, 0.03);
+      for (let slat = 0; slat < 7; slat++) box('recess', 0.027, 0.004, 0.13, x - 0.18 + slat * 0.06, 0.023, 0.03);
+    }
+  }
+
   // Cabos altos e suportes ligam as fachadas; não cruzam o letreiro da loja.
+  district = 'near';
   const wireMaterial = materials.iron;
   for (const side of [-1, 1]) {
     const curve = new THREE.CatmullRomCurve3([
@@ -109,10 +137,14 @@ export function createStreet({ plaster }) {
   for (const batch of batches.values()) {
     const mesh = new THREE.InstancedMesh(batch.cylinder ? cylinderGeometry : boxGeometry, batch.material, batch.pieces.length);
     batch.pieces.forEach((p, i) => { mesh.setMatrixAt(i, p.matrix); mesh.setColorAt(i, p.color); });
-    mesh.castShadow = batch.material !== materials.glass;
+    // Os trechos externos não atingem os mapas de sombra da loja. Seus limites
+    // separados permitem descartar fachadas inteiras fora da câmera e do reflexo.
+    mesh.castShadow = batch.district === 'near' && batch.material !== materials.glass;
     mesh.receiveShadow = true;
+    mesh.userData.district = batch.district;
     mesh.computeBoundingSphere();
+    mesh.matrixAutoUpdate = false;
     group.add(mesh);
   }
-  return group;
+  return freezeStaticTransforms(group);
 }

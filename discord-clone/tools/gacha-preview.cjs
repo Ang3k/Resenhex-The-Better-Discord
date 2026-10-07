@@ -84,4 +84,5 @@ for(const button of document.querySelectorAll('[data-phase]'))button.onclick=()=
 function tick(){const t=now(),r=$('#rarity').value;if(running){$('#time').value=Math.round(t);if(t>=duration(r)&&!shown){shown=true;$('#card').checked=true;showCard();const a=gacha.cardAnchor(),box=$('.salon-stage').getBoundingClientRect(),c=$('.salon-card'),b=c.getBoundingClientRect();c.style.setProperty('--from-x',a.x-(b.left-box.left+b.width/2)+'px');c.style.setProperty('--from-y',a.y-(b.top-box.top+b.height/2)+'px');c.classList.add('emerging');c.onanimationend=()=>c.classList.remove('emerging')}}$('#status').textContent=resting?'Loja parada':state(r,t,{reduced:$('#reduced').checked}).phase+' · '+Math.round(t)+' ms';requestAnimationFrame(tick)}
 gacha.rest(null);$('#controls').disabled=false;$('#status').textContent='Cena pronta';requestAnimationFrame(tick);
 </script></html>`));
-app.listen(38147, '127.0.0.1', () => console.log('Prévia: http://127.0.0.1:38147/preview'));
+const port = Number(process.env.GACHA_PREVIEW_PORT) || 38147;
+app.listen(port, '127.0.0.1', () => console.log(`Prévia: http://127.0.0.1:${port}/preview`));

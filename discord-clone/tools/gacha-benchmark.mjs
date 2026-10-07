@@ -138,6 +138,7 @@ function profiler(config) {
   };
 }
 
+const selectedCase = new URLSearchParams(location.search).get('case');
 const cases = [
   { name: 'Salão desktop', width: 628, height: 366, pixelRatio: 1.5, quality: 3, effects: true },
   { name: 'Salão sem pós-efeitos', width: 628, height: 366, pixelRatio: 1.5, quality: 3, effects: false },
@@ -150,7 +151,7 @@ const cases = [
   { name: 'Celular — qualidade leve', width: 356, height: 488, pixelRatio: 1.5, quality: 1, effects: true },
   { name: 'Celular — queda de 3 para 1', width: 356, height: 488, pixelRatio: 1.5, quality: 3, effects: true, downgradeTo: 1 },
   { name: 'Prévia sem reflexo', width: 880, height: 480, pixelRatio: 1, quality: 2, effects: true },
-];
+].filter((config) => !selectedCase || config.name === selectedCase);
 let running = false;
 const report = { started: null, scenarios: [], resources: [], visibilityEvents: [], scope: 'Cena 3D isolada, sem fotos, áudios, chat ou catálogo do Salão. MB decimal. WebGL contabiliza alocações solicitadas, não a memória total do driver.', method:'Renderização manual em lotes de 16 quadros com sincronização da GPU entre lotes. CPU mede submissão e atualização da cena; GPU usa EXT_disjoint_timer_query_webgl2. Throughput é capacidade interna sem VSync, não FPS apresentados na tela.' };
 document.addEventListener('visibilitychange',()=>report.visibilityEvents.push({at:new Date().toISOString(),state:document.visibilityState}));

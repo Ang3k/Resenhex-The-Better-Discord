@@ -9,7 +9,7 @@
 #   2. powershell -ExecutionPolicy Bypass -File discord-clone\deploy\publicar-app.ps1
 # Para só gerar e conferir o instalador, sem enviar: acrescente -ValidateOnly
 param(
-    [string]$Server = '168.138.227.230',
+    [string]$Server = '146.235.41.73',
     [string]$KeyPath = (Join-Path $env:USERPROFILE '.ssh\resenhex-oracle-ed25519'),
     [switch]$SkipBuild,
     [switch]$ValidateOnly

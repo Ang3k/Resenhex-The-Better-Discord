@@ -1,0 +1,49 @@
+/* Seletor de GIFs (KLIPY) e o GIF dentro da mensagem. */
+#btn-gif.active { color: var(--text-strong); }
+
+#gif-picker {
+  position: fixed; z-index: 31; display: flex; flex-direction: column;
+  width: min(424px, calc(100vw - 16px)); height: min(460px, calc(100dvh - 16px));
+  background: var(--bg-floating); border: 1px solid var(--divider); border-radius: 12px;
+  box-shadow: 0 12px 32px rgba(0, 0, 0, .5); animation: pop .08s ease-out; overflow: hidden;
+}
+#gif-picker.hidden { display: none; }
+
+.gif-head { position: relative; padding: 12px 12px 8px; }
+.gif-search-icon { position: absolute; left: 22px; top: 50%; transform: translateY(-30%); color: var(--text-muted); display: flex; pointer-events: none; }
+.gif-search {
+  width: 100%; height: 36px; padding: 0 12px 0 34px; border: 0; border-radius: 8px;
+  background: var(--bg-input); color: var(--text); font: inherit; font-size: 14px; outline: none;
+}
+.gif-search::placeholder { color: var(--text-muted); }
+.gif-search:focus { box-shadow: 0 0 0 2px var(--brand); }
+.gif-search::-webkit-search-cancel-button { filter: grayscale(1); cursor: pointer; }
+
+.gif-body { flex: 1; min-height: 0; overflow-y: auto; padding: 0 8px 8px 12px; scrollbar-gutter: stable; }
+.gif-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; align-items: start; }
+.gif-col { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.gif-item {
+  display: block; width: 100%; padding: 0; border: 0; border-radius: 6px; overflow: hidden; cursor: pointer;
+  background-color: var(--bg-input); position: relative;
+}
+.gif-item img { display: block; width: 100%; height: 100%; object-fit: cover; }
+.gif-item::after { content: ''; position: absolute; inset: 0; border-radius: inherit; box-shadow: inset 0 0 0 2px transparent; transition: box-shadow .12s; }
+.gif-item:hover::after, .gif-item:focus-visible::after { box-shadow: inset 0 0 0 2px var(--brand); }
+.gif-item:focus-visible { outline: none; }
+
+.gif-status { display: flex; flex-direction: column; align-items: center; gap: 10px; padding: 32px 16px; color: var(--text-muted); font-size: 14px; text-align: center; }
+.gif-retry { border: 0; border-radius: 6px; padding: 6px 12px; background: var(--brand); color: #fff; font: inherit; font-size: 13px; font-weight: 600; cursor: pointer; }
+.gif-retry:hover { background: var(--brand-hover); }
+
+.gif-foot { padding: 6px 12px; border-top: 1px solid var(--divider); color: var(--text-muted); font-size: 11px; text-align: right; letter-spacing: .02em; }
+.gif-foot strong { color: var(--text); font-weight: 700; }
+
+/* GIF na mensagem: tamanho reservado pelo width/height do <img>, sem pular a conversa. */
+.att-gif { position: relative; display: inline-block; max-width: 100%; margin-top: 4px; border-radius: 8px; overflow: hidden; line-height: 0; background: var(--bg-input); }
+.att-gif img { display: block; max-width: 100%; height: auto; cursor: zoom-in; }
+.gif-badge {
+  position: absolute; left: 6px; top: 6px; padding: 2px 5px; border-radius: 4px; line-height: 1.3;
+  background: rgba(0, 0, 0, .6); color: #fff; font-size: 10px; font-weight: 800; letter-spacing: .04em;
+  opacity: 0; transition: opacity .12s; pointer-events: none;
+}
+.att-gif:hover .gif-badge { opacity: 1; }

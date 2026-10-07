@@ -4,8 +4,8 @@
 // As fotos vão direto do site de cada fonte para o navegador. Cada comunidade guarda
 // { claims, usage, favorites } e os limites são contados pelo relógio, sem nenhum timer rodando.
 const ROLLS_PER_HOUR = 10;
-const ROLL_RESET_MS = 60 * 60_000;
-const CLAIM_RESET_MS = 3 * 60 * 60_000;
+const ROLL_RESET_MS = 30 * 60_000;
+const CLAIM_RESET_MS = 30 * 60_000;
 const CLAIM_WINDOW_MS = 45_000;
 // Quanto a cápsula do Salão leva para abrir, por raridade: cai, balança uma vez por degrau de cor
 // (e o lendário ainda trava antes de dourar). Tem que bater com public/gacha/linha-do-tempo.mjs.
@@ -108,7 +108,7 @@ function createMudae({ catalog, now = Date.now, random = Math.random, refSize = 
   function roll(store, accountId, kind) {
     const u = usageOf(store, accountId);
     const left = rollsLeft(u);
-    if (!left) return { error: `A roleta é limitada a ${ROLLS_PER_HOUR} rolls por hora. Os rolls voltam em **${minutes(rollResetIn())}**.` };
+    if (!left) return { error: `A roleta é limitada a ${ROLLS_PER_HOUR} rolls a cada 30 minutos. Os rolls voltam em **${minutes(rollResetIn())}**.` };
     // Sem ninguém daquele gênero, a fonte pedida vale mais que o gênero ($ha sem husbando: qualquer anime).
     const list = [kind, 'm' + (kind?.[1] || ''), kind?.[0], 'm'].map((k) => pools[k]).find((l) => l?.length);
     const c = pick(list);
@@ -129,7 +129,7 @@ function createMudae({ catalog, now = Date.now, random = Math.random, refSize = 
     if (t - revealAt > CLAIM_WINDOW_MS) throw new Error('Tarde demais: o tempo para casar com esse personagem acabou.');
     if (rollerId && accountId !== rollerId && t < revealAt + priority) throw new Error('Quem rodou ainda tem prioridade. Espere um instante!');
     const u = usageOf(store, accountId);
-    if (!claimReady(u)) throw new Error(`Você já casou nas últimas horas. Dá para casar de novo em ${minutes(claimResetIn())}.`);
+    if (!claimReady(u)) throw new Error(`Você já casou nesta janela. Dá para casar de novo em ${minutes(claimResetIn())}.`);
     u.lastClaim = t;
     store.claims[charId] = { ownerId: accountId, at: t };
   }

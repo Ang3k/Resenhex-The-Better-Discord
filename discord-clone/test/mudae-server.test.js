@@ -160,7 +160,7 @@ test('Salão do Mudae: comandos só no Salão, giro, prioridade, roubo, presenç
   assert.match((await send(beto, '$w')).error, /permissão para usar o Mudae/);
 });
 
-test('Salão do Mudae: a cena 3D e o Three.js vêm do próprio servidor', async (t) => {
+test('Salão do Mudae: o app não carrega 3D e os módulos antigos permanecem separados', async (t) => {
   const { base } = await fixture(t);
   for (const url of ['/vendor/three/build/three.module.min.js', '/vendor/three/build/three.core.min.js',
     '/vendor/three/addons/postprocessing/UnrealBloomPass.js', '/vendor/three/addons/objects/Reflector.js',
@@ -171,13 +171,10 @@ test('Salão do Mudae: a cena 3D e o Three.js vêm do próprio servidor', async 
     await res.arrayBuffer();
   }
   const html = await (await fetch(base + '/')).text();
-  const map = html.match(/<script type="importmap">([\s\S]*?)<\/script>/);
-  assert.ok(map, 'index.html precisa do import map');
-  const { imports } = JSON.parse(map[1]);
-  for (const url of [imports.three, imports['three/addons/'] + 'postprocessing/OutputPass.js']) {
-    const res = await fetch(base + url);
-    assert.equal(res.status, 200, url);
-    assert.match(res.headers.get('content-type'), /javascript/, url);
-    await res.arrayBuffer();
-  }
+  assert.doesNotMatch(html, /type="importmap"|vendor\/three/, 'o app não referencia Three.js');
+  const salon = await (await fetch(base + '/mudae-salao.js')).text();
+  assert.doesNotMatch(salon, /import\s*\(|\/gacha\/|WebGL/, 'o Salão não carrega a cena 3D');
+  const css = await (await fetch(base + '/mudae-salao.css')).text();
+  assert.match(css, /\.salon-stage\[data-rarity=legendary\] \{ --stage-color: var\(--rarity-legendary\); \}/, 'o palco ganha a cor da raridade');
+  assert.doesNotMatch(css, /#111216/, 'o palco usa as cores do tema, não um fundo preto fixo');
 });

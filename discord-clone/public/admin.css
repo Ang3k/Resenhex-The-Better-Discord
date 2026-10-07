@@ -33,15 +33,20 @@
 
 /* Botões */
 #server-settings .btn-primary, #server-settings .admin-content .btn-primary, #server-settings .btn-save {
-  background: var(--brand); color: #fff; padding: 9px 16px; border-radius: 6px; font-size: 14px; font-weight: 600; white-space: nowrap; transition: background .15s;
+  display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 40px; background: var(--brand); color: #fff; padding: 0 16px; border-radius: 10px; font-size: 14px; font-weight: 600; white-space: nowrap; box-shadow: 0 4px 14px color-mix(in srgb, var(--brand) 22%, transparent); transition: background .15s, transform .12s, box-shadow .15s;
 }
 #server-settings .btn-primary:hover:not(:disabled), #server-settings .btn-save:hover:not(:disabled) { background: var(--brand-hover); }
-#server-settings .admin-content .btn-secondary { padding: 9px 16px; border-radius: 6px; font-size: 14px; font-weight: 600; white-space: nowrap; background: var(--hover-strong); color: var(--text-strong); box-shadow: inset 0 0 0 1px var(--divider); transition: background .15s; }
+#server-settings .admin-content .btn-secondary { display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 40px; padding: 0 16px; border-radius: 10px; font-size: 14px; font-weight: 600; white-space: nowrap; background: var(--hover-strong); color: var(--text-strong); box-shadow: inset 0 0 0 1px var(--divider); transition: background .15s, transform .12s; }
 #server-settings .admin-content .btn-secondary:hover:not(:disabled) { background: color-mix(in srgb, var(--text) 14%, transparent); }
-#server-settings .admin-content .btn-danger-outline { border: 1px solid var(--red); color: var(--red); padding: 8px 14px; font-size: 14px; font-weight: 600; white-space: nowrap; transition: background .15s, color .15s; }
+#server-settings .admin-content .btn-danger-outline { display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 40px; border: 1px solid var(--red); border-radius: 10px; color: var(--red); padding: 0 16px; font-size: 14px; font-weight: 600; white-space: nowrap; transition: background .15s, color .15s, transform .12s; }
 #server-settings .admin-content .btn-danger-outline:hover:not(:disabled) { background: var(--red-dark); color: #fff; }
 #server-settings .link-btn, .confirm-card .btn-ghost { background: none; border: 0; color: var(--text); font-size: 14px; font-weight: 500; padding: 6px 10px; }
 #server-settings .link-btn:hover { text-decoration: underline; }
+#server-settings .admin-content .btn-ghost { display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 40px; padding: 0 14px; border-radius: 10px; color: var(--interactive); font-size: 14px; font-weight: 600; transition: background .15s, color .15s, transform .12s; }
+#server-settings .admin-content .btn-ghost:hover:not(:disabled) { background: var(--hover-strong); color: var(--text-strong); }
+#server-settings .admin-content .btn-ghost.danger { color: var(--red); }
+#server-settings :is(.btn-primary, .btn-save, .btn-secondary, .btn-danger-outline, .btn-ghost):active:not(:disabled) { transform: scale(.97); }
+#server-settings :is(.btn-primary, .btn-save, .btn-secondary, .btn-danger-outline, .btn-ghost):disabled { opacity: .45; box-shadow: none; }
 #server-settings .icon-btn { display: grid; place-items: center; width: 32px; height: 32px; border-radius: 50%; color: var(--interactive); background: var(--bg-panel); transition: background .15s, color .15s; }
 #server-settings .admin-content .icon-btn:hover:not(:disabled) { background: var(--hover-strong); color: var(--text-strong); }
 #server-settings .admin-content .icon-btn.danger:hover:not(:disabled) { background: var(--red-dark); color: #fff; }
@@ -80,9 +85,9 @@
 .col-actions.wide { width: auto; }
 .admin-row .col-actions .icon-btn { opacity: 0; }
 .admin-row:hover .col-actions .icon-btn, .admin-row:focus-within .col-actions .icon-btn { opacity: 1; }
-.admin-badge { display: inline-flex; align-items: center; gap: 4px; padding: 2px 8px; border-radius: 4px; background: var(--bg-panel); color: var(--text-muted); font-size: 11px; font-weight: 600; }
+.admin-badge { display: inline-flex; align-items: center; gap: 4px; padding: 3px 8px; border: 1px solid var(--divider); border-radius: 999px; background: var(--bg-panel); color: var(--text-muted); font-size: 11px; font-weight: 600; }
 .admin-badge.private { color: var(--interactive); }
-.role-pill { display: inline-flex; align-items: center; gap: 5px; padding: 2px 8px 2px 6px; border-radius: 4px; background: var(--bg-panel); font-size: 12px; font-weight: 500; color: var(--text); }
+.role-pill { display: inline-flex; align-items: center; gap: 5px; padding: 3px 8px 3px 6px; border: 1px solid var(--divider); border-radius: 999px; background: var(--bg-panel); font-size: 12px; font-weight: 500; color: var(--text); }
 .dot { width: 12px; height: 12px; border-radius: 50%; flex-shrink: 0; display: inline-block; }
 .member-cell { flex: 1; display: flex; align-items: center; gap: 12px; min-width: 0; }
 .member-cell .avatar, .admin-member-line .avatar, .role-preview .avatar { width: 36px; height: 36px; font-size: 14px; flex-shrink: 0; }
@@ -174,11 +179,11 @@
 .input-prefix:focus-within { box-shadow: 0 0 0 2px var(--brand); }
 
 /* Barra de alterações não salvas */
-.admin-savebar { display: flex; align-items: center; gap: 12px; padding: 10px 10px 10px 16px; border-radius: 8px; background: var(--bg-floating); box-shadow: 0 8px 24px #0006; animation: savebar-in .2s ease-out; }
+.admin-savebar { display: flex; align-items: center; gap: 12px; padding: 12px; border: 1px solid var(--divider); border-radius: 10px; background: var(--bg-panel); box-shadow: 0 6px 20px #0002; animation: savebar-in .2s ease-out; }
 .admin-savebar.hidden { display: none; }
-.admin-savebar span { flex: 1; font-size: 14px; font-weight: 500; color: var(--text-strong); }
-#server-settings .admin-savebar .btn-save { background: var(--green); }
-#server-settings .admin-savebar .btn-save:hover:not(:disabled) { background: #1a8b4a; }
+.admin-savebar span { flex: 1; font-size: 13px; font-weight: 500; color: var(--text-strong); }
+#server-settings .admin-savebar .btn-save { background: var(--brand); }
+#server-settings .admin-savebar .btn-save:hover:not(:disabled) { background: var(--brand-hover); }
 .admin-savebar.shake { animation: savebar-shake .45s; background: var(--red-dark); }
 .admin-savebar.shake span { color: #fff; }
 @keyframes savebar-in { from { transform: translateY(12px); opacity: 0; } }

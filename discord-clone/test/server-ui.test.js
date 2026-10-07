@@ -43,7 +43,7 @@ async function ui(t, invited = false, options = {}) {
         if (event === 'auth') {
           if (payload.token && options.expiredToken) { callback?.({ error: 'Sessão expirada.' }); return; }
           if (payload.mode === 'register' && payload.confirmPassword !== payload.password) { callback?.({ error: 'As senhas não coincidem.' }); return; }
-          result = { token: 'fake-ui-token', accountId: userId, sid: 'ui-socket', iceServers: [], permNames: {}, maxUploadMb: 25 };
+          result = { token: 'fake-ui-token', accountId: userId, sid: 'ui-socket', iceServers: [], permNames: {}, maxUploadMb: 25, gifKey: options.gifKey };
           callback?.(result); handlers.get('social')?.({ friends: [], incoming: [], outgoing: [], blocked: [], dms: [] }); push(); return;
         }
         if (event === 'server:create') {
@@ -84,7 +84,7 @@ async function ui(t, invited = false, options = {}) {
   let copied = '';
   Object.defineProperty(w.navigator, 'clipboard', { value: { writeText: async (text) => { copied = text; } } });
   options.setup?.(w);
-  for (const file of ['icons.js', 'format.js', 'sounds.js', 'media-policy.js', 'keybinds.js', 'settings.js', 'photo-editor.js', 'media-session.js', 'mobile-stream.js', 'stream-zoom.js', 'changelog.js', 'channel-navigation.js', 'music.js', 'mudae.js', 'mudae-salao.js', 'app.js', 'landing.js']) w.eval(fs.readFileSync(path.join(publicDir, file), 'utf8'));
+  for (const file of ['icons.js', 'format.js', 'sounds.js', 'media-policy.js', 'keybinds.js', 'settings.js', 'photo-editor.js', 'media-session.js', 'media-sfu.js', 'mobile-stream.js', 'stream-zoom.js', 'changelog.js', 'confetti.js', 'channel-navigation.js', 'music.js', 'mudae.js', 'mudae-salao.js', 'dm-call.js', 'gif-picker.js', 'app.js', 'landing.js']) w.eval(fs.readFileSync(path.join(publicDir, file), 'utf8'));
   w.localStorage.setItem('seenVersion', w.APP_VERSION);
   t.after(() => { dom.window.close(); assert.deepEqual(errors.map((e) => e.message), []); });
   await settle();
@@ -98,8 +98,221 @@ async function ui(t, invited = false, options = {}) {
     d.querySelector('#login-confirm-password').value = confirmPassword;
     d.querySelector('#login-form').dispatchEvent(new w.Event('submit', { bubbles: true, cancelable: true })); await settle();
   }
-  return { w, d, events, clickText, register, releaseConfig, deliver: (event, payload) => handlers.get(event)?.(payload), get copied() { return copied; } };
+  return { w, d, events, clickText, register, releaseConfig, deliver: (event, payload) => handlers.get(event)?.(payload),
+    setSnapshot: (next) => { current = structuredClone(next); push(); }, get copied() { return copied; } };
 }
+
+test('transmissões simultâneas usam grade, alternam destaque e preservam os players', async (t) => {
+  const app = await ui(t, false, {
+    storage: { noiseMode: 'off' }, reply: { 'voice:join': () => ({ peers: [] }) },
+    setup(w) {
+      Object.defineProperty(w.navigator, 'mediaDevices', { value: { getUserMedia: async () => ({ getTracks: () => [], getAudioTracks: () => [] }) } });
+    },
+  });
+  await app.register();
+  app.w.Sounds.play = () => {};
+  const s = snapshot('server-1', 'Turma', [{ id: 'server-1', name: 'Turma', owner: true }]);
+  s.categories.push({ id: 'voice', name: 'Voz' });
+  s.channels.push({ id: 'room-1', name: 'Sala 1', type: 'voice', categoryId: 'voice', allowedRoles: [] });
+  s.members.push({ ...person, id: 'b'.repeat(16), name: 'Bruno' }, { ...person, id: 'c'.repeat(16), name: 'Clara' });
+  s.voice = s.members.map((m, i) => ({ accountId: m.id, sid: i ? 'remote-' + i : 'ui-socket', channel: 'room-1', sharing: i > 0 }));
+  app.setSnapshot(s); await settle();
+  app.d.querySelector('[data-channel-id="room-1"] .channel-entry').click(); await settle();
+  const stage = app.d.querySelector('#stage');
+  const primary = app.d.querySelector('#stage-primary');
+  const strip = app.d.querySelector('#stage-strip');
+  const first = primary.querySelector('[data-key="screen-remote-1"]');
+  const second = primary.querySelector('[data-key="screen-remote-2"]');
+  const video = first.querySelector('video');
+  assert.equal(stage.dataset.layout, 'streams');
+  assert.equal(primary.querySelectorAll('.screen').length, 2);
+  assert.equal(stage.querySelectorAll('.focus').length, 0);
+  assert.equal(strip.querySelectorAll('.tile').length, 3);
+  assert.equal(app.d.querySelector('#stage-summary').textContent, '2 transmissões');
+  first.click();
+  assert.equal(stage.dataset.layout, 'focus');
+  assert.equal(primary.children.length, 1);
+  assert.equal(primary.firstElementChild, first);
+  assert.equal(second.parentElement, strip);
+  second.dispatchEvent(new app.w.KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+  assert.equal(primary.firstElementChild, second);
+  assert.equal(stage.querySelectorAll('.focus').length, 1);
+  app.d.querySelector('#stage-grid').click();
+  assert.equal(stage.dataset.layout, 'streams');
+  assert.equal(primary.firstElementChild, first, 'a grade mantém a ordem dos participantes');
+  assert.equal(first.querySelector('video'), video, 'trocar o layout reutiliza o player');
+  app.d.querySelector('#stage-focus').click();
+  assert.equal(primary.firstElementChild, first);
+  s.voice[1].sharing = false;
+  app.setSnapshot(s); await settle();
+  assert.equal(stage.querySelector('[data-key="screen-remote-1"]'), null);
+  assert.equal(primary.firstElementChild, second, 'quando a tela destacada encerra, destaca a restante');
+  app.d.querySelector('#stage-grid').click();
+  assert.equal(stage.dataset.layout, 'streams', 'a grade também funciona com uma tela');
+  s.voice[2].sharing = false;
+  app.setSnapshot(s); await settle();
+  assert.equal(stage.dataset.layout, 'people');
+  assert.equal(app.d.querySelector('#stage-toolbar').classList.contains('hidden'), true);
+  assert.equal(primary.querySelectorAll('.tile').length, 3);
+  assert.equal(app.events.filter((e) => e.event === 'screen:watch').length, 0, 'o layout não altera as assinaturas de vídeo');
+});
+
+test('tempo de call acompanha entrada, navegação e reconexão, e zera ao sair', async (t) => {
+  let now = 1_800_000_000_000;
+  let nextTimer = 0;
+  const timers = new Map();
+  const app = await ui(t, false, {
+    storage: { noiseMode: 'off' }, reply: { 'voice:join': () => ({ peers: [] }) },
+    setup(w) {
+      w.Date.now = () => now;
+      w.setInterval = (run, delay) => { const id = ++nextTimer; timers.set(id, { run, delay }); return id; };
+      w.clearInterval = (id) => timers.delete(id);
+      Object.defineProperty(w.navigator, 'mediaDevices', { value: { getUserMedia: async () => ({ getTracks: () => [], getAudioTracks: () => [] }) } });
+    },
+  });
+  await app.register();
+  app.w.Sounds.play = () => {};
+  const s = snapshot('server-1', 'Turma', [{ id: 'server-1', name: 'Turma', owner: true }]);
+  const room = { id: 'room-1', name: 'Sala 1', type: 'voice', categoryId: 'voice', allowedRoles: [] };
+  s.categories.push({ id: 'voice', name: 'Voz' });
+  s.channels.push(room);
+  app.setSnapshot(s); await settle();
+  const panel = app.d.querySelector('#voice-panel');
+  const timer = app.d.querySelector('#btn-return-call [data-call-time]');
+  const headerTimer = () => app.d.querySelector('#header-title [data-call-time]');
+  const tick = (ms) => {
+    now += ms;
+    for (const { run, delay } of [...timers.values()]) if (delay === 1000) run();
+  };
+  assert.equal(panel.classList.contains('hidden'), true);
+  app.d.querySelector('[data-channel-id="room-1"] .channel-entry').click(); await settle();
+  assert.equal(panel.classList.contains('hidden'), false);
+  assert.equal(timer.textContent, '00:00');
+  tick(65_000);
+  assert.equal(timer.textContent, '01:05');
+  assert.equal(timer.dateTime, 'PT65S');
+  assert.equal(headerTimer()?.textContent, '01:05', 'o palco mostra o tempo no cabeçalho');
+  app.d.querySelector('[data-channel-id="server-1-chat"] .channel-entry').click(); await settle();
+  app.d.querySelector('#btn-mute').click();
+  tick(35_000);
+  assert.equal(timer.textContent, '01:40');
+  assert.equal(headerTimer(), null, 'fora do palco o tempo fica no botão de voltar à chamada');
+  assert.equal(app.d.querySelector('#btn-return-call').classList.contains('hidden'), false);
+  app.setSnapshot({ ...snapshot('server-2', 'Outra turma', []), call: {
+    serverId: s.serverId, serverName: s.serverName, channel: room, members: s.members,
+    voice: [], myPerms: s.myPerms, soundboard: [],
+  } }); await settle();
+  tick(3_500_000);
+  assert.equal(timer.textContent, '01:00:00', 'trocar de servidor mantém a chamada e o contador');
+  app.deliver('disconnect', 'transport close');
+  assert.equal(panel.classList.contains('hidden'), true);
+  now += 5000;
+  app.deliver('connect'); await settle();
+  assert.equal(panel.classList.contains('hidden'), false);
+  assert.equal(timer.textContent, '01:00:05', 'reconectar preserva o início da chamada');
+  app.d.querySelector('#btn-leave').click();
+  assert.equal(panel.classList.contains('hidden'), true);
+  tick(5000);
+  assert.equal(timer.textContent, '00:00');
+  app.setSnapshot(s); await settle();
+  app.d.querySelector('[data-channel-id="room-1"] .channel-entry').click(); await settle();
+  assert.equal(timer.textContent, '00:00');
+  tick(1000);
+  assert.equal(timer.textContent, '00:01', 'uma nova chamada começa do zero');
+});
+
+test('aesthetic chat: deleting messages uses app confirmation and preserves Shift shortcut', async (t) => {
+  const app = await ui(t);
+  await app.register();
+  app.deliver('state', snapshot('server-1', 'Turma', [{ id: 'server-1', name: 'Turma', owner: true }]));
+  await settle();
+  app.deliver('chat:message', { channel: 'server-1-chat', msg: { id: 'audit-message', authorId: userId, text: 'Mensagem de teste', ts: Date.now() } });
+  await settle();
+  const remove = app.d.querySelector('[data-id="audit-message"] .msg-actions .danger');
+  assert.ok(remove);
+  remove.click();
+  assert.equal(app.d.querySelector('.confirm-card h2').textContent, 'Apagar mensagem');
+  assert.equal(app.events.filter(e => e.event === 'chat:delete').length, 0);
+  app.d.querySelector('.confirm-actions .btn-ghost').click(); await settle();
+  assert.equal(app.d.querySelector('.confirm-overlay'), null);
+  assert.equal(app.events.filter(e => e.event === 'chat:delete').length, 0);
+  remove.click(); app.d.querySelector('.confirm-actions .btn-danger').click(); await settle();
+  assert.deepEqual(app.events.filter(e => e.event === 'chat:delete').map(e => ({ ...e.payload })), [{ channel: 'server-1-chat', id: 'audit-message' }]);
+  remove.dispatchEvent(new app.w.MouseEvent('click', { bubbles: true, shiftKey: true })); await settle();
+  assert.equal(app.d.querySelector('.confirm-overlay'), null);
+  assert.equal(app.events.filter(e => e.event === 'chat:delete').length, 2);
+});
+
+test('aesthetic chat: emoji popup stays within viewport and selection enters composer', async (t) => {
+  const app = await ui(t);
+  await app.register();
+  app.deliver('state', snapshot('server-1', 'Turma', [{ id: 'server-1', name: 'Turma', owner: true }]));
+  await settle();
+  Object.defineProperty(app.w, 'innerWidth', { value: 320, configurable: true });
+  Object.defineProperty(app.w, 'innerHeight', { value: 240, configurable: true });
+  const picker = app.d.querySelector('#emoji-picker');
+  picker.getBoundingClientRect = () => ({ width: 304, height: 200 });
+  app.d.querySelector('#btn-emoji').getBoundingClientRect = () => ({ right: 310, top: 180, bottom: 220 });
+  app.d.querySelector('#btn-emoji').click();
+  assert.equal(picker.style.left, '8px');
+  assert.equal(picker.style.top, '32px');
+  assert.equal(picker.querySelector('.emoji-title').textContent, 'Escolha um emoji');
+  const emoji = picker.querySelector('button').textContent;
+  picker.querySelector('button').click();
+  assert.ok(app.d.querySelector('#chat-input').value.includes(emoji));
+  assert.equal(picker.classList.contains('hidden'), true);
+});
+
+test('GIF: botão só com chave, painel busca no KLIPY e o GIF escolhido vai como mensagem', async (t) => {
+  const semChave = await ui(t);
+  await semChave.register();
+  assert.equal(semChave.d.querySelector('#btn-gif').classList.contains('hidden'), true);
+
+  const pedidos = [];
+  const media = (n) => ({ url: `https://static.klipy.com/ii/x/${n}`, width: 200, height: 100 });
+  const item = (slug) => ({ id: 1, slug, title: 'Gato ' + slug, type: 'gif', file: { sm: { gif: media(slug + '-sm.gif'), webp: media(slug + '-sm.webp') }, md: { gif: media(slug + '.gif'), webp: media(slug + '.webp') } } });
+  const app = await ui(t, false, {
+    gifKey: 'chave-ui',
+    setup(w) {
+      const original = w.fetch;
+      w.fetch = async (url) => {
+        if (!String(url).startsWith('https://api.klipy.com/')) return original(url);
+        pedidos.push(String(url));
+        return { ok: true, status: 200, json: async () => ({ result: true, data: { data: [item('a'), item('b'), { type: 'ad' }], has_next: false } }) };
+      };
+    },
+  });
+  await app.register();
+  app.deliver('state', snapshot('server-1', 'Turma', [{ id: 'server-1', name: 'Turma', owner: true }]));
+  await settle();
+  const btn = app.d.querySelector('#btn-gif');
+  assert.equal(btn.classList.contains('hidden'), false);
+  btn.click(); await settle();
+  const picker = app.d.querySelector('#gif-picker');
+  assert.equal(picker.classList.contains('hidden'), false);
+  assert.equal(picker.querySelector('.gif-search').placeholder, 'Pesquisar no KLIPY');
+  assert.match(pedidos[0], /^https:\/\/api\.klipy\.com\/api\/v1\/chave-ui\/gifs\/trending\?/);
+  assert.match(pedidos[0], new RegExp('customer_id=' + userId));
+  assert.equal(picker.querySelectorAll('.gif-item').length, 2);
+
+  // Fechar e abrir de novo não gasta outra busca.
+  btn.click(); btn.click(); await settle();
+  assert.equal(pedidos.length, 1);
+
+  picker.querySelectorAll('.gif-item')[1].click(); await settle();
+  assert.equal(picker.classList.contains('hidden'), true);
+  const sent = app.events.filter((e) => e.event === 'chat:send').at(-1).payload;
+  assert.deepEqual({ ...sent.gif }, { slug: 'b', title: 'Gato b', url: 'https://static.klipy.com/ii/x/b.gif', webp: 'https://static.klipy.com/ii/x/b.webp', width: 200, height: 100 });
+  assert.equal(sent.channel, 'server-1-chat');
+
+  // Mensagem com GIF aparece como imagem do tamanho certo.
+  app.deliver('chat:message', { channel: 'server-1-chat', msg: { id: 'm-gif', authorId: userId, text: '', ts: Date.now(), gif: sent.gif } });
+  await settle();
+  const img = app.d.querySelector('[data-id="m-gif"] .att-gif img');
+  assert.ok(img, 'GIF não apareceu na conversa');
+  assert.equal(img.getAttribute('src'), 'https://static.klipy.com/ii/x/b.webp');
+  assert.equal(img.width, 200);
+});
 
 test('first visit shows the home; login, back and forward preserve the chosen screen and focus', async (t) => {
   const app = await ui(t);
@@ -333,8 +546,10 @@ test('profile background drafts cancel, discard, retry uploads and remove withou
   assert.match(draftUrl, /^blob:/);
   assert.equal(requests.length, 0);
   assert.equal(d.querySelector('#profile-preview-bg img').getAttribute('src'), draftUrl);
+  assert.equal(d.querySelector('#profile-background-thumb img').getAttribute('src'), draftUrl);
   d.querySelector('#settings-discard').click(); await settle();
   assert.equal(d.querySelector('#profile-preview-bg img').getAttribute('src'), me.backgroundUrl);
+  assert.equal(d.querySelector('#profile-background-thumb img').getAttribute('src'), me.backgroundUrl);
   assert.ok(revoked.includes(draftUrl));
 
   await select();
@@ -365,6 +580,8 @@ test('profile background drafts cancel, discard, retry uploads and remove withou
   assert.equal(me.backgroundUrl, null);
   assert.equal(me.backgroundCrop, null);
   assert.equal(d.querySelector('#profile-preview-bg img'), null);
+  assert.equal(d.querySelector('#profile-background-thumb img'), null);
+  assert.equal(d.querySelector('#profile-banner-thumb img').getAttribute('src'), me.bannerUrl);
   assert.equal(d.querySelector('#profile-preview-banner img').getAttribute('src'), me.bannerUrl);
 });
 
@@ -505,7 +722,7 @@ test('Mudae: card do roll com botão de casar, dono depois do claim e resposta s
   input.dispatchEvent(new app.w.KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true })); await settle();
   assert.deepEqual(last(), { event: 'chat:send', payload: { channel: 'server-1-chat', text: '$tu', attachments: [] } });
   const only = app.d.querySelector('.msg.ephemeral');
-  assert.match(only.textContent, /Você tem 3 de 10 rolls nesta hora\. Eles voltam em 10 min\./);
+  assert.match(only.textContent, /Você tem 3 de 10 rolls nesta janela de 30 minutos\. Eles voltam em 10 min\./);
   assert.match(only.textContent, /pode casar/);
   assert.match(only.textContent, /Só você pode ver esta mensagem/);
   [...only.querySelectorAll('button')].find((b) => b.textContent === 'Ignorar').click(); await settle();
@@ -535,8 +752,8 @@ test('Salão do Mudae: tela própria com palco, mesa ao vivo, presença, álbum 
   assert.deepEqual([...app.d.querySelectorAll('.salon-tab')].map((b) => b.textContent), ['Mesa', 'Meu harem', 'Ranking']);
   assert.equal(app.d.querySelector('.salon-status').textContent, '9/10 rolls · casamento disponível 💍');
   assert.match(app.d.querySelector('.salon-stage-caption').textContent, /Rode para começar/);
-  assert.ok(app.d.querySelector('.salon-stage > .salon-gacha'), 'camada da cena 3D no fundo do palco');
-  assert.equal(app.d.querySelector('.salon-stage').classList.contains('gacha'), false, 'sem WebGL fica a roleta de fotos');
+  assert.equal(app.d.querySelector('.salon-gacha'), null, 'o palco não cria a camada 3D');
+  assert.equal(app.d.querySelector('.salon-stage canvas'), null, 'o fundo não usa canvas');
 
   // Um roll de outra pessoa chega com o palco livre: vai para o palco e para a mesa ao vivo.
   const now = Date.now();
@@ -578,14 +795,19 @@ test('Salão do Mudae: tela própria com palco, mesa ao vivo, presença, álbum 
   assert.equal(app.d.querySelector('#salon-side-tabs'), null);
 });
 
-test('Salão do Mudae: se a cena 3D não carregar, o palco segue com a revelação de sempre', async (t) => {
+test('Salão do Mudae: mesmo com WebGL disponível, o palco usa a revelação sem carregar 3D', async (t) => {
   const warnings = [];
+  let webglContexts = 0;
   const app = await ui(t, false, {
-    // Navegador "com WebGL2", mas o import() da cena falha: dentro do eval do jsdom o Node resolve /gacha/cena.mjs
-    // a partir da raiz do disco (ERR_MODULE_NOT_FOUND). Tem que cair na roleta e avisar no console.
+    // A capacidade de usar WebGL não deve ativar a antiga cena nem tentar carregá-la.
     setup: (w) => {
       w.WebGL2RenderingContext = function WebGL2RenderingContext() {};
       w.console.warn = (...args) => warnings.push(args.map(String).join(' '));
+      const getContext = w.HTMLCanvasElement.prototype.getContext;
+      w.HTMLCanvasElement.prototype.getContext = function (kind, ...args) {
+        if (String(kind).includes('webgl')) { webglContexts++; return null; }
+        return getContext.call(this, kind, ...args);
+      };
     },
     reply: { 'mudae:presence': () => ({ ok: true, rollsLeft: 9, rollsMax: 10, rollResetIn: 600_000, claimReady: true, claimResetIn: 0 }), 'mudae:profile': () => ({ summary: null }) },
   });
@@ -599,7 +821,9 @@ test('Salão do Mudae: se a cena 3D não carregar, o palco segue com a revelaç�
   app.deliver('state', st); await settle();
   [...app.d.querySelectorAll('.channel-entry')].find((b) => b.textContent.includes('salão-mudae')).click(); await settle(); await settle();
   assert.equal(app.d.querySelector('.salon-stage').classList.contains('gacha'), false);
-  assert.ok(warnings.some((text) => text.includes('cena 3D indisponível')), 'a carga da cena falhou e caiu na roleta');
+  assert.equal(app.d.querySelector('.salon-gacha'), null);
+  assert.equal(webglContexts, 0, 'não solicita contexto WebGL');
+  assert.equal(warnings.length, 0, 'não tenta importar a antiga cena 3D');
 
   const now = Date.now();
   const card = { id: 176754, name: 'Frieren', series: 'Frieren', image: 'https://s4.anilist.co/x.png', value: 1149, rank: 15, rarity: 'epic' };

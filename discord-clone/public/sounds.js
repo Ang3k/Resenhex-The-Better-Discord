@@ -17,7 +17,6 @@ window.Sounds = (() => {
     deafen: [[392, 0, 0.08], [262, 0.07, 0.12]],
     undeafen: [[262, 0, 0.08], [392, 0.07, 0.12]],
     stream: [[523, 0, 0.08], [659, 0.07, 0.08], [784, 0.14, 0.12]],
-    mention: [[988, 0, 0.08], [1319, 0.08, 0.16]],
     message: [[740, 0, 0.07]],
     // Salão do Mudae: tique da roleta, revelação por raridade, casamento e a fanfarra do lendário.
     mudaeTick: [[1568, 0, 0.025]],
@@ -34,13 +33,70 @@ window.Sounds = (() => {
     gachaPop: [[784, 0, 0.04], [1568, 0.03, 0.12]],
   };
 
+  // Sons de notificação com timbre de sino de vidro: cada nota soma alguns harmônicos que somem
+  // mais rápido que a fundamental, passa por um filtro que tira o brilho áspero e ganha um eco curto.
+  // [frequência em Hz, início em s, duração do decaimento em s, volume relativo]
+  const CHIMES = {
+    mention: [[784, 0, 0.32, 0.8], [1175, 0.085, 0.75, 1]],
+    // Chamada privada: o toque de quem recebe (duas subidas, como um telefone) e a espera de quem liga.
+    ring: [[659, 0, 0.3, 0.75], [988, 0.14, 0.55, 0.9], [659, 0.62, 0.3, 0.75], [988, 0.76, 0.75, 0.9]],
+    ringback: [[523, 0, 0.9, 0.45], [659, 0.02, 0.9, 0.3]],
+  };
+  const PARTIALS = [[1, 1, 1], [2, 0.22, 0.45], [3, 0.07, 0.3], [4.2, 0.03, 0.18]]; // [múltiplo, volume, fração do decaimento]
+
+  function chime(c, out, notes, at) {
+    const bus = c.createGain();
+    bus.gain.value = 0.07;
+    const lowpass = c.createBiquadFilter();
+    lowpass.type = 'lowpass';
+    lowpass.frequency.value = 4200;
+    lowpass.Q.value = 0.5;
+    const echo = c.createDelay(0.5);
+    echo.delayTime.value = 0.13;
+    const feedback = c.createGain();
+    feedback.gain.value = 0.22;
+    const echoTone = c.createBiquadFilter();
+    echoTone.type = 'lowpass';
+    echoTone.frequency.value = 2200;
+    bus.connect(lowpass).connect(out);
+    lowpass.connect(echo).connect(echoTone).connect(feedback).connect(echo);
+    echoTone.connect(out);
+    let end = at;
+    for (const [freq, start, decay, level] of notes) {
+      for (const [ratio, vol, share] of PARTIALS) {
+        const t0 = at + start;
+        const t1 = t0 + Math.max(0.06, decay * share);
+        const osc = c.createOscillator();
+        const gain = c.createGain();
+        osc.frequency.value = freq * ratio;
+        gain.gain.setValueAtTime(0.0001, t0);
+        gain.gain.exponentialRampToValueAtTime(vol * level, t0 + 0.006);
+        gain.gain.exponentialRampToValueAtTime(0.0001, t1);
+        osc.connect(gain).connect(bus);
+        osc.start(t0);
+        osc.stop(t1 + 0.02);
+        osc.onended = () => { osc.disconnect(); gain.disconnect(); };
+        end = Math.max(end, t1);
+      }
+    }
+    // Desliga a cadeia depois que o eco some.
+    const silence = c.createConstantSource();
+    silence.offset.value = 0;
+    silence.connect(out);
+    silence.start(at);
+    silence.stop(end + 1);
+    silence.onended = () => { for (const node of [silence, bus, lowpass, echo, feedback, echoTone]) node.disconnect(); };
+    return end + 1;
+  }
+
   function play(name) {
     const notes = PRESETS[name];
-    if (!enabled || !notes) return;
+    if (!enabled || !(notes || CHIMES[name])) return;
     try {
       ctx ||= new AudioContext();
       if (ctx.state === 'suspended') ctx.resume();
       const now = ctx.currentTime + 0.01;
+      if (CHIMES[name]) { chime(ctx, destination(), CHIMES[name], now); return; }
       for (const [freq, start, dur] of notes) {
         const osc = ctx.createOscillator();
         const gain = ctx.createGain();
@@ -56,6 +112,13 @@ window.Sounds = (() => {
     } catch {
       // Sem áudio disponível: ignora.
     }
+  }
+
+  // Repete um som até a função devolvida ser chamada (o toque de uma chamada).
+  function loop(name, every) {
+    play(name);
+    const timer = setInterval(() => play(name), every);
+    return () => clearInterval(timer);
   }
 
   // ---------------- efeitos sonoros (soundboard) ----------------
@@ -277,6 +340,7 @@ window.Sounds = (() => {
 
   return {
     play,
+    loop,
     route,
     board: BOARD,
     playBoard,

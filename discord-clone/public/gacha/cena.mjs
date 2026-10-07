@@ -2,8 +2,6 @@
 // O Salão (mudae-salao.js) continua dono da carta, dos botões, dos sons e da fila: daqui saem só o
 // desenho, os avisos de som (onCue) e onde a carta deve nascer (cardAnchor).
 import * as THREE from 'three';
-import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
-import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
 import { createEffects, createEnvironment } from './efeitos.mjs';
@@ -12,6 +10,8 @@ import { createShop } from './loja.mjs';
 import { createMachine } from './maquina.mjs';
 import { createCapsule, RADIUS } from './capsula.mjs';
 import { createFesta } from './festa.mjs';
+import { flattenStaticGroup } from './geometria.mjs';
+import { GachaEffectComposer, SceneAntialiasPass, GachaSMAAPass, renderSettings } from './renderizacao.mjs';
 
 // Cores das cápsulas por raridade (o Salão manda as do tema; a comum é sempre branca).
 const COLORS = { common: '#f4f1ea', rare: '#3ba7ff', epic: '#b46cff', legendary: '#ffc53d' };
@@ -31,7 +31,8 @@ const PROBE_FRAMES = 120; // quadros desenhados, sem limite de fps, para medir a
 const PROBE_WARMUP = 20; // os primeiros quadros depois de iniciar/trocar de qualidade não contam
 const COMPILE_TIMEOUT = 3000;
 
-// Qualidade: 3 tudo; 2 sem reflexo e sombra da lâmpada; 1 sem AO, névoa, bloom e sombras;
+// Qualidade: 3 tudo, resolução interna 2x com limite de pixels, MSAA + SMAA alto;
+// 2 sem reflexo e sombra da lâmpada; 1 sem AO, névoa, bloom e sombras;
 // 0 isso e resolução 1x. O tratamento de cor é leve e permanece nos níveis baixos.
 // Guardada como { q, at }; o valor expira para a máquina poder se recuperar.
 function readQuality() {
@@ -81,13 +82,16 @@ export async function create(host, { now = () => Date.now(), reducedMotion = fal
 
     const shop = createShop({ environment: environment.texture });
     scene.add(shop.group);
+    const machineAssets = new Map();
+    const decorativeMachines = new THREE.Group();
     for (const [x, color] of SIDES) {
-      const side = createMachine({ color, seed: Math.round(x * 10) + 50 });
+      const side = createMachine({ color, seed: Math.round(x * 10) + 50, assets: machineAssets });
       side.group.position.set(x, 0.08, 0);
       side.group.rotation.y = x < 0 ? 0.025 : -0.025;
-      scene.add(side.group);
+      decorativeMachines.add(side.group);
     }
-    const hero = createMachine({ color: '#b7a6ca', trim: '#c5ab70', scale: 1.12, seed: 7, hero: true });
+    scene.add(flattenStaticGroup(decorativeMachines));
+    const hero = createMachine({ color: '#b7a6ca', trim: '#c5ab70', scale: 1.12, seed: 7, hero: true, assets: machineAssets });
     hero.group.position.y = 0.08;
     scene.add(hero.group);
     hero.group.updateMatrixWorld(true);
@@ -126,18 +130,45 @@ export async function create(host, { now = () => Date.now(), reducedMotion = fal
     cyan.position.set(0.65, 3.1, 0.05);
     scene.add(hemi, streetLight, streetLight.target, lamp, lamp.target, pink, cyan);
 
-    const target = new THREE.WebGLRenderTarget(1, 1, { type: THREE.HalfFloatType, samples: 4 });
-    const composer = new EffectComposer(renderer, target);
-    const renderPass = new RenderPass(scene, camera);
+    // Só a geometria precisa de profundidade e MSAA. Os efeitos usam alvos simples.
+    const target = new THREE.WebGLRenderTarget(1, 1, { type: THREE.HalfFloatType, depthBuffer: false });
+    const renderPass = new SceneAntialiasPass(scene, camera, Math.min(4, renderer.capabilities.maxSamples));
+    const composer = new GachaEffectComposer(renderer, target, renderPass);
     const effects = createEffects(scene, camera, lamp);
     const bloom = new UnrealBloomPass(new THREE.Vector2(1, 1), 0.46, 0.5, 1.05);
+    // Os onze alvos de bloom contêm só cor; nenhum desses passes lê profundidade.
+    for (const buffer of [bloom.renderTargetBright, ...bloom.renderTargetsHorizontal, ...bloom.renderTargetsVertical]) {
+      buffer.depthBuffer = false;
+    }
+    for (const material of [bloom.materialHighPassFilter, ...bloom.separableBlurMaterials, bloom.compositeMaterial]) {
+      material.depthTest = material.depthWrite = false;
+    }
     const outputPass = new OutputPass();
+    const antialias = new GachaSMAAPass();
     composer.addPass(renderPass);
     composer.addPass(effects.contact);
     composer.addPass(effects.atmosphere);
     composer.addPass(bloom);
     composer.addPass(effects.grade);
+    // O SMAA desta versão opera em linear-sRGB, antes da conversão final do OutputPass.
+    composer.addPass(antialias);
     composer.addPass(outputPass);
+
+    const surfaceTextures = new Set();
+    scene.traverse((object) => {
+      for (const material of [].concat(object.material || [])) {
+        for (const value of Object.values(material)) if (value?.isCanvasTexture) surfaceTextures.add(value);
+      }
+    });
+    const hardware = { maxSamples: renderer.capabilities.maxSamples, maxTextureSize: renderer.capabilities.maxTextureSize,
+      maxAnisotropy: renderer.capabilities.getMaxAnisotropy() };
+    function shadowSize(light, size) {
+      if (light.shadow.mapSize.x === size) return;
+      light.shadow.dispose();
+      light.shadow.map = light.shadow.mapPass = null;
+      light.shadow.mapSize.set(size, size);
+      renderer.shadowMap.needsUpdate = true;
+    }
 
     let quality = Number.isInteger(profile?.quality) && profile.quality >= 0 && profile.quality <= 3 ? profile.quality : readQuality();
     let pendingQuality = null; // nível novo pedido pela medição; só entra com a cena parada, no começo de um quadro
@@ -148,6 +179,8 @@ export async function create(host, { now = () => Date.now(), reducedMotion = fal
     let raf = 0;
     let lastFrame = 0;
     let lastDolly = 0;
+    let frameAspect = NaN, frameDolly = NaN, frameJitterX = NaN, frameJitterY = NaN;
+    let depthRevision = 0;
     let dirty = true;
     let visible = true;
     let started = false; // só vira true depois de compilar os shaders; antes disso o laço não roda
@@ -169,9 +202,18 @@ export async function create(host, { now = () => Date.now(), reducedMotion = fal
     function applyQuality() {
       canvas.dataset.quality = String(quality);
       shop.setReflection(quality >= 3);
-      hero.setQuality(quality);
       bloom.enabled = cinematic && quality >= 2;
       effects.setQuality(quality, cinematic);
+      const settings = renderSettings(quality, hardware);
+      renderPass.setSamples(settings.samples);
+      antialias.setQuality(quality);
+      shadowSize(streetLight, settings.streetShadow);
+      shadowSize(lamp, settings.lampShadow);
+      for (const texture of surfaceTextures) {
+        if (texture.anisotropy === settings.anisotropy) continue;
+        texture.anisotropy = settings.anisotropy;
+        texture.needsUpdate = true;
+      }
       const shadows = quality >= 2;
       const changed = renderer.shadowMap.enabled !== shadows || lamp.castShadow !== (quality >= 3);
       if (changed) {
@@ -198,7 +240,8 @@ export async function create(host, { now = () => Date.now(), reducedMotion = fal
       sized = true;
       width = w;
       height = h;
-      const ratio = Math.min(profile?.pixelRatio || window.devicePixelRatio || 1, quality === 0 ? 1 : width < 700 ? 1.5 : 2);
+      const { ratio } = renderSettings(quality, { ...hardware, width, height,
+        nativeRatio: window.devicePixelRatio, forcedRatio: profile?.pixelRatio });
       renderer.setPixelRatio(ratio);
       renderer.setSize(width, height, false);
       composer.setPixelRatio(ratio);
@@ -214,13 +257,17 @@ export async function create(host, { now = () => Date.now(), reducedMotion = fal
     function frame(dolly, jitterX = 0, jitterY = 0) {
       lastDolly = dolly;
       const aspect = width / height;
+      if (aspect === frameAspect && dolly === frameDolly && jitterX === frameJitterX && jitterY === frameJitterY) return;
       const half = Math.tan(THREE.MathUtils.degToRad(FRAME.fov / 2));
       const [needW, needH] = aspect < 1 ? FRAME.tall : FRAME.wide;
       const dist = Math.max(needH / 2 / half, needW / 2 / (half * aspect)) * (1 - 0.16 * dolly);
-      camera.aspect = aspect;
+      if (aspect !== frameAspect) {
+        camera.aspect = aspect;
+        camera.updateProjectionMatrix();
+      }
       camera.position.set((aspect < 1 ? 0.22 : 0.55) + jitterX, FRAME.eye - 0.15 * dolly + jitterY, FRAME.look.z + dist);
       camera.lookAt(FRAME.look.x, FRAME.look.y - 0.5 * dolly, FRAME.look.z + 0.3 * dolly);
-      camera.updateProjectionMatrix();
+      frameAspect = aspect; frameDolly = dolly; frameJitterX = jitterX; frameJitterY = jitterY;
     }
 
     const elapsed = () => (current.resting ? Infinity : (now() - current.ts) * current.scale);
@@ -297,22 +344,29 @@ export async function create(host, { now = () => Date.now(), reducedMotion = fal
 
     function draw(sec) {
       profile?.begin(renderer);
-      if (dirty || busy()) renderer.shadowMap.needsUpdate = true;
+      const geometryDirty = dirty;
       dirty = false;
       const s = current ? timeline(current.rarity, elapsed(), { reduced: reducedMotion }) : null;
-      hero.setCrank(s ? s.crank : 0);
-      hero.setShake(s ? s.shake : 0, sec);
-      capsule.update(s, palette);
+      const crankChanged = hero.setCrank(s ? s.crank : 0);
+      const shakeChanged = hero.setShake(s ? s.shake : 0, sec);
+      const capsuleChanged = capsule.update(s, palette);
+      const geometryChanged = geometryDirty || crankChanged || shakeChanged || capsuleChanged;
+      // Luzes e cores continuam animando; as duas luzes com sombra são fixas.
+      // Seus mapas só dependem da pose dos objetos que realmente projetam sombra.
+      if (geometryChanged) renderer.shadowMap.needsUpdate = true;
       if (current && !current.resting) fireCues();
       const gold = s ? s.gold : 0;
       hemi.color.copy(SKY).lerp(GOLD, gold);
       hemi.intensity = 0.26 + 1.3 * gold;
       const fx = festa.update({ rarity: current?.rarity, t: current && !current.resting ? elapsed() : Infinity, sec, palette, reduced: reducedMotion, rain: quality >= 1 });
+      // O confete é sólido. A última atualização também invalida sua remoção;
+      // chuva, névoa, neon e cores continuam evoluindo sobre o contato em cache.
+      if (geometryChanged || fx.solidChanged) depthRevision++;
       festaBusy = fx.busy;
       shop.update(sec, { reduced: reducedMotion, tint: fx.tint, tintAmount: fx.tintAmount });
       const jitter = reducedMotion ? 0 : fx.shake * 0.035;
       frame(reducedMotion || !s ? 0 : s.camera + 0.35 * gold, jitter * Math.sin(sec * 71), jitter * Math.sin(sec * 53 + 1.3));
-      effects.update(reducedMotion ? 0 : sec, gold);
+      effects.update(reducedMotion ? 0 : sec, gold, { depthRevision });
       composer.render();
       profile?.end(renderer, { quality, width, height });
     }
@@ -321,7 +375,7 @@ export async function create(host, { now = () => Date.now(), reducedMotion = fal
     // Toca cada som uma vez, só se a linha do tempo acabou de passar por ele (quem entra no meio não ouve tudo de uma vez).
     function fireCues() {
       const t = elapsed();
-      for (const c of cues(current.rarity)) {
+      for (const c of current.cueList) {
         if (c.at > current.lastT && c.at <= t && t - c.at < 250 && (!reducedMotion || c.name === 'pop')) {
           try { onCue(c.name); } catch (error) { console.warn(error); } // um erro de som não derruba a cena
         }
@@ -334,7 +388,7 @@ export async function create(host, { now = () => Date.now(), reducedMotion = fal
       const span = (revealAt ?? ts) - ts;
       // Abre exatamente no revealAt do servidor, mesmo se a duração dele for um pouco diferente da nossa.
       const scale = span > 500 ? duration(rarity) / span : 1;
-      current = { id, rarity, ts, scale, lastT: -Infinity, resting: false };
+      current = { id, rarity, ts, scale, lastT: -Infinity, resting: false, cueList: cues(rarity) };
       dirty = true;
       wake();
     }
@@ -406,12 +460,18 @@ export async function create(host, { now = () => Date.now(), reducedMotion = fal
       raf = 0;
       observer.disconnect();
       document.removeEventListener('visibilitychange', onVisibility);
+      const released = new Set();
+      const release = (resource) => {
+        if (!resource || released.has(resource)) return;
+        released.add(resource);
+        resource.dispose();
+      };
       scene.traverse((o) => {
-        o.geometry?.dispose();
+        release(o.geometry);
         if (o.isInstancedMesh) o.dispose(); // solta os buffers das instâncias
         for (const m of [].concat(o.material || [])) {
-          for (const value of Object.values(m)) if (value?.isTexture && value !== environment.texture) value.dispose();
-          m.dispose();
+          for (const value of Object.values(m)) if (value?.isTexture && value !== environment.texture) release(value);
+          release(m);
         }
       });
       shop.dispose();
@@ -421,6 +481,7 @@ export async function create(host, { now = () => Date.now(), reducedMotion = fal
       bloom.dispose();
       effects.dispose();
       outputPass.dispose();
+      antialias.dispose();
       composer.dispose();
       renderer.dispose();
       renderer.forceContextLoss();

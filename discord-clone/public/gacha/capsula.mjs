@@ -1,6 +1,7 @@
 // A cápsula do gacha: metade de cima transparente, metade de baixo colorida. Rola da máquina até o
 // círculo de luz, balança mudando de cor e abre. Só aplica o estado da linha do tempo; não decide nada.
 import * as THREE from 'three';
+import { freezeStaticTransforms } from './geometria.mjs';
 
 export const RADIUS = 0.13;
 const DARK = new THREE.Color('#2a2a38');
@@ -56,9 +57,9 @@ export function createCapsule({ from, to }) {
 
   const shell = new THREE.MeshPhysicalMaterial({ color: '#ffffff', roughness: 0.22, clearcoat: 1, clearcoatRoughness: 0.08, side: THREE.DoubleSide });
   const clear = new THREE.MeshPhysicalMaterial({ color: '#ffffff', roughness: 0.03, clearcoat: 1, transparent: true, opacity: 0.22, depthWrite: false, side: THREE.DoubleSide });
-  const bottom = new THREE.Mesh(new THREE.SphereGeometry(R, 40, 20, 0, Math.PI * 2, Math.PI / 2, Math.PI / 2), shell);
-  const top = new THREE.Mesh(new THREE.SphereGeometry(R, 40, 20, 0, Math.PI * 2, 0, Math.PI / 2), clear);
-  const seam = new THREE.Mesh(new THREE.TorusGeometry(R * 1.01, R * 0.07, 10, 48), shell);
+  const bottom = new THREE.Mesh(new THREE.SphereGeometry(R, 64, 32, 0, Math.PI * 2, Math.PI / 2, Math.PI / 2), shell);
+  const top = new THREE.Mesh(new THREE.SphereGeometry(R, 64, 32, 0, Math.PI * 2, 0, Math.PI / 2), clear);
+  const seam = new THREE.Mesh(new THREE.TorusGeometry(R * 1.01, R * 0.07, 12, 64), shell);
   seam.rotation.x = Math.PI / 2;
   bottom.add(seam);
   bottom.castShadow = seam.castShadow = true;
@@ -72,9 +73,10 @@ export function createCapsule({ from, to }) {
   // Três pontinhos acima da cápsula: um acende a cada balançada.
   const dots = new THREE.Group();
   dots.position.y = R * 2 + 0.16;
+  const dotGeometry = new THREE.SphereGeometry(0.02, 16, 10);
   const dotMaterials = [0, 1, 2].map((i) => {
     const material = new THREE.MeshBasicMaterial({ color: DARK.clone(), transparent: true });
-    const dot = new THREE.Mesh(new THREE.SphereGeometry(0.02, 16, 10), material);
+    const dot = new THREE.Mesh(dotGeometry, material);
     dot.position.x = (i - 1) * 0.07;
     dots.add(dot);
     return material;
@@ -98,15 +100,27 @@ export function createCapsule({ from, to }) {
   // eixo x. Voltas inteiras até parar: a emenda termina na horizontal.
   const spins = Math.max(1, Math.round(start.distanceTo(end) / R / (Math.PI * 2))) * Math.PI * 2;
   const color = new THREE.Color();
+  freezeStaticTransforms(group, [body, tilt, ball, top, bottom, light, splash, beam]);
 
   let shown = false;
+  const previousBody = new THREE.Vector3();
+  const previousTop = new THREE.Vector3();
+  const previousBottom = new THREE.Vector3();
 
   // s: estado da linha do tempo (ou null); palette: { common, rare, epic, legendary } em THREE.Color.
   function update(s, palette) {
     shown = !!s?.visible;
+    const visibilityChanged = body.visible !== shown;
     body.visible = shown;
     splash.visible = false;
-    if (!shown) { light.intensity = 0; return; }
+    if (!shown) { light.intensity = 0; return visibilityChanged; }
+    previousBody.copy(body.position);
+    previousTop.copy(top.position);
+    previousBottom.copy(bottom.position);
+    const ballAngle = ball.rotation.x;
+    const tiltAngle = tilt.rotation.z;
+    const topAngle = top.rotation.z;
+    const bottomAngle = bottom.rotation.z;
     body.position.lerpVectors(start, end, s.travel);
     // Balançar em volta do ponto de contato afundaria a esfera R * (1 - cos): sobe isso de volta.
     body.position.y = to.y + s.hop * hopHeight + R * (1 - Math.cos(s.tilt));
@@ -120,6 +134,10 @@ export function createCapsule({ from, to }) {
     top.rotation.z = o * 2.8;
     bottom.position.set(o * R * 0.4, 0, 0);
     bottom.rotation.z = -o * 0.3;
+    const geometryChanged = visibilityChanged || !previousBody.equals(body.position) ||
+      !previousTop.equals(top.position) || !previousBottom.equals(bottom.position) ||
+      ballAngle !== ball.rotation.x || tiltAngle !== tilt.rotation.z ||
+      topAngle !== top.rotation.z || bottomAngle !== bottom.rotation.z;
 
     color.copy(palette[s.colorFrom]).lerp(palette[s.colorTo], s.colorMix);
     const L = luma(color);
@@ -149,6 +167,7 @@ export function createCapsule({ from, to }) {
     beam.material.uniforms.color.value.copy(color).multiplyScalar(BEAM_LUMA / L);
     beam.material.uniforms.opacity.value = s.beam * 0.32;
     beam.scale.set(0.6 + 0.4 * s.beam, 1, 0.6 + 0.4 * s.beam);
+    return geometryChanged;
   }
 
   // Centro da esfera em coordenadas do mundo (de onde a carta nasce).

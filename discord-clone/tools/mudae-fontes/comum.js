@@ -14,8 +14,9 @@ function pacer(minGapMs) {
 }
 
 // fetch com até 6 tentativas em erro de rede, demora, 429 (limite) e 5xx. Erros 4xx param na hora.
-async function request(url, options = {}, { label = url, parse = 'json' } = {}) {
+async function request(url, options = {}, { label = url, parse = 'json', beforeAttempt } = {}) {
   for (let attempt = 1; ; attempt++) {
+    if (beforeAttempt) await beforeAttempt();
     // Sem resposta em 45 s conta como erro de rede (e tenta de novo): um pedido preso travava o script.
     const res = await fetch(url, { ...options, signal: AbortSignal.timeout(45_000) }).catch((err) => ({ ok: false, status: 0, err, headers: new Headers() }));
     if (res.ok) return parse === 'json' ? res.json() : res.text();

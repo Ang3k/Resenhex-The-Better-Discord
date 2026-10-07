@@ -16,12 +16,6 @@ window.MudaeSalon = function ({ state, el, Icon, call, onSocket, member, avatar,
   const now = () => ui.serverNow();
   const whoName = (id) => member(id)?.name || 'alguém que saiu';
   const plain = (text) => String(text || '').replace(/\*\*/g, '');
-  // Cena 3D da lojinha de gashapon (public/gacha): só é baixada na Mesa e com WebGL2.
-  // Se falhar uma vez (sem módulos, placa de vídeo caiu), fica a roleta de fotos até recarregar.
-  let gachaBroken = false;
-  let gachaLoad = 0;
-  const canGacha = () => !gachaBroken && typeof window.WebGL2RenderingContext === 'function';
-  const CUES = { crank: 'gachaClack', bounce: 'gachaBounce', wobble: 'gachaWobble', lock: 'gachaLock', pop: 'gachaPop' };
   // A fonte escolhida para os rolls fica guardada neste navegador.
   const savedSource = () => { try { return localStorage.getItem('mudaeSource') || ''; } catch { return ''; } };
   const saveSource = (value) => { try { localStorage.setItem('mudaeSource', value); } catch { /* sem armazenamento: só nesta sessão */ } };
@@ -29,13 +23,15 @@ window.MudaeSalon = function ({ state, el, Icon, call, onSocket, member, avatar,
   const S = {
     channel: null, tab: 'mesa', sideOpen: false, side: 'chat',
     people: [], status: null, statusAt: 0,
-    stage: null, spinning: null, queue: [], arriving: new Set(), legendaryUntil: 0, legendaryBy: null, gacha: null, gachaLoading: false, gachaPlayed: null,
+    stage: null, spinning: null, queue: [], arriving: new Set(), legendaryUntil: 0, legendaryBy: null,
     album: null, albumOwner: null, query: '', filter: 'all', albumSource: 'all', sort: 'value', shown: PAGE,
     sources: null, source: savedSource(),
     ranking: null, favorite: null,
   };
   const nodes = {};
   let ticker = null;
+  let activeSpin = null;
+  let stageArt = null;
 
   const msgs = () => state.messages[S.channel] || [];
   const rolls = () => msgs().filter((m) => m.bot === 'mudae' && m.mudae?.kind === 'roll' && m.mudae.card);
@@ -71,20 +67,64 @@ window.MudaeSalon = function ({ state, el, Icon, call, onSocket, member, avatar,
     return node;
   }
 
-  function art(card) {
-    const img = el('img', { src: card.image, alt: card.name, loading: 'lazy', decoding: 'async', draggable: false });
-    img.onerror = () => img.replaceWith(el('div', { class: 'salon-art-missing', textContent: card.name.slice(0, 1) }));
-    return img;
+  // Só mostramos pixels que o navegador já carregou e decodificou.
+  function picture(src, { loading = 'eager', priority = 'auto' } = {}) {
+    const img = new Image();
+    img.loading = loading;
+    img.decoding = 'async';
+    img.fetchPriority = priority;
+    img.draggable = false;
+    const record = { src, image: img, ready: false };
+    if (!src) { record.promise = Promise.resolve(record); return record; }
+    record.promise = new Promise((resolve) => {
+      img.onload = async () => {
+        try {
+          if (img.decode) await img.decode();
+          record.ready = img.naturalWidth > 0;
+        } catch { /* Uma imagem inválida mantém o verso da carta. */ }
+        resolve(record);
+      };
+      img.onerror = () => resolve(record);
+    });
+    img.src = src;
+    return record;
   }
 
-  function cardNode(card, { size = 'small', onclick = null, extra = null } = {}) {
+  function cardBack() {
+    return el('div', { class: 'salon-card-back', ariaHidden: 'true' }, Icon('dice', 40));
+  }
+
+  function art(card, eager = false, onReady = null) {
+    const record = eager && stageArt?.src === card.image && !stageArt.image.isConnected
+      ? stageArt : picture(card.image, { loading: eager ? 'eager' : 'lazy', priority: eager ? 'high' : 'auto' });
+    if (eager) stageArt = record;
+    const img = record.image;
+    img.alt = card.name;
+    img.className = 'salon-art-image' + (record.ready ? ' ready' : '');
+    const back = cardBack();
+    const frame = el('div', { class: 'salon-art' }, back, img);
+    if (record.ready) back.remove();
+    else {
+      // O verso continua atrás da foto durante o fade, sem um quadro preto entre os dois.
+      img.addEventListener('transitionend', () => back.remove(), { once: true });
+      record.promise.then(() => {
+        if (record.ready) img.classList.add('ready');
+        else { img.remove(); back.title = 'Imagem indisponível'; }
+      });
+    }
+    if (onReady) record.promise.then(() => { if (record.ready) onReady(img); });
+    return frame;
+  }
+
+  function cardNode(card, { size = 'small', onclick = null, extra = null, overlay = null, onArtReady = null } = {}) {
     const rarity = card.rarity || 'common';
-    const node = el('div', { class: `salon-card ${size} r-${rarity}` },
-      el('div', { class: 'salon-card-art', onclick: onclick || (() => openImage(card.image)) }, art(card),
-        size !== 'mini' ? el('span', { class: 'salon-rank', title: 'Posição no ranking de popularidade', textContent: '#' + num(card.rank) }) : null),
-      rarity === 'legendary' || rarity === 'epic' ? el('div', { class: 'salon-holo', ariaHidden: 'true' }) : null,
+    const node = el('div', { class: `salon-card framed ${size} r-${rarity}` },
+      el('div', { class: 'salon-card-visual' },
+        el('div', { class: 'salon-card-art', onclick: onclick || (() => openImage(card.image)) }, art(card, size === 'big', onArtReady)), overlay),
       el('div', { class: 'salon-card-info' },
-        el('div', { class: 'salon-card-name', textContent: card.name, title: card.name }),
+        el('div', { class: 'salon-card-heading' },
+          el('div', { class: 'salon-card-name', textContent: card.name, title: card.name }),
+          size !== 'mini' ? el('span', { class: 'salon-rank', title: 'Posição no ranking de popularidade', textContent: '#' + num(card.rank) }) : null),
         size !== 'mini' ? el('div', { class: 'salon-card-series', textContent: ui.seriesLine(card), title: card.series }) : null,
         el('div', { class: 'salon-card-value' }, kakera(), el('strong', { textContent: num(card.value) }))),
       extra);
@@ -94,7 +134,7 @@ window.MudaeSalon = function ({ state, el, Icon, call, onSocket, member, avatar,
   // ---------- estrutura ----------
   function mount(channel) {
     S.channel = channel.id;
-    Object.assign(S, { tab: 'mesa', stage: null, spinning: null, queue: [], arriving: new Set(), legendaryUntil: 0, album: null, ranking: null, sideOpen: false, side: 'chat', people: [], gacha: null, gachaLoading: false, gachaPlayed: null });
+    Object.assign(S, { tab: 'mesa', stage: null, spinning: null, queue: [], arriving: new Set(), legendaryUntil: 0, album: null, ranking: null, sideOpen: false, side: 'chat', people: [] });
     nodes.tabs = el('div', { class: 'salon-tabs', role: 'tablist' });
     nodes.status = el('div', { class: 'salon-status' });
     nodes.body = el('div', { class: 'salon-body' });
@@ -116,13 +156,10 @@ window.MudaeSalon = function ({ state, el, Icon, call, onSocket, member, avatar,
 
   function unmount() {
     if (!S.channel) return;
+    stopSpin();
     call('mudae:presence', { channel: null });
     S.channel = null;
     clearInterval(ticker);
-    S.gacha?.dispose();
-    S.gacha = null;
-    gachaLoad++;
-    nodes.scene = null;
     ticker = null;
     root.replaceChildren();
     nodes.sideTabs?.remove();
@@ -199,7 +236,6 @@ window.MudaeSalon = function ({ state, el, Icon, call, onSocket, member, avatar,
   }
 
   function renderBody() {
-    S.gacha?.setVisible(S.tab === 'mesa');
     if (S.tab === 'mesa') return renderMesa();
     if (S.tab === 'harem') return renderAlbum();
     return renderRanking();
@@ -227,18 +263,15 @@ window.MudaeSalon = function ({ state, el, Icon, call, onSocket, member, avatar,
 
   // ---------- Mesa ----------
   function renderMesa() {
-    nodes.stage = el('div', { class: 'salon-stage' + (S.gacha ? ' gacha' : '') });
-    // O canvas da cena sobrevive às trocas de aba: é o mesmo nó, reposto em cada palco novo.
-    nodes.scene ||= el('div', { class: 'salon-gacha', ariaHidden: 'true' });
+    nodes.stage = el('div', { class: 'salon-stage' });
     nodes.rollBar = el('div', { class: 'salon-rollbar' });
     nodes.live = el('div', { class: 'salon-live-strip' });
     nodes.body.replaceChildren(el('div', { class: 'salon-mesa' },
-      nodes.stage, nodes.rollBar,
+      el('div', { class: 'salon-stage-box' }, nodes.stage), nodes.rollBar,
       el('section', { class: 'salon-live' }, el('h3', { textContent: 'Mesa ao vivo' }), nodes.live)));
     renderStage();
     renderRollBar();
     renderLive();
-    mountGacha();
   }
 
   function renderRollBar() {
@@ -259,14 +292,14 @@ window.MudaeSalon = function ({ state, el, Icon, call, onSocket, member, avatar,
     const cmd = (kind) => '$' + kind + S.source;
     nodes.rollBar.replaceChildren(...[filters,
       el('div', { class: 'salon-roll-buttons' }, btn(cmd('w'), 'Waifu', true), btn(cmd('h'), 'Husbando'), btn(cmd('m'), 'Qualquer um'))].filter(Boolean));
-    // Com a cena 3D, a máquina do meio também gira (quando os botões estão liberados).
-    S.gacha?.setRollable(!empty && !mySpin);
   }
 
   async function roll(cmd) {
     S.lastKind = cmd[1];
+    resetBackdrop();
     const res = await call('chat:send', { channel: S.channel, text: cmd });
     if (res?.ephemeral?.text) toast(plain(res.ephemeral.text), 'info');
+    if (!res || res.ephemeral) renderStage();
   }
 
   function pickInitialStage() {
@@ -278,14 +311,16 @@ window.MudaeSalon = function ({ state, el, Icon, call, onSocket, member, avatar,
   // O palco: banner, card (ou roleta girando), botão de casar e reações.
   function renderStage() {
     if (!nodes.stage?.isConnected) return;
-    // Girando: só os botões mudam. Com a cápsula, um palco novo (voltou para a Mesa no meio do giro) é remontado girando.
-    if (S.spinning && (S.spinning !== S.gachaPlayed || nodes.cardSlot?.isConnected)) return renderActions();
+    // Durante o giro, atualiza os botões; um palco novo mantém a espera pela revelação.
+    if (S.spinning && nodes.cardSlot?.isConnected) { resetBackdrop(); return renderActions(); }
     const m = S.stage && byId(S.stage);
     nodes.cardSlot = el('div', { class: 'salon-card-slot' });
     nodes.actions = el('div', { class: 'salon-actions' });
     nodes.banner = el('div', { class: 'salon-banner' });
     nodes.floats = el('div', { class: 'salon-floats', ariaHidden: 'true' });
-    nodes.stage.replaceChildren(nodes.scene, el('div', { class: 'salon-stage-glow' }), nodes.banner, nodes.cardSlot, nodes.actions, reactionBar(), nodes.floats);
+    nodes.backdrop = el('div', { class: 'salon-showcase', ariaHidden: 'true' });
+    nodes.stage.dataset.showcase = 'neutral';
+    nodes.stage.replaceChildren(nodes.backdrop, nodes.banner, nodes.cardSlot, nodes.actions, reactionBar(), nodes.floats);
     const spinning = S.spinning && byId(S.spinning);
     if (spinning) {
       spinningLayout(spinning);
@@ -293,7 +328,7 @@ window.MudaeSalon = function ({ state, el, Icon, call, onSocket, member, avatar,
     }
     if (m) {
       const owner = m.mudae.ownerId;
-      nodes.cardSlot.append(cardNode(m.mudae.card, { size: 'big' }),
+      nodes.cardSlot.append(stageCard(m.mudae.card),
         el('div', { class: 'salon-stage-caption' }, member(m.by) ? avatar(member(m.by), 'salon-chip-avatar') : null,
           el('span', { textContent: (m.by === me() ? 'Você rodou' : whoName(m.by) + ' rodou') + ' · ' + RARITY[m.mudae.card.rarity || 'common']
             + ' · ' + ui.SOURCES[m.mudae.card.source || 'a'].label })));
@@ -304,23 +339,53 @@ window.MudaeSalon = function ({ state, el, Icon, call, onSocket, member, avatar,
     }
     renderBanner();
     renderActions();
-    restGacha(m);
+  }
+
+  // Usa a foto já decodificada da carta. A camada decorativa não decide quando um roll acaba.
+  function stageCard(card) {
+    const backdrop = nodes.backdrop;
+    return cardNode(card, { size: 'big', onArtReady: (image) => {
+      if (nodes.backdrop === backdrop && nodes.cardSlot?.contains(image)) updateBackdrop();
+    } });
+  }
+
+  function resetBackdrop() {
+    nodes.backdrop?.replaceChildren();
+    nodes.backdrop?.classList.remove('has-art');
+    if (nodes.stage) nodes.stage.dataset.showcase = 'waiting';
+  }
+
+  function updateBackdrop() {
+    const backdrop = nodes.backdrop;
+    if (!backdrop?.isConnected || backdrop.childElementCount || S.spinning || nodes.stage.dataset.showcase === 'waiting') return;
+    const m = S.stage && byId(S.stage);
+    // Mesmo no histórico, ou com movimento reduzido, não expõe a foto antes de revealAt.
+    if (m && now() < (m.mudae.revealAt ?? m.ts)) return;
+    const image = nodes.cardSlot?.querySelector('.salon-card.big img.ready');
+    if (!image) return;
+    const portrait = image.cloneNode(false);
+    portrait.className = 'salon-showcase-portrait';
+    portrait.alt = '';
+    portrait.loading = 'eager';
+    const show = () => {
+      if (nodes.backdrop !== backdrop || !portrait.isConnected || S.spinning || nodes.stage.dataset.showcase === 'waiting') return;
+      if (portrait.naturalWidth) { backdrop.classList.add('has-art'); nodes.stage.dataset.showcase = 'revealed'; }
+    };
+    portrait.onload = show;
+    portrait.onerror = () => { portrait.remove(); backdrop.classList.remove('has-art'); };
+    backdrop.append(portrait);
+    if (portrait.complete) show();
   }
 
   // Ninguém rodando: o último lendário do Salão, o seu favorito ou o convite para começar.
   function idleStage() {
     const legend = rolls().filter((m) => m.mudae.card.rarity === 'legendary').at(-1);
     delete nodes.stage.dataset.rarity;
-    // Com a cena 3D a máquina é a estrela do palco (e dá para clicar nela): sem carta grande, só a legenda embaixo.
-    if (S.gacha) {
-      return nodes.cardSlot.append(el('div', { class: 'salon-card big placeholder' }),
-        el('div', { class: 'salon-stage-caption' }, legend ? `🔥 Último lendário: ${whoName(legend.by)} · ` : '', 'Clique na máquina para rodar!'));
-    }
     if (legend) {
-      nodes.cardSlot.append(cardNode(legend.mudae.card, { size: 'big' }),
+      nodes.cardSlot.append(stageCard(legend.mudae.card),
         el('div', { class: 'salon-stage-caption' }, '🔥 ', el('span', { textContent: `Último lendário: ${whoName(legend.by)}, ${ago(legend.ts)}` })));
     } else if (S.favorite) {
-      nodes.cardSlot.append(cardNode(S.favorite, { size: 'big' }), el('div', { class: 'salon-stage-caption' }, '⭐ ', el('span', { textContent: 'Seu favorito' })));
+      nodes.cardSlot.append(stageCard(S.favorite), el('div', { class: 'salon-stage-caption' }, '⭐ ', el('span', { textContent: 'Seu favorito' })));
     } else {
       nodes.cardSlot.append(el('div', { class: 'salon-card big placeholder' }, el('div', { class: 'salon-card-back' }, Icon('dice', 56))),
         el('div', { class: 'salon-stage-caption', textContent: 'Rode para começar!' }));
@@ -408,113 +473,27 @@ window.MudaeSalon = function ({ state, el, Icon, call, onSocket, member, avatar,
     nodes.floats.append(node);
   }
 
-  // ---------- cena 3D ----------
-  async function mountGacha() {
-    if (!canGacha() || S.gacha || S.gachaLoading || !nodes.scene) return;
-    const channel = S.channel;
-    const host = nodes.scene;
-    // Cada carga tem um número: uma que ficou para trás (saiu do Salão no meio) não pode ligar a cena nem destravar a próxima.
-    const load = ++gachaLoad;
-    S.gachaLoading = true;
-    try {
-      const { create } = await import('/gacha/cena.mjs');
-      const gacha = await create(host, { now, reducedMotion: reducedMotion(), colors: rarityColors(),
-        onCue: (name) => Sounds.play(CUES[name]), onLost: dropGacha, onMachine: machineRoll });
-      if (load !== gachaLoad || S.channel !== channel || nodes.scene !== host || S.gacha) return gacha.dispose();
-      S.gacha = gacha;
-      nodes.stage?.classList.add('gacha');
-      // Um roll que já estava girando na roleta de fotos termina nela; a cena só entra no próximo.
-      if (!S.spinning) renderStage();
-      renderRollBar();
-      gacha.setVisible(S.tab === 'mesa');
-    } catch (error) {
-      gachaBroken = true;
-      console.warn('Salão do Mudae: cena 3D indisponível, usando a roleta de fotos.', error);
-    } finally {
-      if (load === gachaLoad) S.gachaLoading = false;
-    }
-  }
-
-  // A placa de vídeo caiu: libera a cena e volta para a roleta de fotos.
-  function dropGacha() {
-    S.gacha?.dispose();
-    S.gacha = null;
-    gachaBroken = true;
-    nodes.stage?.classList.remove('gacha');
-    nodes.scene?.replaceChildren();
-  }
-
-  // Clique na máquina: o mesmo tipo do último roll (waifu, husbando ou qualquer um), na fonte escolhida.
-  function machineRoll() {
-    const s = S.status;
-    if (s && !s.rollsLeft) return toast(`Seus rolls voltam em ${minutes(s.rollResetIn - (Date.now() - S.statusAt))}`, 'info');
-    roll('$' + (S.lastKind || 'w') + S.source);
-  }
-
-  function restGacha(m) {
-    S.gacha?.rest(m ? { id: m.id, rarity: m.mudae.card.rarity || 'common' } : null);
-  }
-
-  // Cores de raridade do tema (só hex; o resto a cena resolve com as dela).
-  function rarityColors() {
-    const css = getComputedStyle(root);
-    const out = {};
-    for (const key of ['rare', 'epic', 'legendary']) {
-      const value = css.getPropertyValue('--rarity-' + key).trim();
-      if (/^#[0-9a-f]{3,8}$/i.test(value)) out[key] = value;
-    }
-    return out;
-  }
-
-  // Roll com a cena 3D: a carta fica escondida (um fantasma guarda o lugar) até o revealAt.
-  function gachaSpin(m, duration) {
-    const d = m.mudae;
-    S.spinning = m.id;
-    S.gachaPlayed = m.id;
-    renderStage();
-    renderRollBar();
-    new Image().src = d.card.image;
-    spinningLayout(m);
-    S.gacha.play({ id: m.id, rarity: d.card.rarity || 'common', ts: m.ts, revealAt: d.revealAt ?? m.ts });
-    const channel = S.channel;
-    setTimeout(() => {
-      if (S.channel !== channel || S.spinning !== m.id) return;
-      S.spinning = null;
-      renderStage();
-      renderRollBar();
-      reveal(m, !document.hidden);
-    }, duration);
-  }
-
-  // Palco de um giro com a cápsula: a carta fica escondida (o fantasma guarda o lugar) e só os botões aparecem.
+  // Ao voltar para a Mesa durante um giro, guarda o espaço até o horário da revelação.
   function spinningLayout(m) {
-    nodes.cardSlot.replaceChildren(el('div', { class: 'salon-card big salon-card-ghost', ariaHidden: 'true' }),
+    nodes.cardSlot.replaceChildren(el('div', { class: 'salon-card big placeholder' }, cardBack()),
       el('div', { class: 'salon-stage-caption', textContent: (m.by === me() ? 'Você está' : whoName(m.by) + ' está') + ' rodando…' }));
     nodes.stage.dataset.rarity = 'spinning';
     renderActions();
   }
 
-  // A carta nasce de dentro da cápsula aberta (se foi a cápsula que girou este roll) ou só vira (com a roleta).
-  function emerge(card, id) {
-    const from = S.gacha && S.gachaPlayed === id && nodes.stage?.classList.contains('gacha') ? S.gacha.cardAnchor() : null;
-    if (!from) return card.classList.add('revealing');
-    const box = nodes.stage.getBoundingClientRect();
-    const r = card.getBoundingClientRect();
-    card.style.setProperty('--from-x', Math.round(from.x - (r.left - box.left + r.width / 2)) + 'px');
-    card.style.setProperty('--from-y', Math.round(from.y - (r.top - box.top + r.height / 2)) + 'px');
-    card.classList.add('emerging');
-    // Sem a classe, a inclinação do mouse volta a valer na carta.
-    card.addEventListener('animationend', () => card.classList.remove('emerging'), { once: true });
+  // A carta vira de frente ao revelar o resultado.
+  function emerge(card) {
+    card.classList.add('revealing');
   }
 
   // ---------- a roleta ----------
   function takeStage(m) {
+    stopSpin();
     S.stage = m.id;
     S.arriving.delete(m.id);
     const d = m.mudae;
     const left = (d.revealAt ?? m.ts) - now();
     if (S.tab !== 'mesa' || !nodes.stage?.isConnected) return;
-    if (S.gacha && left > 0) return gachaSpin(m, left);
     if (!d.decoys?.length || left < 300 || reducedMotion()) {
       renderStage();
       return reveal(m, left > 0);
@@ -522,38 +501,66 @@ window.MudaeSalon = function ({ state, el, Icon, call, onSocket, member, avatar,
     spin(m, left);
   }
 
-  function spin(m, duration) {
+  function stopSpin() {
+    if (activeSpin) {
+      activeSpin.timers.forEach(clearTimeout);
+      activeSpin.animation?.cancel();
+      activeSpin.release?.();
+      activeSpin = null;
+    }
+    S.spinning = null;
+  }
+
+  async function spin(m, duration) {
     const d = m.mudae;
     const rarity = d.card.rarity || 'common';
+    const run = activeSpin = { channel: S.channel, timers: [], animation: null };
+    const current = () => activeSpin === run && S.channel === run.channel && S.spinning === m.id;
+    const later = (fn, ms) => run.timers.push(setTimeout(() => { if (current()) fn(); }, ms));
     S.spinning = m.id;
     renderStage();
     renderRollBar();
-    // A foto real já começa a carregar enquanto as iscas passam.
-    new Image().src = d.card.image;
-    const images = [...d.decoys, ...d.decoys.slice(0, 3), d.card.image];
-    const strip = el('div', { class: 'salon-reel-strip' }, images.map((src) => el('div', { class: 'salon-reel-cell' }, el('img', { src, alt: '', decoding: 'async', draggable: false }))));
-    const reel = el('div', { class: `salon-reel r-${rarity}` }, strip, el('div', { class: 'salon-reel-shade' }));
+    // O resultado tem prioridade; iscas lentas ou inválidas não entram no giro.
+    const winner = stageArt = picture(d.card.image, { priority: 'high' });
+    const decoys = [...d.decoys, ...d.decoys.slice(0, 3)].map((src) => picture(src, { priority: 'low' }));
+    const cover = el('div', { class: 'salon-reel-cover' }, cardBack());
+    const reel = el('div', { class: `salon-reel is-preparing r-${rarity}` }, cover, el('div', { class: 'salon-reel-shade' }));
     nodes.cardSlot.replaceChildren(reel, el('div', { class: 'salon-stage-caption', textContent: (m.by === me() ? 'Você está' : whoName(m.by) + ' está') + ' rodando…' }));
     nodes.stage.dataset.rarity = 'spinning';
     renderActions();
-    const n = images.length;
-    const slow = rarity === 'legendary' || rarity === 'epic';
-    const anim = strip.animate([{ transform: 'translateY(0)' }, { transform: `translateY(-${((n - 1) / n) * 100}%)` }],
-      { duration, easing: slow ? 'cubic-bezier(.08,.8,.08,1)' : 'cubic-bezier(.2,.75,.25,1)', fill: 'forwards' });
-    // Tique a cada foto que passa, cada vez mais espaçado.
-    for (let k = 1; k < n; k++) setTimeout(() => S.spinning === m.id && Sounds.play('mudaeTick'), duration * (1 - Math.sqrt(1 - k / n)) ** 1.6);
-    if (slow) setTimeout(() => reel.classList.add('tease'), Math.max(0, duration - 700));
-    const channel = S.channel;
     const done = () => {
-      if (S.channel !== channel || S.spinning !== m.id) return;
-      S.spinning = null;
+      if (!current()) return;
+      stopSpin();
       renderStage();
       renderRollBar();
       reveal(m, !document.hidden);
     };
+    // A rede nunca prolonga o giro nem consome a janela de prioridade do servidor.
+    later(done, duration);
+    await Promise.race([
+      Promise.all([winner.promise, ...decoys.map((record) => record.promise)]),
+      new Promise((resolve) => { run.release = resolve; later(resolve, Math.min(300, duration * .15)); }),
+    ]);
+    if (!current() || !reel.isConnected) return;
+    const remaining = (d.revealAt ?? m.ts) - now();
+    if (remaining <= 0) return done();
+    const images = decoys.filter((record) => record.ready).map((record) => record.image);
+    // Sem fotos prontas, um baralho de versos mantém a animação inteira.
+    while (images.length < 3) images.push(cardBack());
+    images.push(winner.ready ? winner.image : cardBack());
+    for (const img of images) if (img.tagName === 'IMG') { img.alt = ''; img.className = ''; }
+    const strip = el('div', { class: 'salon-reel-strip' }, images.map((image) => el('div', { class: 'salon-reel-cell' }, image)));
+    reel.prepend(strip);
+    reel.classList.remove('is-preparing');
+    reel.classList.add('is-ready');
+    const n = images.length;
+    const slow = rarity === 'legendary' || rarity === 'epic';
+    const anim = run.animation = strip.animate([{ transform: 'translateY(0)' }, { transform: `translateY(-${((n - 1) / n) * 100}%)` }],
+      { duration: remaining, easing: slow ? 'cubic-bezier(.08,.8,.08,1)' : 'cubic-bezier(.2,.75,.25,1)', fill: 'forwards' });
+    // Tique a cada foto que passa, cada vez mais espaçado.
+    for (let k = 1; k < n; k++) later(() => Sounds.play('mudaeTick'), remaining * (1 - Math.sqrt(1 - k / n)) ** 1.6);
+    if (slow) later(() => reel.classList.add('tease'), Math.max(0, remaining - 700));
     anim.onfinish = done;
-    // Em aba escondida (ou app minimizado) o navegador pausa a animação; o card aparece na hora mesmo assim.
-    setTimeout(done, duration + 400);
   }
 
   function reveal(m, animate) {
@@ -596,7 +603,7 @@ window.MudaeSalon = function ({ state, el, Icon, call, onSocket, member, avatar,
         ? el('div', { class: 'salon-ribbon' }, member(d.ownerId) ? avatar(member(d.ownerId), 'salon-chip-avatar') : null, el('span', { textContent: 'Casado com ' + whoName(d.ownerId) }))
         : p === 'expired' ? el('div', { class: 'salon-expired', textContent: 'Tempo esgotado' })
           : el('div', { class: 'salon-timer', data: { id: m.id } }, secondsLeft(m) + 's');
-      node = cardNode(d.card, { size: 'small', onclick: open, extra: [chip, overlay] });
+      node = cardNode(d.card, { size: 'small', onclick: open, overlay: [chip, overlay] });
     }
     node.classList.add('live', 'p-' + p);
     node.dataset.id = m.id;
@@ -615,6 +622,7 @@ window.MudaeSalon = function ({ state, el, Icon, call, onSocket, member, avatar,
     updateStatus();
     if (S.legendaryUntil && S.legendaryUntil < Date.now()) { S.legendaryUntil = 0; renderBanner(); }
     if (S.tab !== 'mesa') return;
+    updateBackdrop();
     const m = S.stage && byId(S.stage);
     if (m && !S.spinning && nodes.actions) {
       if (nodes.actions.dataset.phase !== phase(m)) renderActions();
@@ -721,10 +729,10 @@ window.MudaeSalon = function ({ state, el, Icon, call, onSocket, member, avatar,
       const isFav = a.favorite?.chosen && a.favorite.id === c.id;
       const actions = mine ? el('div', { class: 'salon-card-actions' },
         el('button', { type: 'button', class: isFav ? 'active' : '', onclick: (e) => { e.stopPropagation(); favorite(isFav ? null : c.id); } }, '⭐ ', isFav ? 'Favorito' : 'Favoritar'),
-        el('button', { type: 'button', class: 'danger', onclick: (e) => { e.stopPropagation(); divorce(c); } }, '💔 Divorciar')) : null;
-      const node = cardNode(c, { size: 'album', extra: actions });
+        el('button', { type: 'button', class: 'danger', title: 'Divorciar de ' + c.name, ariaLabel: 'Divorciar de ' + c.name, onclick: (e) => { e.stopPropagation(); divorce(c); } }, Icon('trash', 16))) : null;
+      const node = cardNode(c, { size: 'album' });
       if (isFav) node.classList.add('fav');
-      return node;
+      return el('div', { class: 'salon-album-item' }, node, actions);
     });
     nodes.grid.replaceChildren(...cards);
     if (!list.length) nodes.grid.append(el('div', { class: 'salon-empty-note', textContent: 'Nada encontrado.' }));
@@ -813,9 +821,6 @@ window.MudaeSalon = function ({ state, el, Icon, call, onSocket, member, avatar,
       }
       renderLive();
     } else if (d.kind === 'married' || d.kind === 'divorce') {
-      // Casou com o personagem que está no palco: a cena comemora (corações, ou roubo se o roll era de outra pessoa).
-      const stageMsg = d.kind === 'married' && S.stage && byId(S.stage);
-      if (stageMsg && stageMsg.mudae.card.id === d.card?.id) S.gacha?.celebrate(d.from ? 'steal' : 'claim');
       if (S.tab === 'harem' && S.albumOwner && (d.ownerId === S.albumOwner)) loadAlbum(S.albumOwner);
       if (S.tab === 'ranking') loadRanking();
       if (d.ownerId === me() && d.kind === 'married') call('mudae:profile', { accountId: me() }).then((res) => { S.favorite = res?.summary?.favorite || S.favorite; });

@@ -1,9 +1,10 @@
 param(
-    [string]$Server = '168.138.227.230',
+    [string]$Server = '146.235.41.73',
     [string]$KeyPath = (Join-Path $env:USERPROFILE '.ssh\resenhex-oracle-ed25519'),
     # Troca o endereço do site, ex.: -Domain resenhex.dev (o domínio precisa apontar para o servidor).
     [string]$Domain = '',
-    [switch]$ValidateOnly
+    [switch]$ValidateOnly,
+    [switch]$EnableSfu
 )
 
 $ErrorActionPreference = 'Stop'
@@ -75,7 +76,8 @@ try {
     $backup = "/var/backups/resenhex/data-before-$stamp.tar.gz"
     $setDomain = ''
     if ($Domain) { $setDomain = "RESENHEX_SET_DOMAIN=$Domain " }
-    $update = "sudo mkdir -p /var/backups/resenhex && sudo tar -czf $backup -C /var/lib/resenhex data.json uploads && sudo ${setDomain}bash $remoteStage/discord-clone/deploy/instalar-vps.sh --oracle && systemctl is-active resenhex caddy coturn"
+    $sfuSetting = if ($EnableSfu) { 'RESENHEX_ENABLE_SFU=1 ' } else { '' }
+    $update = "sudo mkdir -p /var/backups/resenhex && sudo tar -czf $backup -C /var/lib/resenhex data.json uploads && sudo ${setDomain}${sfuSetting}bash $remoteStage/discord-clone/deploy/instalar-vps.sh --oracle && systemctl is-active resenhex caddy coturn"
     Run 'ssh.exe' ($sshArgs + @($update))
 
     $siteDomain = (& ssh.exe @sshArgs "sudo sed -n 's/^RESENHEX_DOMAIN=//p' /etc/resenhex.env | tail -n 1" | Out-String).Trim()

@@ -24,6 +24,7 @@ if (location.protocol === 'file:') {
 
   contextBridge.exposeInMainWorld('resenhexDesktop', {
     platform: process.platform,
+    mediaCapabilities: () => ipcRenderer.invoke('desktop:media-capabilities'),
     // handler(sources, { audio }) → Promise<{ id, audio } | null>
     onPickSource: (handler) => { pickSource = typeof handler === 'function' ? handler : null; },
     setPushToTalk: (config) => ipcRenderer.send('desktop:set-ptt', { enabled: !!config?.enabled, code: String(config?.code || '') }),

@@ -1,57 +1,79 @@
-// Quadrinhos (Comic Vine + Wikidata). Precisa de comicVineKey. A lista de personagens do Comic Vine
-// ignora a ordenação por popularidade, então ela vem do Wikidata: personagens com id do Comic Vine,
-// do que tem artigo em mais Wikipédias para o que tem menos (sem pessoas reais). Foto, gênero e
-// editora vêm do Comic Vine, 100 por pedido (filtro por id). Uso não comercial; 200 pedidos por hora.
-const { pacer, request } = require('./comum');
+// Wikidata ordena personagens conhecidos; consultas diretas também aceitam fichas sem mapeamento.
+const fs = require('fs');
+const path = require('path');
+const { request } = require('./comum');
+const { createCollection } = require('./coleta');
+const { hourlyPacer } = require('./limite');
 
-const pace = pacer(1100);
 const UA = { 'User-Agent': 'ResenhexMudaeCatalog/1.0 (personal, non-commercial)' };
-// Fica de fora: mangá (já está no anime), gibis de desenho e de jogo (Disney, Simpsons, Nintendo… já
-// estão nas outras fontes), pessoas reais que aparecem
-// em quadrinhos ("Non-Fictional") e figuras religiosas e mitológicas ("In the Public Domain").
 const SKIP_PUBLISHER = /shueisha|kodansha|shogakukan|square enix|viz|hakusensha|akita|kadokawa|tokyopop|futabasha|houbunsha|ichijinsha|enterbrain|media factory|mag garden|^disney|non-fictional|public domain|nintendo|sega|bongo|lego|company-licensed|hanna-barbera|warner bros|cartoon network|nickelodeon|capcom|blizzard|nbc|konami|bandai|ubisoft|activision|electronic arts|riot games|sony|microsoft/i;
 
-async function popular(want) {
-  const query = `SELECT ?cv ?links WHERE {
-    ?item wdt:P5905 ?cv ; wikibase:sitelinks ?links .
-    FILTER(STRSTARTS(?cv, "4005-") && ?links > 1)
-    FILTER NOT EXISTS { ?item wdt:P31 wd:Q5 }
-  } ORDER BY DESC(?links) LIMIT ${want}`;
-  const data = await request('https://query.wikidata.org/sparql?format=json&query=' + encodeURIComponent(query),
-    { headers: { ...UA, Accept: 'application/sparql-results+json' } }, { label: 'Wikidata' });
-  const best = new Map();
-  for (const b of data.results.bindings) {
-    const id = Number(b.cv.value.slice(5));
-    if (id && !best.has(id)) best.set(id, Number(b.links.value));
-  }
-  return best;
+function characterRow(c, links = new Map(), humans = new Set(), collection) {
+  const img = c.image?.super_url || c.image?.medium_url || '';
+  if (!c.name || !img || /blank|default/i.test(img)) { collection?.skip('semNomeImagem'); return null; }
+  const publisher = c.publisher?.name || '';
+  if (humans.has(c.id) || SKIP_PUBLISHER.test(publisher)) { collection?.skip('foraDoEscopo'); return null; }
+  return ['c' + c.id, c.name.trim(), publisher || 'Quadrinhos', img, c.gender === 1 ? 'M' : c.gender === 2 ? 'F' : '',
+    (links.get(c.id) || 0) * 100_000 + Math.min(99_999, c.count_of_issue_appearances || 0), 'c'];
 }
 
-async function comicvine({ want = 4000, keys }) {
+async function comicvine({ keys, previous = [], nativePages = 50, collection = createCollection('quadrinhos') }) {
   if (!keys.comicVineKey) throw new Error('falta comicVineKey em tools/mudae-chaves.json');
-  // Os filtros de editora descartam muita gente no topo (mitologia, religião, licenciados).
-  const links = await popular(want * 5);
-  console.log(`  quadrinhos: ${links.size} personagens no Wikidata`);
-  const ids = [...links.keys()];
-  const rows = [];
-  for (let i = 0; i < ids.length && rows.length < want; i += 100) {
-    await pace();
-    const params = new URLSearchParams({ api_key: keys.comicVineKey, format: 'json', limit: '100', filter: 'id:' + ids.slice(i, i + 100).join('|'),
-      field_list: 'id,name,gender,image,publisher,count_of_issue_appearances' });
-    const data = await request(`https://comicvine.gamespot.com/api/characters/?${params}`, { headers: UA }, { label: 'Comic Vine' });
-    if (data.error !== 'OK') throw new Error('Comic Vine: ' + data.error);
-    for (const c of data.results) {
-      // super_url mantém a proporção da arte (screen_large_url é um recorte horizontal).
-      const img = c.image?.super_url || c.image?.medium_url || '';
-      const publisher = c.publisher?.name || '';
-      if (!img || /blank|default/i.test(img) || !c.name || SKIP_PUBLISHER.test(publisher)) continue;
-      // Wikipédias com artigo decidem; edições em que aparece desempatam.
-      const score = links.get(c.id) * 100_000 + Math.min(99_999, c.count_of_issue_appearances || 0);
-      rows.push([`c${c.id}`, c.name.trim(), publisher || 'Quadrinhos', img, c.gender === 1 ? 'M' : c.gender === 2 ? 'F' : '', score, 'c']);
+  const queryDir = path.join(collection.cacheDir, 'consultas', collection.report.source);
+  const history = fs.existsSync(queryDir) ? fs.readdirSync(queryDir).map((file) => JSON.parse(fs.readFileSync(path.join(queryDir, file), 'utf8')))
+    .filter((entry) => entry.key.startsWith('comicvine:')).map((entry) => Date.parse(entry.fetchedAt)) : [];
+  const pace = hourlyPacer(path.join(collection.cacheDir, 'limites', 'comicvine.json'), history);
+  const links = new Map();
+  const humans = new Set();
+  collection.report.scope = { mapped: 'todos os IDs Wikidata, inclusive zero/um sitelink', nativePages, nativePageSize: 100, characters: 'sem teto global; expansão direta por ID de criação; filtros de mídia/imagem' };
+  try {
+    const q = 'SELECT ?cv ?links ?human WHERE { ?item wdt:P5905 ?cv; wikibase:sitelinks ?links. FILTER(STRSTARTS(?cv, "4005-")) OPTIONAL { ?item wdt:P31 wd:Q5. BIND(true AS ?human) } }';
+    const data = await collection.unit('wikidata:todos-com-humanos-v2', () => request('https://query.wikidata.org/sparql?format=json&query=' + encodeURIComponent(q),
+      { headers: { ...UA, Accept: 'application/sparql-results+json' } }, { label: 'Wikidata' }));
+    for (const b of data.results.bindings) {
+      const id = Number(b.cv.value.slice(5));
+      if (!id) continue;
+      if (b.human?.value === 'true') humans.add(id);
+      else links.set(id, Math.max(links.get(id) || 0, Number(b.links.value)));
     }
-    if ((i / 100) % 5 === 4) console.log(`  quadrinhos: ${rows.length} (${i + 100} de ${ids.length} conferidos)`);
+  } catch (err) { collection.error('wikidata', err); }
+  collection.count('mappedIds', links.size);
+  collection.count('realPeopleIds', humans.size);
+  const api = (params) => collection.unit('comicvine:' + JSON.stringify(params), async () => {
+    const query = new URLSearchParams({ api_key: keys.comicVineKey, format: 'json', limit: '100',
+      field_list: 'id,name,gender,image,publisher,count_of_issue_appearances', ...params });
+    const data = await request('https://comicvine.gamespot.com/api/characters/?' + query, { headers: UA },
+      { label: 'Comic Vine', beforeAttempt: async () => { await pace(); collection.count('apiAttempts'); } });
+    if (data.error !== 'OK') throw new Error('Comic Vine: ' + data.error);
+    return data;
+  });
+  const rows = new Map();
+  const fetched = new Set();
+  const consume = (data) => {
+    collection.count('fetched', data.results.length);
+    for (const c of data.results) {
+      fetched.add(c.id);
+      const row = characterRow(c, links, humans, collection);
+      if (row) rows.set(c.id, row);
+    }
+  };
+  // Fichas diretas: mapeamento Wikidata não é condição para entrar.
+  for (let page = 0; page < nativePages; page++) {
+    const data = await api({ sort: 'id:asc', offset: String(page * 100) });
+    consume(data);
+    collection.progress('native', { pages: page + 1, fetched: fetched.size, providerTotal: data.number_of_total_results, status: 'running' });
+    if ((page + 1) * 100 >= data.number_of_total_results || !data.results.length) break;
+    if (page % 10 === 9) console.log('  quadrinhos: ' + (page + 1) + ' páginas diretas; ' + rows.size + ' fichas');
   }
-  return rows.sort((a, b) => b[5] - a[5]).slice(0, want);
+  const ids = [...new Set([...links.keys(), ...previous.map((r) => Number(String(r[0]).slice(1)))])].filter((id) => id && !fetched.has(id));
+  for (let i = 0; i < ids.length; i += 100) {
+    const data = await api({ filter: 'id:' + ids.slice(i, i + 100).join('|') });
+    consume(data);
+    if (i % 1000 === 0) console.log('  quadrinhos: ' + Math.min(i + 100, ids.length) + '/' + ids.length + ' IDs adicionais; ' + rows.size + ' fichas');
+  }
+  collection.count('uniqueFetched', fetched.size);
+  collection.progress('native', { pages: nativePages, status: 'complete-in-scope', note: 'Expansão limitada ao escopo conhecido; não é espelho integral do Comic Vine.' });
+  return collection.finish([...rows.values()].sort((a, b) => b[5] - a[5]));
 }
 
-module.exports = { comicvine };
+module.exports = { comicvine, characterRow };

@@ -148,6 +148,7 @@ Wants=network-online.target
 User=resenhex
 Group=resenhex
 EnvironmentFile=$ENV_FILE
+EnvironmentFile=-/etc/resenhex-livekit.env
 WorkingDirectory=$APP_DIR
 ExecStart=$(command -v node) $APP_DIR/server.js
 Restart=always
@@ -161,6 +162,10 @@ WantedBy=multi-user.target
 EOF
 
 # ---------- HTTPS ----------
+if [ "${RESENHEX_ENABLE_SFU:-0}" = 1 ] || [ -f /etc/resenhex-livekit.env ]; then
+  export DOMAIN PUBLIC_IP TURN_USERNAME TURN_CREDENTIAL
+  bash "$APP_SRC/deploy/instalar-sfu.sh"
+fi
 say "Configurando HTTPS para $DOMAIN"
 cat > /etc/caddy/Caddyfile <<EOF
 $DOMAIN {
@@ -169,6 +174,10 @@ $DOMAIN {
 }
 EOF
 # Com domínio próprio, o endereço gratuito antigo continua funcionando e redireciona para o novo.
+if [ -f /etc/resenhex-livekit.env ]; then
+  sed -i '/encode gzip/a\	handle /rtc* {\n\t\treverse_proxy 127.0.0.1:7880\n\t}' /etc/caddy/Caddyfile
+  sed -i 's/^\treverse_proxy 127.0.0.1:3000/\thandle {\n\t\treverse_proxy 127.0.0.1:3000\n\t}/' /etc/caddy/Caddyfile
+fi
 if [ "$DOMAIN" != "$FREE_DOMAIN" ]; then
   cat >> /etc/caddy/Caddyfile <<EOF
 
@@ -240,6 +249,7 @@ if [ "${1:-}" = '--oracle' ] || [ "${RESENHEX_CLOUD:-}" = 'oracle' ] || \
   allow_oci_port tcp 3478
   allow_oci_port udp 3478
   allow_oci_port udp "$TURN_MIN_PORT:$TURN_MAX_PORT"
+  if [ -f /etc/resenhex-livekit.env ]; then allow_oci_port tcp 7881; allow_oci_port udp 7882; fi
   netfilter-persistent save >/dev/null
   systemctl enable netfilter-persistent >/dev/null
 else
@@ -250,6 +260,7 @@ else
   ufw allow 443/udp >/dev/null
   ufw allow 3478 >/dev/null
   ufw allow "$TURN_MIN_PORT:$TURN_MAX_PORT/udp" >/dev/null
+  if [ -f /etc/resenhex-livekit.env ]; then ufw allow 7881/tcp >/dev/null; ufw allow 7882/udp >/dev/null; fi
   ufw --force enable >/dev/null
 fi
 

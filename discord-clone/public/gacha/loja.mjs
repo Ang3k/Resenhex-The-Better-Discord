@@ -5,6 +5,7 @@ import * as THREE from 'three';
 import { Reflector } from 'three/addons/objects/Reflector.js';
 import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
 import { createStreet } from './rua.mjs';
+import { mergeStaticMeshes, freezeStaticTransforms } from './geometria.mjs';
 
 const FONT = '"Yu Gothic UI", "Yu Gothic", "Hiragino Sans", "Noto Sans JP", "Meiryo", sans-serif';
 const NEON = 2.6; // emissão HDR, antes do bloom e do tratamento de cor
@@ -99,7 +100,9 @@ function planks(base, line, boards) {
 
 // Vitrine iluminada por dentro: prateleiras com gatinhos da sorte em silhueta.
 function shopWindow() {
-  return canvasTexture(512, 448, (g, w, h) => {
+  return canvasTexture(1024, 896, (g) => {
+    g.scale(2, 2);
+    const w = 512, h = 448;
     const grad = g.createLinearGradient(0, 0, 0, h);
     grad.addColorStop(0, '#ffd99a');
     grad.addColorStop(1, '#e88a3c');
@@ -110,12 +113,28 @@ function shopWindow() {
     for (const y of [h * 0.33, h * 0.66, h * 0.97]) {
       g.fillStyle = '#6b3a1e';
       g.fillRect(0, y - 8, w, 10);
+      g.fillStyle = 'rgba(255,232,176,.55)'; g.fillRect(0, y - 8, w, 2);
       for (let x = 34; x < w - 20; x += 64) {
+        g.fillStyle = 'rgba(98,48,20,.2)';
+        g.beginPath(); g.ellipse(x + 3, y - 6, 24, 4, 0, 0, Math.PI * 2); g.fill();
         g.fillStyle = tints[n++ % tints.length];
         g.beginPath(); g.arc(x, y - 34, 20, 0, Math.PI * 2); g.fill();
         g.beginPath(); g.moveTo(x - 18, y - 46); g.lineTo(x - 12, y - 64); g.lineTo(x - 4, y - 50); g.fill();
         g.beginPath(); g.moveTo(x + 18, y - 46); g.lineTo(x + 12, y - 64); g.lineTo(x + 4, y - 50); g.fill();
         g.fillRect(x - 16, y - 20, 32, 14);
+        // Rosto, coleira e moeda dourada: detalhes legíveis nas pequenas figuras da vitrine.
+        g.strokeStyle = '#79554a'; g.lineWidth = 1.5;
+        for (const dx of [-7, 7]) {
+          g.beginPath(); g.arc(x + dx, y - 36, 3.5, Math.PI * 1.08, Math.PI * 1.92); g.stroke();
+        }
+        g.fillStyle = '#b96961'; g.beginPath(); g.arc(x, y - 30, 2, 0, Math.PI * 2); g.fill();
+        g.fillStyle = '#bc665d'; g.fillRect(x - 13, y - 20, 26, 3);
+        g.fillStyle = '#e8ba53'; g.beginPath(); g.ellipse(x + 4, y - 11, 6, 8, -0.15, 0, Math.PI * 2); g.fill();
+        g.strokeStyle = '#a37532'; g.lineWidth = 1; g.stroke();
+        g.fillStyle = '#fff0cf'; g.fillRect(x + 3, y - 16, 1.5, 10);
+        g.fillStyle = 'rgba(239,139,127,.38)';
+        g.beginPath(); g.ellipse(x - 12, y - 30, 3, 2, 0, 0, Math.PI * 2); g.fill();
+        g.beginPath(); g.ellipse(x + 12, y - 30, 3, 2, 0, 0, Math.PI * 2); g.fill();
       }
     }
     g.fillStyle = 'rgba(255,255,255,.12)'; // reflexo no vidro
@@ -361,7 +380,9 @@ export function createShop({ environment = null } = {}) {
   const brass = std({ color: '#b89a66', metalness: 0.8, roughness: 0.35 });
   add(new THREE.Mesh(new THREE.CylinderGeometry(0.018, 0.018, 0.23, 12), brass), { cast: true }).position.set(0.49, 1.05, -0.365);
   // Calçada e juntas: as máquinas ficam apoiadas numa base, separada do asfalto molhado.
-  const pavement = std({ color: '#646574', roughness: 0.78 });
+  const stone = plaster();
+  stone.wrapS = stone.wrapT = THREE.RepeatWrapping; stone.repeat.set(6, 1);
+  const pavement = std({ color: '#646574', bumpMap: stone, bumpScale: 0.006, roughness: 0.78 });
   add(new THREE.Mesh(new RoundedBoxGeometry(6.1, 0.1, 1.05, 2, 0.018), pavement), { cast: true }).position.set(0, 0.03, -0.24);
   const joints = new THREE.InstancedMesh(new THREE.BoxGeometry(0.009, 0.102, 1.052), std({ color: '#343642', roughness: 0.95 }), 10);
   for (let i = 0; i < 10; i++) { matrix.makeTranslation(-2.7 + i * 0.6, 0.03, -0.24); joints.setMatrixAt(i, matrix); }
@@ -470,8 +491,9 @@ export function createShop({ environment = null } = {}) {
   const rib = new THREE.Object3D();
   rib.rotation.x = Math.PI / 2;
   let ribIndex = 0;
+  const lanternGeometry = new THREE.SphereGeometry(0.13, 16, 12);
   for (const [x, y, z] of lanterns) {
-    const mesh = new THREE.Mesh(new THREE.SphereGeometry(0.13, 16, 12), lantern);
+    const mesh = new THREE.Mesh(lanternGeometry, lantern);
     mesh.scale.y = 1.3;
     mesh.position.set(x, y, z);
     group.add(mesh);
@@ -521,6 +543,18 @@ export function createShop({ environment = null } = {}) {
   mirror.rotation.x = -Math.PI / 2;
   mirror.position.set(0, -0.002, 1.5);
   group.add(mirror);
+
+  // As poças centrais mantêm seu mapa e reflexo; o asfalto continua fora delas.
+  // UVs com a mesma escala evitam esticar a textura ou criar outra cópia na GPU.
+  const outerGeometry = new THREE.PlaneGeometry(60, 40);
+  const outerUv = outerGeometry.attributes.uv;
+  for (let i = 0; i < outerUv.count; i++) {
+    outerUv.setXY(i, (outerUv.getX(i) - 0.5) * 60 / 14 + 0.5, (outerUv.getY(i) - 0.5) * 40 / 10 + 0.5);
+  }
+  const outerFloor = add(new THREE.Mesh(outerGeometry, new THREE.MeshPhysicalMaterial({ map: ground, bumpMap: ground,
+    bumpScale: 0.014, roughness: 0.38, metalness: 0.08, envMap: environment, envMapIntensity: 0.08, clearcoat: 0.55, clearcoatRoughness: 0.22 })));
+  outerFloor.rotation.x = -Math.PI / 2;
+  outerFloor.position.set(0, -0.004, 1.5);
 
   // Chuva fina (segmentos) e pétalas caindo (pontos).
   const rainPos = new Float32Array(RAIN * 6);
@@ -580,6 +614,7 @@ export function createShop({ environment = null } = {}) {
 
   // Qualidade: sem reflexo o chão fica opaco e um pouco mais liso.
   function setReflection(on) {
+    if (mirror.visible === on) return;
     mirror.visible = on;
     floorMaterial.transparent = on;
     floorMaterial.roughness = on ? 0.38 : 0.3;
@@ -595,5 +630,7 @@ export function createShop({ environment = null } = {}) {
   }
 
   update(0);
+  mergeStaticMeshes(group);
+  freezeStaticTransforms(group);
   return { group, update, setReflection, setSize, dispose: () => { mirror.dispose(); red.dispose(); cream.dispose(); flowers.dispose(); } };
 }

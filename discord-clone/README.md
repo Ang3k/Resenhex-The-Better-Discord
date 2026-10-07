@@ -126,7 +126,7 @@ Na chamada, o botão do disco abre o DJ: busque no YouTube ou cole um link (víd
 
 ## Mudae
 
-O Mudae mora no **Salão do Mudae**, um canal de texto com `mudae: true` (crie em **Criar canal → Salão do Mudae**). Ele abre uma tela própria: **Mesa** (palco com a lojinha de gashapon em 3D, botões de roll e a Mesa ao vivo com os rolls de todo mundo), **Meu harem** (álbum) e **Ranking**. À direita ficam o chat do canal e a aba **No salão**.
+O Mudae mora no **Salão do Mudae**, um canal de texto com `mudae: true` (crie em **Criar canal → Salão do Mudae**). Ele abre uma tela própria: **Mesa** (palco com fundo preto em gradiente, roleta de fotos e botões de roll e a Mesa ao vivo com os rolls de todo mundo), **Meu harem** (álbum) e **Ranking**. À direita ficam o chat do canal e a aba **No salão**.
 
 | Comando | O que faz |
 |---|---|
@@ -139,21 +139,25 @@ O Mudae mora no **Salão do Mudae**, um canal de texto com `mudae: true` (crie e
 
 - **Só no Salão:** em outro canal, os comandos respondem (só para quem pediu) com o caminho até o Salão.
 - **Modo simplificado** (botão no topo do Salão, guardado no navegador de cada pessoa): o canal aparece como chat comum, com os cards completos e o botão Casar no chat, como no Mudae original. Os rolls, casamentos e limites são os mesmos de quem está na roleta; o botão do card espera o giro e a vez de quem rodou. **Abrir o Salão**, no topo, volta para a tela da roleta.
-- **Cápsula 3D:** o servidor sorteia na hora e manda o resultado com o `revealAt` (de 1,95 s no comum a 3,85 s no lendário, `REVEAL_MS` em `mudae.js`). No palco, uma cena Three.js feita só com código (`public/gacha/`) mostra a cápsula caindo, balançando e abrindo até o `revealAt`; ninguém casa antes disso. Sem WebGL2 o palco usa a roleta com 8 fotos-isca. Em aba escondida o card aparece mesmo assim, na hora certa. A prévia `node tools/gacha-preview.cjs` (http://127.0.0.1:38147/preview) mostra cada fase sem contas.
-- **Regras:** 10 rolls por hora e 1 casamento a cada 3 horas por pessoa, contados pelo relógio. Depois que o card aparece, quem rodou tem 3 s de prioridade; depois, qualquer um casa (e o chat conta o roubo). A janela total é de 45 s. Cada personagem tem um só dono por servidor.
+- **Roleta de fotos:** o servidor sorteia na hora e manda o resultado com o `revealAt` (de 1,95 s no comum a 3,85 s no lendário, `REVEAL_MS` em `mudae.js`). O palco usa a roleta com 8 fotos-isca sobre um fundo preto em gradiente; ninguém casa antes da revelação. A cena 3D foi retirada do Salão e não carrega Three.js nem cria um contexto WebGL. O código anterior permanece separado em `public/gacha/` para referência.
+- **Regras:** 10 rolls e 1 casamento a cada 30 minutos por pessoa, contados pelo relógio (ambos renovam na hora cheia e aos 30 minutos). Depois que o card aparece, quem rodou tem 3 s de prioridade; depois, qualquer um casa (e o chat conta o roubo). A janela total é de 45 s. Cada personagem tem um só dono por servidor.
 - **Raridade** pela posição dentro da própria fonte, em proporção: os 0,67% mais populares são lendários, até 6,7% épicos, até 33% raros, o resto comum (numa fonte de 15 mil: 1–100, até 1.000, até 5.000). Assim a chance de lendário não muda com o tamanho da fonte. Lendário toma o palco de todos, com banner, flash e fanfarra.
 - **Palco:** o seu roll sempre vai para o palco; o de um amigo só se o palco estiver livre (senão entra na Mesa ao vivo); lendário de qualquer um sempre.
 - **Personagens:** `mudae-catalogo.json`, gerado no seu computador por `node tools/mudae-catalogo.js` (um módulo por fonte em `tools/mudae-fontes/`, cada uma com cache em `tools/mudae-cache/`). O servidor lê o arquivo uma vez e nunca chama essas APIs: um roll é só um sorteio na memória. As fotos vão direto do site de cada fonte para o navegador.
 
-  | Fonte | Quantos | De onde | Popularidade | Chave |
+  | Fonte | Cobertura | De onde | Popularidade | Chave |
   |---|---|---|---|---|
-  | 🎌 Anime | 15.000 | AniList (5 mil mais favoritados + elenco das obras mais populares) | favoritos | não precisa |
-  | 🎮 Jogos | ~1.900 | IGDB (personagens com retrato) + wikis do Fandom de 25 jogos (Genshin, Star Rail, LoL, Zelda, Mario, Final Fantasy…) | nota do jogo / tamanho do artigo ou categoria de jogáveis | `igdbClientId` e `igdbClientSecret` (conta de desenvolvedor da Twitch) |
-  | 🦸 Quadrinhos | ~2.900 | Wikidata (popularidade) + Comic Vine (foto, gênero, editora). Sem mangá, pessoas reais, figuras religiosas e gibis licenciados de outras mídias | Wikipédias com artigo | `comicVineKey` |
-  | 📺 Desenhos | ~2.500 | wikis do Fandom de 26 franquias (Simpsons, Hora de Aventura, Disney, Pixar…) | tamanho do artigo, por franquia | não precisa |
-  | 🎬 Séries | ~3.000 | TMDB: séries mais votadas, sem animação, reality e séries sobre gente real; a foto é a do ator | votos da série e posição nos créditos | `tmdbKey` |
+  | 🎌 Anime | Obras atuais + 200 animes e 200 mangás populares; elencos paginados sem teto de personagens | AniList | favoritos | não precisa |
+  | 🎮 Jogos | Todos os personagens IGDB com retrato + categorias completas de 25 wikis, incluindo NPCs | IGDB + Fandom (Genshin, Star Rail, LoL, Zelda, Mario, Final Fantasy…) | nota do jogo / posição dentro da franquia | `igdbClientId` e `igdbClientSecret` |
+  | 🦸 Quadrinhos | IDs Wikidata sem mínimo de sitelinks + 50 páginas diretas do Comic Vine (aceita fichas sem Wikidata) | Comic Vine: sem mangá, pessoas reais, figuras religiosas e gibis licenciados de outras mídias | sitelinks e aparições | `comicVineKey` |
+  | 📺 Desenhos | Categorias completas das 26 wikis, com subcategorias e sem cotas por franquia | Fandom (Simpsons, Hora de Aventura, Disney, Pixar…) | posição dentro da franquia | não precisa |
+  | 🎬 Séries | Séries atuais + 340 mais votadas; todos os papéis nomeados com foto, sem limite de 12 | TMDB; sem animação, reality e séries sobre gente real; foto do ator | votos da série e posição nos créditos | `tmdbKey` |
 
-  As chaves ficam em `tools/mudae-chaves.json`, fora do Git: `{ "igdbClientId": "…", "igdbClientSecret": "…", "comicVineKey": "…", "tmdbKey": "…" }`. `node tools/mudae-catalogo.js jogos series` baixa de novo só essas fontes; `--juntar` só monta o catálogo com os caches que já existem. O Ranking do Salão mostra os créditos das fontes (o TMDB pede o aviso).
+  As chaves ficam em `tools/mudae-chaves.json`, fora do Git: `{ "igdbClientId": "…", "igdbClientSecret": "…", "comicVineKey": "…", "tmdbKey": "…" }`. O comando padrão atualiza todas as fontes; `node tools/mudae-catalogo.js jogos series` atualiza só as indicadas. `--retomar` reutiliza consultas salvas de uma execução interrompida; `--juntar` monta com os caches. Os IDs de personagens anteriores são preservados, com backup em `tools/mudae-cache/backups/`; páginas auxiliares reconhecidas pela revisão de qualidade são retiradas mesmo se já estiverem em um cache. A deduplicação considera nome **e obra**, para preservar homônimos de franquias diferentes.
+
+  A montagem aplica `tools/mudae-fontes/qualidade.js`: remove listas, bestiários, páginas de relacionamentos e fichas biográficas confirmadas de profissionais reais. A coleta Fandom distingue os dados de elenco/equipe dos campos de personagem; a lista de IDs revisados em `tools/mudae-fontes/pessoas-reais-revisadas.json` também impede que essas biografias voltem pelos caches. Personagens fictícios humanos, fotos de intérpretes e casos ambíguos são preservados. A revisão promove os protagonistas revisados e usa as categorias de jogáveis dos três gachas para impedir que NPCs com diálogos longos dominem o ranking. Personagens fora dessas categorias permanecem no catálogo com pontuação baixa, exceto as âncoras revisadas. Sem dados completos da categoria, não há esse rebaixamento. As faixas percentuais de raridade continuam calculadas por fonte; os ajustes e IDs retirados ficam em `tools/mudae-cache/relatorios/qualidade.json`.
+
+  `tools/mudae-cache/relatorio.json` contém as quantidades atuais e o estado da atualização; `relatorios/` registra o escopo, os descartes, a paginação e as falhas de cada fonte. Uma coleta parcial preserva os dados anteriores, publica os acréscimos válidos e termina com código 1. O escopo popular pode ser ajustado com `--anime-paginas=N` (25 obras por página/tipo), `--series-populares=N` e `--quadrinhos-paginas=N`. A coleta não é um espelho integral das APIs: imagens ausentes, papéis genéricos e mídias fora do escopo continuam excluídos. Comic Vine respeita 200 pedidos/hora, então sua atualização pode demorar. O Ranking do Salão mostra os créditos das fontes (o TMDB pede o aviso).
 - **Dados:** cada servidor guarda quem casou com quem, os favoritos e os horários de uso de cada pessoa. Os rolls são mensagens do bot no canal (entram no limite de 300), sem as fotos-isca. Presença e reações não são gravadas.
 - **Permissão:** **Usar o Mudae** (ligada para o @everyone, inclusive nos servidores existentes).
 - Para testar com outros personagens, `MUDAE_CATALOG` aponta para outro catálogo (é o que `test/mudae-server.test.js` faz).
@@ -315,12 +319,13 @@ Depois de criar sua conta, mande aos amigos o **link de convite do servidor**, d
 | `HOST` | Endereço de escuta do servidor (padrão `0.0.0.0`; no VPS, `127.0.0.1` atrás do Caddy) |
 | `DATA_FILE` | Onde salvar contas, cargos, canais e mensagens (padrão `data.json`) |
 | `UPLOAD_DIR` | Pasta dos arquivos enviados no chat (padrão `uploads/`) |
-| `MAX_UPLOAD_MB` | Tamanho máximo de cada arquivo (padrão `25`) |
+| `MAX_UPLOAD_MB` | Tamanho máximo de cada arquivo (padrão `50`) |
 | `TRUST_PROXY` | `1` quando roda atrás de um proxy HTTPS (Caddy, Nginx), para ler o IP real de quem conecta. O instalador do VPS já define |
 | `TURN_URL` | Servidor(es) TURN, separados por vírgula, ex.: `turn:meu-turn.com:3478` |
 | `TURN_USERNAME` / `TURN_CREDENTIAL` | Credenciais do TURN |
 | `DOWNLOAD_DIR` | Pasta com o instalador do app para Windows e o `latest.yml` (padrão `downloads/`; o instalador do VPS já define) |
 | `MS_STORE_ID` | ID do app na Microsoft Store (ex.: `9NBLGGH4R32N`). Com ele, a página `/baixar` entrega o instalador oficial da Microsoft |
+| `KLIPY_KEY` | Chave da API de GIFs do [KLIPY](https://partner.klipy.com/api-keys). Com ela aparece o botão de GIF no chat; a busca sai do navegador de quem usa (regra do KLIPY), então a chave chega aos clientes logados. A chave de teste faz 100 buscas por hora; peça a de produção no painel deles |
 
 ### Voz não conecta para alguém? Configure um TURN
 

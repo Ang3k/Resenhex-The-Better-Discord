@@ -28,13 +28,15 @@
     me: null, // { accountId, sid }
     server: null, // último 'state' do servidor: roles, channels, members, voice, myPerms, bans, ownerId
     permNames: {},
-    maxUploadMb: 25,
+    maxUploadMb: 50,
+    gifKey: null, // chave do KLIPY; sem ela o botão de GIF fica escondido
     messages: {}, // idDoCanal -> mensagens (carregadas sob demanda)
     messageAuthors: new Map(), // identidade pública de quem escreveu, mesmo depois de sair do servidor
     unread: {}, // idDoCanal -> { unread, mentions }
     textChannel: null,
     view: 'chat', // 'chat' | 'voice'
     voiceChannel: null,
+    callStartedAt: null,
     muted: false,
     deafened: false,
     micStream: null,
@@ -79,6 +81,7 @@
     removed: false,
     showMembers: localStorage.getItem('showMembers') !== 'false',
     pinned: null, // bloco fixado no palco da chamada ('screen-<sid>' ou 'user-<sid>')
+    stageGrid: false, // permite manter a grade mesmo com uma única transmissão
     streamVolume: savedJson('streamVolume', {}), // accountId -> 0..1 (áudio da transmissão)
     streamMuted: new Set(savedJson('streamMuted', [])),
     hiddenStreams: new Set(), // sids das transmissões que parei de assistir
@@ -364,6 +367,9 @@
   const inCallServer = () => !callInfo() || callInfo().serverId === state.server.serverId;
   // DJ da chamada (music.js): fila de músicas do YouTube tocando junto para a sala.
   const dj = MusicDJ({ state, el, Icon, toast, call, callInfo, callPerm, callMe, timedOut, callChannelName, pin: (key, force) => togglePin(key, force) });
+  // Chamada nas conversas privadas (dm-call.js): toque, mensagem de chamada e quem ainda não entrou.
+  const dmCall = DmCallUI({ state, el, Icon, avatar, person: (id) => person(id), call, toast, Sounds,
+    join: (dm, opts) => startDmCall(dm, opts), openDm: (dm) => openDm(dm), openProfile: (id, anchor) => openProfile(id, anchor) });
   // Conversa privada: id "dm-<conta>-<conta>". Aparece como um canal de texto, com a outra pessoa em "peer".
   const isDm = (id) => typeof id === 'string' && id.startsWith('dm-');
   const dmPeerId = (id) => id.slice(3).split('-').find((x) => x !== state.me?.accountId);
@@ -483,6 +489,8 @@
       state.permNames = res.permNames;
       state.iceServers = res.iceServers;
       state.maxUploadMb = res.maxUploadMb;
+      state.gifKey = res.gifKey || null;
+      $('#btn-gif').classList.toggle('hidden', !state.gifKey);
       // O servidor foi atualizado depois que esta página abriu: o código novo só vem recarregando.
       $('#update-banner').classList.toggle('hidden', !res.version || res.version === window.APP_VERSION);
       $('#login-password').value = '';
@@ -499,7 +507,7 @@
         $('#messages').dataset.channel = '';
         setConnBanner(null);
         toast('Reconectado!', 'info');
-        if (opts.rejoin) joinVoice(opts.rejoin, { keepView: opts.view !== 'voice', serverId: opts.rejoinServer });
+        if (opts.rejoin) joinVoice(opts.rejoin, { keepView: opts.view !== 'voice', serverId: opts.rejoinServer, startedAt: opts.rejoinStartedAt, silent: true });
       }
       call('chat:unread').then((r) => {
         if (!r) return;
@@ -547,7 +555,7 @@
   socket.on('disconnect', (reason) => {
     if (reason === 'io client disconnect' || state.removed || !state.me) return;
     reconnecting = true;
-    if (state.voiceChannel) rejoinVoice = { channel: state.voiceChannel, serverId: callInfo()?.serverId, view: state.view };
+    if (state.voiceChannel) rejoinVoice = { channel: state.voiceChannel, serverId: callInfo()?.serverId, view: state.view, startedAt: state.callStartedAt };
     leaveVoice(false, false);
     setConnBanner('Conexão perdida. Tentando reconectar…');
   });
@@ -557,7 +565,7 @@
     reconnecting = false;
     const rejoin = rejoinVoice;
     rejoinVoice = null;
-    authenticate({ token }, { reconnect: true, rejoin: rejoin?.channel, rejoinServer: rejoin?.serverId, view: rejoin?.view });
+    authenticate({ token }, { reconnect: true, rejoin: rejoin?.channel, rejoinServer: rejoin?.serverId, rejoinStartedAt: rejoin?.startedAt, view: rejoin?.view });
   });
 
   socket.on('notice', (text) => toast(text, 'info'));
@@ -641,8 +649,9 @@
     $('#profile-server-identity').classList.toggle('hidden', !state.server.serverId);
     $('#profile-server-label').textContent = serverName();
     $('#profile-server-display').textContent = meMember().name;
+    $('#profile-preview-chat-name').textContent = meMember().name;
     // Entrar numa chamada a partir do Início leva de volta para o servidor.
-    if (state.home && state.view === 'voice' && state.voiceChannel) leaveHome();
+    if (state.home && state.view === 'voice' && state.voiceChannel && !isDm(state.voiceChannel)) leaveHome();
     const salonOpen = !state.home && state.view === 'chat' && !!channelById(state.textChannel)?.mudae && salonMode();
     $('#app').classList.toggle('hide-members', !state.showMembers || state.home || salonOpen);
     $('#btn-members').classList.toggle('hidden', state.home || salonOpen);
@@ -658,6 +667,7 @@
     renderMembers();
     renderMain();
     renderControls();
+    dmCall.syncRingback(state.voiceChannel ? callInfo() : null);
     dj.render();
     updateTitle();
     // Só redesenha as configurações se algo delas mudou; senão perderia o que está sendo editado.
@@ -788,6 +798,7 @@
 
   // "Voltar para a chamada": se ela for de outro servidor, abre esse servidor primeiro.
   async function returnToCall() {
+    if (isDm(state.voiceChannel)) { openDm(state.voiceChannel); return; }
     const serverId = callInfo()?.serverId;
     if (serverId && serverId !== state.server.serverId && !(await switchServer(serverId))) return;
     if (!state.voiceChannel) return;
@@ -1060,7 +1071,7 @@
   // Lista de conversas privadas na lateral do Início.
   function renderHomeNav() {
     const s = state.server;
-    if (!changed('home-nav', [state.social, state.unread, state.home, state.textChannel, s.people, s.members.map((m) => [m.id, m.name, m.color, m.avatarUrl, m.avatarCrop, m.online])])) return;
+    if (!changed('home-nav', [state.social, state.unread, state.home, state.textChannel, state.voiceChannel, state.social.dms.map((d) => dmCall.ringing(d.id)), s.people, s.members.map((m) => [m.id, m.name, m.color, m.avatarUrl, m.avatarCrop, m.online])])) return;
     $('#nav-friends').classList.toggle('active', state.home && !state.textChannel);
     const pending = state.social.incoming.length;
     $('#friends-badge').textContent = String(pending);
@@ -1077,6 +1088,9 @@
         oncontextmenu: (e) => openMemberMenu(peer.id, e),
       }, el('div', { class: 'avatar-wrap' }, avatar(peer, 'small'), el('span', { class: 'status ' + (peer.online ? 'online' : 'offline') })),
       el('span', { class: 'channel-name', textContent: peer.name }),
+      state.voiceChannel === dm.id || dmCall.ringing(dm.id)
+        ? el('span', { class: 'dm-call-flag' + (dmCall.ringing(dm.id) ? ' ringing' : ''), tip: state.voiceChannel === dm.id ? 'Em chamada' : 'Ligando para você' }, Icon('phone', 14))
+        : null,
       u?.mentions ? el('span', { class: 'badge', textContent: u.mentions > 99 ? '99+' : String(u.mentions) }) : null,
       el('button', { type: 'button', class: 'dm-close', tip: 'Fechar conversa', ariaLabel: 'Fechar conversa com ' + peer.name, onclick: (e) => { e.stopPropagation(); closeDm(dm.id); } }, Icon('x', 14)));
     }).filter(Boolean);
@@ -1092,6 +1106,7 @@
     editChannel: (id) => { if (guardLeave()) openChannelSettings(id); },
     deleteChannel, markRead, guard: () => guardLeave(),
     confirm: (options) => confirmDialog(options), action: (...args) => menuItem(...args),
+    invite: () => copyInvite(),
     menu: (event, items) => {
       closeMenu();
       const box = $('#context-menu');
@@ -1102,6 +1117,8 @@
       box.querySelector('button')?.focus();
     },
   });
+
+  $('#server-nav').addEventListener('contextmenu', (event) => channelNavigation.listMenu(event));
 
   function renderChannels() {
     const s = state.server;
@@ -1118,7 +1135,7 @@
         const m = member(v.accountId);
         if (!m) return null;
         const flags = el('span', { class: 'flags' });
-        if (v.sharing) flags.append(el('span', { class: 'live', textContent: 'AO VIVO' }));
+        if (v.sharing) flags.append(el('span', { class: 'live clickable', textContent: 'AO VIVO', tip: 'Ver a transmissão', onclick: (e) => { e.stopPropagation(); openLiveStream(c.id, v.sid); } }));
         if (v.camera) flags.append(el('span', { tip: 'Câmera ligada' }, Icon('camera', 16)));
         if (state.localMuted.has(m.id)) flags.append(el('span', { tip: 'Mutado para você' }, Icon('volumeX', 16)));
         if (m.serverMuted || timedOut(m)) flags.append(el('span', { class: 'server-flag', tip: timedOut(m) ? 'De castigo' : 'Silenciado pelo servidor' }, Icon('micOff', 16)));
@@ -1131,6 +1148,17 @@
           oncontextmenu: (e) => openMemberMenu(m.id, e),
         }, avatar(m, 'small' + (state.speaking.has(v.sid) ? ' speaking' : ''), v.sid), el('span', { class: 'name', textContent: m.name }), flags);
     }), dj.voiceRow(c.id));
+  }
+
+  // Clicar no "AO VIVO" entra na chamada (se preciso), começa a assistir e fixa aquela tela.
+  async function openLiveStream(channelId, sid) {
+    if (state.voiceChannel !== channelId) await joinVoice(channelId);
+    if (state.voiceChannel !== channelId) return;
+    if (sid !== state.me.sid && !isWatching(sid)) setWatching(sid, true);
+    state.view = 'voice';
+    closePanels();
+    state.pinned = 'screen-' + sid;
+    render();
   }
 
   function renderMembers() {
@@ -1171,6 +1199,19 @@
     }
   }
 
+  // Faixa no topo do chat da conversa privada: alguém ligando ou uma chamada acontecendo.
+  const renderDmCallBanner = (c) => $('#dm-call-banner-slot').replaceChildren(c?.type === 'dm' ? dmCall.banner(c.id) || '' : '');
+
+  // Botões de chamada de voz e de vídeo no cabeçalho de uma conversa privada.
+  function renderDmCallTools(c) {
+    const show = c?.type === 'dm' && canWrite() && state.voiceChannel !== c.id;
+    for (const [id, video] of [['#btn-dm-call', false], ['#btn-dm-video', true]]) {
+      const button = $(id);
+      button.classList.toggle('hidden', !show);
+      if (show) button.onclick = () => startDmCall(c.id, { video });
+    }
+  }
+
   function setHeader(icon, text, sub) {
     $('#header-title').replaceChildren(Icon(icon, 24), el('span', { class: 'title-text', textContent: text }),
       sub ? el('span', { class: 'title-sub', textContent: sub, title: sub }) : '');
@@ -1179,10 +1220,16 @@
   function renderMain() {
     const inVoiceView = state.view === 'voice' && state.voiceChannel;
     const friendsPage = state.home && !state.textChannel;
-    $('#btn-return-call').classList.toggle('hidden', !state.voiceChannel || !!inVoiceView);
+    // Chamada privada vista da própria conversa: a chamada fica em cima e o chat continua embaixo.
+    const dmSplit = !inVoiceView && isDm(state.voiceChannel) && state.home && state.textChannel === state.voiceChannel;
+    $('#btn-return-call').classList.toggle('hidden', !state.voiceChannel || !!inVoiceView || dmSplit);
     $('#chat-view').classList.toggle('hidden', !!inVoiceView || friendsPage);
     $('#friends-view').classList.toggle('hidden', !friendsPage);
-    $('#voice-view').classList.toggle('hidden', !inVoiceView);
+    $('#voice-view').classList.toggle('hidden', !inVoiceView && !dmSplit);
+    $('#main').classList.toggle('dm-call', dmSplit);
+    $('#voice-view').classList.toggle('dm-call-full', !!inVoiceView && isDm(state.voiceChannel));
+    renderDmCallTools(friendsPage || inVoiceView ? null : channelById(state.textChannel));
+    if (dmSplit) renderStage();
     if (friendsPage || inVoiceView) {
       $('#btn-salon').classList.add('hidden');
       $('#main').classList.remove('salon-mode');
@@ -1196,7 +1243,8 @@
     }
     if (inVoiceView) {
       const n = voiceEntries(state.voiceChannel).length;
-      setHeader('volume', callChannelName(), `${n} ${n === 1 ? 'pessoa' : 'pessoas'} na chamada`);
+      setHeader(isDm(state.voiceChannel) ? 'phone' : 'volume', callChannelName(), `${n} ${n === 1 ? 'pessoa' : 'pessoas'} na chamada`);
+      $('#header-title').append(callClock());
       renderStage();
       return;
     }
@@ -1221,10 +1269,11 @@
         mudae.sync(res.now);
         state.messages[c.id] = res.messages;
         salon.onHistory(c.id);
-        if (state.textChannel === c.id) renderMessages(true);
+        if (state.textChannel === c.id) { renderMessages(true); renderDmCallBanner(c); }
       });
     }
     $('#notify-banner').classList.toggle('hidden', !('Notification' in window) || Notification.permission !== 'default' || !!localStorage.getItem('notifyDismissed'));
+    renderDmCallBanner(c);
     renderComposer();
     renderMessages();
   }
@@ -1273,13 +1322,13 @@
     }
     const list = state.messages[state.textChannel] || [];
     const epoch = JSON.stringify([state.server.members.map((m) => [m.id, m.name, m.color, m.avatarUrl, m.avatarCrop, m.roles]), [...new Set(list.map((msg) => msg.authorId))].map((id) => state.messageAuthors.get(id)), state.server.roles.map((r) => [r.id, r.name, r.color]),
-      hasPerm('MANAGE_MESSAGES'), canWrite(), inDm(), state.replyTo?.id, dayKey(Date.now()), salon.channel === state.textChannel]);
+      hasPerm('MANAGE_MESSAGES'), canWrite(), inDm(), state.replyTo?.id, dayKey(Date.now()), salon.channel === state.textChannel, state.voiceChannel]);
     const nodes = [welcomeNode(channel)];
     let prev = null;
     for (const msg of list) {
       const newDay = !prev || dayKey(prev.ts) !== dayKey(msg.ts);
       if (newDay) nodes.push(dayNode(msg.ts));
-      const continued = msg.bot
+      const continued = msg.call || prev?.call ? false : msg.bot
         ? !!(prev?.bot && !newDay && !msg.command && !msg.ephemeral && !prev.ephemeral && msg.ts - prev.ts < 5 * 60 * 1000)
         : !!(prev && !newDay && !msg.replyTo && !prev.bot && prev.authorId === msg.authorId && (msg.authorId || prev.authorName === msg.authorName) && msg.ts - prev.ts < 5 * 60 * 1000);
       const replied = msg.replyTo ? list.find((m) => m.id === msg.replyTo) || null : null;
@@ -1288,7 +1337,9 @@
       if (!entry || entry.sig !== sig) {
         // Só a mensagem que acabou de chegar entra deslizando; histórico e reconstruções aparecem direto.
         const arriving = !entry && !firstPaint && Date.now() - msg.ts < 15000;
-        entry = { sig, node: buildMessage(msg, continued, replied, msg.replyTo && !replied) };
+        entry = { sig, node: msg.call
+          ? dmCall.messageNode(msg, { channel: state.textChannel, time: hhmm(msg.ts), stamp: formatStamp(msg.ts) })
+          : buildMessage(msg, continued, replied, msg.replyTo && !replied) };
         if (arriving) {
           const node = entry.node;
           node.classList.add('msg-new');
@@ -1368,6 +1419,7 @@
         msg.edited ? el('span', { class: 'edited', textContent: ' (editado)', tip: formatStamp(msg.edited) }) : null));
     }
 
+    if (msg.gif) body.append(gifNode(msg.gif));
     if (msg.attachments?.length) body.append(el('div', { class: 'attachments' }, msg.attachments.map(attachmentNode)));
 
     const reactions = Object.entries(msg.reactions || {});
@@ -1391,8 +1443,9 @@
     }
     if (mine && canWrite()) actions.append(action('Editar', 'pencil', () => { state.editing = msg.id; renderMessages(); }));
     if (mine || (!inDm() && hasPerm('MANAGE_MESSAGES'))) {
-      actions.append(action('Apagar (Shift+clique apaga sem perguntar)', 'trash', (e) => {
-        if (e.shiftKey || confirm('Apagar esta mensagem?')) call('chat:delete', { channel: state.textChannel, id: msg.id });
+      actions.append(action('Apagar (Shift+clique apaga sem perguntar)', 'trash', async (e) => {
+        const channel = state.textChannel;
+        if (e.shiftKey || await confirmDialog({ title: 'Apagar mensagem', text: 'Quer apagar esta mensagem? Esta ação não pode ser desfeita.', confirm: 'Apagar' })) call('chat:delete', { channel, id: msg.id });
       }, 'danger'));
     }
     if (actions.childElementCount) row.append(actions);
@@ -1411,6 +1464,14 @@
       el('span', { class: 'att-dl', tip: 'Baixar' }, Icon('download', 22)));
     if (a.type.startsWith('audio/')) return el('div', { class: 'att-audio' }, file, el('audio', { src: a.url, controls: true, preload: 'none' }));
     return file;
+  }
+
+  // GIF do KLIPY: carrega direto da CDN deles, no tamanho certo desde o início (a lista não pula).
+  function gifNode(gif) {
+    const scale = Math.min(1, 400 / gif.width, 300 / gif.height);
+    const img = el('img', { src: gif.webp || gif.url, alt: gif.title || 'GIF', loading: 'lazy', width: Math.round(gif.width * scale), height: Math.round(gif.height * scale), onload: keepBottom, onclick: () => openLightbox({ url: gif.url }) });
+    img.onerror = () => { if (gif.webp && img.src !== gif.url) img.src = gif.url; };
+    return el('div', { class: 'att-gif' }, img, el('span', { class: 'gif-badge', textContent: 'GIF' }));
   }
 
   function openLightbox(a) {
@@ -1445,6 +1506,18 @@
     input.style.height = Math.min(input.scrollHeight, 240) + 'px';
   }
 
+  // GIF escolhido vai sozinho, como no Discord: o texto digitado continua na caixa.
+  const gifPicker = window.GifPicker({
+    el, Icon,
+    getKey: () => state.gifKey,
+    getUserId: () => state.me?.accountId || '',
+    onPick: async (gif) => {
+      const payload = { channel: state.textChannel, gif, replyTo: state.replyTo?.id };
+      if (state.replyTo) { state.replyTo = null; renderComposer(); renderMessages(); }
+      await call('chat:send', payload);
+      $('#chat-input').focus();
+    },
+  });
   function renderComposer() {
     const c = channelById(state.textChannel);
     const input = $('#chat-input');
@@ -1464,6 +1537,8 @@
     }
     $('#btn-attach').disabled = input.disabled;
     $('#btn-emoji').disabled = input.disabled;
+    $('#btn-gif').disabled = input.disabled;
+    if (input.disabled) gifPicker.close();
 
     const reply = state.replyTo;
     $('#reply-bar').classList.toggle('hidden', !reply);
@@ -1579,6 +1654,8 @@
     e.target.value = '';
   };
   $('#btn-emoji').onclick = (e) => openEmojiPicker(e.currentTarget, (emoji) => insertAtCursor(emoji));
+
+  $('#btn-gif').onclick = (e) => gifPicker.toggle(e.currentTarget);
   $('#reply-cancel').onclick = () => { state.replyTo = null; renderComposer(); renderMessages(); };
 
   function insertAtCursor(text) {
@@ -1729,7 +1806,7 @@
   // ---------------- seletor de emoji ----------------
   function openEmojiPicker(anchor, onPick) {
     const picker = $('#emoji-picker');
-    picker.replaceChildren(...EMOJIS.map((emoji) => el('button', {
+    picker.replaceChildren(el('div', { class: 'emoji-title', textContent: 'Escolha um emoji' }), ...EMOJIS.map((emoji) => el('button', {
       type: 'button',
       textContent: emoji,
       onclick: () => { picker.classList.add('hidden'); onPick(emoji); },
@@ -1738,7 +1815,8 @@
     const a = anchor.getBoundingClientRect();
     const p = picker.getBoundingClientRect();
     picker.style.left = Math.max(8, Math.min(a.right - p.width, innerWidth - p.width - 8)) + 'px';
-    picker.style.top = (a.top - p.height - 8 > 8 ? a.top - p.height - 8 : a.bottom + 8) + 'px';
+    const preferredTop = a.top - p.height - 8 > 8 ? a.top - p.height - 8 : a.bottom + 8;
+    picker.style.top = Math.max(8, Math.min(preferredTop, innerHeight - p.height - 8)) + 'px';
   }
 
   // ---------------- não lidas e notificações ----------------
@@ -1765,7 +1843,7 @@
     if (document.visibilityState === 'visible' && document.hasFocus()) return;
     const author = (isDm(channel) ? person(msg.authorId) : serverMember(msg.authorId) || person(msg.authorId))?.name || 'Alguém';
     const n = new Notification(isDm(channel) ? `${author} (mensagem direta)` : `${author} em #${channelById(channel)?.name || ''}`, {
-      body: Format.plain(msg.text, fmtCtx).slice(0, 200) || '📎 Anexo',
+      body: Format.plain(msg.text, fmtCtx).slice(0, 200) || (msg.gif ? 'GIF' : '📎 Anexo'),
       tag: channel,
       silent: true,
     });
@@ -1801,8 +1879,10 @@
         const u = (state.unread[channel] ||= { unread: true, mentions: 0 });
         if (mentionsMe(msg)) {
           u.mentions++;
-          Sounds.play('mention');
-          notify(msg, channel);
+          if (!msg.call) {
+            Sounds.play('mention');
+            notify(msg, channel);
+          }
         }
         renderChannels();
         renderHomeNav();
@@ -1816,14 +1896,15 @@
       state.social.dms.sort((a, b) => b.last - a.last);
       renderHomeNav();
     }
-    if (channel === state.textChannel) renderMessages(msg.authorId === state.me?.accountId || msg.by === state.me?.accountId);
+    if (channel === state.textChannel && msg.call) renderMain();
+    else if (channel === state.textChannel) renderMessages(msg.authorId === state.me?.accountId || msg.by === state.me?.accountId);
   });
 
   socket.on('chat:update', ({ channel, msg }) => {
     const list = state.messages[channel];
     const i = list ? list.findIndex((m) => m.id === msg.id) : -1;
     if (i >= 0) list[i] = msg;
-    if (channel === state.textChannel) renderMessages();
+    if (channel === state.textChannel) msg.call ? renderMain() : renderMessages();
     if (msg.bot) salon.onUpdate(channel, msg);
   });
 
@@ -1848,9 +1929,80 @@
     $('#typing').textContent = names.length ? names.join(', ') + (names.length > 1 ? ' estão' : ' está') + ' digitando…' : '';
   }
 
-  // Palco de voz: um bloco por participante (com câmera, se ligada) + um bloco grande por tela compartilhada.
+  // Palco de voz: telas em grade ou uma em destaque, com miniaturas em uma faixa horizontal.
+  $('#stage-grid').onclick = () => {
+    state.pinned = null;
+    state.stageGrid = true;
+    renderStage();
+  };
+  $('#stage-focus').onclick = () => {
+    const screens = [...$('#stage').querySelectorAll('.tile.screen')];
+    const tile = screens.find((t) => t.dataset.sid !== state.me.sid && isWatching(t.dataset.sid)) || screens[0];
+    if (tile) togglePin(tile.dataset.key, true);
+  };
+  // Chamada privada em cima do chat: botão de tela cheia (ou de voltar ao chat) na barra da chamada.
+  function renderDmCallSize() {
+    const dm = !!callInfo()?.dm;
+    const full = state.view === 'voice';
+    const button = $('#sc-chat');
+    button.classList.toggle('hidden', !dm);
+    $('#sc-music').classList.toggle('hidden', dm); // sem DJ no privado
+    if (!dm) return;
+    setControlIcon(button, full ? 'message' : 'maximize', 22);
+    button.dataset.tip = full ? 'Voltar ao chat' : 'Ampliar a chamada';
+    button.setAttribute('aria-label', button.dataset.tip);
+    refreshTip(button);
+  }
+  $('#sc-chat').onclick = () => {
+    if (!isDm(state.voiceChannel)) return;
+    if (state.view === 'voice') openDm(state.voiceChannel);
+    else { state.view = 'voice'; render(); }
+  };
+
+  // Divisor entre a chamada e o chat: arrastar (ou setas, com foco) muda a altura, guardada no navegador.
+  const DM_CALL_MIN = 200;
+  function setDmCallHeight(px, persist = false) {
+    const room = $('#main').clientHeight - 60 - 220; // cabeçalho e um mínimo de chat embaixo
+    const height = Math.round(Math.max(DM_CALL_MIN, Math.min(px, Math.max(DM_CALL_MIN, room))));
+    $('#main').style.setProperty('--dm-call-h', height + 'px');
+    $('#dm-call-resizer').setAttribute('aria-valuenow', String(height));
+    if (persist) try { localStorage.setItem('dmCallHeight', String(height)); } catch { /* sem armazenamento */ }
+    return height;
+  }
+  {
+    let saved = NaN;
+    try { saved = Number(localStorage.getItem('dmCallHeight')); } catch { /* sem armazenamento */ }
+    if (saved >= DM_CALL_MIN) $('#main').style.setProperty('--dm-call-h', saved + 'px');
+    const handle = $('#dm-call-resizer');
+    handle.addEventListener('pointerdown', (e) => {
+      if (e.button !== 0) return;
+      e.preventDefault();
+      handle.setPointerCapture(e.pointerId);
+      handle.classList.add('dragging');
+      const top = $('#voice-view').getBoundingClientRect().top;
+      const move = (ev) => setDmCallHeight(ev.clientY - top);
+      const up = (ev) => {
+        handle.removeEventListener('pointermove', move);
+        handle.classList.remove('dragging');
+        setDmCallHeight(ev.clientY - top, true);
+        renderStage();
+      };
+      handle.addEventListener('pointermove', move);
+      handle.addEventListener('pointerup', up, { once: true });
+      handle.addEventListener('pointercancel', up, { once: true });
+    });
+    handle.addEventListener('keydown', (e) => {
+      const step = { ArrowUp: -24, ArrowDown: 24 }[e.key];
+      if (!step) return;
+      e.preventDefault();
+      setDmCallHeight($('#voice-view').getBoundingClientRect().height + step, true);
+    });
+  }
+
   function renderStage() {
     const stage = $('#stage');
+    const primary = $('#stage-primary');
+    const strip = $('#stage-strip');
     const wanted = new Set();
 
     for (const v of voiceEntries(state.voiceChannel)) {
@@ -1871,7 +2023,7 @@
             el('div', { class: 'stats' }), el('div', { class: 'stream-health' }), el('div', { class: 'label' }), el('div', { class: 'tile-controls' }));
           setupTile(tile);
           tile.oncontextmenu = (e) => openStreamMenu(tile, e);
-          stage.prepend(tile);
+          primary.append(tile);
         }
         const hidden = !self && !isWatching(v.sid);
         const waiting = !hidden && !self && (!remote.screen || remote.screen.getVideoTracks()[0]?.muted);
@@ -1896,6 +2048,7 @@
         video.onclick = () => video.play().catch(() => {});
         tile.querySelector('.label').replaceChildren(Icon('screen', 16), self ? `Sua transmissão · ${SHARE_PRESETS[state.sharePreset].label}` : 'Tela de ' + m.name);
         tile.querySelector('.label .ico').style.color = '#fff';
+        tile.setAttribute('aria-label', self ? 'Destacar sua transmissão' : 'Destacar tela de ' + m.name);
         renderTileControls(tile, { kind: 'screen', self, sid: v.sid, accountId: m.id, hidden });
       }
 
@@ -1911,7 +2064,7 @@
         }, avatar(m, '', v.sid), el('video', { class: 'cam hidden' + (self ? ' mirror' : ''), autoplay: true, playsInline: true, muted: true }),
         el('div', { class: 'label' }), el('div', { class: 'tile-controls' }));
         setupTile(tile);
-        stage.append(tile);
+        primary.append(tile);
       }
       const cam = tile.querySelector('video.cam');
       const camStream = v.camera ? remote.camera : null;
@@ -1926,28 +2079,51 @@
       tile.querySelector('.label').replaceChildren(m.name,
         silenced || v.muted ? Icon('micOff', 16) : '',
         m.serverDeafened || v.deafened ? Icon('headphonesOff', 16) : '');
+      tile.setAttribute('aria-label', 'Destacar ' + m.name);
       renderTileControls(tile, { kind: 'user', self, sid: v.sid, accountId: m.id, camera: !!camStream });
     }
     const djTile = dj.stageTile(stage);
     if (djTile) wanted.add(djTile);
+    const pendingTile = dmCall.pendingTile(stage, callInfo());
+    if (pendingTile) wanted.add(pendingTile);
+    renderDmCallSize();
 
-    for (const tile of [...stage.children]) {
+    for (const tile of stage.querySelectorAll('.tile')) {
       if (!wanted.has(tile.dataset.key)) tile.remove();
     }
 
-    // Destaque: o bloco fixado; sem fixar, as telas compartilhadas ficam em destaque.
+    // Duas ou mais telas dividem o palco; nunca recebem destaque ao mesmo tempo.
     if (state.pinned && !wanted.has(state.pinned)) state.pinned = null;
-    const tiles = [...stage.children];
+    const tiles = [...wanted].map((key) => stage.querySelector(`[data-key="${key}"]`)).filter(Boolean);
+    const screens = tiles.filter((t) => t.classList.contains('screen'));
+    const focusKey = state.pinned || (!state.stageGrid && screens.length === 1 ? screens[0].dataset.key : null);
+    const mainTiles = focusKey ? tiles.filter((t) => t.dataset.key === focusKey) : screens.length ? screens : tiles;
+    const thumbnails = [...screens, ...tiles.filter((t) => !t.classList.contains('screen'))].filter((t) => !mainTiles.includes(t));
+    const active = document.activeElement;
+    const place = (parent, children) => children.forEach((tile, i) => {
+      if (parent.children[i] !== tile) parent.insertBefore(tile, parent.children[i] || null);
+    });
+    place(primary, mainTiles);
+    place(strip, thumbnails);
+    if (active?.closest('.tile') && document.activeElement !== active && active.isConnected) active.focus({ preventScroll: true });
+    strip.classList.toggle('hidden', !thumbnails.length);
+    stage.dataset.layout = focusKey ? 'focus' : screens.length ? 'streams' : 'people';
+    primary.style.setProperty('--stage-columns', screens.length > 4 ? 3 : Math.min(2, mainTiles.length) || 1);
+    primary.style.setProperty('--stage-count', mainTiles.length || 1);
+    $('#stage-toolbar').classList.toggle('hidden', !screens.length && !state.pinned);
+    $('#stage-summary').textContent = screens.length ? `${screens.length} ${screens.length === 1 ? 'transmissão' : 'transmissões'}` : 'Participante em destaque';
+    $('#stage-grid').setAttribute('aria-pressed', String(!focusKey));
+    $('#stage-focus').setAttribute('aria-pressed', String(!!focusKey));
+    $('#stage-focus').disabled = !screens.length;
     for (const t of tiles) {
       t.classList.toggle('pinned', t.dataset.key === state.pinned);
-      t.classList.toggle('focus', state.pinned ? t.dataset.key === state.pinned : t.classList.contains('screen'));
+      t.classList.toggle('focus', t.dataset.key === focusKey);
+      t.setAttribute('aria-pressed', String(t.dataset.key === focusKey));
     }
     // Zoom (stream-zoom.js) na tela em destaque ou em tela cheia, no computador.
     for (const t of tiles) {
       if (t.classList.contains('screen')) streamZoom.sync(t, !mobileStream.touch && !!t.querySelector('video').srcObject && (t.classList.contains('focus') || document.fullscreenElement === t));
     }
-    const order = [...tiles.filter((t) => t.classList.contains('focus')), ...tiles.filter((t) => !t.classList.contains('focus'))];
-    order.forEach((t, i) => { if (stage.children[i] !== t) stage.insertBefore(t, stage.children[i] || null); });
     applyAudio();
     syncViewerQuality();
     mobileStream.sync();
@@ -1955,6 +2131,13 @@
 
   // ---------------- controles dos blocos da chamada (estilo Discord) ----------------
   function setupTile(tile) {
+    tile.tabIndex = 0;
+    tile.setAttribute('role', 'button');
+    tile.addEventListener('keydown', (e) => {
+      if (e.target !== tile || !['Enter', ' '].includes(e.key)) return;
+      e.preventDefault();
+      togglePin(tile.dataset.key);
+    });
     // Clique fixa/solta; clique duplo abre em tela cheia.
     tile.addEventListener('click', (e) => {
       if (e.target.closest('.tile-controls, .watch-btn, .imm-bar, .sz-hud, .sz-mini')) return;
@@ -1973,6 +2156,7 @@
 
   function togglePin(key, forcePin = false) {
     state.pinned = forcePin || state.pinned !== key ? key : null;
+    state.stageGrid = !state.pinned;
     renderStage();
   }
 
@@ -2382,6 +2566,7 @@
   };
   const formatReleaseDate = (iso) => new Date(iso + 'T12:00:00').toLocaleDateString('pt-BR', { day: 'numeric', month: 'long', year: 'numeric' });
 
+  let confettiTimer = null;
   function openChangelog(version = window.APP_VERSION) {
     const list = window.CHANGELOG || [];
     const release = list.find((r) => r.version === version) || list[0];
@@ -2397,7 +2582,7 @@
         el('strong', {}, 'v' + r.version, i === 0 ? el('span', { class: 'cl-badge', textContent: 'ATUAL' }) : null),
         el('small', { textContent: r.name })))));
     const body = el('div', { class: 'cl-body' },
-      el('div', { class: 'cl-hero' },
+      el('div', { class: 'cl-hero' + (release.celebrate ? ' celebrate' : '') },
         el('div', { class: 'cl-hero-glow' }),
         el('div', { class: 'cl-hero-top' },
           el('span', { class: 'cl-pill', textContent: 'v' + release.version }),
@@ -2407,12 +2592,17 @@
       release.sections.map((sec) => el('section', { class: 'cl-section ' + CHANGE_KINDS[sec.kind].cls },
         el('h3', {}, el('span', { textContent: CHANGE_KINDS[sec.kind].label })),
         el('ul', {}, sec.items.map((item) => el('li', { textContent: item }))))),
-      release === list[list.length - 1] ? null : el('p', { class: 'cl-footnote', textContent: 'Resenhex ainda está antes da versão 1.0: ideias e bugs são bem-vindos no chat.' }));
+      el('p', { class: 'cl-footnote', textContent: 'Ideias e bugs são bem-vindos no chat.' }));
     box.querySelector('.cl-card').replaceChildren(
       el('button', { type: 'button', class: 'cl-close', ariaLabel: 'Fechar novidades', tip: 'Fechar', onclick: closeChangelog }, Icon('x', 20)),
       nav, body);
     box.classList.remove('hidden');
     body.scrollTop = 0;
+    // Versão marco (a 1.0): confete estourando dos cantos do topo.
+    box.querySelector('.confetti-layer')?.remove();
+    clearTimeout(confettiTimer);
+    // Espera a janela terminar de abrir para os canhões saírem do lugar certo.
+    if (release.celebrate) confettiTimer = setTimeout(() => body.isConnected && window.Confetti?.burst(box, body.querySelector('.cl-hero').getBoundingClientRect()), 200);
   }
   function closeChangelog() { $('#changelog').classList.add('hidden'); }
   function showChangelogIfNew() {
@@ -3556,6 +3746,7 @@
     if (state.micStream !== old || !state.voiceChannel) { releaseMic(next); throw new Error('A chamada mudou durante a troca do microfone. Tente novamente.'); }
     const replaced = [];
     try {
+      if (sfu.active()) await sfu.publish('microphone', next);
       for (const peer of state.peers.values()) {
         await MediaPolicy.enqueue(peer, async () => {
           if (peer.pc.signalingState === 'closed') return;
@@ -3565,6 +3756,7 @@
       }
       if (state.micStream !== old || !state.voiceChannel) throw new Error('A chamada foi encerrada.');
     } catch (error) {
+      if (sfu.active() && state.micStream === old) await sfu.publish('microphone', old).catch(() => {});
       await Promise.allSettled(replaced.map(({ sender, track }) => sender.replaceTrack(state.micStream === old ? track : null)));
       releaseMic(next);
       throw error;
@@ -3818,6 +4010,48 @@
 
   // ---------------- voz (WebRTC) ----------------
   let joining = false;
+  let callTimeTimer = null;
+
+  function callElapsed() {
+    const seconds = state.callStartedAt == null ? 0 : Math.max(0, Math.floor((Date.now() - state.callStartedAt) / 1000));
+    const hours = Math.floor(seconds / 3600);
+    const parts = [Math.floor(seconds / 60) % 60, seconds % 60];
+    if (hours) parts.unshift(hours);
+    return { text: parts.map((part) => String(part).padStart(2, '0')).join(':'), iso: `PT${seconds}S` };
+  }
+
+  // O tempo aparece no cabeçalho da chamada e no botão "Em chamada"; todos marcados com data-call-time.
+  function updateCallTime() {
+    const { text, iso } = callElapsed();
+    for (const timer of document.querySelectorAll('[data-call-time]')) {
+      if (timer.textContent !== text) timer.textContent = text;
+      timer.dateTime = iso;
+    }
+  }
+
+  function callClock() {
+    const { text, iso } = callElapsed();
+    return el('span', { class: 'call-clock', title: 'Há quanto tempo você está nesta chamada' },
+      el('span', { class: 'call-clock-dot', 'aria-hidden': 'true' }),
+      el('time', { class: 'call-time', textContent: text, dateTime: iso, data: { callTime: '' }, 'aria-label': 'Tempo de chamada' }));
+  }
+
+  function startCallTime(startedAt) {
+    state.callStartedAt = startedAt ?? Date.now();
+    clearInterval(callTimeTimer);
+    updateCallTime();
+    // Recalcula pelo relógio para acompanhar abas em segundo plano sem acumular atraso.
+    callTimeTimer = setInterval(updateCallTime, 1000);
+  }
+
+  function stopCallTime() {
+    clearInterval(callTimeTimer);
+    callTimeTimer = null;
+    state.callStartedAt = null;
+    updateCallTime();
+  }
+  document.addEventListener('visibilitychange', updateCallTime);
+
   // opts.keepView: entra na chamada sem trocar a tela (usado ao reconectar).
   async function joinVoice(channel, opts = {}) {
     if (joining) return; // clique duplo ou entrada já em andamento
@@ -3826,13 +4060,29 @@
       if (state.voiceChannel) leaveVoice(true, false);
       state.micStream = await getMicStream();
       // opts.serverId: sala de outro servidor (reconectar ou ser movido enquanto olha outro servidor).
-      const res = await call('voice:join', { channel, serverId: opts.serverId ?? state.server.serverId });
+      const res = await call('voice:join', isDm(channel) ? { dm: channel, silent: !!opts.silent, mediaVersion: 1 } : { channel, serverId: opts.serverId ?? state.server.serverId, mediaVersion: 1 });
       if (!res) {
         releaseMic(state.micStream);
         state.micStream = null;
         return;
       }
-      startVoice(channel, res.peers, opts);
+      const media = await call('voice:media');
+      if (!media) { socket.emit('voice:leave'); releaseMic(state.micStream); state.micStream = null; return; }
+      state.mediaTransport = media.transport;
+      startVoice(channel, media.transport === 'sfu' ? [] : res.peers, opts);
+      if (media.transport === 'sfu') {
+        try { await sfu.connect(media); }
+        catch (error) {
+          // A rede não alcançou o servidor de mídia: a sala segue por conexão direta (P2P).
+          const direct = state.voiceChannel === channel && await call('voice:media', { fallback: true });
+          if (direct?.transport !== 'p2p') { leaveVoice(); toast(error.message || 'Não foi possível conectar ao servidor de mídia.', 'error'); return; }
+          sfu.disconnect();
+          state.mediaTransport = 'p2p';
+          // Quem ainda estava no SFU recebe media:switch, reconecta e negocia com a gente.
+          if (state.voiceChannel === channel) for (const sid of res.peers) getPeer(sid);
+        }
+      }
+      if (opts.video) startVideo('camera');
     } finally {
       joining = false;
     }
@@ -3840,8 +4090,13 @@
 
   function startVoice(channel, peers, opts = {}) {
     state.voiceChannel = channel;
+    state.pinned = null;
+    state.stageGrid = false;
     state.voiceSnapshot = null;
-    if (!opts.keepView) { state.view = 'voice'; closePanels(); }
+    startCallTime(opts.startedAt);
+    // A chamada privada aparece em cima do chat da conversa; a de servidor ocupa a tela.
+    if (!opts.keepView && isDm(channel)) openDm(channel);
+    else if (!opts.keepView) { state.view = 'voice'; closePanels(); }
     Sounds.play('join');
     watchSpeaking(state.me.sid, state.micStream);
     attachGate(state.micStream);
@@ -3857,6 +4112,9 @@
     Sounds.stopBoard();
     stopVideo('screen', false);
     stopVideo('camera', false);
+    sfu.disconnect();
+    state.mediaTransport = null;
+    state.videoEncoder = '';
     for (const sid of [...state.peers.keys()]) closePeer(sid);
     releaseMic(state.micStream);
     state.micStream = null;
@@ -3864,11 +4122,27 @@
     unwatchSpeaking(state.me.sid);
     state.voiceChannel = null;
     state.voiceSnapshot = null;
+    stopCallTime();
     state.view = 'chat';
     if (sound) Sounds.play('leave');
     if (notify && socket.connected) socket.emit('voice:leave');
     render();
   }
+
+  // Ligar ou atender numa conversa privada (com a câmera já ligada, na chamada de vídeo).
+  function startDmCall(dm, opts = {}) {
+    if (state.voiceChannel === dm) { openDm(dm); return Promise.resolve(); }
+    return joinVoice(dm, { video: !!opts.video });
+  }
+  socket.on('dm:ring', (ring) => { dmCall.onRing(ring); render(); });
+  socket.on('dm:ring:stop', (ring) => { dmCall.onRingStop(ring); render(); });
+
+  // O servidor de mídia caiu: a sala inteira passa para conexão direta (P2P) e cada um reconecta.
+  socket.on('media:switch', ({ transport }) => {
+    if (!state.voiceChannel || joining || state.mediaTransport === transport) return;
+    mediaNotice('O servidor de mídia caiu. Passando a chamada para conexão direta…');
+    joinVoice(state.voiceChannel, { keepView: state.view !== 'voice', serverId: callInfo()?.serverId, startedAt: state.callStartedAt, silent: true });
+  });
 
   socket.on('voice:force-leave', ({ reason }) => {
     leaveVoice(false);
@@ -3986,6 +4260,7 @@
   }
 
   socket.on('signal', async ({ from, data }) => {
+    if (sfu.active()) return;
     if (!state.voiceChannel) return;
     const peer = getPeer(from);
     const { pc } = peer;
@@ -4203,7 +4478,20 @@
     }
   }
 
-  const { isWatching, setWatching, getWatchQuality, setWatchQuality, syncViewerQuality, addVideoTracks, syncScreenSubscriptions, videoBitrates, tuneSenders, applySharePreset, setSharePreset, captureScreen, watchScreenTrack, switchScreen, startVideo, stopVideo, scheduleRecovery, renderDiagnostics, updateStreamStats, mediaNotice } = MediaSession({ state, socket, call, el, toast, voiceEntry, member: callMember, render, renderStage, sendVoiceState, preferCodec, ownAudio });
+  // A conexão com o servidor de mídia caiu (reinício do SFU, rede): entra de novo na mesma chamada.
+  // Se cair várias vezes seguidas, sai de vez em vez de ficar tentando para sempre.
+  let mediaLosses = [];
+  function recoverMedia() {
+    if (!state.voiceChannel || joining || !socket.connected) return; // a reconexão do socket já refaz a chamada
+    const now = Date.now();
+    mediaLosses = mediaLosses.filter((t) => now - t < 60_000);
+    if (mediaLosses.length >= 3) { leaveVoice(); toast('A conexão com a chamada caiu várias vezes. Entre de novo quando a internet estabilizar.', 'error'); return; }
+    mediaLosses.push(now);
+    mediaNotice('A conexão com a chamada caiu. Reconectando…');
+    joinVoice(state.voiceChannel, { keepView: state.view !== 'voice', serverId: callInfo()?.serverId, startedAt: state.callStartedAt, silent: true });
+  }
+  const sfu = MediaSfu({ state, renderStage, applyAudio, watchSpeaking, unwatchSpeaking, closePeer, notice: (message) => mediaNotice(message), onLost: recoverMedia });
+  const { isWatching, setWatching, getWatchQuality, setWatchQuality, syncViewerQuality, addVideoTracks, syncScreenSubscriptions, videoBitrates, tuneSenders, applySharePreset, setSharePreset, captureScreen, watchScreenTrack, switchScreen, startVideo, stopVideo, scheduleRecovery, renderDiagnostics, updateStreamStats, mediaNotice } = MediaSession({ state, socket, call, el, toast, voiceEntry, member: callMember, render, renderStage, sendVoiceState, preferCodec, ownAudio, sfu });
   const streamZoom = StreamZoom({ el, Icon, syncViewerQuality });
   const mobileStream = MobileStream({ state, el, Icon, toast, member: callMember, voiceEntry, syncViewerQuality, openWatchQualityMenu, toggleStreamMute, togglePip });
 
@@ -4430,7 +4718,7 @@
   let cameraTestEpoch = 0;
   let cameraPreview = null;
   let avatarReadEpoch = 0;
-  const PHOTO_HINT = 'PNG, JPG ou WebP de até 8 MB, ou GIF animado de até 5 MB. Ajuste o enquadramento e salve para aplicar.';
+  const PHOTO_HINT = 'Seu rosto nas conversas.';
   let pendingAvatar = null;
   let avatarSource = null;
   function setPendingAvatar(result) {
@@ -4499,6 +4787,7 @@
       preview(values) {
         if (values[field] === undefined) return;
         show(values[field], values[field + 'Crop'] ? JSON.parse(values[field + 'Crop']) : null);
+        $(`[data-profile-media="${field}"]`).classList.toggle('is-empty', !values[field]);
         for (const action of ['remove', 'adjust']) $(`#profile-${field}-${action}`).disabled ||= !values[field] || input.disabled;
       },
       showSaved: () => show(input.value, meMember()[field + 'Crop']),
@@ -4522,8 +4811,14 @@
     };
   }
   const profileImages = [
-    profileImageDraft('banner', 'banner', (url, crop) => setBannerContents($('#profile-preview-banner'), url, crop)),
-    profileImageDraft('background', 'fundo', (url, crop) => setBackgroundContents($('#profile-preview-bg'), $('.profile-preview'), url, crop)),
+    profileImageDraft('banner', 'banner', (url, crop) => {
+      setBannerContents($('#profile-preview-banner'), url, crop);
+      setBannerContents($('#profile-banner-thumb'), url, crop);
+    }),
+    profileImageDraft('background', 'fundo', (url, crop) => {
+      setBackgroundContents($('#profile-preview-bg'), $('.profile-preview'), url, crop);
+      setBannerContents($('#profile-background-thumb'), url, crop);
+    }),
   ];
   const settingFields = {
     'profile-color': 'color', 'profile-avatar': 'avatar', 'profile-avatar-crop': 'avatarCrop', 'profile-banner': 'banner', 'profile-banner-crop': 'bannerCrop',
@@ -4555,9 +4850,27 @@
     Object.assign(document.documentElement.dataset, { theme: values.theme, density: values.density, reduceMotion: String(values.reduceMotion), streamStats: String(values.showStreamStats) });
     document.documentElement.style.setProperty('--chat-size', values.fontSize + 'px');
     if (values.avatar !== undefined) {
-      setAvatarContents($('#profile-preview-avatar'), values.avatar, meMember()?.name, values.avatarCrop ? JSON.parse(values.avatarCrop) : null);
+      const crop = values.avatarCrop ? JSON.parse(values.avatarCrop) : null;
+      setAvatarContents($('#profile-preview-avatar'), values.avatar, meMember()?.name, crop);
+      setAvatarContents($('#profile-preview-chat-avatar'), values.avatar, meMember()?.name, crop);
+      setAvatarContents($('#profile-photo-thumb'), values.avatar, meMember()?.name, crop);
+      $('#profile-photo-thumb').style.background = values.color;
+      $('[data-profile-media="photo"]').classList.toggle('is-empty', !values.avatar);
       $('#profile-photo-remove').disabled ||= !values.avatar || $('#profile-avatar').disabled;
       $('#profile-photo-adjust').disabled ||= !values.avatar || $('#profile-avatar').disabled;
+    }
+    if (values.color) {
+      // Amostras de cor: marca a escolhida; cor fora da paleta acende a amostra personalizada.
+      const color = values.color.toLowerCase();
+      let preset = false;
+      for (const swatch of document.querySelectorAll('[data-profile-color]')) {
+        const on = swatch.dataset.profileColor === color;
+        preset ||= on;
+        swatch.setAttribute('aria-pressed', String(on));
+      }
+      $('.profile-swatch-custom').classList.toggle('selected', !preset);
+      $('.profile-swatch-custom').style.setProperty('--swatch', preset ? '' : color);
+      $('#page-profile').style.setProperty('--pc-color', color);
     }
     for (const draft of profileImages) draft.preview(values);
   }
@@ -4662,7 +4975,11 @@
   const preferences = SettingsPanel({ read: readPreferences, apply: applyPreferences, preview: previewAppearance,
     onOpen: async () => {
       $('#profile-preview-name').textContent = meMember().username || meMember().name;
+      $('#profile-preview-chat-name').textContent = meMember().name;
       setAvatarContents($('#profile-preview-avatar'), $('#profile-avatar').value, meMember().name, meMember().avatarCrop);
+      setAvatarContents($('#profile-preview-chat-avatar'), $('#profile-avatar').value, meMember().name, meMember().avatarCrop);
+      setAvatarContents($('#profile-photo-thumb'), $('#profile-avatar').value, meMember().name, meMember().avatarCrop);
+      $('#profile-photo-thumb').style.background = $('#profile-color').value;
       for (const draft of profileImages) draft.showSaved();
       $('#ptt-key').textContent = state.ptt.label;
       $('#keybinds-global-hint').classList.toggle('hidden', !desktopApp?.setKeybinds);
@@ -4683,6 +5000,14 @@
     } });
   $('#btn-settings').onclick = () => { closePanels(); preferences.open(); };
   $('#profile-name-edit').onclick = openNicknameEditor;
+  // Banner, fundo e foto da prévia são atalhos para os botões "Escolher/Trocar" (mesmo rascunho, mesmo Salvar/Descartar).
+  document.querySelectorAll('[data-profile-edit]').forEach((button) => { button.onclick = () => $(`#profile-${button.dataset.profileEdit}-choose`).click(); });
+  document.querySelectorAll('[data-profile-color]').forEach((swatch) => {
+    swatch.onclick = () => {
+      $('#profile-color').value = swatch.dataset.profileColor;
+      $('#profile-color').dispatchEvent(new Event('input', { bubbles: true }));
+    };
+  });
   $('#profile-photo-choose').onclick = () => $('#profile-photo-file').click();
   $('#profile-photo-remove').onclick = () => {
     avatarReadEpoch++;

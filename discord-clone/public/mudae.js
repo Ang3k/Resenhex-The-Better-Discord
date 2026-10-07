@@ -184,7 +184,7 @@ window.MudaeUI = function ({ state, el, Icon, call, member, avatar, nameColor, F
   function statusLines(d) {
     return el('div', { class: 'mudae-status' },
       el('div', {}, d.rollsLeft
-        ? ['Você tem ', el('strong', { textContent: String(d.rollsLeft) }), ` de ${d.rollsMax} rolls nesta hora. Eles voltam em `, el('strong', { textContent: minutes(d.rollResetIn) }), '.']
+        ? ['Você tem ', el('strong', { textContent: String(d.rollsLeft) }), ` de ${d.rollsMax} rolls nesta janela de 30 minutos. Eles voltam em `, el('strong', { textContent: minutes(d.rollResetIn) }), '.']
         : ['Seus rolls acabaram. Eles voltam em ', el('strong', { textContent: minutes(d.rollResetIn) }), '.']),
       el('div', {}, d.claimReady
         ? ['Você ', el('strong', { class: 'mudae-ok', textContent: 'pode casar' }), ' agora!']
@@ -194,8 +194,19 @@ window.MudaeUI = function ({ state, el, Icon, call, member, avatar, nameColor, F
   // Roll dentro do Salão: o card grande está no palco, então o chat mostra só uma linha.
   function rollLine(msg, d, salon) {
     const rarity = d.card.rarity || 'common';
+    const image = el('img', { alt: '', loading: 'lazy', decoding: 'async', draggable: false });
+    const thumb = el('span', { class: 'mudae-roll-thumb', ariaHidden: 'true' }, Icon('dice', 16), image);
+    image.onload = async () => {
+      try {
+        if (image.decode) await image.decode();
+        if (image.naturalWidth) image.classList.add('ready');
+        else image.remove();
+      } catch { image.remove(); }
+    };
+    image.onerror = () => image.remove();
+    image.src = d.card.image;
     const node = el('button', { type: 'button', class: 'mudae-roll-line', onclick: () => salon.show(msg.id) },
-      el('img', { class: 'mudae-roll-thumb', src: d.card.image, alt: '', loading: 'lazy', decoding: 'async', draggable: false }),
+      thumb,
       el('span', { class: 'mudae-roll-text' }, '🎲 ', el('strong', { textContent: d.card.name }),
         el('span', { class: 'mudae-muted', textContent: ' · ' + seriesLine(d.card) })),
       el('span', { class: 'mudae-rarity-tag ' + rarity, textContent: RARITY[rarity] }),

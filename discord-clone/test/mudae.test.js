@@ -49,16 +49,25 @@ test('roll: filtra por gênero e devolve o card com foto do AniList', () => {
   assert.equal(onlyMen.roll({ claims: {}, usage: {} }, 'a', 'w').card.name, 'Satoru Gojou', 'sem ninguém do gênero, roda qualquer um');
 });
 
-test('roll: 10 por hora, e voltam na hora cheia', () => {
+test('roll: 10 a cada 30 min, renovando junto com o casamento', () => {
+  assert.equal(ROLL_RESET_MS, 30 * 60_000);
+  assert.equal(ROLL_RESET_MS, CLAIM_RESET_MS);
   const { mudae, store, advance, now } = setup();
   for (let i = 9; i >= 0; i--) assert.equal(mudae.roll(store, 'a', 'm').rollsLeft, i);
-  assert.match(mudae.roll(store, 'a', 'm').error, /10 rolls por hora/);
+  assert.match(mudae.roll(store, 'a', 'm').error, /10 rolls a cada 30 minutos/);
   assert.equal(mudae.roll(store, 'b', 'm').rollsLeft, 9, 'cada pessoa tem os seus');
-  advance(ROLL_RESET_MS - (now() % ROLL_RESET_MS));
+  mudae.claim(store, 'a', 1, { revealAt: now() });
+  assert.equal(mudae.status(store, 'a').rollResetIn, mudae.status(store, 'a').claimResetIn);
+  advance(ROLL_RESET_MS - (now() % ROLL_RESET_MS) - 1);
+  assert.equal(mudae.status(store, 'a').rollsLeft, 0);
+  assert.equal(mudae.status(store, 'a').claimReady, false);
+  advance(1);
   assert.equal(mudae.roll(store, 'a', 'm').rollsLeft, 9);
+  assert.equal(mudae.status(store, 'a').claimReady, true);
 });
 
-test('claim: o primeiro leva, um por janela de 3h, e só dentro dos 45s', () => {
+test('claim: o primeiro leva, um por janela de 30 min, e só dentro dos 45s', () => {
+  assert.equal(CLAIM_RESET_MS, 30 * 60_000);
   const { mudae, store, advance, now } = setup();
   const rolledAt = now();
   mudae.claim(store, 'a', 1, { revealAt: rolledAt });
@@ -70,7 +79,10 @@ test('claim: o primeiro leva, um por janela de 3h, e só dentro dos 45s', () => 
   advance(CLAIM_WINDOW_MS + 1);
   assert.throws(() => mudae.claim(store, 'b', 2, { revealAt: rolledAt }), /Tarde demais/);
 
-  advance(CLAIM_RESET_MS - (now() % CLAIM_RESET_MS));
+  advance(CLAIM_RESET_MS - (now() % CLAIM_RESET_MS) - 1);
+  assert.equal(mudae.status(store, 'a').claimReady, false);
+  assert.equal(mudae.status(store, 'a').claimResetIn, 1);
+  advance(1);
   assert.equal(mudae.status(store, 'a').claimReady, true);
   mudae.claim(store, 'a', 2, { revealAt: now() });
   assert.throws(() => mudae.claim(store, 'a', 99, { revealAt: now() }), /desconhecido/);

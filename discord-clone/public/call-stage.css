@@ -1,0 +1,80 @@
+/* Telas simultâneas: grade, destaque e faixa de miniaturas. */
+#stage-toolbar {
+  display: flex; align-items: center; justify-content: space-between; gap: 12px;
+  flex-shrink: 0; padding: 14px 20px 0; color: var(--text-muted); font-size: 13px;
+}
+.stage-summary { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.stage-live-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--green); flex-shrink: 0; }
+.stage-layout { display: flex; padding: 3px; gap: 2px; border: 1px solid var(--divider); border-radius: 9px; background: var(--bg-panel); }
+.stage-layout button { display: flex; align-items: center; gap: 6px; padding: 6px 10px; border: 0; border-radius: 6px; background: transparent; color: var(--text-muted); font: inherit; font-size: 12px; font-weight: 600; }
+.stage-layout button:hover { color: var(--text-strong); background: var(--hover); }
+.stage-layout button[aria-pressed="true"] { color: var(--text-strong); background: var(--hover-strong); }
+.stage-layout button:disabled { opacity: .4; cursor: default; }
+.stage-layout button:focus-visible, #stage .tile:focus-visible { outline: 2px solid var(--brand); outline-offset: 2px; }
+
+#main #voice-view #stage {
+  display: flex; flex-direction: column; gap: 16px; min-width: 0; min-height: 0;
+  padding: 16px 20px 100px; overflow: auto;
+}
+#stage-primary {
+  display: grid; gap: 12px; flex: 1; min-width: 0; min-height: 160px;
+  grid-template-columns: repeat(var(--stage-columns, 2), minmax(0, 1fr));
+  grid-auto-rows: minmax(0, 1fr); align-items: center; align-content: center;
+}
+#stage[data-layout="people"] #stage-primary { grid-template-columns: repeat(auto-fit, minmax(min(240px, 100%), 1fr)); }
+#stage[data-layout="focus"] #stage-primary { grid-template-columns: minmax(0, 1fr); }
+#main #voice-view #stage-primary > .tile:not(:fullscreen, .immersive, .cinema) {
+  min-width: 0; min-height: 0; width: 100%; height: auto; max-height: 100%; aspect-ratio: 16 / 9;
+  grid-column: auto; border-radius: 12px;
+}
+#main #voice-view #stage[data-layout="focus"] #stage-primary > .tile:not(:fullscreen, .immersive, .cinema) { height: 100%; aspect-ratio: auto; }
+#stage-primary > .tile.screen::after {
+  content: 'AO VIVO'; position: absolute; top: 12px; left: 12px; padding: 3px 6px;
+  border-radius: 4px; background: var(--red-dark); color: #fff; font-size: 10px; font-weight: 700;
+  letter-spacing: .04em; pointer-events: none;
+}
+#stage-primary > .tile.screen:not(.immersive) .stream-health { top: 40px; }
+#stage-primary > .tile .label { bottom: 12px; left: 12px; max-width: calc(100% - 24px); overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+#stage-primary > .tile:hover .label, #stage-primary > .tile:focus-within .label { bottom: 52px; }
+#stage-primary > .tile.focus { box-shadow: inset 0 0 0 2px color-mix(in srgb, var(--brand) 70%, transparent); }
+#stage-strip { display: flex; gap: 10px; flex: 0 0 auto; min-width: 0; overflow-x: auto; padding: 3px 2px 8px; scrollbar-width: thin; }
+#main #voice-view #stage-strip > .tile:not(:fullscreen, .immersive, .cinema) { display: flex; flex: 0 0 168px; width: 168px; height: 96px; min-height: 0; max-height: none; aspect-ratio: 16 / 9; border-radius: 8px; }
+#stage-strip > .tile .avatar { width: 44px; height: 44px; font-size: 18px; }
+#stage-strip > .tile .label { bottom: 6px; left: 6px; font-size: 11px; max-width: calc(100% - 12px); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+#stage-strip > .tile.screen video { object-fit: contain; }
+#stage-strip > .tile .stats, #stage-strip > .tile .stream-health,
+#stage-strip > .tile .tc-btn:not(.tc-pin), #stage-strip > .tile .tc-volume,
+#stage-strip > .tile .paused-overlay > :not(.paused-title),
+#stage-strip > .tile .watch-overlay > :not(.watch-btn) { display: none; }
+#stage-strip > .tile .paused-title { font-size: 13px; }
+#stage-strip > .tile .watch-btn { font-size: 11px; padding: 6px 8px; }
+#stage-strip > .tile .tile-controls { top: 6px; bottom: auto; right: 6px; }
+#stage-strip > .tile .tc-pin { width: 26px; height: 26px; }
+#stage-strip > .tile:hover { box-shadow: inset 0 0 0 2px var(--interactive); }
+#main #voice-view #stage .tile:fullscreen { width: 100%; height: 100%; max-height: none; aspect-ratio: auto; border-radius: 0; }
+#main #voice-view #stage .tile:is(.immersive, .cinema) { width: auto; height: auto; max-height: none; min-height: 0; aspect-ratio: auto; border-radius: 0; }
+
+/* O painel privado também mantém as outras transmissões acessíveis. */
+#main.dm-call #stage-toolbar { padding: 8px 14px 0; }
+#main.dm-call #voice-view #stage { padding: 10px 14px 74px; gap: 8px; }
+#main.dm-call #stage-primary { min-height: 72px; gap: 8px; }
+#main.dm-call #voice-view #stage-strip > .tile:not(:fullscreen, .immersive, .cinema) { flex-basis: 112px; width: 112px; height: 64px; }
+#main.dm-call #stage-strip > .tile .avatar { width: 32px; height: 32px; font-size: 14px; }
+
+@container (max-width: 560px) {
+  #stage-toolbar { padding: 10px 12px 0; }
+  #main #voice-view #stage { padding: 12px 12px 100px; gap: 10px; }
+  #stage[data-layout="streams"] #stage-primary { grid-template-columns: minmax(0, 1fr); }
+  #stage-primary { gap: 10px; }
+  #main #voice-view #stage-strip > .tile:not(:fullscreen, .immersive, .cinema) { flex-basis: 132px; width: 132px; height: 76px; }
+  #stage-primary > .tile .label { font-size: 12px; bottom: 52px; }
+  #stage-primary > .tile .tc-pip { display: none; }
+  #stage-primary > .tile .tc-btn { width: 30px; height: 30px; }
+  #stage-primary > .tile .tile-controls { gap: 4px; }
+  #stage-primary > .tile .stats { font-size: 9px; max-width: calc(100% - 90px); }
+  #main.dm-call #voice-view #stage-strip > .tile:not(:fullscreen, .immersive, .cinema) { flex-basis: 112px; width: 112px; height: 64px; }
+}
+@container (max-width: 440px) {
+  #main #voice-view #stage { padding-bottom: 148px; }
+  #main.dm-call #voice-view #stage { padding-bottom: 68px; }
+}

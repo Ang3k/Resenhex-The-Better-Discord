@@ -153,6 +153,18 @@ function points(count, material) {
   return mesh;
 }
 
+// Só os vértices desenhados precisam subir à GPU. As reservas continuam com o
+// mesmo tamanho; desativar um efeito não envia novamente seu buffer inteiro.
+function uploadPoints(mesh, count) {
+  mesh.geometry.setDrawRange(0, count);
+  if (!count) return;
+  for (const attribute of Object.values(mesh.geometry.attributes)) {
+    attribute.clearUpdateRanges();
+    attribute.addUpdateRange(0, count * attribute.itemSize);
+    attribute.needsUpdate = true;
+  }
+}
+
 // spot: onde a cápsula para (chão); radius: raio da cápsula. A raiz fica na origem, sem escala.
 export function createFesta({ spot, radius }) {
   const group = new THREE.Group();
@@ -171,11 +183,13 @@ export function createFesta({ spot, radius }) {
   group.add(wave);
 
   const confetti = new THREE.InstancedMesh(new THREE.PlaneGeometry(0.07, 0.042), new THREE.MeshBasicMaterial({ side: THREE.DoubleSide }), CONFETTI);
+  confetti.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
   confetti.count = 0;
   confetti.frustumCulled = false;
   group.add(confetti);
 
   const ripples = new THREE.InstancedMesh(new THREE.RingGeometry(0.8, 1, 24), new THREE.MeshBasicMaterial({ transparent: true, depthWrite: false, blending: THREE.AdditiveBlending }), RIPPLES);
+  ripples.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
   ripples.frustumCulled = false;
   group.add(ripples);
 
@@ -199,6 +213,14 @@ export function createFesta({ spot, radius }) {
   // As cores por instância precisam existir antes do primeiro desenho (senão o shader não as usa).
   for (let i = 0; i < CONFETTI; i++) confetti.setColorAt(i, white);
   for (let i = 0; i < RIPPLES; i++) ripples.setColorAt(i, white);
+  // Só a onda muda sua escala; os demais efeitos animam buffers de vértices/instâncias.
+  for (const mesh of [sparks, hearts, confetti, ripples]) {
+    mesh.updateMatrix();
+    mesh.matrixAutoUpdate = false;
+  }
+  confetti.instanceColor.setUsage(THREE.DynamicDrawUsage);
+  ripples.instanceColor.setUsage(THREE.DynamicDrawUsage);
+  const rippleRotation = new THREE.Quaternion().setFromEuler(new THREE.Euler(-Math.PI / 2, 0, 0));
 
   let celebration = null; // { kind, at }
   let used = 0;
@@ -225,6 +247,7 @@ export function createFesta({ spot, radius }) {
 
   // Volta: { busy, tint, tintAmount, shake } para a cena (neon, câmera e ritmo de quadros).
   function update({ rarity, t, sec, palette, reduced = false, rain = true }) {
+    const hadConfetti = confetti.count > 0;
     used = 0;
     let busy = false;
     let tint = null;
@@ -305,8 +328,13 @@ export function createFesta({ spot, radius }) {
             n++;
           }
           confetti.count = n;
-          confetti.instanceMatrix.needsUpdate = true;
-          if (confetti.instanceColor) confetti.instanceColor.needsUpdate = true;
+          if (n) {
+            for (const attribute of [confetti.instanceMatrix, confetti.instanceColor]) {
+              attribute.clearUpdateRanges();
+              attribute.addUpdateRange(0, n * attribute.itemSize);
+              attribute.needsUpdate = true;
+            }
+          }
         }
       }
     }
@@ -334,8 +362,7 @@ export function createFesta({ spot, radius }) {
           tintArray[n * 4] = c.r; tintArray[n * 4 + 1] = c.g; tintArray[n * 4 + 2] = c.b; tintArray[n * 4 + 3] = Math.max(0, fade);
           n++;
         }
-        hearts.geometry.setDrawRange(0, n);
-        for (const name of ['position', 'size', 'tint']) hearts.geometry.attributes[name].needsUpdate = true;
+        uploadPoints(hearts, n);
         if (age < 0.9) {
           const p = age / 0.9;
           wave.visible = true;
@@ -347,8 +374,7 @@ export function createFesta({ spot, radius }) {
       }
     }
 
-    sparks.geometry.setDrawRange(0, used);
-    for (const name of ['position', 'size', 'tint']) sparks.geometry.attributes[name].needsUpdate = true;
+    uploadPoints(sparks, used);
 
     // Ondinhas da chuva nas poças: cada gota abre um anel que some.
     ripples.visible = rain && !reduced;
@@ -365,9 +391,7 @@ export function createFesta({ spot, radius }) {
         }
         const p = age < 0 ? 0 : age / drop.life;
         position.set(drop.x, spot.y + 0.004, drop.z);
-        euler.set(-Math.PI / 2, 0, 0);
-        rotation.setFromEuler(euler);
-        matrix.compose(position, rotation, scaleVec.setScalar(age < 0 ? 0.0001 : 0.015 + p * 0.09));
+        matrix.compose(position, rippleRotation, scaleVec.setScalar(age < 0 ? 0.0001 : 0.015 + p * 0.09));
         ripples.setMatrixAt(i, matrix);
         ripples.setColorAt(i, color.setRGB(0.32, 0.4, 0.55).multiplyScalar(age < 0 ? 0 : Math.pow(1 - p, 2)));
       }
@@ -375,7 +399,7 @@ export function createFesta({ spot, radius }) {
       if (ripples.instanceColor) ripples.instanceColor.needsUpdate = true;
     }
 
-    return { busy, tint, tintAmount, shake };
+    return { busy, tint, tintAmount, shake, solidChanged: hadConfetti || confetti.count > 0 };
   }
 
   // sec: relógio da cena (s). kind: 'claim' (casou com o próprio roll) ou 'steal' (roubou o de outra pessoa).

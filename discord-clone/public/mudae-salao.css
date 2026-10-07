@@ -63,7 +63,7 @@
 .salon-top { display: flex; align-items: flex-end; justify-content: space-between; gap: 12px; padding: 0 20px; border-bottom: 1px solid var(--divider); flex-shrink: 0; }
 .salon-tabs { display: flex; gap: 4px; }
 .salon-tab {
-  padding: 12px 12px 10px; border: 0; border-bottom: 2px solid transparent; background: none;
+  white-space: nowrap; padding: 12px 12px 10px; border: 0; border-bottom: 2px solid transparent; background: none;
   color: var(--text-muted); font: inherit; font-size: 15px; font-weight: 600; cursor: pointer; transition: color .15s ease;
 }
 .salon-tab:hover { color: var(--text); }
@@ -99,6 +99,10 @@
 .salon-card.r-rare { --frame: var(--rarity-rare); }
 .salon-card-art { aspect-ratio: 2 / 3; background: var(--bg-panel); cursor: zoom-in; }
 .salon-card-art img { display: block; width: 100%; height: 100%; object-fit: cover; }
+.salon-art { position: relative; width: 100%; height: 100%; }
+.salon-art > .salon-card-back { height: 100%; }
+.salon-art > .salon-art-image { position: absolute; inset: 0; opacity: 0; transition: opacity .15s ease; }
+.salon-art > .salon-art-image.ready { opacity: 1; }
 .salon-art-missing { display: grid; place-items: center; height: 100%; color: var(--text-muted); font-size: 48px; font-weight: 700; }
 .salon-holo {
   position: absolute; inset: 0; pointer-events: none; mix-blend-mode: color-dodge; opacity: 0;
@@ -132,44 +136,187 @@
 }
 .salon-card.placeholder { --frame: var(--divider); }
 
+/* Molduras desenhadas em CSS, uma por raridade: aro externo, paspatur escuro tingido e um filete em volta da foto.
+   A espessura acompanha o tamanho da carta (cqi). Raro ganha cantoneiras leves; épico, cantoneiras e abas;
+   lendário, uma gema em cima e embaixo e um brilho que percorre o aro dourado. */
+@property --sheen { syntax: '<angle>'; inherits: false; initial-value: 0deg; }
+.salon-card.framed {
+  container-type: inline-size;
+  --t: clamp(4px, 3.2cqi, 8px); --ring: 1px;
+  --mat: linear-gradient(160deg, #2b2f3a, #1a1d25);
+  --ring-paint: linear-gradient(160deg, #7a808d, #3b404b 55%, #5d6370);
+  --hair: rgba(255, 255, 255, .09);
+  --corner: transparent; --tab: transparent; --gem: transparent;
+  --glow: 0 0 0 transparent;
+  --frame-x: var(--t); --frame-y: var(--t);
+  --art-r: max(3px, calc(12px - var(--t) * .6));
+  overflow: visible; background: transparent; box-shadow: none;
+}
+.salon-card.framed.r-rare {
+  --t: clamp(4.5px, 3.6cqi, 10px); --ring: 1.5px;
+  --mat: linear-gradient(160deg, #1d2f4c, #111a2a);
+  --ring-paint: linear-gradient(160deg, #a8dbff, var(--rarity-rare) 45%, #1d5a96);
+  --hair: color-mix(in srgb, var(--rarity-rare) 40%, transparent);
+  --corner: color-mix(in srgb, #a8dbff 45%, transparent);
+}
+.salon-card.framed.r-epic {
+  --t: clamp(5px, 4.2cqi, 12px); --ring: 1.5px;
+  --mat: linear-gradient(160deg, #2f2050, #160e27);
+  --ring-paint: linear-gradient(160deg, #ead3ff, var(--rarity-epic) 45%, #5f2aa6);
+  --hair: color-mix(in srgb, var(--rarity-epic) 50%, transparent);
+  --corner: color-mix(in srgb, #ead3ff 75%, transparent);
+  --tab: color-mix(in srgb, #ead3ff 60%, transparent);
+  --glow: 0 0 18px color-mix(in srgb, var(--rarity-epic) 24%, transparent);
+}
+.salon-card.framed.r-legendary {
+  --t: clamp(5.5px, 4.6cqi, 13px); --ring: 2px;
+  --mat: linear-gradient(160deg, #3e2f11, #1b1407);
+  --ring-paint: conic-gradient(from var(--sheen), #8a6420, #f3d27a 12%, #fff4cc 18%, #c9972f 30%, #8a6420 45%, #e8c060 62%, #fff4cc 68%, #b8862b 80%, #8a6420);
+  --hair: color-mix(in srgb, #f3d27a 60%, transparent);
+  --corner: #f3d27a;
+  --tab: color-mix(in srgb, #f3d27a 70%, transparent);
+  --gem: #fff1c2;
+  --glow: 0 0 22px color-mix(in srgb, var(--rarity-legendary) 26%, transparent);
+}
+.salon-card-visual {
+  /* Medidas dos enfeites, todas a partir da espessura da moldura. */
+  --o: calc(var(--t, 0px) * .28); --l: calc(var(--t, 0px) * 2.4); --w: max(1px, calc(var(--t, 0px) * .16)); --tw: calc(var(--t, 0px) * 3.2);
+  position: relative; aspect-ratio: 2 / 3; border-radius: 12px;
+  background:
+    /* gema no centro de cima e de baixo */
+    radial-gradient(circle closest-side, var(--gem) 0 55%, transparent 62%) center top / var(--t) var(--t) no-repeat,
+    radial-gradient(circle closest-side, var(--gem) 0 55%, transparent 62%) center bottom / var(--t) var(--t) no-repeat,
+    /* abas no centro de cima e de baixo */
+    linear-gradient(var(--tab), var(--tab)) center top var(--o) / var(--tw) var(--w) no-repeat,
+    linear-gradient(var(--tab), var(--tab)) center bottom var(--o) / var(--tw) var(--w) no-repeat,
+    /* cantoneiras: duas barras finas em cada quina */
+    linear-gradient(var(--corner), var(--corner)) left var(--o) top var(--o) / var(--l) var(--w) no-repeat,
+    linear-gradient(var(--corner), var(--corner)) left var(--o) top var(--o) / var(--w) var(--l) no-repeat,
+    linear-gradient(var(--corner), var(--corner)) right var(--o) top var(--o) / var(--l) var(--w) no-repeat,
+    linear-gradient(var(--corner), var(--corner)) right var(--o) top var(--o) / var(--w) var(--l) no-repeat,
+    linear-gradient(var(--corner), var(--corner)) left var(--o) bottom var(--o) / var(--l) var(--w) no-repeat,
+    linear-gradient(var(--corner), var(--corner)) left var(--o) bottom var(--o) / var(--w) var(--l) no-repeat,
+    linear-gradient(var(--corner), var(--corner)) right var(--o) bottom var(--o) / var(--l) var(--w) no-repeat,
+    linear-gradient(var(--corner), var(--corner)) right var(--o) bottom var(--o) / var(--w) var(--l) no-repeat,
+    /* reflexo diagonal discreto sobre o paspatur */
+    linear-gradient(115deg, transparent 35%, rgba(255, 255, 255, .07) 48%, transparent 60%),
+    var(--mat, #10131e);
+  box-shadow: var(--glow, 0 0 0 transparent), inset 0 1px 0 rgba(255, 255, 255, .08), 0 8px 22px rgba(0, 0, 0, .35);
+}
+/* Aro externo: só a borda do gradiente aparece. */
+.salon-card-visual::before {
+  content: ''; position: absolute; inset: 0; z-index: 2; padding: var(--ring, 0); border-radius: inherit; pointer-events: none;
+  background: var(--ring-paint, none);
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0); -webkit-mask-composite: xor;
+  mask: linear-gradient(#000 0 0) content-box exclude, linear-gradient(#000 0 0);
+}
+/* Filete em volta da foto, com um leve sombreado para dentro. */
+.salon-card-visual::after {
+  content: ''; position: absolute; inset: calc(var(--frame-y, 0px) - 1px) calc(var(--frame-x, 0px) - 1px); z-index: 2; pointer-events: none;
+  border: 1px solid var(--hair, transparent); border-radius: calc(var(--art-r) + 1px);
+  box-shadow: inset 0 0 0 1px rgba(0, 0, 0, .35);
+}
+.salon-card.framed.r-legendary .salon-card-visual::before { animation: salon-sheen 7s linear infinite; }
+@keyframes salon-sheen { to { --sheen: 360deg; } }
+.salon-card.framed .salon-card-art {
+  position: absolute; inset: var(--frame-y) var(--frame-x); aspect-ratio: auto; overflow: hidden; border-radius: var(--art-r); background: #10131e;
+}
+.salon-card.framed .salon-card-art img { object-fit: cover; }
+.salon-card.framed .salon-card-info {
+  position: static; padding: 8px 4px 4px; background: none;
+}
+.salon-card-heading { display: flex; align-items: center; gap: 6px; }
+.salon-card-heading .salon-card-name { flex: 1; min-width: 0; }
+.salon-card-heading .salon-rank { position: static; flex: none; font-size: 10px; padding: 2px 4px; }
+.salon-card.framed .salon-card-name { color: var(--text-strong); }
+.salon-card.framed .salon-card-series { color: var(--text-muted); }
+.salon-card.framed .salon-card-value { color: var(--text); }
+.salon-stage .salon-card.framed .salon-card-name, .salon-stage .salon-card.framed .salon-card-value { color: #fff; }
+.salon-stage .salon-card.framed .salon-card-series { color: #b8bfd4; }
+.salon-card.framed > .salon-chip {
+  position: static; width: max-content; max-width: calc(100% - 36px); margin: 4px 0; padding-left: 3px;
+}
+/* Na mesa ao vivo, quem rodou e o estado ficam sobre a foto, dentro da abertura da moldura. */
+.salon-card-visual > .salon-chip { top: calc(var(--frame-y) + 4px); left: calc(var(--frame-x) + 4px); z-index: 3; max-width: calc(100% - 2 * var(--frame-x) - 36px); font-size: 10px; }
+.salon-card-visual > .salon-timer { top: calc(var(--frame-y) + 4px); right: calc(var(--frame-x) + 4px); z-index: 3; width: 26px; height: 26px; font-size: 10px; }
+.salon-card-visual > .salon-ribbon { left: calc(var(--frame-x) + 4px); right: calc(var(--frame-x) + 4px); bottom: calc(var(--frame-y) + 4px); z-index: 3; font-size: 10px; }
+.salon-card-visual > .salon-expired { inset: var(--frame-y) var(--frame-x); z-index: 3; padding: 0 8px; font-size: 12px; line-height: 1.2; text-align: center; }
+.salon-card.framed.live.p-open, .salon-card.framed.live.p-priority { animation: none; }
+
 /* ---------- mesa ---------- */
-.salon-mesa { display: flex; flex-direction: column; gap: 14px; min-height: 100%; padding: 16px 20px 20px; }
+.salon-mesa { display: flex; flex-direction: column; gap: 12px; min-height: 100%; padding: 14px 20px 12px; }
+.salon-mesa > .salon-rollbar, .salon-mesa > .salon-live { flex: none; }
+/* O palco fica com o espaço que sobra e a carta se ajusta a ele: a mesa ao vivo fica sempre inteira na tela. */
+.salon-stage-box { flex: 1 1 0; min-height: 230px; container-type: size; }
+/* Showcase: luzes estáticas e uma cópia da foto, exibida somente após a revelação. */
 .salon-stage {
   --stage-color: var(--brand);
-  position: relative; flex: 1 0 auto; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px;
-  min-height: 0; padding: 40px 16px 14px; border-radius: 14px; overflow: hidden; isolation: isolate;
-  background: radial-gradient(ellipse 60% 55% at 50% 42%, color-mix(in srgb, var(--stage-color) 24%, transparent), transparent 70%), var(--bg-panel);
-  transition: background .4s ease;
+  position: relative; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px;
+  height: 100%; padding: 14px 16px 12px; border-radius: 14px; overflow: hidden; isolation: isolate;
+  background: #090d1a;
+  box-shadow: inset 0 0 0 1px rgba(137, 127, 212, .22), 0 8px 24px rgba(0, 0, 0, .2);
 }
+.salon-showcase { position: absolute; inset: 0; z-index: 0; overflow: hidden; border-radius: inherit; pointer-events: none; contain: paint; background: linear-gradient(145deg, #0e1327, #0b1020 50%, #151125); }
+.salon-showcase::before, .salon-showcase::after { content: ''; position: absolute; inset: 0; }
+.salon-showcase::before {
+  z-index: 1;
+  background:
+    radial-gradient(circle at 17% 64%, rgba(174, 127, 242, .24) 0 1px, transparent 4px),
+    radial-gradient(circle at 78% 31%, rgba(142, 167, 248, .2) 0 1px, transparent 3px),
+    radial-gradient(circle at 27% 26%, rgba(142, 167, 248, .15) 0 1px, transparent 3px),
+    radial-gradient(circle at 86% 72%, rgba(174, 127, 242, .16) 0 1px, transparent 4px),
+    radial-gradient(ellipse 25% 65% at 50% -10%, rgba(125, 122, 245, .34), transparent 78%),
+    radial-gradient(ellipse 44% 54% at 50% 44%, rgba(102, 82, 220, .3), transparent 75%),
+    radial-gradient(ellipse 70% 24% at 50% 88%, rgba(76, 88, 172, .15), transparent 75%);
+}
+.salon-showcase::after {
+  z-index: 2; border: 1px solid rgba(137, 127, 212, .23); border-radius: inherit;
+  background: radial-gradient(ellipse at 50% 42%, transparent 22%, rgba(5, 8, 18, .3) 70%, rgba(5, 7, 15, .76)), linear-gradient(115deg, rgba(28, 24, 66, .22), transparent 62%), linear-gradient(rgba(7, 10, 22, .2), transparent 35%, rgba(7, 9, 19, .48));
+}
+.salon-showcase-portrait {
+  position: absolute; inset: -6%; width: 112%; height: 112%; object-fit: cover; object-position: 50% 32%;
+  filter: blur(32px) saturate(1.12) brightness(.64); opacity: 0;
+}
+.salon-showcase.has-art .salon-showcase-portrait { opacity: .32; animation: salon-backdrop-reveal .32s ease-out; }
+@keyframes salon-backdrop-reveal { from { opacity: 0; } to { opacity: .32; } }
+.salon-stage > .salon-card-slot, .salon-stage > .salon-actions { z-index: 1; }
 .salon-stage[data-rarity=legendary] { --stage-color: var(--rarity-legendary); }
 .salon-stage[data-rarity=epic] { --stage-color: var(--rarity-epic); }
 .salon-stage[data-rarity=rare] { --stage-color: var(--rarity-rare); }
 .salon-stage[data-rarity=common] { --stage-color: var(--rarity-common); }
 .salon-stage.owned { --stage-color: var(--red); }
-.salon-card-slot { display: flex; flex-direction: column; align-items: center; gap: 10px; }
-.salon-stage-caption { display: flex; align-items: center; gap: 6px; color: var(--text-muted); font-size: 13px; }
+.salon-card-slot { position: relative; display: flex; flex-direction: column; align-items: center; gap: 10px; }
+.salon-stage-caption { display: flex; align-items: center; gap: 6px; color: var(--text-muted); font-size: 13px; white-space: nowrap; }
+.salon-stage .salon-stage-caption, .salon-stage .salon-claim-caption, .salon-stage .salon-wait { color: #b8bfd4; }
+/* Altura reservada no palco: respiro (26) + legenda (28) + botão de casar (68) + folga. */
+.salon-stage .salon-card.big, .salon-stage .salon-reel { width: clamp(90px, min(60cqw, calc((100cqh - 130px) / 1.5)), 260px); max-width: none; container-type: inline-size; }
+.salon-stage .salon-card.framed.big .salon-card-info {
+  position: absolute; left: var(--frame-x); right: var(--frame-x); bottom: var(--frame-y); z-index: 1;
+  padding: 40px 12px 10px; border-radius: 0 0 var(--art-r) var(--art-r); background: linear-gradient(transparent, rgba(6, 8, 18, .9) 52%); pointer-events: none;
+}
+.salon-stage .salon-card.big .salon-card-name { display: -webkit-box; font-size: clamp(12px, 7.6cqi, 17px); white-space: normal; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+.salon-stage .salon-card.big .salon-card-heading { align-items: flex-start; }
+.salon-stage .salon-card.big .salon-card-heading .salon-rank { margin-top: 2px; }
+.salon-stage .salon-card.big .salon-card-series { font-size: clamp(10px, 6.5cqi, 13px); }
+.salon-stage .salon-card.big .salon-card-value { margin-top: 2px; font-size: clamp(11px, 7.5cqi, 15px); }
+.salon-stage .salon-card.framed.big .salon-card-info { padding: 32px 8% 8%; }
+/* Palco baixo e largo: o botão de casar vai para o lado da carta. */
+@container (max-height: 420px) and (min-width: 460px) {
+  .salon-stage { flex-direction: row; gap: 28px; }
+  .salon-stage .salon-actions:empty { display: none; }
+  .salon-stage .salon-actions { min-width: 180px; }
+  .salon-stage .salon-card.big, .salon-stage .salon-reel { width: clamp(90px, calc((100cqh - 62px) / 1.5), 260px); }
+}
+@container (max-height: 300px) and (min-width: 460px) {
+  .salon-stage .salon-stage-caption { display: none; }
+  .salon-stage .salon-card.big, .salon-stage .salon-reel { width: clamp(90px, calc((100cqh - 34px) / 1.5), 260px); }
+}
+@container (max-height: 300px) and (max-width: 459px) { .salon-stage .salon-stage-caption { display: none; } }
 .msg .avatar.salon-chip-avatar, .avatar.salon-chip-avatar { width: 18px; height: 18px; font-size: 8px; margin: 0; flex-shrink: 0; grid-column: auto; cursor: default; }
 .salon-card.revealing { animation: salon-reveal .6s cubic-bezier(.2, 1.35, .4, 1); }
 @keyframes salon-reveal { from { transform: perspective(800px) rotateY(80deg) scale(.7); opacity: 0; } to { transform: perspective(800px) rotateY(0) scale(1); opacity: 1; } }
-/* Cena 3D da lojinha de gashapon (public/gacha), atrás de tudo no palco. */
-.salon-gacha { position: absolute; inset: 0; z-index: -1; pointer-events: none; }
-.salon-gacha canvas { display: block; width: 100%; height: 100%; }
-.salon-stage.gacha { background: #070818; } /* igual ao scene.background de gacha/cena.mjs */
-.salon-stage.gacha .salon-stage-glow { display: none; }
-.salon-stage.gacha .salon-card.placeholder { visibility: hidden; pointer-events: none; }
-.salon-stage.gacha .salon-card-slot:has(.placeholder) .salon-stage-caption {
-  position: absolute; left: 50%; bottom: 56px; transform: translateX(-50%); white-space: nowrap;
-  padding: 6px 12px; border-radius: 999px; background: rgba(7, 8, 24, .65);
-}
-.salon-stage.gacha :is(.salon-stage-caption, .salon-wait, .salon-claim-caption, .salon-owned) { color: rgba(255, 255, 255, .88); text-shadow: 0 1px 3px rgba(0, 0, 0, .85); }
 .salon-card.salon-card-ghost { aspect-ratio: 2 / 3; visibility: hidden; }
-/* A carta sai da cápsula: pequena e de lado no ponto da cápsula, sobe até o lugar e vira de frente. */
-.salon-card.emerging { animation: salon-emerge .75s cubic-bezier(.2, 1.15, .35, 1); }
-@keyframes salon-emerge {
-  from { transform: perspective(800px) translate(var(--from-x, 0), var(--from-y, 0)) scale(.12) rotateY(90deg); opacity: 0; }
-  25% { opacity: 1; }
-  to { transform: perspective(800px) translate(0, 0) scale(1) rotateY(0); opacity: 1; }
-}
+
 
 /* Roleta: as fotos passam e param no personagem; épico e lendário vazam luz antes. */
 .salon-reel {
@@ -179,7 +326,13 @@
 }
 .salon-reel-strip { will-change: transform; }
 .salon-reel-cell { aspect-ratio: 2 / 3; overflow: hidden; }
+.salon-reel-cell > .salon-card-back { height: 100%; }
 .salon-reel-cell img { display: block; width: 100%; height: 100%; object-fit: cover; filter: blur(1.2px) saturate(1.15); }
+.salon-reel-cover { position: absolute; inset: 0; z-index: 1; opacity: 1; transition: opacity .12s ease; }
+.salon-reel-cover > .salon-card-back { height: 100%; }
+.salon-reel.is-ready > .salon-reel-cover { opacity: 0; pointer-events: none; }
+.salon-reel.is-preparing .salon-card-back svg { animation: salon-shuffle .5s ease-in-out infinite alternate; }
+@keyframes salon-shuffle { to { transform: rotate(-12deg) scale(1.1); } }
 .salon-reel-shade { position: absolute; inset: 0; pointer-events: none; background: linear-gradient(rgba(0, 0, 0, .55), transparent 22%, transparent 78%, rgba(0, 0, 0, .55)); }
 .salon-reel.tease { box-shadow: 0 0 0 2px var(--frame), 0 0 46px color-mix(in srgb, var(--frame) 70%, transparent); animation: salon-tease .35s ease-in-out infinite alternate; }
 .salon-reel.r-legendary { --frame: var(--rarity-legendary); }
@@ -252,7 +405,7 @@
 /* Botões de roll. */
 .salon-rollbar { display: flex; flex-direction: column; align-items: center; gap: 10px; }
 .salon-roll-buttons { display: flex; flex-wrap: wrap; justify-content: center; gap: 10px; width: 100%; }
-.salon-sources { display: flex; flex-wrap: wrap; justify-content: center; gap: 6px; max-width: 100%; }
+.salon-sources { display: flex; justify-content: safe center; gap: 6px; max-width: 100%; overflow-x: auto; scrollbar-width: none; }
 .salon-source {
   flex: none; height: 30px; padding: 0 12px; border: 1px solid var(--divider); border-radius: 999px; background: transparent;
   color: var(--text-muted); font: inherit; font-size: 13px; font-weight: 600; cursor: pointer; transition: background .12s ease, color .12s ease, border-color .12s ease;
@@ -273,8 +426,11 @@
 .salon-roll-cmd { font-family: var(--mono); font-size: 13px; opacity: .8; }
 
 /* Mesa ao vivo. */
-.salon-live h3 { margin: 0 0 10px; color: var(--text-strong); font-size: 15px; font-weight: 700; }
-.salon-live-strip { display: flex; gap: 14px; overflow-x: auto; padding: 4px 4px 12px; scroll-snap-type: x proximity; }
+.salon-live h3 { margin: 0 0 6px; color: var(--text-strong); font-size: 15px; font-weight: 700; }
+.salon-live-strip { display: flex; gap: 12px; overflow-x: auto; padding: 4px 4px 8px; scroll-snap-type: x proximity; }
+.salon-live .salon-card.small { width: 108px; }
+.salon-live .salon-card-series { display: none; }
+.salon-live .salon-card.framed .salon-card-info { padding-top: 4px; }
 .salon-live-strip > * { scroll-snap-align: start; }
 .salon-chip {
   position: absolute; top: 6px; left: 6px; z-index: 1; display: flex; align-items: center; gap: 4px; max-width: calc(100% - 48px);
@@ -339,15 +495,20 @@
 .salon-filter.active:not([class*=f-]) { color: #fff; background: var(--brand); }
 .salon-sort { height: 36px; padding: 0 10px; border: 0; border-radius: 8px; background: var(--bg-input); color: var(--text); font: inherit; }
 .salon-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 16px; padding: 4px; }
-.salon-card.fav { box-shadow: 0 0 0 3px var(--rarity-legendary), 0 0 24px color-mix(in srgb, var(--rarity-legendary) 45%, transparent); }
-.salon-card-actions { position: absolute; left: 8px; right: 8px; bottom: 74px; z-index: 1; display: flex; flex-wrap: wrap; gap: 6px; opacity: 0; transition: opacity .15s ease; }
-.salon-card:hover .salon-card-actions, .salon-card:focus-within .salon-card-actions { opacity: 1; }
+.salon-card.fav:not(.framed) { box-shadow: 0 0 0 3px var(--rarity-legendary), 0 0 24px color-mix(in srgb, var(--rarity-legendary) 45%, transparent); }
+.salon-card.framed.fav .salon-card-visual { box-shadow: 0 0 0 2px color-mix(in srgb, var(--rarity-legendary) 70%, transparent), 0 0 22px color-mix(in srgb, var(--rarity-legendary) 35%, transparent), 0 8px 22px rgba(0, 0, 0, .35); }
+.salon-album-item { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+.salon-card-actions { display: flex; align-items: center; gap: 4px; }
 .salon-card-actions button {
-  padding: 4px 8px; border: 0; border-radius: 6px; background: rgba(0, 0, 0, .78); color: #fff; font: inherit; font-size: 12px; font-weight: 600; cursor: pointer;
+  display: inline-flex; align-items: center; justify-content: center; min-height: 32px; padding: 0 6px; border: 1px solid var(--divider); border-radius: 8px;
+  background: var(--bg-panel); color: var(--text-muted); font: inherit; font-size: 12px; font-weight: 600; cursor: pointer; transition: background .15s, color .15s;
 }
-.salon-card-actions button:hover { background: #000; }
+.salon-card-actions button:first-child { flex: 1; min-width: 0; }
+.salon-card-actions button:hover { background: var(--bg-input); color: var(--text-strong); }
+.salon-card-actions button:focus-visible { outline: 2px solid var(--brand); outline-offset: 2px; }
 .salon-card-actions button.active { color: var(--rarity-legendary); }
-.salon-card-actions button.danger:hover { background: var(--red); }
+.salon-card-actions button.danger { flex: none; width: 32px; padding: 0; border-color: transparent; background: transparent; }
+.salon-card-actions button.danger:hover { background: color-mix(in srgb, var(--red) 12%, transparent); color: var(--red); }
 .salon-more, .salon-loading { grid-column: 1 / -1; padding: 16px; color: var(--text-muted); text-align: center; }
 .salon-empty { display: flex; flex-direction: column; align-items: center; gap: 12px; padding: 48px 16px; color: var(--text-muted); text-align: center; }
 .salon-empty-icon { display: grid; place-items: center; width: 80px; height: 80px; border-radius: 50%; background: var(--bg-panel); color: var(--brand); }
@@ -389,7 +550,9 @@
 .mudae-roll-line.hold .mudae-roll-spin { animation: mudae-hold-show var(--hold) step-end; }
 @keyframes mudae-hold { from, to { visibility: hidden; } }
 @keyframes mudae-hold-show { from, to { visibility: visible; } }
-.mudae-roll-thumb { width: 26px; height: 38px; flex-shrink: 0; border-radius: 4px; object-fit: cover; }
+.mudae-roll-thumb { position: relative; display: grid; place-items: center; width: 26px; height: 38px; flex-shrink: 0; border-radius: 4px; overflow: hidden; color: var(--brand); background: color-mix(in srgb, var(--brand) 15%, var(--bg-floating)); }
+.mudae-roll-thumb img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; opacity: 0; }
+.mudae-roll-thumb img.ready { opacity: 1; }
 .mudae-roll-text { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .mudae-roll-text strong { color: var(--text-strong); }
 .mudae-rarity-tag { flex-shrink: 0; padding: 1px 6px; border-radius: 4px; font-size: 11px; font-weight: 700; color: var(--frame); background: color-mix(in srgb, var(--frame) 16%, transparent); }
@@ -435,6 +598,11 @@
 }
 @media (max-width: 640px) {
   .salon-stage { padding-top: 44px; }
+  /* No celular a página rola: a carta tem tamanho fixo e o palco cresce com ela. */
+  .salon-stage-box { flex: none; min-height: 0; container-type: normal; }
+  .salon-stage { height: auto; }
+  .salon-stage .salon-card.big, .salon-stage .salon-reel { width: min(210px, 60vw); }
+  .salon-showcase-portrait { filter: blur(18px) saturate(1.08) brightness(.64); }
   .salon-card.big, .salon-reel { width: min(210px, 60vw); }
   .salon-roll { flex: 1; min-width: 0; padding: 0 8px; font-size: 14px; white-space: nowrap; }
   .salon-sources { flex-wrap: nowrap; justify-content: flex-start; width: 100%; overflow-x: auto; padding-bottom: 2px; }
@@ -442,12 +610,19 @@
   .salon-reactions { position: static; justify-content: center; gap: 6px; }
   .salon-react { width: 32px; height: 32px; font-size: 16px; }
   .salon-grid { grid-template-columns: repeat(auto-fill, minmax(118px, 1fr)); gap: 12px; }
-  .salon-card-actions { opacity: 1; bottom: 66px; }
   .salon-album-fav { min-width: 0; width: 100%; }
   .salon-claim { min-width: 150px; }
+  .salon-rank-row { display: grid; grid-template-columns: 28px 36px minmax(0, 1fr) 28px; gap: 4px 10px; padding: 12px; }
+  .salon-rank-pos { grid-column: 1; grid-row: 1 / 3; width: 28px; }
+  .salon-rank-row .avatar { grid-column: 2; grid-row: 1 / 3; }
+  .salon-rank-who { grid-column: 3; grid-row: 1; gap: 2px; }
+  .salon-rank-who strong { font-size: 14px; }
+  .salon-rank-who span { white-space: nowrap; }
+  .salon-rank-fav { grid-column: 4; grid-row: 1 / 3; width: 28px; height: 42px; }
+  .salon-rank-value { grid-column: 3; grid-row: 2; justify-content: flex-start; min-width: 0; color: var(--text-strong); font-size: 14px; }
 }
-@media (hover: none) { .salon-card-actions { opacity: 1; } }
 @media (prefers-reduced-motion: reduce) {
+  .salon-showcase-portrait, .salon-card.framed.r-legendary .salon-card-visual::before { animation: none !important; }
   .salon-card.emerging, .salon-card, .salon-card.revealing, .salon-card.arriving, .salon-card.live.p-open, .salon-card.live.p-priority, .salon-reel.tease,
   .salon-card.back .salon-card-back, .salon-float, #salon-view.flash::after { animation: none !important; transition: none !important; }
   .salon-float { opacity: 0; }

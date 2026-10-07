@@ -1,4 +1,4 @@
-window.MediaSession = function ({ state, socket, call, el, toast, voiceEntry, member, render, renderStage, sendVoiceState, preferCodec, ownAudio }) {
+window.MediaSession = function ({ state, socket, call, el, toast, voiceEntry, member, render, renderStage, sendVoiceState, preferCodec, ownAudio, sfu }) {
   const $ = (selector) => document.querySelector(selector);
   const presets = MediaPolicy.presets;
   const epochs = { screen: 0, camera: 0 };
@@ -16,6 +16,7 @@ window.MediaSession = function ({ state, socket, call, el, toast, voiceEntry, me
   let noticeAt = 0;
   const isWatching = (sid) => !!voiceEntry(sid)?.viewers?.includes(state.me?.sid);
   const viewers = () => voiceEntry(state.me?.sid)?.viewers || [];
+  sfu?.configureSubscriptions(() => sfu.subscriptions(isWatching, requestedQuality));
   const active = (peer) => state.peers.get(peer.sid) === peer && peer.pc.signalingState !== 'closed';
 
   const getWatchQuality = (sid) => watchQuality.get(sid) || 'auto';
@@ -46,6 +47,7 @@ window.MediaSession = function ({ state, socket, call, el, toast, voiceEntry, me
     if (qualityTimer) return;
     qualityTimer = setTimeout(async () => {
       qualityTimer = null;
+      if (sfu?.active()) sfu.subscriptions(isWatching, requestedQuality);
       for (const video of observed) if (!video.isConnected) { resizeObserver?.unobserve(video); observed.delete(video); }
       for (const [sid] of state.peers) {
         if (!isWatching(sid)) { sentQuality.delete(sid); continue; }
@@ -91,6 +93,7 @@ window.MediaSession = function ({ state, socket, call, el, toast, voiceEntry, me
       const quality = requestedQuality(sid);
       const result = await call('screen:watch', { target: sid, watching, ...(watching ? { quality } : {}) });
       if (!result) return;
+      if (sfu?.active()) sfu.subscriptions((target) => target === sid ? watching : isWatching(target), requestedQuality);
       if (watching) sentQuality.set(sid, JSON.stringify(quality)); else sentQuality.delete(sid);
       if (!watching && state.pinned === 'screen-' + sid) state.pinned = null;
       if (state.view === 'voice') renderStage();
@@ -98,6 +101,7 @@ window.MediaSession = function ({ state, socket, call, el, toast, voiceEntry, me
   }
 
   function addVideoTracks(peer, kind) {
+    if (sfu?.active()) return;
     const stream = state.local[kind];
     if (!stream || !active(peer)) return;
     for (const track of stream.getTracks()) {
@@ -108,6 +112,13 @@ window.MediaSession = function ({ state, socket, call, el, toast, voiceEntry, me
   }
 
   function syncScreenSubscriptions() {
+    if (sfu?.active()) {
+      sfu.subscriptions(isWatching, requestedQuality);
+      const key = `${state.local.screen?.id}:${viewers().length > 0}:${state.sharePreset}`;
+      if (state.sfuCaptureKey !== key) { state.sfuCaptureKey = key; applySharePreset(); }
+      syncViewerQuality();
+      return;
+    }
     const wanted = new Set(viewers());
     for (const peer of state.peers.values()) {
       const stream = state.local.screen;
@@ -183,6 +194,7 @@ window.MediaSession = function ({ state, socket, call, el, toast, voiceEntry, me
   }
 
   function tuneSenders(onlyPeer) {
+    if (sfu?.active()) { sfu.tune(); return; }
     for (const peer of onlyPeer?.pc ? [onlyPeer] : state.peers.values()) {
       peer.tuneAgain = true;
       if (peer.tuning) continue;
@@ -234,7 +246,8 @@ window.MediaSession = function ({ state, socket, call, el, toast, voiceEntry, me
       const height = Math.max(2, Math.floor(Math.min(preset.height, preset.width / aspect)));
       const width = Math.max(2, Math.round(height * aspect));
       track.contentHint = preset.hint;
-      try { await track.applyConstraints({ width: { ideal: width, max: width }, height: { ideal: height, max: height }, frameRate: { ideal: preset.fps, max: preset.fps } }); }
+      const fps = sfu?.active() && !viewers().length ? 5 : preset.fps;
+      try { await track.applyConstraints({ width: { ideal: width, max: width }, height: { ideal: height, max: height }, frameRate: { ideal: fps, max: fps } }); }
       catch { if (track.readyState !== 'ended') mediaNotice('A captura manteve a qualidade disponível. O navegador não aceitou o perfil completo.'); }
       tuneSenders();
     });
@@ -304,6 +317,8 @@ window.MediaSession = function ({ state, socket, call, el, toast, voiceEntry, me
       stream = kind === 'screen' ? await captureScreen() : await navigator.mediaDevices.getUserMedia({ video: { deviceId: state.cameraDeviceId ? { exact: state.cameraDeviceId } : undefined, width: { ideal: 1280 }, height: { ideal: 720 }, frameRate: { ideal: 30 } } });
       if (state.voiceChannel !== channel || epoch !== epochs[kind]) { stream.getTracks().forEach((track) => track.stop()); return; }
       state.local[kind] = stream;
+      if (sfu?.active()) await sfu.publish(kind, stream);
+      if (state.voiceChannel !== channel || epoch !== epochs[kind]) { stream.getTracks().forEach((t) => t.stop()); return; }
       const track = stream.getVideoTracks()[0];
       if (kind === 'screen') {
         state.sharePaused = false;
@@ -321,7 +336,7 @@ window.MediaSession = function ({ state, socket, call, el, toast, voiceEntry, me
       state.view = 'voice';
       render();
       tuneSenders();
-    } catch (error) { if (stream && state.local[kind] !== stream) stream.getTracks().forEach((track) => track.stop()); captureError(error); }
+    } catch (error) { if (stream) { if (state.local[kind] === stream) stopVideo(kind); else stream.getTracks().forEach((track) => track.stop()); } captureError(error); }
     finally {
       state.captureBusy = false;
       if (kind === 'screen') ownAudio?.sync(state.local.screen);
@@ -338,7 +353,9 @@ window.MediaSession = function ({ state, socket, call, el, toast, voiceEntry, me
     try {
       next = await captureScreen();
       if (state.local.screen !== current || epoch !== epochs.screen) { next.getTracks().forEach((t) => t.stop()); return; }
+      if (sfu?.active()) await sfu.publish('screen', next);
       for (const peer of state.peers.values()) {
+        if (sfu?.active()) continue;
         await MediaPolicy.enqueue(peer, async () => {
           if (!active(peer) || !viewers().includes(peer.sid)) return;
           for (const kind of ['video', 'audio']) {
@@ -360,6 +377,7 @@ window.MediaSession = function ({ state, socket, call, el, toast, voiceEntry, me
       mediaNotice(state.shareAudio && !current.getAudioTracks().length ? 'Tela trocada. A nova fonte não forneceu áudio.' : 'Tela trocada. Sua chamada continua conectada.');
       setAudioMode(next.audioMode);
     } catch (error) {
+      if (sfu?.active() && state.local.screen === current) await sfu.publish('screen', current).catch(() => {});
       for (const { peer, sender, old, added } of changed.reverse()) {
         await MediaPolicy.enqueue(peer, async () => {
           if (!active(peer)) return;
@@ -380,6 +398,7 @@ window.MediaSession = function ({ state, socket, call, el, toast, voiceEntry, me
     epochs[kind]++;
     const stream = state.local[kind];
     state.local[kind] = null;
+    if (sfu?.active()) sfu.stop(kind).catch(() => {});
     if (!stream) return;
     stream.getTracks().forEach((track) => { track.onended = track.onmute = track.onunmute = null; track.stop(); });
     if (kind === 'screen') { state.sharePaused = false; state.shareAudioMode = null; ownAudio?.sync(null); syncScreenSubscriptions(); }
@@ -393,6 +412,7 @@ window.MediaSession = function ({ state, socket, call, el, toast, voiceEntry, me
   }
 
   function scheduleRecovery(peer) {
+    if (sfu?.active()) return;
     if (peer.recoveryTimer || peer.recoveryAttempts >= 3) return;
     peer.recoveryTimer = setTimeout(() => {
       peer.recoveryTimer = null;
@@ -410,13 +430,13 @@ window.MediaSession = function ({ state, socket, call, el, toast, voiceEntry, me
     if (!root) return;
     $('#media-health').textContent = state.mediaHealth;
     const sound = { native: 'som sem as vozes da chamada', filter: 'vozes da chamada tiradas pelo filtro do Resenhex', mixed: 'som com as vozes da chamada', tab: 'som da aba' }[state.local.screen && state.shareAudioMode];
-    $('#diagnostics-summary').textContent = !state.voiceChannel ? 'Entre em uma chamada para ver as conexões.' : [`${state.peers.size} conexões`, `${viewers().length} espectadores da sua tela`, sound].filter(Boolean).join(' · ');
+    $('#diagnostics-summary').textContent = !state.voiceChannel ? 'Entre em uma chamada para ver as conexões.' : [sfu?.active() ? 'SFU · Uma conexão com o servidor de mídia' : `${state.peers.size} conexões`, `${viewers().length} espectadores da sua tela`, sound, state.videoEncoder, state.gpuCapabilities?.videoEncode ? `GPU no app: ${state.gpuCapabilities.videoEncode}` : ''].filter(Boolean).join(' · ');
     const states = { connected: 'Conectado', connecting: 'Conectando', new: 'Preparando', disconnected: 'Reconectando', failed: 'Falha na conexão', closed: 'Encerrado' };
     root.replaceChildren(...[...state.peers].map(([sid, peer]) => {
       const stats = peer.stats || {};
       const line = el('div', { class: 'diagnostic-peer' }, el('strong', { textContent: `${member(voiceEntry(sid)?.accountId)?.name || 'Participante'} · ${states[peer.pc.connectionState] || 'Preparando'}` }),
         el('span', { textContent: [stats.rtt != null ? `${Math.round(stats.rtt * 1000)} ms` : 'Latência ainda indisponível', stats.path || '', stats.video || '', peer.mediaError || ''].filter(Boolean).join(' · ') }));
-      if (['failed', 'disconnected'].includes(peer.pc.connectionState)) line.append(el('button', { type: 'button', textContent: 'Reconectar', onclick: () => { clearTimeout(peer.recoveryTimer); peer.recoveryTimer = null; peer.recoveryAttempts = 0; peer.pc.restartIce(); scheduleRecovery(peer); } }));
+      if (!sfu?.active() && ['failed', 'disconnected'].includes(peer.pc.connectionState)) line.append(el('button', { type: 'button', textContent: 'Reconectar', onclick: () => { clearTimeout(peer.recoveryTimer); peer.recoveryTimer = null; peer.recoveryAttempts = 0; peer.pc.restartIce(); scheduleRecovery(peer); } }));
       return line;
     }));
   }
@@ -436,6 +456,7 @@ window.MediaSession = function ({ state, socket, call, el, toast, voiceEntry, me
     statsBusy = true;
     const now = performance.now();
     try {
+      if (sfu?.active()) { await sfu.stats(); syncScreenSubscriptions(); if (!$('#settings')?.classList.contains('hidden')) renderDiagnostics(); return; }
       await Promise.allSettled([...state.peers].map(async ([sid, peer]) => {
         const report = await peer.pc.getStats();
         if (!active(peer)) return;

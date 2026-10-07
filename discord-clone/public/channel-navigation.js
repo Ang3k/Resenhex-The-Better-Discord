@@ -1,6 +1,6 @@
 // Grupos, ordenação e ações dos canais. Reutiliza os fluxos de chat e voz do app.
 window.ChannelNavigation = function ({ state, el, Icon, call, toast, hasPerm, refresh, open, voiceUsers,
-  createChannel, editChannel, deleteChannel, markRead, guard, confirm, menu, action }) {
+  createChannel, editChannel, deleteChannel, markRead, guard, confirm, menu, action, invite }) {
   let dragged = null;
   let cancelDrag = null;
   const dropTargets = new WeakMap();
@@ -145,6 +145,16 @@ window.ChannelNavigation = function ({ state, el, Icon, call, toast, hasPerm, re
       items.push(action('Excluir canal', 'trash', () => deleteChannel(channel), 'danger'));
     }
     if (items.length) menu(event, items);
+  }
+
+  // Clique direito no vazio da lista de canais, como no Discord.
+  function listMenu(event) {
+    event.preventDefault(); event.stopPropagation();
+    const items = [];
+    if (canManage()) items.push(action('Criar canal', 'plusCircle', () => createChannel('text')),
+      action('Criar grupo de canais', 'hash', () => editGroup()), el('div', { class: 'menu-sep' }));
+    items.push(action('Convidar para o servidor', 'userPlus', invite, 'accent'));
+    menu(event, items);
   }
 
   function touchMenu(node, show) {
@@ -304,12 +314,14 @@ window.ChannelNavigation = function ({ state, el, Icon, call, toast, hasPerm, re
       dropTarget(ul, group.id);
       container.append(el('section', { class: 'channel-group', ariaLabel: group.name, data: { categoryId: group.id || '' } }, header, ul));
     }
+    if (canManage() && !admin) container.append(el('button', { type: 'button', class: 'channel-list-add',
+      data: { focusKey: 'create-group' }, onclick: () => editGroup() }, Icon('plus', 14), el('span', { textContent: 'Criar grupo de canais' })));
     return container;
   }
 
   return {
     get dragging() { return !!dragged; },
-    categorySelect, editGroup, duplicateChannel, moveChannel,
+    categorySelect, editGroup, duplicateChannel, moveChannel, listMenu,
     adminList: (query) => renderGroups(true, query),
     render() {
       const scope = state.me.accountId + ':' + state.server.serverId;

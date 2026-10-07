@@ -1,0 +1,129 @@
+/* Chamada nas conversas privadas: painel em cima do chat, toque, faixa e mensagem de chamada. */
+
+/* ---------- painel da chamada em cima do chat ---------- */
+#main.dm-call { --dm-call-h: 340px; }
+#main.dm-call > #voice-view { flex: 0 0 var(--dm-call-h); min-height: 200px; border-bottom: 1px solid var(--divider); }
+#main.dm-call > #chat-view { min-height: 0; order: 2; }
+#main.dm-call #stage {
+  padding: 16px 16px 84px; align-content: center; justify-content: center;
+  grid-template-columns: repeat(auto-fit, minmax(min(140px, 42%), 360px));
+}
+#main.dm-call #stage .tile { max-height: calc(var(--dm-call-h) - 112px); }
+#main.dm-call #stage .tile .avatar { width: 72px; height: 72px; font-size: 28px; }
+#main.dm-call #stage:has(.tile.focus) { grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); }
+#main.dm-call #stage:has(.tile.focus) .tile.focus { height: calc(var(--dm-call-h) - 112px); max-height: none; }
+#main.dm-call #stage:has(.tile.focus) .tile:not(.focus) { display: none; }
+#main.dm-call #stage-controls { bottom: 14px; padding: 6px; }
+#main.dm-call #stage-controls .sc-btn { width: 44px; height: 44px; }
+
+#dm-call-resizer { display: none; }
+#main.dm-call #dm-call-resizer {
+  display: block; position: absolute; left: 0; right: 0; bottom: -5px; height: 10px; z-index: 3; cursor: row-resize; touch-action: none;
+}
+#dm-call-resizer::after {
+  content: ''; position: absolute; left: 50%; top: 3px; width: 44px; height: 4px; margin-left: -22px; border-radius: 4px;
+  background: var(--interactive); opacity: 0; transition: opacity .15s;
+}
+#dm-call-resizer:hover::after, #dm-call-resizer:focus-visible::after, #dm-call-resizer.dragging::after { opacity: .7; }
+#dm-call-resizer:focus-visible { outline: none; }
+
+/* ---------- quem ainda não entrou ---------- */
+.tile.dm-pending { flex-direction: column; gap: 10px; cursor: default; background: color-mix(in srgb, var(--tile, var(--brand)) 10%, var(--bg-rail)); }
+.dp-avatar { position: relative; display: grid; place-items: center; }
+.tile.dm-pending .avatar { opacity: .55; filter: grayscale(.35); transition: opacity .2s, filter .2s; }
+.tile.dm-pending.ringing .avatar { opacity: 1; filter: none; }
+.dp-status { font-size: 13px; font-weight: 600; color: var(--text-muted); min-height: 32px; display: grid; place-items: center; }
+.dp-status .watch-btn { display: inline-flex; align-items: center; gap: 6px; background: var(--green); }
+.dp-status .watch-btn:hover { background: color-mix(in srgb, var(--green) 85%, #000); }
+.tile.dm-pending .label { color: var(--text-strong); }
+
+/* Pulso em volta do avatar enquanto toca (janela de toque e bloco de quem está sendo chamado). */
+.ic-pulse { position: absolute; inset: -6px; border-radius: 50%; pointer-events: none; }
+.incoming-call .ic-pulse, .tile.dm-pending.ringing .ic-pulse { box-shadow: 0 0 0 0 color-mix(in srgb, var(--green) 55%, transparent); animation: call-pulse 1.6s ease-out infinite; }
+@keyframes call-pulse { 0% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--green) 55%, transparent); } 100% { box-shadow: 0 0 0 12px transparent; } }
+
+/* ---------- janela de toque ---------- */
+.incoming-call {
+  position: fixed; right: 24px; top: 76px; z-index: 60; width: min(340px, calc(100vw - 32px));
+  display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: center; gap: 14px 14px; padding: 16px;
+  border: 1px solid var(--divider); border-radius: 16px; background: var(--bg-floating); box-shadow: var(--shadow-float);
+  animation: incoming-in .28s cubic-bezier(.2, .9, .3, 1.2);
+}
+@keyframes incoming-in { from { opacity: 0; transform: translateY(-12px) scale(.96); } to { opacity: 1; transform: none; } }
+.ic-avatar { position: relative; display: grid; place-items: center; }
+.ic-avatar .avatar { width: 56px; height: 56px; font-size: 22px; }
+.ic-text { display: flex; flex-direction: column; min-width: 0; gap: 2px; }
+.ic-text strong { font-size: 16px; color: var(--text-strong); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ic-text span { font-size: 13px; color: var(--text-muted); }
+.ic-actions { grid-column: 1 / -1; display: flex; justify-content: center; gap: 14px; }
+.ic-btn {
+  width: 48px; height: 48px; border: 0; border-radius: 50%; display: grid; place-items: center; color: #fff;
+  background: var(--bg-panel); transition: transform .12s ease, background .15s ease, box-shadow .15s ease;
+}
+.ic-btn:hover { transform: translateY(-1px); }
+.ic-btn:active { transform: scale(.95); }
+.ic-btn.accept { background: var(--green); }
+.ic-btn.accept:hover { box-shadow: 0 8px 22px color-mix(in srgb, var(--green) 45%, transparent); }
+.ic-btn.decline { background: var(--red-dark); }
+.ic-btn.decline .ico { transform: rotate(135deg); }
+.ic-btn.decline:hover { box-shadow: 0 8px 22px color-mix(in srgb, var(--red) 45%, transparent); }
+.ic-btn.video { color: var(--text-strong); }
+.ic-btn.video:hover { background: var(--hover-strong); }
+.ic-btn:focus-visible { outline: 2px solid var(--brand); outline-offset: 2px; }
+
+/* ---------- faixa no topo do chat ---------- */
+#dm-call-banner-slot:empty { display: none; }
+.dm-call-banner {
+  display: flex; align-items: center; gap: 10px; margin: 10px 16px 0; padding: 8px 8px 8px 12px;
+  border: 1px solid var(--divider); border-radius: 10px; background: var(--bg-panel); color: var(--text);
+}
+.dm-call-banner.ringing { border-color: color-mix(in srgb, var(--green) 45%, var(--divider)); background: color-mix(in srgb, var(--green) 10%, var(--bg-panel)); }
+.dcb-icon { display: grid; place-items: center; width: 30px; height: 30px; border-radius: 50%; background: var(--green); color: #fff; flex-shrink: 0; }
+.dm-call-banner.ringing .dcb-icon { animation: ring-shake 1.3s ease-in-out infinite; }
+@keyframes ring-shake { 0%, 60%, 100% { transform: rotate(0); } 10%, 30%, 50% { transform: rotate(-14deg); } 20%, 40% { transform: rotate(14deg); } }
+.dcb-text { flex: 1; min-width: 0; font-size: 14px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.dcb-text strong { color: var(--text-strong); }
+.dcb-btn {
+  display: inline-flex; align-items: center; gap: 6px; height: 32px; padding: 0 14px; border: 0; border-radius: 8px;
+  background: var(--green); color: #fff; font: inherit; font-size: 13px; font-weight: 600; cursor: pointer; flex-shrink: 0;
+}
+.dcb-btn:hover { background: color-mix(in srgb, var(--green) 85%, #000); }
+.dcb-btn.ghost { background: transparent; color: var(--text-muted); }
+.dcb-btn.ghost:hover { background: var(--hover); color: var(--text-strong); }
+
+/* ---------- mensagem de chamada ---------- */
+.msg.call-msg { display: flex; align-items: flex-start; gap: 16px; padding-top: 6px; padding-bottom: 6px; margin-top: 12px; }
+.call-msg .system-icon { width: 40px; display: flex; justify-content: center; padding-top: 1px; color: var(--green); flex-shrink: 0; }
+.call-msg.missed .system-icon { color: var(--red); }
+.call-msg.missed .system-icon .ico { transform: rotate(135deg); }
+.call-msg .system-text { font-size: 15px; line-height: 1.375; color: var(--text-muted); min-width: 0; }
+.call-msg .system-text strong { color: var(--text-strong); font-weight: 600; }
+.call-msg .system-name { cursor: pointer; }
+.call-msg .system-name:hover { text-decoration: underline; }
+.call-msg .system-time { font-size: 12px; color: var(--text-muted); opacity: .8; margin-left: 2px; }
+.call-msg .system-join {
+  display: inline-flex; margin-left: 8px; height: 26px; padding: 0 10px; align-items: center; border: 0; border-radius: 6px;
+  background: var(--green); color: #fff; font: inherit; font-size: 12px; font-weight: 600; cursor: pointer; vertical-align: middle;
+}
+.call-msg .system-join:hover { background: color-mix(in srgb, var(--green) 85%, #000); }
+
+/* ---------- lista de conversas ---------- */
+.dm-call-flag { display: grid; place-items: center; color: var(--green); margin-left: auto; flex-shrink: 0; }
+.dm-call-flag.ringing { animation: ring-shake 1.3s ease-in-out infinite; }
+.channel.dm .dm-call-flag + .badge, .channel.dm .dm-call-flag ~ .dm-close { margin-left: 4px; }
+
+@media (max-width: 640px) {
+  #main.dm-call { --dm-call-h: 280px; }
+  #main.dm-call > #voice-view { flex-basis: min(var(--dm-call-h), 48dvh); }
+  #main.dm-call #stage { grid-template-columns: repeat(2, minmax(0, 1fr)); align-content: center; padding: 12px 12px 68px; }
+  #main.dm-call #stage .tile { aspect-ratio: 1; max-height: calc(min(var(--dm-call-h), 48dvh) - 92px); }
+  #main.dm-call #stage .tile .avatar { width: 56px; height: 56px; font-size: 22px; }
+  #main.dm-call #stage .tile .tile-controls { display: none; }
+  #main.dm-call #voice-view #stage-controls { display: flex; gap: 6px; padding: 5px; bottom: 10px; border-radius: 28px; }
+  #main.dm-call #stage-controls .sc-btn { width: 40px; height: 40px; }
+  .incoming-call { top: auto; right: 16px; left: 16px; bottom: max(16px, env(safe-area-inset-bottom)); width: auto; }
+  .dm-call-banner { margin: 8px 12px 0; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .incoming-call, .incoming-call .ic-pulse, .tile.dm-pending.ringing .ic-pulse, .dm-call-banner.ringing .dcb-icon, .dm-call-flag.ringing { animation: none; }
+}

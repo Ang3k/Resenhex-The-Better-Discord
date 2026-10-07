@@ -92,3 +92,22 @@ test('o som do computador na transmissão deixa de fora o próprio app a partir 
   assert.equal(systemAudioDevice('win32', '10.0.18363'), 'loopback');
   assert.equal(systemAudioDevice('darwin', '15.0.0'), null);
 });
+
+test('o gancho global fica só no teclado, sem passar o mouse pelo app', () => {
+  const { patchSource, MARK } = require('../tools/patch-uiohook');
+  const original = [
+    '    keyboard_event_hhook = SetWindowsHookEx(WH_KEYBOARD_LL, keyboard_hook_event_proc, hInst, 0);',
+    '    mouse_event_hhook = SetWindowsHookEx(WH_MOUSE_LL, mouse_hook_event_proc, hInst, 0);',
+    '    if (keyboard_event_hhook != NULL && mouse_event_hhook != NULL) {',
+  ].join('\n');
+  const { source, changed } = patchSource(original);
+  assert.ok(changed);
+  assert.ok(source.includes('WH_KEYBOARD_LL'));
+  assert.ok(!source.includes('WH_MOUSE_LL'));
+  assert.ok(source.includes('if (keyboard_event_hhook != NULL) {'));
+  assert.deepEqual(patchSource(source), { source, changed: false }, 'rodar de novo não muda nada');
+  assert.throws(() => patchSource('código de outra versão'), /uiohook mudou/);
+
+  const installed = path.join(__dirname, '..', 'node_modules', 'uiohook-napi', 'libuiohook', 'src', 'windows', 'input_hook.c');
+  if (fs.existsSync(installed)) assert.ok(fs.readFileSync(installed, 'utf8').includes(MARK), 'rode npm install para corrigir o uiohook');
+});

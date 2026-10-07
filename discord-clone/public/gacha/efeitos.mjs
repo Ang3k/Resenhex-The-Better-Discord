@@ -7,14 +7,20 @@ import { Pass } from 'three/addons/postprocessing/Pass.js';
 
 // Executa o pré-passe só com superfícies sólidas. Mesmo uma falha de renderização
 // precisa restaurar a visibilidade e o estado do renderer para a roleta de reserva.
-export function withSolidSurfaces(scene, renderer, draw) {
-  const hidden = [];
+export function withSolidSurfaces(scene, renderer, draw, hidden = [], gtao = false) {
   const shadows = renderer.shadowMap.autoUpdate;
   const override = scene.overrideMaterial;
   scene.traverse((object) => {
-    if (!object.visible || object.userData.gachaDepth) return;
-    const materials = [].concat(object.material || []);
-    if (object.isReflector || object.isPoints || object.isLine || materials.some((m) => m.transparent || m.transmission > 0)) {
+    if (!object.visible) return;
+    // GTAOPass sempre exclui linhas/pontos, mesmo com gachaDepth. Fazemos
+    // essa seleção aqui também para evitar sua segunda travessia da cena.
+    const line = object.isPoints || object.isLine || object.isLine2;
+    if (object.userData.gachaDepth && !(gtao && line)) return;
+    const material = object.material;
+    const transparent = Array.isArray(material)
+      ? material.some((m) => m.transparent || m.transmission > 0)
+      : material && (material.transparent || material.transmission > 0);
+    if (object.isReflector || line || transparent) {
       hidden.push(object);
       object.visible = false;
     }
@@ -23,6 +29,7 @@ export function withSolidSurfaces(scene, renderer, draw) {
   try { return draw(); }
   finally {
     for (const object of hidden) object.visible = true;
+    hidden.length = 0;
     renderer.shadowMap.autoUpdate = shadows;
     scene.overrideMaterial = override;
   }
@@ -34,13 +41,83 @@ class ContactPass extends GTAOPass {
     this.blendIntensity = 0.72;
     this.updateGtaoMaterial({ radius: 0.22, thickness: 0.7, distanceFallOff: 0.8, scale: 1.2, samples: 16 });
     this.updatePdMaterial({ samples: 8, rings: 2, radius: 5, depthPhi: 1, normalPhi: 4 });
+    // Estes alvos recebem só triângulos fullscreen com depthTest/depthWrite
+    // desligados no GTAOPass. O depthTexture útil pertence ao normalRenderTarget.
+    this.gtaoRenderTarget.depthBuffer = false;
+    this.pdRenderTarget.depthBuffer = false;
+    this._solidHidden = [];
+    this._depthRevision = undefined;
+    this._cachedRevision = undefined;
+    this._cacheValid = false;
+    this._cachedCameraWorld = new THREE.Matrix4();
+    this._cachedProjection = new THREE.Matrix4();
+    this._cachedProjectionInverse = new THREE.Matrix4();
   }
   setSize(width, height) {
     // Metade da resolução limita o custo; a filtragem preserva as bordas das máquinas.
-    super.setSize(Math.max(1, Math.round(width / 2)), Math.max(1, Math.round(height / 2)));
+    const w = Math.max(1, Math.round(width / 2));
+    const h = Math.max(1, Math.round(height / 2));
+    if (w !== this.width || h !== this.height) this._cacheValid = false;
+    super.setSize(w, h);
+  }
+  updateGtaoMaterial(parameters) {
+    this._cacheValid = false;
+    super.updateGtaoMaterial(parameters);
+  }
+  updatePdMaterial(parameters) {
+    this._cacheValid = false;
+    super.updatePdMaterial(parameters);
+  }
+  setSceneClipBox(box) {
+    this._cacheValid = false;
+    super.setSceneClipBox(box);
+  }
+  setGBuffer(depthTexture, normalTexture) {
+    this._cacheValid = false;
+    super.setGBuffer(depthTexture, normalTexture);
+  }
+  // Sem revisão explícita, sempre recalcula: mudanças de geometria, instâncias,
+  // visibilidade e materiais não podem ser inferidas pela câmera.
+  setDepthRevision(revision) { this._depthRevision = revision; }
+  render(renderer, ...args) {
+    const camera = this.camera;
+    const reuse = this._depthRevision !== undefined && this._cacheValid &&
+      this._cachedRenderer === renderer &&
+      this._cachedRevision === this._depthRevision &&
+      this._cachedCameraWorld.equals(camera.matrixWorld) &&
+      this._cachedProjection.equals(camera.projectionMatrix) &&
+      this._cachedProjectionInverse.equals(camera.projectionMatrixInverse) &&
+      this._cachedLayers === camera.layers.mask &&
+      this._cachedNear === camera.near && this._cachedFar === camera.far;
+    const renderGBuffer = this._renderGBuffer;
+    this._reuseContact = reuse;
+    if (reuse) this._renderGBuffer = false;
+    // Uma falha nunca valida dados parcialmente desenhados.
+    this._cacheValid = false;
+    try {
+      super.render(renderer, ...args);
+      this._cachedRevision = this._depthRevision;
+      this._cachedRenderer = renderer;
+      this._cachedCameraWorld.copy(camera.matrixWorld);
+      this._cachedProjection.copy(camera.projectionMatrix);
+      this._cachedProjectionInverse.copy(camera.projectionMatrixInverse);
+      this._cachedLayers = camera.layers.mask;
+      this._cachedNear = camera.near;
+      this._cachedFar = camera.far;
+      this._cacheValid = true;
+    } finally {
+      this._renderGBuffer = renderGBuffer;
+      this._reuseContact = false;
+    }
+  }
+  _overrideVisibility() {}
+  _restoreVisibility() {}
+  _renderPass(renderer, material, target, color, alpha) {
+    if (this._reuseContact && (target === this.gtaoRenderTarget || target === this.pdRenderTarget)) return;
+    return super._renderPass(renderer, material, target, color, alpha);
   }
   _renderOverride(renderer, material, target, color, alpha) {
-    return withSolidSurfaces(this.scene, renderer, () => super._renderOverride(renderer, material, target, color, alpha));
+    return withSolidSurfaces(this.scene, renderer, () => super._renderOverride(renderer, material, target, color, alpha), this._solidHidden, true);
   }
   dispose() {
     super.dispose();
@@ -113,8 +190,9 @@ const ATMOSPHERE = {
           }
         }
         #endif
-        density += cone * 0.022 * exp(-lampDistance * 0.25);
-        incident += vec3(7.0, 3.7, 1.25) * cone * lit / (1.0 + lampDistance * 1.3);
+        // O feixe continua visível, mas não cobre as cápsulas da máquina central com um véu claro.
+        density += cone * 0.01 * exp(-lampDistance * 0.25);
+        incident += vec3(3.0, 1.6, 0.55) * cone * lit / (1.0 + lampDistance * 1.3);
         vec3 pink = p - vec3(-0.55, 3.15, 0.05);
         vec3 cyan = p - vec3(0.65, 3.1, 0.05);
         incident += vec3(1.6, 0.12, 0.85) / (1.0 + dot(pink, pink) * 3.0);
@@ -171,6 +249,9 @@ class AtmospherePass extends Pass {
     super();
     this.rays = new ShaderPass(ATMOSPHERE);
     this.composite = new ShaderPass(VOLUME_COMPOSITE);
+    for (const pass of [this.rays, this.composite]) {
+      pass.material.depthTest = pass.material.depthWrite = false;
+    }
     this.target = new THREE.WebGLRenderTarget(1, 1, { type: THREE.HalfFloatType, depthBuffer: false });
     this.composite.uniforms.volume.value = this.target.texture;
     this.uniforms = this.rays.uniforms;
@@ -242,6 +323,7 @@ export function createEffects(scene, camera, lamp = null) {
   const contact = new ContactPass(scene, camera);
   const atmosphere = new AtmospherePass(lamp);
   const grade = new ShaderPass(GRADE);
+  grade.material.depthTest = grade.material.depthWrite = false;
   for (const pass of [atmosphere, atmosphere.composite, grade]) {
     pass.uniforms.tDepth.value = contact.normalRenderTarget.depthTexture;
     pass.uniforms.projectionInverse.value = camera.projectionMatrixInverse;
@@ -258,7 +340,8 @@ export function createEffects(scene, camera, lamp = null) {
       atmosphere.material.needsUpdate = true;
     }
   }
-  function update(time, gold = 0) {
+  function update(time, gold = 0, { depthRevision } = {}) {
+    contact.setDepthRevision(depthRevision);
     atmosphere.uniforms.time.value = time;
     atmosphere.uniforms.gold.value = gold;
     grade.uniforms.focusDistance.value = camera.position.distanceTo(focus);

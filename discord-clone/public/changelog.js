@@ -4,148 +4,104 @@
 // O título deve destacar as principais funcionalidades ou correções, com termos objetivos.
 window.CHANGELOG = [
   {
-    version: '0.99.10', date: '2026-10-01', name: 'Salão do Mudae: máquina de cápsulas 3D',
-    summary: 'O palco do Salão virou uma lojinha de gashapon em 3D: a cápsula cai da máquina, balança mudando de cor e abre com o personagem saindo de dentro, com faíscas, confete e corações.',
+    version: '1.1.0', date: '2026-10-07', name: 'Calls por servidor de mídia e palco de transmissões novo',
+    summary: 'As calls agora passam por um servidor de mídia: cada pessoa envia a tela uma vez só, não importa quantos assistam. O palco de transmissões ganhou grade e destaque.',
     sections: [
       { kind: 'new', items: [
-        'Quando alguém roda, o botão da máquina gira, uma cápsula cai, quica no chão molhado e para embaixo da lâmpada. Todo mundo no Salão vê ao mesmo tempo.',
-        'A cápsula balança antes de abrir, soltando faíscas, e a cor sobe a cada balançada: branca, azul, roxa. O lendário trava, fica dourado e deixa a loja inteira dourada.',
-        'Cada raridade abre do seu jeito: faíscas, um anel azul, uma espiral roxa ou, no lendário, uma chuva de confete. Uma onda de luz corre pelo chão e o neon pisca na cor da raridade.',
-        'A carta do personagem sai de dentro da cápsula aberta e vira de frente. Dá para casar assim que ela aparece.',
-        'Clique na máquina do meio para rodar: ela repete o tipo do seu último roll (waifu, husbando ou qualquer um).',
-        'Casou? Corações sobem na loja para todo mundo ver. Roubou o roll de alguém? Os corações são roxos.',
-        'Com o Salão parado, a lojinha continua viva: chuva fina, ondinhas nas poças, pétalas caindo e o neon piscando.',
+        'Servidor de mídia (SFU): voz, câmera e telas vão uma vez para o servidor, que entrega a cada espectador. Transmitir para muita gente pesa bem menos na sua internet e no seu PC.',
+        'Cada espectador recebe a qualidade do tamanho em que está vendo: miniatura em baixa, destaque em alta. Sem ninguém assistindo, a sua captura cai para 5 FPS.',
+        'Palco de transmissões novo: várias telas dividem o palco em grade, ou uma fica em destaque com as outras numa faixa embaixo. Os botões Grade e Destaque ficam no topo do palco.',
+        'Diagnóstico mostra se o codificador de vídeo usa a placa de vídeo e o status da GPU no app para Windows.',
+        'Clique com o botão direito no espaço vazio da lista de canais para criar canal, criar grupo de canais ou convidar para o servidor. Quem gerencia canais também tem o botão “Criar grupo de canais” no fim da lista.',
       ] },
       { kind: 'improved', items: [
-        'Comum abre rápido (uns 2 segundos); quanto mais rara, mais balançadas e mais suspense.',
-        'Em computadores sem aceleração 3D, ou se a placa de vídeo falhar, o Salão continua com a roleta de fotos. Em máquinas mais fracas a cena reduz os efeitos sozinha.',
+        'Se o servidor de mídia cair ou a sua rede não alcançá-lo, a call passa sozinha para conexão direta e continua.',
+        'Se a conexão de mídia cair, o Resenhex entra de novo na call sozinho, sem você precisar sair e entrar.',
+        'Ligar ou desligar a câmera enquanto transmite não faz mais a tela piscar para quem assiste.',
+        'Salão do Mudae: a carta só aparece com a foto já carregada, sem quadro preto, e o giro não espera fotos lentas.',
+        'Salão do Mudae: a mesa ao vivo fica sempre inteira na tela; a carta do palco se ajusta ao espaço que sobra, e em telas baixas o botão de casar vai para o lado dela.',
+        'Salão do Mudae: molduras novas e mais discretas para comum, raro, épico e lendário.',
       ] },
     ],
   },
   {
-    version: '0.99.9', date: '2026-10-01', name: 'Salão do Mudae: roleta de personagens ao vivo',
-    summary: 'Um canal novo, o Salão do Mudae: rode personagens de anime, jogos, quadrinhos, desenhos e séries numa roleta que todo mundo vê, case antes dos outros (ou roube!) e monte o seu álbum.',
+    version: '1.0.0', date: '2026-10-04', name: 'Resenhex 1.0',
+    celebrate: true,
+    summary: 'Chegamos na 1.0! Esta versão junta a 0.99.14 a 0.99.16 (4 de outubro): chamada no privado, GIFs no chat, uma chamada por conta e mouse sem atraso nos jogos. Valeu a todo mundo que testou, reclamou e ficou na call até tarde.',
     sections: [
       { kind: 'new', items: [
-        'Crie um canal do tipo Salão do Mudae. Ele abre uma tela própria: o palco com a roleta, os botões $w (waifu), $h (husbando) e $m (qualquer um) e a Mesa ao vivo com os rolls de todo mundo.',
-        'A roleta gira para todos ao mesmo tempo e para no personagem, em quatro raridades: comum, raro, épico e lendário. Lendário dá banner, flash e fanfarra para a sala toda.',
-        'Clique em Casar em até 45 segundos. Quem rodou tem 3 segundos só dele; depois disso, qualquer um pode roubar, e o chat conta o roubo.',
-        'Cada pessoa tem 10 rolls por hora e pode casar uma vez a cada 3 horas. A pílula no topo mostra quanto falta, e a aba No salão mostra quem está jogando e os rolls de cada um.',
-        'Meu harem virou um álbum de cards: busca, filtros por raridade, ordem por valor, data, obra ou nome, e um favorito que aparece no seu perfil.',
-        'Ranking do servidor pelo valor do harem, com o mural dos lendários e de quem é cada um.',
-        'São 25 mil personagens de cinco fontes: anime, jogos (Genshin, Zelda, League of Legends, Final Fantasy…), quadrinhos (Marvel, DC…), desenhos (Simpsons, Hora de Aventura, Disney, Pixar…) e séries (Game of Thrones, Stranger Things, La Casa de Papel…).',
-        'Os botões de fonte no Salão, ou $wa, $wg, $wc, $wd e $ws (e o mesmo com $h e $m), rodam só de uma fonte. A raridade é contada dentro de cada fonte, então a chance de lendário é a mesma em todas.',
-        'Reações rápidas (😱 🔥 💖 😂 💀) flutuam no palco para todo mundo que está no Salão.',
-        'Prefere o Mudae original? O botão Modo simplificado mostra o Salão como um chat comum, com o card completo e o botão Casar no chat. É só para você, e Abrir o Salão volta para a roleta.',
-        'Os comandos $w, $h e $m funcionam só no Salão; em outro canal o Mudae mostra o caminho. A permissão "Usar o Mudae" nos cargos libera ou bloqueia o jogo.',
+        'Clique no selo AO VIVO na lista de canais de voz para ir direto à tela transmitida: você entra na chamada, se precisar, e a tela abre em destaque.',
+        'Arquivos de até 50 MB no chat (antes 25 MB).',
+        'Chamada de voz e vídeo no privado: os botões no topo da conversa ligam para o amigo. A chamada aparece em cima do chat, que continua embaixo; arraste a borda para mudar a altura ou amplie para a tela toda.',
+        'Quem recebe vê a janela “está ligando…” com Atender, Atender com vídeo e Recusar, em qualquer tela do Resenhex, com toque e notificação do sistema. Sem resposta em 30 segundos, o toque para, e quem ligou pode ligar de novo.',
+        'Na chamada privada funcionam microfone, fone, câmera, transmissão de tela (com zoom e qualidade) e os efeitos sonoros nativos. O chat registra a chamada (“Ana iniciou uma chamada que durou 12 minutos” ou “Você perdeu uma chamada de Ana”), com um botão para entrar enquanto ela acontece.',
+        'GIFs: o botão GIF na caixa de mensagem, ao lado do emoji, abre os GIFs em alta e uma busca. Clicou, o GIF vai na hora, nos canais e nas conversas privadas. Os GIFs vêm do KLIPY.',
       ] },
-    ],
-  },
-  {
-    version: '0.99.8', date: '2026-10-01', name: 'Zoom na transmissão de tela e DJ em destaque',
-    summary: 'Aproxime qualquer parte da tela compartilhada, e o vídeo do DJ pode ocupar o palco da chamada num layout próprio de música.',
-    sections: [
-      { kind: 'new', items: [
-        'Zoom na transmissão de tela em destaque ou em tela cheia: role o mouse (ou faça a pinça no trackpad) para aproximar exatamente onde está o cursor, e arraste para mover a imagem.',
-        'Shift + arrastar marca uma área e amplia só ela. Clique duplo amplia onde clicou e, ampliado, volta ao tamanho original. Também dá para usar + / − / 0 e as setas.',
-        'Com zoom, um minimapa mostra a tela inteira e a parte que você está vendo; arraste nele para navegar. A barra de zoom aparece ao mexer o mouse.',
-        'Aproximar pede mais resolução a quem transmite, para o texto ficar nítido.',
-        'Clique no bloco do DJ na chamada para colocá-lo em destaque: o vídeo fica grande no meio, com a capa desfocada ao fundo.',
-        'Em destaque aparecem o que está tocando, quem pediu, o progresso, os controles, o seu volume e as próximas músicas da fila.',
-        'Clique duplo ou o botão de tela cheia abre o modo cinema, com o DJ cobrindo a janela toda. Esc volta.',
+      { kind: 'improved', items: [
+        'Som de notificação novo para menções e mensagens diretas: um “plim” de sino em duas notas, mais suave, no lugar dos dois bipes secos.',
       ] },
-    ],
-  },
-  {
-    version: '0.99.7', date: '2026-10-01', name: 'Informações direto no fundo do perfil',
-    summary: 'Membro desde e Cargos aparecem direto sobre o fundo do perfil.',
-    sections: [
       { kind: 'fixed', items: [
-        'Removido o painel retangular atrás das informações do perfil. O escurecimento do fundo e a sombra no texto mantêm a leitura.',
+        'Dava para entrar com a mesma conta duas vezes na mesma chamada, abrindo outra aba. Agora cada conta fica em uma chamada só: entrar por outra aba, navegador ou pelo app tira a sessão anterior da chamada, com um aviso.',
+        'No app para Windows (1.0.6), os atalhos globais escutavam também o mouse do sistema inteiro, e em jogos guiados pelo cursor, como Baldur’s Gate 3, o mouse podia atrasar durante a transmissão. Agora o app escuta só o teclado, e o push-to-talk e os atalhos continuam iguais.',
       ] },
     ],
   },
   {
-    version: '0.99.6', date: '2026-10-01', name: 'Fundo do perfil com imagem ou GIF',
-    summary: 'Personalize a parte abaixo do banner com uma imagem ou GIF animado, mantendo o nome e as informações legíveis.',
+    version: '0.99.13', date: '2026-10-04', name: 'Salão do Mudae em 3D e Meu perfil redesenhado',
+    summary: 'Junta as versões 0.99.9 a 0.99.13 (1 a 4 de outubro): o canal Salão do Mudae com máquina de cápsulas 3D, o Meu perfil novo e vários ajustes visuais.',
     sections: [
       { kind: 'new', items: [
-        'Em Configurações → Meu perfil, use Mudar fundo para escolher uma imagem PNG, JPG ou WebP de até 8 MB, ou um GIF animado de até 5 MB.',
-        'Arraste a imagem e ajuste o zoom antes de salvar. Ajustar fundo reabre o enquadramento e Remover fundo restaura o fundo padrão.',
-        'O fundo recebe escurecimento e painéis desfocados para preservar a leitura. GIFs mantêm a animação e o enquadramento.',
+        'Salão do Mudae: crie um canal desse tipo e rode personagens com $w (waifu), $h (husbando) e $m (qualquer um). Todo mundo no Salão vê o roll ao mesmo tempo, e a Mesa ao vivo mostra os rolls de todos.',
+        'O palco é uma lojinha de gashapon em 3D: a cápsula cai da máquina, balança mudando de cor e abre com a carta do personagem saindo de dentro. Cada raridade (comum, raro, épico e lendário) abre do seu jeito, e o lendário deixa a loja inteira dourada.',
+        'Clique em Casar em até 45 segundos. Quem rodou tem 3 segundos só dele; depois, qualquer um pode roubar, e o chat conta o roubo. Casou? Corações sobem na loja (roxos, se foi roubo).',
+        'Cada pessoa tem 10 rolls por hora e pode casar uma vez a cada 30 minutos. Clicar na máquina do meio repete o tipo do seu último roll.',
+        'São 25 mil personagens de anime, jogos, quadrinhos, desenhos e séries. $wa, $wg, $wc, $wd e $ws (e o mesmo com $h e $m) rodam só de uma fonte, com a mesma chance de lendário em todas.',
+        'Meu harem é um álbum de cards com busca, filtros e um favorito que aparece no perfil. Há também um ranking do servidor pelo valor do harem e o mural dos lendários.',
+        'Reações rápidas (😱 🔥 💖 😂 💀) flutuam no palco. O Modo simplificado mostra o Salão como um chat comum, e a permissão “Usar o Mudae” nos cargos libera ou bloqueia o jogo.',
       ] },
-    ],
-  },
-  {
-    version: '0.99.5', date: '2026-09-30', name: 'DJ da sala: músicas do YouTube na chamada',
-    summary: 'Peça uma música do YouTube e todo mundo na sala de voz ouve junto, no mesmo ponto, cada um no próprio volume.',
-    sections: [
-      { kind: 'new', items: [
-        'Na chamada, o botão do disco abre o DJ: busque no YouTube ou cole um link, e a música entra na fila da sala. Também dá para digitar /play e o nome da música em qualquer chat.',
-        'Todo mundo na sala ouve a mesma música no mesmo ponto. Quem entra no meio já começa de onde a música está.',
-        'Pausar, pular e parar valem para a sala toda (/pausar, /continuar, /pular, /parar e /fila no chat). Quem pode usar o DJ é a permissão nova Usar o DJ, ligada para todos.',
-        'O volume da música é só seu e separado das vozes. Dá para silenciar a música só para você, e ensurdecer também silencia a música.',
-        'O vídeo aparece num bloco do palco, e o que está tocando aparece no painel da chamada e na lista de canais. Lives do YouTube também tocam.',
-        'Se a sala esvazia, a música espera no ponto em que parou por 5 minutos. Se um clipe não pode tocar fora do YouTube, o DJ toca outra versão da mesma busca.',
+      { kind: 'improved', items: [
+        'Meu perfil mostra foto, banner e fundo numa lista só, cada um com Trocar, Ajustar e Remover à vista. Passar o mouse numa imagem destaca onde ela aparece na prévia, e clicar na prévia também troca.',
+        'O tempo de chamada aparece no cabeçalho da chamada e no botão Em chamada.',
+        'Perfis, menus, presença, anexos, áudio, código e reações acompanham melhor as cores do tema. Entrada, cadastro, download, Novidades e a barra de título do app têm a marca e a fonte atuais.',
+        'A mesa do Salão tem fundo em gradiente nas cores do tema, e o catálogo ficou só com personagens: saíram cerca de 6 mil fichas de pessoas reais.',
+        'Em computadores sem aceleração 3D, o Salão usa uma roleta de fotos. Em máquinas mais fracas, a cena reduz os efeitos sozinha.',
       ] },
-    ],
-  },
-  {
-    version: '0.99.4', date: '2026-09-30', name: 'Atalhos de teclado e chamada que continua ao trocar de servidor',
-    summary: 'Atalhos do Discord para mutar, ensurdecer e navegar, configuráveis, e no app para Windows eles funcionam com o jogo aberto.',
-    sections: [
-      { kind: 'new', items: [
-        'Atalhos de teclado com os padrões do Discord: Ctrl+Shift+M muta, Ctrl+Shift+D ensurdece, Ctrl+Alt+A volta para a chamada, Alt+↑/↓ troca de canal, Alt+Shift+↑/↓ vai para o canal não lido, Ctrl+Alt+↑/↓ troca de servidor, Ctrl+/ mostra a lista.',
-        'Em Acessibilidade e atalhos dá para trocar qualquer atalho apertando a combinação nova, tirar o atalho, voltar ao padrão e definir atalhos para câmera, tela, supressão de ruído e sair da chamada.',
-        'No app para Windows (1.0.4), mutar e ensurdecer funcionam também com o Resenhex em segundo plano, por exemplo no meio do jogo.',
-        'Trocar de servidor não tira mais você da chamada: dá para olhar os outros servidores e voltar, e o servidor da chamada ganha um alto-falante na barra lateral.',
-      ] },
-    ],
-  },
-  {
-    version: '0.99.3', date: '2026-09-30', name: 'Filtro de eco mais forte e aviso de versão nova',
-    summary: 'As vozes da chamada saem do som da transmissão também nos PCs com som espacial ou equalização de volume, e uma versão nova do Resenhex agora avisa.',
-    sections: [
       { kind: 'fixed', items: [
-        'O filtro que tira as vozes da chamada do som da transmissão ficou bem mais forte nos PCs com som espacial, surround virtual ou equalização de volume ligados, onde antes sobrava uma voz abafada.',
-        'No app para Windows, a exclusão do som do Resenhex pelo próprio Windows passa a valer a partir do Windows 10 22H2. Em versões anteriores ela não funciona direito, e o filtro do Resenhex entra no lugar.',
+        'Controles da chamada se organizam em duas fileiras quando falta espaço, e o seletor de emojis cabe nas telas menores.',
+        'Apagar uma mensagem abre a confirmação do próprio aplicativo, com opção de cancelar.',
       ] },
+    ],
+  },
+  {
+    version: '0.99.8', date: '2026-10-01', name: 'DJ da sala, fundo do perfil e zoom na transmissão',
+    summary: 'Junta as versões 0.99.5 a 0.99.8 (30 de setembro e 1º de outubro): música do YouTube na chamada, fundo do perfil com imagem ou GIF e zoom na tela compartilhada.',
+    sections: [
       { kind: 'new', items: [
-        'Quem transmite fica sabendo como o som do computador está indo: sem as vozes da chamada, com as vozes tiradas pelo filtro ou com as vozes junto, e o que fazer. O mesmo aparece em Conexão e diagnóstico.',
+        'DJ da sala: na chamada, o botão do disco busca no YouTube ou aceita um link, e a música entra na fila. Todo mundo ouve a mesma música no mesmo ponto. Também dá para usar /play, /pausar, /continuar, /pular, /parar e /fila em qualquer chat.',
+        'O volume da música é só seu e separado das vozes. A permissão Usar o DJ controla quem pode pedir, pausar e pular.',
+        'Clique no bloco do DJ para colocá-lo em destaque, com o que está tocando, os controles e a fila. Clique duplo abre o modo cinema.',
+        'Zoom na transmissão de tela: role o mouse (ou faça a pinça) para aproximar onde está o cursor, arraste para mover, e Shift + arrastar amplia uma área. Um minimapa mostra a parte que você está vendo, e quem transmite manda mais resolução para o texto ficar nítido.',
+        'Fundo do perfil: em Meu perfil, escolha uma imagem de até 8 MB ou um GIF animado de até 5 MB para a parte abaixo do banner, com enquadramento e zoom.',
+      ] },
+      { kind: 'improved', items: [
+        'Membro desde e Cargos aparecem direto sobre o fundo do perfil, sem o painel retangular atrás.',
+      ] },
+    ],
+  },
+  {
+    version: '0.99.4', date: '2026-09-30', name: 'Transmissão sem eco, atalhos e apelidos por servidor',
+    summary: 'Junta as versões 0.99 a 0.99.4 (30 de setembro): transmissão sem as vozes da chamada, atalhos de teclado do Discord e um nome diferente em cada servidor.',
+    sections: [
+      { kind: 'new', items: [
+        'Atalhos de teclado com os padrões do Discord (Ctrl+Shift+M muta, Ctrl+Shift+D ensurdece, Ctrl+/ mostra a lista), todos configuráveis em Acessibilidade e atalhos. No app para Windows, mutar e ensurdecer funcionam também no meio do jogo.',
+        'Trocar de servidor não tira mais você da chamada, e o servidor da chamada ganha um alto-falante na barra lateral.',
+        'Apelidos por servidor: “Editar nome no servidor”, no menu do servidor, escolhe um nome de até 32 caracteres só para aquele servidor. Login, amigos e mensagens diretas continuam com o nome de usuário.',
+        'Ao escolher um banner, abre o editor com zoom e posição, e “Ajustar banner” reabre o enquadramento. GIFs continuam animados.',
         'Quando sai uma versão nova do Resenhex, aparece um aviso no topo com o botão Atualizar.',
       ] },
-    ],
-  },
-  {
-    version: '0.99.2', date: '2026-09-30', name: 'Transmissão sem eco das vozes da chamada',
-    summary: 'O som do computador na transmissão de tela não leva mais junto as vozes de quem está na chamada.',
-    sections: [
       { kind: 'fixed', items: [
-        'Ao transmitir a tela com o som do computador, as vozes da chamada iam junto e quem assistia se ouvia de volta. Agora o som da transmissão leva só o jogo, o vídeo ou a música.',
-        'No app para Windows, o próprio Windows deixa o som do Resenhex de fora da captura (Windows 10 versão 2004 ou mais novo).',
-        'No navegador, o Chrome e o Edge fazem isso sozinhos no Windows 11. No Windows 10, o Resenhex tira as vozes e os efeitos sonoros da captura; nos primeiros segundos de conversa ele ainda está aprendendo e um pouco pode escapar.',
-      ] },
-    ],
-  },
-  {
-    version: '0.99.1', date: '2026-09-30', name: 'Ajuste do banner do perfil',
-    summary: 'Enquadre o banner do perfil com zoom e posição, do mesmo jeito que a foto.',
-    sections: [
-      { kind: 'new', items: [
-        'Ao escolher um banner, abre o editor: arraste a imagem e ajuste o zoom na proporção em que ele aparece no perfil.',
-        'O botão “Ajustar banner”, em Meu perfil, reabre o enquadramento a qualquer momento.',
-        'GIFs animados também podem ser enquadrados e continuam animados.',
-      ] },
-    ],
-  },
-  {
-    version: '0.99', date: '2026-09-30', name: 'Apelidos por servidor',
-    summary: 'Escolha um nome diferente em cada servidor, mantendo o nome de usuário da sua conta.',
-    sections: [
-      { kind: 'new', items: [
-        'No menu do servidor, “Editar nome no servidor” abre uma janela com prévia. A opção também está em Meu perfil e no menu do seu próprio membro.',
-        'O apelido aparece no chat, nas menções, na lista de membros e nas chamadas daquele servidor. Até 32 caracteres; deixe em branco para voltar ao nome de usuário.',
-        'Cada servidor guarda seu próprio apelido. O login, os amigos e as mensagens diretas continuam usando seu nome de usuário.',
+        'Ao transmitir a tela com o som do computador, as vozes da chamada iam junto e quem assistia se ouvia de volta. Agora o som leva só o jogo, o vídeo ou a música: no app para Windows (Windows 10 22H2 ou mais novo) e no Chrome e Edge do Windows 11 o próprio sistema tira as vozes; nos outros casos, um filtro do Resenhex faz isso.',
+        'Quem transmite vê como o som do computador está indo (sem as vozes, com as vozes tiradas pelo filtro ou com as vozes junto) e o que fazer. O mesmo aparece em Conexão e diagnóstico.',
       ] },
     ],
   },

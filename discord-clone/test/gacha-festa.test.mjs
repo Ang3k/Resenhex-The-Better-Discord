@@ -66,3 +66,34 @@ test('a festa inteira de um lendário, mais um casamento, sem números quebrados
   assert.equal(festa.update({ rarity: 'legendary', t: openAt('legendary') + 100, sec: 1, palette, reduced: true }).busy, false, 'reduzir movimento: sem partículas');
   festa.dispose();
 }));
+
+test('efeitos inativos não reenviam reservas e os ativos enviam todos os vértices visíveis', () => withDocument(() => {
+  const palette = Object.fromEntries(['common', 'rare', 'epic', 'legendary'].map((r) => [r, new THREE.Color('#ffc53d')]));
+  const festa = createFesta({ spot: new THREE.Vector3(0, 0, 1.45), radius: 0.13 });
+  const sparks = festa.group.children.find((m) => m.isPoints && !m.material.uniforms.map);
+  const hearts = festa.group.children.find((m) => m.isPoints && m.material.uniforms.map);
+  try {
+    const idle = { rarity: 'legendary', t: Infinity, sec: 100, palette, rain: false };
+    festa.update(idle);
+    for (const mesh of [sparks, hearts]) {
+      assert.equal(mesh.geometry.drawRange.count, 0);
+      for (const attribute of Object.values(mesh.geometry.attributes)) assert.equal(attribute.version, 0);
+    }
+    festa.update({ ...idle, t: openAt('legendary') + 100 });
+    assert.ok(sparks.geometry.drawRange.count > 0);
+    for (const attribute of Object.values(sparks.geometry.attributes)) {
+      assert.deepEqual(attribute.updateRanges, [{ start: 0, count: sparks.geometry.drawRange.count * attribute.itemSize }]);
+      assert.ok(attribute.updateRanges[0].count < attribute.array.length);
+    }
+    const versions = Object.values(sparks.geometry.attributes).map((a) => a.version);
+    festa.update(idle);
+    assert.deepEqual(Object.values(sparks.geometry.attributes).map((a) => a.version), versions);
+    assert.equal(sparks.geometry.drawRange.count, 0);
+    festa.celebrate('claim', 100);
+    festa.update({ ...idle, sec: 100.4 });
+    assert.ok(hearts.geometry.drawRange.count > 0);
+    for (const attribute of Object.values(hearts.geometry.attributes)) {
+      assert.deepEqual(attribute.updateRanges, [{ start: 0, count: hearts.geometry.drawRange.count * attribute.itemSize }]);
+    }
+  } finally { festa.dispose(); }
+}));
