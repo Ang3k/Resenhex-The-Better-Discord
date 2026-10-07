@@ -1,0 +1,6 @@
+# Ferramentas de IA (locais)
+docs/superpowers/
+.claude/
+.codex/
+AGENTS.md
+CLAUDE.md
