@@ -109,6 +109,9 @@ umask 022
 
 # ---------- pacotes ----------
 say "Instalando pacotes (Node.js, Caddy, coturn)"
+# O repositório do Caddy no Cloudsmith passou a responder 402 (outubro de 2026) e derrubava o
+# apt-get update. O Caddy agora vem do próprio Ubuntu (universe); a fonte antiga sai do apt.
+rm -f /etc/apt/sources.list.d/caddy-stable.list
 apt-get update -q
 apt-get install -y -q curl ca-certificates gnupg debian-keyring debian-archive-keyring apt-transport-https coturn rsync >/dev/null
 
@@ -119,9 +122,6 @@ if [ "${NODE_MAJOR:-0}" -lt 20 ]; then
 fi
 
 if ! command -v caddy >/dev/null; then
-  curl -1sSLf 'https://dl.cloudsmith.io/public/caddy/stable/gpg.key' | gpg --dearmor --yes -o /usr/share/keyrings/caddy-stable-archive-keyring.gpg
-  curl -1sSLf 'https://dl.cloudsmith.io/public/caddy/stable/debian.deb.txt' > /etc/apt/sources.list.d/caddy-stable.list
-  apt-get update -q
   apt-get install -y -q caddy >/dev/null
 fi
 
