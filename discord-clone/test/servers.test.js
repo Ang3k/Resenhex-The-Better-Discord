@@ -189,11 +189,6 @@ test('switching servers keeps the call; call data, moderation and sounds stay ti
   // Mudo/transmissão e efeitos sonoros continuam valendo na sala do servidor original.
   assert.ok(!(await owner.call('voice:state', { muted: true })).error);
   await eventually(() => assert.equal(friend.last.voice.find((v) => v.accountId === owner.auth.accountId).muted, true));
-  // Quem abre o Minecraft aparece "jogando" para a sala; só jogos conhecidos são repassados.
-  assert.ok(!(await owner.call('voice:state', { muted: true, game: 'minecraft' })).error);
-  await eventually(() => assert.equal(friend.last.voice.find((v) => v.accountId === owner.auth.accountId).game, 'minecraft'));
-  assert.ok(!(await owner.call('voice:state', { muted: true, game: '<script>' })).error);
-  await eventually(() => assert.equal(friend.last.voice.find((v) => v.accountId === owner.auth.accountId).game, null));
   const heard = new Promise((r) => friend.once('sound', r));
   assert.ok(!(await owner.call('sound:play', { sound: 'buzina' })).error);
   assert.equal((await heard).from, owner.auth.accountId);

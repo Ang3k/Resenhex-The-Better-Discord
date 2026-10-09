@@ -34,7 +34,6 @@
   <link rel="stylesheet" href="emoji-picker.css">
   <link rel="stylesheet" href="chat-media.css">
   <link rel="stylesheet" href="call-tools.css">
-  <link rel="stylesheet" href="minecraft.css">
   <script>
     // Quem chega pela primeira vez vê a página inicial; quem já entrou neste navegador, veio por convite
     // ou usa o app de desktop vai direto para o Resenhex. Decidido antes de pintar, para não piscar.
@@ -305,9 +304,6 @@
         <ul class="rail-alt">
           <li id="nav-to-home" class="channel"><span class="icon" data-icon="message"></span><span class="channel-name">Mensagens diretas</span><span id="nav-home-badge" class="badge hidden"></span></li>
         </ul>
-        <ul class="minecraft-nav-group">
-          <li id="nav-minecraft" class="channel minecraft-nav"><span class="icon" data-icon="blocks"></span><span class="channel-name">Minecraft</span><span class="minecraft-nav-label">Jogar</span></li>
-        </ul>
         <div id="channel-groups"></div>
       </div>
 
@@ -318,7 +314,6 @@
           <ul>
             <li id="nav-to-server" class="channel rail-alt"><span class="icon" data-icon="hash"></span><span class="channel-name">Voltar ao servidor</span></li>
             <li id="nav-friends" class="channel"><span class="icon" data-icon="users"></span><span class="channel-name">Amigos</span><span id="friends-badge" class="badge hidden"></span></li>
-            <li id="nav-home-minecraft" class="channel minecraft-nav"><span class="icon" data-icon="blocks"></span><span class="channel-name">Minecraft</span><span class="minecraft-nav-label">Jogar</span></li>
           </ul>
           <div class="category">MENSAGENS DIRETAS</div>
           <ul id="dm-list"></ul>
@@ -462,7 +457,6 @@
       </section>
 
       <section id="voice-view" class="hidden">
-        <div id="game-invite" class="hidden" role="status"></div>
         <div id="stage-toolbar" class="hidden">
           <div class="stage-summary"><span class="stage-live-dot"></span><span id="stage-summary"></span></div>
           <div class="stage-layout" role="group" aria-label="Visualização da chamada">
@@ -498,8 +492,6 @@
         </div>
         <div id="dm-call-resizer" role="separator" aria-orientation="horizontal" aria-label="Altura da chamada" aria-valuemin="200" tabindex="0"></div>
       </section>
-
-      <section id="game-view" class="hidden" aria-label="Minecraft"></section>
     </main>
 
     <button id="sidebar-backdrop" class="hidden" aria-label="Fechar painel">
@@ -1080,7 +1072,6 @@
   <script src="emoji-picker.js"></script>
   <script src="lightbox.js"></script>
   <script src="voice-fx.js"></script>
-  <script src="minecraft.js"></script>
   <script src="app.js">
 </script>
   <script src="landing.js"></script>

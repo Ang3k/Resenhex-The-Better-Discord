@@ -133,12 +133,10 @@ install -d -o resenhex -g resenhex -m 750 "$DATA_DIR" "$DATA_DIR/uploads"
 install -d -o resenhex -g resenhex -m 755 "$DATA_DIR/downloads"
 install -d "$APP_DIR"
 if [ "$APP_SRC" != "$APP_DIR" ]; then
-  rsync -a --delete --exclude node_modules --exclude 'data.json*' --exclude uploads --exclude downloads --exclude desktop --exclude 'public/games/minecraft/assets' --exclude '*.log' "$APP_SRC/" "$APP_DIR/"
+  rsync -a --delete --exclude node_modules --exclude 'data.json*' --exclude uploads --exclude downloads --exclude desktop --exclude '*.log' "$APP_SRC/" "$APP_DIR/"
 fi
 cd "$APP_DIR"
 npm ci --omit=dev --no-audit --no-fund --loglevel=error
-# O cliente do Minecraft é baixado à parte; se o download falhar, o resto do site continua sendo atualizado.
-node tools/prepare-minecraft.js || say "Minecraft: não foi possível preparar o cliente agora; o restante do Resenhex segue normal."
 
 cat > /etc/systemd/system/resenhex.service <<EOF
 [Unit]
@@ -187,25 +185,6 @@ $FREE_DOMAIN {
 	redir https://$DOMAIN{uri} permanent
 }
 EOF
-fi
-
-# ---------- Minecraft: origem separada, sem autenticação ou Socket.IO ----------
-GAME_DOMAIN="minecraft.$DOMAIN"
-if getent ahostsv4 "$GAME_DOMAIN" | awk '{ print $1 }' | grep -Fxq "$PUBLIC_IP"; then
-  cat >> /etc/caddy/Caddyfile <<EOF
-
-$GAME_DOMAIN {
-  encode gzip
-  handle /games/minecraft/* {
-    reverse_proxy 127.0.0.1:3000
-  }
-  handle {
-    respond "Not found" 404
-  }
-}
-EOF
-else
-  say "Para habilitar Minecraft online, aponte $GAME_DOMAIN para $PUBLIC_IP e execute novamente o instalador."
 fi
 
 # ---------- TURN (voz para quem está em rede restrita, 4G etc.) ----------

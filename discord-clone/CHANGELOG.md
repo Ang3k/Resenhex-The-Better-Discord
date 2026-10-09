@@ -3,16 +3,6 @@
 Histórico de versões. A mesma lista aparece dentro do app em **Novidades** (menu do servidor ou rodapé das Configurações).
 O Resenhex chegou à versão 1.0 em 4 de outubro de 2026.
 
-## v1.3.0 — Minecraft dentro do Resenhex, com a call na tela
-
-9 de outubro de 2026. Jogue Minecraft 1.8.8 (Eaglercraft) sem sair do Resenhex, com a call visível e a sala vendo quem está jogando.
-
-### Novo
-- Minecraft na lateral, aberto na área principal. Cada pessoa joga o seu, com mundos salvos no próprio navegador; para jogar junto, use o compartilhamento de mundo do próprio jogo.
-- Numa call, ela fica em cima do jogo com microfone, som, câmera, tela e desligar; o divisor ajusta o tamanho.
-- Bloquinho verde no quadro da call e na lista da sala para quem está jogando, e “Entrar no Minecraft” para quem está na call.
-- O jogo segue rodando ao trocar de canal; “Minecraft · Jogando” na lateral leva de volta. Fechar lembra de salvar o mundo e não derruba a call.
-
 ## v1.2.1 — Teste de voz, menu de áudio e ajustes no chat da call
 
 9 de outubro de 2026. Ouça os efeitos na sua própria voz direto na call, com um menu de áudio mais organizado e o campo de mensagem sem cortes.

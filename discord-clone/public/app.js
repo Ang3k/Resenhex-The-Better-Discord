@@ -33,7 +33,7 @@
     messageAuthors: new Map(), // identidade pública de quem escreveu, mesmo depois de sair do servidor
     unread: {}, // idDoCanal -> { unread, mentions }
     textChannel: null,
-    view: 'chat', // 'chat' | 'voice' | 'game' (Minecraft aberto na área principal)
+    view: 'chat', // 'chat' | 'voice'
     voiceChannel: null,
     callStartedAt: null,
     muted: false,
@@ -97,27 +97,6 @@
     friendsAdd: '',
     friendsNote: '', // resultado do último pedido enviado na aba "Adicionar amigo"
   };
-
-  // Minecraft na área principal: a chamada fica em cima e a sala vê quem está jogando.
-  const minecraft = MinecraftGame({
-    confirm: (options) => confirmDialog(options),
-    mount: $('#game-view'),
-    onChange() {
-      if (!minecraft.active() && state.view === 'game') state.view = state.voiceChannel ? 'voice' : 'chat';
-      if (state.voiceChannel) sendVoiceState();
-      render();
-    },
-  });
-  function playMinecraft() {
-    const previous = state.view;
-    state.view = 'game';
-    closePanels();
-    try { minecraft.open(); } catch {
-      state.view = previous;
-      toast('O Minecraft não está disponível neste endereço do Resenhex.');
-      render();
-    }
-  }
 
   let audioCtx = null;
   const analysers = new Map(); // sid -> { analyser, source, data }
@@ -748,9 +727,9 @@
     $('#nav-home-badge').classList.toggle('hidden', !homeCount);
     const mentions = serverMentions + dmMessages;
     const peer = state.home && channelById(state.textChannel)?.name;
-    const where = state.view === 'game' ? 'Minecraft' : state.home ? (peer ? '@' + peer : 'Amigos')
+    const where = state.home ? (peer ? '@' + peer : 'Amigos')
       : state.view === 'voice' && state.voiceChannel ? callChannelName() : '#' + (channelById(state.textChannel)?.name || '');
-    document.title = (mentions ? `(${mentions}) ` : entries.length ? '• ' : '') + (state.home || state.view === 'game' ? `${where} | Resenhex` : `${where} | ${serverName()} | Resenhex`);
+    document.title = (mentions ? `(${mentions}) ` : entries.length ? '• ' : '') + (state.home ? `${where} | Resenhex` : `${where} | ${serverName()} | Resenhex`);
   }
 
   const composerDrafts = new Map();
@@ -1180,7 +1159,6 @@
   $('#nav-friends').onclick = goHome;
   $('#nav-to-home').onclick = goHome;
   $('#nav-to-server').onclick = goServer;
-  for (const id of ['#nav-minecraft', '#nav-home-minecraft']) $(id).onclick = playMinecraft;
   for (const node of [$('#rail-home'), $('#rail-server')]) { node.tabIndex = 0; node.setAttribute('role', 'button'); node.onkeydown = (e) => { if (['Enter', ' '].includes(e.key)) { e.preventDefault(); node.click(); } }; }
 
   // Lista de conversas privadas na lateral do Início.
@@ -1253,7 +1231,6 @@
         const flags = el('span', { class: 'flags' });
         if (v.sharing) flags.append(el('span', { class: 'live clickable', textContent: 'AO VIVO', tip: 'Ver a transmissão', onclick: (e) => { e.stopPropagation(); openLiveStream(c.id, v.sid); } }));
         if (v.camera) flags.append(el('span', { tip: 'Câmera ligada' }, Icon('camera', 16)));
-        if (v.game === 'minecraft') flags.append(el('span', { class: 'game-flag', tip: 'Jogando Minecraft', ariaLabel: 'Jogando Minecraft', role: 'img' }, Icon('blocks', 16)));
         if (state.localMuted.has(m.id)) flags.append(el('span', { tip: 'Mutado para você' }, Icon('volumeX', 16)));
         if (m.serverMuted || timedOut(m)) flags.append(el('span', { class: 'server-flag', tip: timedOut(m) ? 'De castigo' : 'Silenciado pelo servidor' }, Icon('micOff', 16)));
         else if (v.muted) flags.append(el('span', { tip: 'Mutado' }, Icon('micOff', 16)));
@@ -1341,30 +1318,6 @@
 
   function renderMain() {
     syncVoiceChat();
-    const gameView = state.view === 'game' && minecraft.active();
-    const gameCall = gameView && !!state.voiceChannel;
-    $('#game-view').classList.toggle('hidden', !gameView);
-    $('#main').classList.toggle('game-call', gameCall);
-    for (const id of ['#nav-minecraft', '#nav-home-minecraft']) {
-      $(id).classList.toggle('active', gameView);
-      $(id).classList.toggle('playing', minecraft.active());
-      $(id).querySelector('.minecraft-nav-label').textContent = minecraft.active() ? 'Jogando' : 'Jogar';
-    }
-    renderGameInvite();
-    if (gameView) {
-      // A chamada (se houver) usa o mesmo layout dividido da chamada privada, com o jogo embaixo.
-      for (const id of ['#chat-view', '#friends-view', '#salon-view', '#btn-salon', '#btn-return-call']) $(id).classList.add('hidden');
-      $('#main').classList.remove('voice-chat', 'salon-mode');
-      $('#main').classList.toggle('dm-call', gameCall);
-      $('#voice-view').classList.toggle('hidden', !gameCall);
-      $('#voice-view').classList.remove('dm-call-full');
-      salon.sync(null);
-      renderVoiceChatButton();
-      renderDmCallTools(null);
-      setHeader('blocks', 'Minecraft', gameCall ? 'Em chamada · ' + callChannelName() : '');
-      if (gameCall) { $('#header-title').append(callClock()); renderStage(); }
-      return;
-    }
     const inVoiceView = state.view === 'voice' && state.voiceChannel;
     const friendsPage = state.home && !state.textChannel;
     // Chamada privada vista da própria conversa: a chamada fica em cima e o chat continua embaixo.
@@ -2225,21 +2178,6 @@
     return v.voiceFx && v.voiceFx !== 'none' && VoiceFx.valid(v.voiceFx) ? VoiceFx.PRESETS[v.voiceFx] : null;
   }
 
-  // "Pessoal, entra num mine aí": quem está na chamada e ainda não abriu o jogo vê quem está jogando.
-  function renderGameInvite() {
-    const box = $('#game-invite');
-    const players = state.voiceChannel && !minecraft.active()
-      ? voiceEntries(state.voiceChannel).filter((v) => v.game === 'minecraft' && v.sid !== state.me.sid).map((v) => callMember(v.accountId)?.name).filter(Boolean)
-      : [];
-    box.classList.toggle('hidden', !players.length);
-    if (!changed('game-invite', players)) return;
-    if (!players.length) { box.replaceChildren(); return; }
-    const who = players.length === 1 ? players[0] + ' está' : players.length === 2 ? players.join(' e ') + ' estão' : `${players[0]} e mais ${players.length - 1} estão`;
-    box.replaceChildren(el('span', { class: 'game-invite-mark' }, Icon('blocks', 18)),
-      el('span', { class: 'game-invite-text', textContent: who + ' jogando Minecraft' }),
-      el('button', { type: 'button', class: 'game-invite-join', textContent: 'Entrar no Minecraft', onclick: playMinecraft }));
-  }
-
   function voiceFxIndicator(v) {
     const preset = fxPreset(v);
     if (!preset) return null;
@@ -2334,12 +2272,11 @@
       const badge = (cls, label, content) => el('span', { class: 'tb ' + cls, tip: label, ariaLabel: label, role: 'img' }, content);
       const badges = [
         v.sharing ? badge('live', self ? 'Você está transmitindo a tela' : m.name + ' está transmitindo a tela', 'AO VIVO') : null,
-        v.game === 'minecraft' ? badge('game', self ? 'Você está jogando Minecraft' : m.name + ' está jogando Minecraft', Icon('blocks', 14)) : null,
         micOff ? badge('off', silenced ? 'Silenciado pelo servidor' : 'Microfone desligado', Icon('micOff', 14)) : null,
         deaf ? badge('off', m.serverDeafened ? 'Ensurdecido pelo servidor' : 'Som desligado', Icon('headphonesOff', 14)) : null,
       ].filter(Boolean);
       const badgeBox = tile.querySelector('.tile-badges');
-      const badgeKey = JSON.stringify([v.sharing, micOff, silenced, deaf, v.voiceFx, v.game]);
+      const badgeKey = JSON.stringify([v.sharing, micOff, silenced, deaf, v.voiceFx]);
       if (badgeBox.dataset.key !== badgeKey) {
         badgeBox.dataset.key = badgeKey;
         badgeBox.replaceChildren(...badges);
@@ -4430,7 +4367,6 @@
       paused: !!state.local.screen && state.sharePaused,
       camera: !!state.local.camera,
       voiceFx: noise.pipes.get(state.micStream)?.fx?.id || null, // os outros veem um selo com o efeito
-      game: minecraft.active() ? 'minecraft' : null,
     });
   }
 
@@ -4571,10 +4507,8 @@
     state.voiceSnapshot = null;
     startCallTime(opts.startedAt);
     // A chamada privada aparece em cima do chat da conversa; a de servidor ocupa a tela.
-    // Quem está jogando continua no jogo, com a chamada em cima.
-    const keepView = opts.keepView || state.view === 'game';
-    if (!keepView && isDm(channel)) openDm(channel);
-    else if (!keepView) { state.view = 'voice'; closePanels(); }
+    if (!opts.keepView && isDm(channel)) openDm(channel);
+    else if (!opts.keepView) { state.view = 'voice'; closePanels(); }
     Sounds.play('join');
     Sounds.preloadBoard(); // os efeitos já ficam prontos para tocar na hora
     watchSpeaking(state.me.sid, state.micStream);
@@ -4604,7 +4538,7 @@
     state.voiceChannel = null;
     state.voiceSnapshot = null;
     stopCallTime();
-    if (state.view !== 'game') state.view = 'chat';
+    state.view = 'chat';
     if (sound) Sounds.play('leave');
     if (notify && socket.connected) socket.emit('voice:leave');
     render();

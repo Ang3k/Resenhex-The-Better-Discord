@@ -809,7 +809,6 @@ function voiceEntry(sid, s) {
     paused: s.paused,
     camera: s.camera,
     voiceFx: s.voiceFx || null, // efeito do modificador de voz (selo para os outros)
-    game: s.game || null, // jogo aberto no Resenhex ("jogando Minecraft" para a sala)
     viewers: [...online].filter(([, viewer]) => viewer.voice === s.voice && viewer.watching?.has(sid)).map(([viewerId]) => viewerId),
     // "silenced": ninguém deve ouvir essa pessoa (mutada pelo servidor, de castigo ou sem permissão de falar).
     // Numa chamada privada não há cargos nem castigo.
@@ -941,7 +940,6 @@ function leaveVoice(socket) {
   s.sharing = false;
   s.camera = false;
   s.voiceFx = null;
-  s.game = null;
   if (dm) dmCalls.left(dm, s.accountId, roomAccounts(dm));
 }
 
@@ -1796,7 +1794,7 @@ io.on('connection', (socket) => {
     broadcastState();
   });
 
-  on('voice:state', (acc, { muted, deafened, sharing, paused, camera, voiceFx, game }) => {
+  on('voice:state', (acc, { muted, deafened, sharing, paused, camera, voiceFx }) => {
     const s = online.get(socket.id);
     const video = !!s.voice && (isDmCall(s) || (can(acc, 'STREAM') && !timedOut(acc)));
     s.muted = !!muted;
@@ -1807,7 +1805,6 @@ io.on('connection', (socket) => {
     s.paused = s.sharing && !!paused;
     s.camera = !!camera && video;
     s.voiceFx = VOICE_FX.includes(voiceFx) ? voiceFx : null;
-    s.game = game === 'minecraft' ? game : null;
     broadcastState();
   }, { voice: true });
 
