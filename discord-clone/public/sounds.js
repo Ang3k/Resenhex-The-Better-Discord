@@ -1,4 +1,5 @@
-// Sons curtos gerados na hora com Web Audio (sem arquivos de áudio).
+// Sons do app. Os da interface são gerados na hora com Web Audio; o soundboard toca gravações CC0 de
+// public/sfx/board (geradas por tools/sons.js), com a versão sintetizada de reserva se um arquivo falhar.
 window.Sounds = (() => {
   let ctx = null;
   let callBus = null; // saída única da chamada, quando ligada (ver callOutput no app.js)
@@ -89,12 +90,46 @@ window.Sounds = (() => {
     return end + 1;
   }
 
+  // ---------------- arquivos (public/sfx/board) ----------------
+  const bytes = new Map(); // url -> Promise<ArrayBuffer>
+  const decoded = new WeakMap(); // AudioContext -> Map(url -> Promise<AudioBuffer>)
+  const fetchBytes = (url) => {
+    if (!bytes.has(url)) {
+      const request = fetch(url).then((r) => { if (!r.ok) throw new Error('Som indisponível'); return r.arrayBuffer(); });
+      request.catch(() => bytes.delete(url));
+      bytes.set(url, request);
+    }
+    return bytes.get(url);
+  };
+  // O áudio decodificado vale para um contexto; a saída da chamada pode trocar o contexto.
+  function fileBuffer(c, url) {
+    let cache = decoded.get(c);
+    if (!cache) decoded.set(c, cache = new Map());
+    if (!cache.has(url)) {
+      const buffer = fetchBytes(url).then((b) => c.decodeAudioData(b.slice(0)));
+      buffer.catch(() => cache.delete(url));
+      cache.set(url, buffer);
+    }
+    return cache.get(url);
+  }
+  const boardUrl = (id) => `sfx/board/${id}.mp3`;
+  // Baixa os efeitos antes de precisar (ao entrar numa chamada), para tocarem na hora.
+  const preloadBoard = () => { for (const id of Object.keys(BOARD)) fetchBytes(boardUrl(id)); };
+
   function play(name) {
-    const notes = PRESETS[name];
-    if (!enabled || !(notes || CHIMES[name])) return;
+    if (!enabled || !(PRESETS[name] || CHIMES[name])) return;
     try {
       ctx ||= new AudioContext();
       if (ctx.state === 'suspended') ctx.resume();
+      synth(name);
+    } catch {
+      // Sem áudio disponível: ignora.
+    }
+  }
+
+  function synth(name) {
+    const notes = PRESETS[name];
+    try {
       const now = ctx.currentTime + 0.01;
       if (CHIMES[name]) { chime(ctx, destination(), CHIMES[name], now); return; }
       for (const [freq, start, dur] of notes) {
@@ -246,10 +281,13 @@ window.Sounds = (() => {
     current.gain.gain.setTargetAtTime(0, ctx.currentTime, .01);
     setTimeout(() => { current.gain.disconnect(); current.filter.disconnect(); current.compressor.disconnect(); }, 60);
   }
-  function output(volume) {
+  // Gravações já chegam niveladas: só um limitador de segurança, sem tirar o brilho (natural = true).
+  // Os sons sintetizados e os enviados pelos servidores passam pelo filtro e compressor de sempre.
+  function output(volume, natural = false) {
     const gain = ctx.createGain(), filter = ctx.createBiquadFilter(), compressor = ctx.createDynamicsCompressor();
-    filter.type = 'lowpass'; filter.frequency.value = 9500;
-    compressor.threshold.value = -12; compressor.knee.value = 8; compressor.ratio.value = 12;
+    filter.type = 'lowpass'; filter.frequency.value = natural ? 20000 : 9500;
+    if (natural) { compressor.threshold.value = -4; compressor.knee.value = 4; compressor.ratio.value = 8; }
+    else { compressor.threshold.value = -12; compressor.knee.value = 8; compressor.ratio.value = 12; }
     compressor.attack.value = .003; compressor.release.value = .12;
     gain.gain.setValueAtTime(Math.min(1, Math.max(0, Number(volume) || 0)) * .8, ctx.currentTime);
     filter.connect(compressor).connect(gain).connect(destination());
@@ -262,9 +300,20 @@ window.Sounds = (() => {
       ctx ||= new AudioContext();
       if (ctx.state === 'suspended') ctx.resume();
       stopBoard();
-      const epoch = boardEpoch, out = output(volume);
-      SYNTH[id](ctx, out, ctx.currentTime + 0.02);
-      setTimeout(() => { if (epoch === boardEpoch) stopBoard(); }, 5000);
+      const epoch = boardEpoch, c = ctx;
+      fileBuffer(c, boardUrl(id)).then((buffer) => {
+        if (epoch !== boardEpoch || c !== ctx) return;
+        const source = c.createBufferSource();
+        source.buffer = buffer;
+        source.connect(output(volume, true));
+        source.onended = () => { source.disconnect(); if (epoch === boardEpoch) stopBoard(); };
+        source.start(c.currentTime + 0.01);
+      }).catch(() => {
+        // Sem o arquivo (offline, por exemplo): a versão sintetizada.
+        if (epoch !== boardEpoch || c !== ctx) return;
+        SYNTH[id](c, output(volume), c.currentTime + 0.02);
+        setTimeout(() => { if (epoch === boardEpoch) stopBoard(); }, 5000);
+      });
       return true;
     } catch { return false; }
   }
@@ -342,6 +391,7 @@ window.Sounds = (() => {
     play,
     loop,
     route,
+    preloadBoard,
     board: BOARD,
     playBoard,
     playCustom, prepareFile, stopBoard,

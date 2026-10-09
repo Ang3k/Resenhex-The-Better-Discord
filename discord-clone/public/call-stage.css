@@ -78,3 +78,77 @@
   #main #voice-view #stage { padding-bottom: 148px; }
   #main.dm-call #voice-view #stage { padding-bottom: 68px; }
 }
+
+/* ---------- Estado de cada pessoa no bloco: quem fala, microfone, som, câmera e ao vivo ---------- */
+.tile-badges { position: absolute; top: 10px; left: 10px; z-index: 2; display: flex; gap: 6px; pointer-events: none; }
+.tile-badges:empty { display: none; }
+.tb {
+  display: inline-grid; place-items: center; min-width: 26px; height: 26px; padding: 0 7px; border-radius: 999px;
+  background: rgba(0, 0, 0, .62); color: #fff; font-size: 11px; font-weight: 800; letter-spacing: .04em;
+  backdrop-filter: blur(6px); box-shadow: 0 2px 8px rgba(0, 0, 0, .25); pointer-events: auto; animation: tb-in .18s ease-out;
+}
+.tb.off { padding: 0; width: 26px; background: color-mix(in srgb, var(--red) 88%, #000); }
+.tb.live { background: var(--red); }
+@keyframes tb-in { from { opacity: 0; transform: scale(.7); } }
+#stage-strip > .tile .tile-badges { top: 6px; left: 6px; gap: 4px; }
+#stage-strip > .tile .tb { height: 20px; min-width: 20px; font-size: 9px; padding: 0 5px; }
+#stage-strip > .tile .tb.off { width: 20px; padding: 0; }
+#stage-strip > .tile .tb .ico { width: 12px; height: 12px; }
+
+.tile .label { gap: 6px; }
+.tile .label-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tile .label .label-cam { display: inline-flex; }
+.tile .label .label-cam .ico { color: #fff; opacity: .85; }
+.live-pill {
+  flex-shrink: 0; padding: 1px 6px; border-radius: 4px; background: var(--red); color: #fff;
+  font-size: 10px; font-weight: 800; letter-spacing: .05em; line-height: 16px;
+}
+.live-pill.paused { background: #4e5058; }
+
+/* Barras de fala: aparecem ao lado do nome enquanto a pessoa fala (claro até com a câmera ligada). */
+.speak-bars { display: none; align-items: flex-end; gap: 2px; height: 12px; flex-shrink: 0; }
+.speak-bars i { display: block; width: 3px; height: 4px; border-radius: 2px; background: var(--green); animation: speak-bar .9s ease-in-out infinite; }
+.speak-bars i:nth-child(2) { animation-delay: .15s; }
+.speak-bars i:nth-child(3) { animation-delay: .3s; }
+@keyframes speak-bar { 0%, 100% { height: 4px; } 50% { height: 12px; } }
+.tile.speaking .speak-bars { display: inline-flex; }
+.tile.speaking .label { box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--green) 55%, transparent); }
+/* Com a câmera ligada o anel verde fica mais grosso, para não sumir na imagem. */
+.tile.cam-on.speaking { box-shadow: inset 0 0 0 4px var(--green), 0 0 26px color-mix(in srgb, var(--green) 30%, transparent); }
+.tile.mic-off:not(.cam-on) .avatar { filter: saturate(.7); opacity: .9; }
+@media (prefers-reduced-motion: reduce) { .speak-bars i { animation: none; height: 10px; } .tb { animation: none; } }
+
+/* ---------- Prévia da câmera antes de ligar ---------- */
+.campv-overlay { z-index: 60; }
+.campv-card {
+  width: min(560px, 100%); max-height: calc(100dvh - 32px); overflow-y: auto; display: grid; gap: 14px; padding: 22px;
+  border: 1px solid var(--divider); border-radius: 18px; background: var(--bg-main); box-shadow: 0 24px 80px rgba(0, 0, 0, .55); animation: pop .15s ease-out;
+}
+.campv-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
+.campv-head h2 { margin: 0; font-size: 21px; color: var(--text-strong); }
+.campv-head p { margin: 4px 0 0; color: var(--text-muted); font-size: 14px; }
+.campv-close { display: grid; place-items: center; width: 34px; height: 34px; padding: 0; border: 0; border-radius: 8px; background: transparent; color: var(--interactive); }
+.campv-close:hover { background: var(--hover); color: var(--text-strong); }
+.campv-stage { position: relative; aspect-ratio: 16 / 9; border-radius: 14px; overflow: hidden; background: #0b0b0d; display: grid; place-items: center; }
+.campv-video { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; transform: scaleX(-1); }
+.campv-status { position: relative; z-index: 1; display: flex; flex-direction: column; align-items: center; gap: 8px; padding: 20px; text-align: center; color: rgba(255, 255, 255, .75); font-size: 14px; }
+.campv-status strong { color: #fff; font-size: 15px; }
+.campv-status.error .ico { color: var(--red); }
+.campv-spinner { width: 30px; height: 30px; border-radius: 50%; border: 3px solid rgba(255, 255, 255, .18); border-top-color: #fff; animation: lb-spin .8s linear infinite; }
+.campv-status.error .campv-spinner { display: none; }
+.campv-badge {
+  position: absolute; left: 12px; top: 12px; z-index: 1; display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px; border-radius: 999px;
+  background: rgba(0, 0, 0, .55); color: #fff; font-size: 12px; font-weight: 600; backdrop-filter: blur(6px);
+}
+.campv-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--green); box-shadow: 0 0 0 3px color-mix(in srgb, var(--green) 30%, transparent); }
+.campv-device { display: flex; align-items: center; gap: 10px; color: var(--interactive); }
+.campv-select { flex: 1; min-width: 0; padding: 9px 10px; border: 1px solid var(--divider); border-radius: 8px; background: var(--bg-rail); color: var(--text); font: inherit; font-size: 14px; }
+.campv-always { display: flex; align-items: center; gap: 10px; color: var(--text-muted); font-size: 13px; cursor: pointer; }
+.campv-always input { width: 16px; height: 16px; accent-color: var(--brand); }
+.campv-card .confirm-actions { margin-top: 0; }
+.campv-card .btn-primary { display: inline-flex; align-items: center; gap: 8px; }
+.campv-card .btn-primary:disabled { opacity: .5; }
+@media (max-width: 600px) { .campv-card { padding: 16px; } }
+.campv-status.error ~ .campv-badge { display: none; }
+/* No palco a tela já tem o selo AO VIVO no canto; o do nome fica para as miniaturas (e o PAUSADO). */
+#stage-primary > .tile.screen .live-pill:not(.paused) { display: none; }

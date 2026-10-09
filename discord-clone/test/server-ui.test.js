@@ -84,7 +84,7 @@ async function ui(t, invited = false, options = {}) {
   let copied = '';
   Object.defineProperty(w.navigator, 'clipboard', { value: { writeText: async (text) => { copied = text; } } });
   options.setup?.(w);
-  for (const file of ['icons.js', 'format.js', 'sounds.js', 'media-policy.js', 'keybinds.js', 'settings.js', 'photo-editor.js', 'media-session.js', 'media-sfu.js', 'mobile-stream.js', 'stream-zoom.js', 'changelog.js', 'confetti.js', 'channel-navigation.js', 'music.js', 'mudae.js', 'mudae-salao.js', 'dm-call.js', 'gif-picker.js', 'app.js', 'landing.js']) w.eval(fs.readFileSync(path.join(publicDir, file), 'utf8'));
+  for (const file of ['icons.js', 'format.js', 'sounds.js', 'media-policy.js', 'keybinds.js', 'settings.js', 'photo-editor.js', 'media-session.js', 'media-sfu.js', 'mobile-stream.js', 'stream-zoom.js', 'changelog.js', 'confetti.js', 'channel-navigation.js', 'music.js', 'mudae.js', 'mudae-salao.js', 'dm-call.js', 'gif-picker.js', 'emoji-picker.js', 'lightbox.js', 'voice-fx.js', 'app.js', 'landing.js']) w.eval(fs.readFileSync(path.join(publicDir, file), 'utf8'));
   w.localStorage.setItem('seenVersion', w.APP_VERSION);
   t.after(() => { dom.window.close(); assert.deepEqual(errors.map((e) => e.message), []); });
   await settle();
@@ -256,9 +256,10 @@ test('aesthetic chat: emoji popup stays within viewport and selection enters com
   app.d.querySelector('#btn-emoji').click();
   assert.equal(picker.style.left, '8px');
   assert.equal(picker.style.top, '32px');
-  assert.equal(picker.querySelector('.emoji-title').textContent, 'Escolha um emoji');
-  const emoji = picker.querySelector('button').textContent;
-  picker.querySelector('button').click();
+  assert.ok(picker.querySelector('.ep-search'));
+  assert.equal(picker.querySelector('.ep-section-title').textContent, 'Frequentes');
+  const emoji = picker.querySelector('.ep-emoji').textContent;
+  picker.querySelector('.ep-emoji').click();
   assert.ok(app.d.querySelector('#chat-input').value.includes(emoji));
   assert.equal(picker.classList.contains('hidden'), true);
 });

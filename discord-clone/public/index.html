@@ -30,6 +30,10 @@
   <link rel="stylesheet" href="gif-picker.css">
   <link rel="stylesheet" href="brand.css">
   <link rel="stylesheet" href="call-stage.css">
+  <link rel="stylesheet" href="presence.css">
+  <link rel="stylesheet" href="emoji-picker.css">
+  <link rel="stylesheet" href="chat-media.css">
+  <link rel="stylesheet" href="call-tools.css">
   <script>
     // Quem chega pela primeira vez vê a página inicial; quem já entrou neste navegador, veio por convite
     // ou usa o app de desktop vai direto para o Resenhex. Decidido antes de pintar, para não piscar.
@@ -167,12 +171,12 @@
           <div class="ld-art ld-art-sounds">
             <div class="ld-card ld-pads" role="group" aria-label="Soundboard de exemplo">
               <div class="ld-pads-title" aria-hidden="true"><span data-icon="volume" data-size="16"></span>Soundboard</div>
-              <button type="button" class="ld-pad" data-sound="badumtss" style="--dur:1.8s"><span class="ld-pad-emoji" aria-hidden="true">🥁</span>Ba dum tss</button>
-              <button type="button" class="ld-pad" data-sound="airhorn" style="--dur:1.2s"><span class="ld-pad-emoji" aria-hidden="true">📯</span>Buzina</button>
-              <button type="button" class="ld-pad" data-sound="sad" style="--dur:2.4s"><span class="ld-pad-emoji" aria-hidden="true">🎺</span>Fracasso</button>
+              <button type="button" class="ld-pad" data-sound="badumtss" style="--dur:3.6s"><span class="ld-pad-emoji" aria-hidden="true">🥁</span>Ba dum tss</button>
+              <button type="button" class="ld-pad" data-sound="airhorn" style="--dur:1.6s"><span class="ld-pad-emoji" aria-hidden="true">📯</span>Buzina</button>
+              <button type="button" class="ld-pad" data-sound="sad" style="--dur:4.8s"><span class="ld-pad-emoji" aria-hidden="true">🎺</span>Fracasso</button>
               <button type="button" class="ld-pad" data-sound="coin" style="--dur:.6s"><span class="ld-pad-emoji" aria-hidden="true">🪙</span>Moedinha</button>
               <button type="button" class="ld-pad" data-sound="boing" style="--dur:.8s"><span class="ld-pad-emoji" aria-hidden="true">🤪</span>Boing</button>
-              <button type="button" class="ld-pad" data-sound="claps" style="--dur:1.7s"><span class="ld-pad-emoji" aria-hidden="true">👏</span>Aplausos</button>
+              <button type="button" class="ld-pad" data-sound="claps" style="--dur:5.5s"><span class="ld-pad-emoji" aria-hidden="true">👏</span>Aplausos</button>
             </div>
           </div>
           <div class="ld-copy">
@@ -346,11 +350,11 @@
         </div>
 
         <div id="user-panel">
-          <div class="me-card">
+          <div class="me-card" id="me-card" role="button" tabindex="0" aria-haspopup="menu" data-tip="Definir status">
             <div class="avatar-wrap">
   <div class="avatar" id="me-avatar">
   </div>
-  <span class="status online">
+  <span class="status online" id="me-status">
   </span>
   </div>
             <div class="me-text">
@@ -392,6 +396,7 @@
 </button>
           <button type="button" id="btn-dm-call" class="icon-btn hidden" data-icon="phone" data-tip="Começar chamada de voz" aria-label="Começar chamada de voz"></button>
           <button type="button" id="btn-dm-video" class="icon-btn hidden" data-icon="camera" data-tip="Começar chamada de vídeo" aria-label="Começar chamada de vídeo"></button>
+          <button type="button" id="btn-voice-chat" class="icon-btn hidden" data-icon="message" aria-label="Abrir o chat da sala" aria-pressed="false"></button>
           <button type="button" id="btn-members" class="icon-btn" data-icon="users" aria-label="Lista de membros">
 </button>
         </div>
@@ -464,12 +469,18 @@
           <div id="stage-strip" class="hidden" role="group" aria-label="Outras telas e participantes"></div>
 </div>
         <div id="stage-controls">
+          <div class="sc-group">
           <button type="button" id="sc-mic" class="sc-btn" aria-label="Microfone">
 </button>
+          <button type="button" id="sc-mic-devices" class="sc-caret" data-tip="Microfone e saída de áudio" aria-label="Escolher microfone e saída de áudio" aria-haspopup="menu"><span data-icon="chevronDown" data-size="12"></span></button>
+          </div>
           <button type="button" id="sc-deaf" class="sc-btn" aria-label="Ensurdecer">
 </button>
+          <div class="sc-group">
           <button type="button" id="sc-cam" class="sc-btn" aria-label="Câmera">
 </button>
+          <button type="button" id="sc-cam-devices" class="sc-caret" data-tip="Escolher câmera" aria-label="Escolher câmera" aria-haspopup="menu"><span data-icon="chevronDown" data-size="12"></span></button>
+          </div>
           <button type="button" id="sc-screen" class="sc-btn" aria-label="Compartilhar tela">
 </button>
           <button type="button" id="sc-sounds" class="sc-btn" aria-label="Efeitos sonoros">
@@ -695,6 +706,16 @@
 <input id="output-volume" type="range" min="0" max="100">
 </label>
 </div>
+<div class="setting-group" id="voice-fx-group">
+<h3>Modificador de voz</h3>
+<p class="hint vfx-intro">Mude sua voz na chamada: todo mundo ouve com o efeito, e um selo mostra que ela está modificada.</p>
+<input type="hidden" id="voice-fx" value="none">
+<div id="voice-fx-grid" class="vfx-grid" role="radiogroup" aria-label="Efeito de voz"></div>
+<div class="vfx-test">
+<button type="button" id="voice-fx-test" class="secondary">Ouvir minha voz</button>
+<span class="hint">Use fone para não dar microfonia. Esquilo, Gigante e Alien atrasam a voz um pouquinho.</span>
+</div>
+</div>
 <div class="setting-group">
 <h3>Câmera</h3>
 <label>Dispositivo de vídeo<select id="camera-select">
@@ -705,6 +726,11 @@
 </video>
 <button type="button" id="camera-test" class="secondary">Testar câmera</button>
 <span class="hint">A prévia é só sua e encerra ao fechar as configurações. A seleção é usada na próxima vez que ligar a câmera.</span>
+<label class="setting-switch">
+<span>Prévia antes de ligar a câmera<small>Mostra só para você como vai aparecer, antes de a chamada ver.</small>
+</span>
+<input id="camera-preview-toggle" type="checkbox">
+</label>
 </div>
 </section>
 <section id="page-stream" data-settings-page="stream" role="tabpanel" aria-labelledby="tab-stream">
@@ -1043,6 +1069,9 @@
   <script src="mudae-salao.js"></script>
   <script src="dm-call.js"></script>
   <script src="gif-picker.js"></script>
+  <script src="emoji-picker.js"></script>
+  <script src="lightbox.js"></script>
+  <script src="voice-fx.js"></script>
   <script src="app.js">
 </script>
   <script src="landing.js"></script>

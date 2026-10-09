@@ -1,0 +1,129 @@
+/* Chamada: troca de dispositivos, sala vazia e o chat da sala de voz ao lado do palco. */
+
+/* ---------- setinha de dispositivos no microfone e na câmera ---------- */
+.sc-group { position: relative; display: flex; flex: 0 0 auto; }
+.sc-caret {
+  position: absolute; right: -4px; bottom: -4px; z-index: 1; display: grid; place-items: center;
+  width: 22px; height: 22px; padding: 0; border: 2px solid var(--bg-floating); border-radius: 50%;
+  background: var(--bg-panel); color: var(--text-strong); cursor: pointer; transition: background .15s, transform .15s;
+}
+.sc-caret:hover { background: color-mix(in srgb, var(--text) 18%, var(--bg-panel)); transform: translateY(-1px); }
+.sc-caret:focus-visible { outline: 2px solid var(--brand); outline-offset: 1px; }
+#main.dm-call .sc-caret { width: 20px; height: 20px; right: -5px; bottom: -5px; }
+
+#context-menu.device-menu { padding: 6px; }
+.device-item { gap: 10px; }
+.device-item .device-name { flex: 1; min-width: 0; text-align: left; }
+.device-item.current { color: var(--text-strong); }
+.device-item .ico { flex-shrink: 0; color: var(--brand); }
+.device-item:hover .ico { color: currentColor; }
+.device-item.missing { color: var(--text-muted); font-style: italic; cursor: default; }
+.device-item.missing:hover { background: transparent; color: var(--text-muted); }
+
+/* ---------- sozinho na sala ---------- */
+#main #voice-view #stage[data-alone] #stage-primary {
+  flex: 0 1 auto; width: min(100%, 520px); min-height: 0; margin: auto auto 0; grid-template-columns: minmax(0, 1fr);
+}
+#stage-alone {
+  display: flex; flex-direction: column; align-items: center; gap: 6px; max-width: 460px; margin: 4px auto auto;
+  padding: 0 16px; text-align: center; animation: sa-in .35s var(--spring, ease) both;
+}
+.sa-icon {
+  display: grid; place-items: center; width: 52px; height: 52px; margin-bottom: 4px; border-radius: 50%;
+  background: color-mix(in srgb, var(--brand) 18%, transparent); color: var(--brand);
+}
+#stage-alone strong { font-size: 18px; color: var(--text-strong); }
+#stage-alone p { margin: 0; font-size: 14px; line-height: 1.45; color: var(--text-muted); text-wrap: balance; }
+.sa-actions { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; margin-top: 12px; }
+.sa-btn {
+  display: inline-flex; align-items: center; gap: 8px; height: 38px; padding: 0 14px; border: 1px solid var(--divider); border-radius: 8px;
+  background: var(--bg-panel); color: var(--text-strong); font: inherit; font-size: 14px; font-weight: 600; cursor: pointer; transition: background .15s, transform .15s;
+}
+.sa-btn:hover { background: var(--hover-strong); transform: translateY(-1px); }
+.sa-btn:focus-visible { outline: 2px solid var(--brand); outline-offset: 2px; }
+.sa-btn.primary { border-color: transparent; background: var(--brand); color: #fff; }
+.sa-btn.primary:hover { background: color-mix(in srgb, var(--brand) 85%, #000); }
+#main.voice-chat .sa-btn.chat { display: none; }
+@keyframes sa-in { from { opacity: 0; transform: translateY(6px); } }
+@media (prefers-reduced-motion: reduce) { #stage-alone { animation: none; } }
+:root[data-reduce-motion="true"] #stage-alone { animation: none; }
+
+/* ---------- chat da sala de voz ---------- */
+#btn-voice-chat { position: relative; }
+#btn-voice-chat.active { background: var(--hover-strong); color: var(--text-strong); }
+#btn-voice-chat.has-unread::after {
+  content: ''; position: absolute; top: 5px; right: 5px; width: 8px; height: 8px; border-radius: 50%;
+  background: var(--red); box-shadow: 0 0 0 2px var(--bg-main);
+}
+
+#main.voice-chat { display: grid; grid-template-columns: minmax(0, 1fr) 360px; grid-template-rows: auto minmax(0, 1fr); }
+#main.voice-chat > #main-header { grid-column: 1 / -1; }
+#main.voice-chat > #voice-view { grid-column: 1; grid-row: 2; }
+#main.voice-chat > #chat-view { grid-column: 2; grid-row: 2; min-width: 0; border-left: 1px solid var(--divider); background: var(--bg-sidebar); }
+
+.vc-head {
+  display: flex; align-items: center; gap: 10px; flex-shrink: 0; height: 48px; padding: 0 8px 0 16px;
+  border-bottom: 1px solid var(--divider); color: var(--text-muted);
+}
+.vc-head-text { display: flex; flex-direction: column; flex: 1; min-width: 0; line-height: 1.2; }
+.vc-head-text strong { font-size: 14px; color: var(--text-strong); }
+.vc-head-text span { overflow: hidden; font-size: 12px; white-space: nowrap; text-overflow: ellipsis; }
+
+/* Chat estreito: mensagens mais compactas, como no Salão. */
+#main.voice-chat .msg { grid-template-columns: 32px minmax(0, 1fr); column-gap: 10px; padding: 2px 12px; margin-top: 12px; }
+#main.voice-chat .msg.continued { margin-top: 0; }
+#main.voice-chat .msg .avatar { width: 32px; height: 32px; font-size: 13px; }
+#main.voice-chat .welcome { padding: 20px 16px 8px; }
+#main.voice-chat .welcome h2 { font-size: 20px; }
+#main.voice-chat .welcome-icon { width: 56px; height: 56px; }
+#main.voice-chat #composer { padding-inline: 12px; }
+
+/* Botão de chat na linha da sala de voz (aparece ao passar o mouse, ou sempre que há mensagem nova). */
+#channel-groups .grouped-channel.unread .voice-chat-open { visibility: visible; }
+
+/* Janela estreita: o chat abre por cima do palco. */
+@media (max-width: 1000px) {
+  #main.voice-chat { grid-template-columns: minmax(0, 1fr); }
+  #main.voice-chat > #chat-view {
+    position: fixed; top: 0; right: 0; bottom: 0; z-index: 20; width: min(380px, 100vw); box-shadow: -10px 0 40px rgba(0, 0, 0, .45);
+  }
+}
+
+/* ---------- modificador de voz ---------- */
+/* Selo no bloco de quem está com efeito (emoji do efeito). */
+.tb.fx { padding: 0; width: 26px; background: color-mix(in srgb, var(--brand) 82%, #000); font-size: 14px; letter-spacing: 0; }
+#stage-strip > .tile .tb.fx { width: 20px; font-size: 11px; }
+.flags .fx-flag { font-size: 13px; line-height: 1; }
+
+/* Botões de efeito no menu de dispositivos da chamada. */
+.vfx-chips { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 4px; padding: 2px 4px 6px; }
+.vfx-chip {
+  display: flex; flex-direction: column; align-items: center; gap: 2px; min-width: 0; padding: 7px 4px 6px; border: 1px solid transparent; border-radius: 8px;
+  background: color-mix(in srgb, var(--text) 5%, transparent); color: var(--interactive); font: inherit; font-size: 12px; font-weight: 600; cursor: pointer;
+  transition: background .15s, border-color .15s, color .15s;
+}
+.vfx-chip span:first-child { font-size: 18px; line-height: 1.1; }
+.vfx-chip span:last-child { max-width: 100%; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.vfx-chip:hover { background: var(--hover-strong); color: var(--text-strong); }
+.vfx-chip.selected { border-color: var(--brand); background: color-mix(in srgb, var(--brand) 16%, transparent); color: var(--text-strong); }
+.vfx-chip:focus-visible { outline: 2px solid var(--brand); outline-offset: 1px; }
+
+/* Cartões dos efeitos nas configurações de voz. */
+.vfx-intro { margin: -4px 0 0; }
+.vfx-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(124px, 1fr)); gap: 8px; }
+.vfx-card {
+  display: flex; flex-direction: column; align-items: flex-start; gap: 2px; padding: 12px; border: 1px solid var(--divider); border-radius: 10px;
+  background: var(--bg-panel); color: var(--text); font: inherit; text-align: left; cursor: pointer; transition: border-color .15s, background .15s, transform .15s;
+}
+.vfx-card:hover { border-color: color-mix(in srgb, var(--brand) 55%, var(--divider)); transform: translateY(-1px); }
+.vfx-card:focus-visible { outline: 2px solid var(--brand); outline-offset: 2px; }
+.vfx-card.selected { border-color: var(--brand); background: color-mix(in srgb, var(--brand) 14%, var(--bg-panel)); box-shadow: inset 0 0 0 1px var(--brand); }
+.vfx-emoji { font-size: 24px; line-height: 1.2; margin-bottom: 4px; }
+.vfx-card strong { font-size: 14px; color: var(--text-strong); }
+.vfx-card small { font-size: 12px; color: var(--text-muted); line-height: 1.3; }
+.vfx-test { display: flex; align-items: center; flex-wrap: wrap; gap: 12px; }
+.vfx-test .hint { flex: 1 1 220px; margin: 0; }
+/* Os botões do painel de configurações são roxos e baixos; os cartões de efeito não. */
+#settings .settings-content button.vfx-card:not(.secondary) { min-height: 0; padding: 12px; border: 1px solid var(--divider); border-radius: 10px; background: var(--bg-panel); color: var(--text); box-shadow: none; }
+#settings .settings-content button.vfx-card:not(.secondary):hover { background: color-mix(in srgb, var(--text) 4%, var(--bg-panel)); }
+#settings .settings-content button.vfx-card:not(.secondary).selected { background: color-mix(in srgb, var(--brand) 14%, var(--bg-panel)); box-shadow: inset 0 0 0 1px var(--brand); }

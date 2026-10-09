@@ -1,5 +1,5 @@
 // Grupos, ordenação e ações dos canais. Reutiliza os fluxos de chat e voz do app.
-window.ChannelNavigation = function ({ state, el, Icon, call, toast, hasPerm, refresh, open, voiceUsers,
+window.ChannelNavigation = function ({ state, el, Icon, call, toast, hasPerm, refresh, open, openChat, voiceUsers,
   createChannel, editChannel, deleteChannel, markRead, guard, confirm, menu, action, invite }) {
   let dragged = null;
   let cancelDrag = null;
@@ -256,7 +256,7 @@ window.ChannelNavigation = function ({ state, el, Icon, call, toast, hasPerm, re
 
   function channelRow(c, admin = false) {
     const unread = state.unread[c.id];
-    const active = c.type === 'text' ? state.view === 'chat' && state.textChannel === c.id : state.voiceChannel === c.id;
+    const active = (state.view === 'chat' && state.textChannel === c.id) || (c.type === 'voice' && state.voiceChannel === c.id);
     const entry = el('button', { type: 'button', class: 'channel-entry', title: c.topic || c.name,
       data: { focusKey: (admin ? 'admin-' : '') + 'open-' + c.id },
       ariaLabel: `${c.mudae ? 'Salão do Mudae' : c.type === 'text' ? 'Canal de texto' : 'Canal de voz'} ${c.name}${c.private ? ', privado' : ''}`,
@@ -267,6 +267,13 @@ window.ChannelNavigation = function ({ state, el, Icon, call, toast, hasPerm, re
     const row = el('div', { class: 'channel grouped-channel' + (active && !admin ? ' active' : '') + (unread && !admin ? ' unread' : ''),
       oncontextmenu: (event) => channelMenu(c, event), data: { channelId: c.id } }, entry);
     if (unread?.mentions && !admin) row.append(el('span', { class: 'badge', textContent: unread.mentions > 99 ? '99+' : String(unread.mentions) }));
+    // Salas de voz também têm chat: o balão abre sem precisar entrar na chamada.
+    if (c.type === 'voice' && !admin) {
+      const chat = button('Abrir o chat de ' + c.name, 'message', () => openChat(c));
+      chat.classList.add('voice-chat-open');
+      chat.dataset.focusKey = 'chat-' + c.id;
+      row.append(chat);
+    }
     if (canManage() || c.type === 'text') {
       const more = button('Ações do canal ' + c.name, 'more', (event) => channelMenu(c, event));
       // O conjunto de ícones antigo não inclui reticências.

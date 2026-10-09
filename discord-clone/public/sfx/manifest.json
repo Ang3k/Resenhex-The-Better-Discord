@@ -1,0 +1,29 @@
+{
+  "version": 1,
+  "board": {
+    "grilo": {
+      "duration": 4.6
+    },
+    "trovao": {
+      "duration": 5
+    },
+    "aplausos": {
+      "duration": 5.5
+    },
+    "badumtss": {
+      "duration": 3.6
+    },
+    "buzina": {
+      "duration": 1.6
+    },
+    "fail": {
+      "duration": 4.85
+    },
+    "vitoria": {
+      "duration": 3.8
+    },
+    "suspense": {
+      "duration": 5.5
+    }
+  }
+}

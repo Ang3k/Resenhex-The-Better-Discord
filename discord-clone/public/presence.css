@@ -1,0 +1,69 @@
+/* Presença: online, ausente (lua), não perturbe (traço) e invisível/offline (anel).
+   Nas bolinhas sobre o avatar o recorte é pintado com a cor do anel (--ring), que já
+   acompanha o fundo de cada lista; nos ícones soltos (menus, etiquetas) o recorte é uma máscara. */
+
+.status { --cut: var(--ring, var(--bg-panel)); transition: background-color .2s; }
+.status.idle { background: var(--yellow); }
+.status.dnd { background: var(--red); }
+.status.offline, .status.invisible { background: #80848e; }
+.status.idle::after, .status.dnd::after, .status.offline::after, .status.invisible::after,
+.pc-status.idle::after, .pc-status.dnd::after, .pc-status.offline::after, .pc-status.invisible::after {
+  content: ''; position: absolute; background: var(--cut); pointer-events: none;
+}
+.status.idle::after, .pc-status.idle::after { left: -8%; top: -8%; width: 62%; height: 62%; border-radius: 50%; }
+.status.dnd::after, .pc-status.dnd::after { left: 20%; right: 20%; top: 39%; height: 22%; border-radius: 2px; }
+.status.offline::after, .status.invisible::after, .pc-status.offline::after, .pc-status.invisible::after { inset: 27%; border-radius: 50%; }
+
+.pc-status { --cut: var(--bg-sidebar); }
+.pc-status.idle { background: var(--yellow); }
+.pc-status.dnd { background: var(--red); }
+.pc-status.invisible { background: #80848e; }
+#profile-card.has-bg .pc-status { --cut: var(--pc-surface, #18181b); }
+
+/* Ícone solto: menus, botões e etiquetas do perfil. */
+.status-glyph, .pc-dot { display: inline-block; width: 12px; height: 12px; border-radius: 50%; flex-shrink: 0; background: var(--green); }
+.pc-dot { width: 9px; height: 9px; }
+.status-glyph.idle, .pc-dot.idle { background: var(--yellow); -webkit-mask: radial-gradient(circle at 18% 18%, transparent 36%, #000 37%); mask: radial-gradient(circle at 18% 18%, transparent 36%, #000 37%); }
+.status-glyph.dnd, .pc-dot.dnd { background: var(--red); -webkit-mask: linear-gradient(#000 0 0) center / 62% 22% no-repeat, linear-gradient(#000 0 0); -webkit-mask-composite: xor; mask: linear-gradient(#000 0 0) center / 62% 22% no-repeat exclude, linear-gradient(#000 0 0); }
+.status-glyph.offline, .status-glyph.invisible, .pc-dot.offline, .pc-dot.invisible { background: #80848e; -webkit-mask: radial-gradient(circle, transparent 28%, #000 30%); mask: radial-gradient(circle, transparent 28%, #000 30%); }
+.pc-tag.idle { color: var(--yellow); }
+.pc-tag.dnd { color: color-mix(in srgb, var(--red) 80%, #fff); }
+
+/* Cartão do usuário vira um botão que abre o menu de status. */
+#me-card { cursor: pointer; outline: none; }
+#me-card:focus-visible { box-shadow: 0 0 0 2px var(--brand); }
+#me-card .me-sub { transition: color .15s; }
+#me-card:hover .me-sub { color: var(--interactive); }
+
+/* Menu de status */
+#context-menu.status-menu { padding: 6px; }
+.status-item { justify-content: flex-start; align-items: flex-start; gap: 12px; padding: 8px; }
+.status-item .status-glyph { margin-top: 4px; }
+.menu-item > .status-item-text { display: flex; flex-direction: column; gap: 1px; flex: 1; min-width: 0; white-space: normal; overflow: visible; }
+.status-item-label { font-weight: 600; }
+.status-item-text small { font-size: 12px; font-weight: 400; line-height: 1.35; color: var(--text-muted); }
+.status-item:hover .status-item-text small { color: var(--interactive); }
+.status-item > .ico { margin-top: 2px; color: var(--brand); flex-shrink: 0; }
+.status-item.current { background: color-mix(in srgb, var(--brand) 12%, transparent); color: var(--text-strong); }
+
+/* Frase de status: no perfil e na janela de edição */
+.pc-status-text {
+  margin-top: 8px; padding: 8px 12px; border-radius: 4px 14px 14px 14px; max-width: 100%; width: fit-content;
+  background: color-mix(in srgb, var(--text) 7%, transparent); color: var(--text); font-size: 13px; line-height: 1.4; overflow-wrap: anywhere;
+}
+.pc-status-text.editable { cursor: pointer; transition: background .15s; }
+.pc-status-text.editable:hover { background: color-mix(in srgb, var(--text) 12%, transparent); }
+.member .sub, .friend-sub { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+.status-card .nickname-preview .avatar-wrap { position: relative; flex-shrink: 0; --ring: var(--bg-panel); }
+.status-card .nickname-preview .status { width: 14px; height: 14px; right: -1px; bottom: -1px; }
+.status-preview-text.empty { font-style: italic; }
+.status-label-row { display: flex; justify-content: space-between; gap: 8px; }
+.status-count { font-weight: 500; color: var(--text-muted); font-variant-numeric: tabular-nums; }
+.status-ideas { display: flex; flex-wrap: wrap; gap: 6px; margin-top: -4px; }
+.status-idea {
+  padding: 6px 11px; border-radius: 999px; border: 1px solid var(--divider); background: var(--bg-panel); color: var(--interactive);
+  font-size: 13px; font-weight: 500; transition: border-color .15s, color .15s, transform .15s;
+}
+.status-idea:hover { border-color: var(--brand); color: var(--text-strong); transform: translateY(-1px); }
+.status-idea:focus-visible { outline: 2px solid var(--brand); outline-offset: 2px; }

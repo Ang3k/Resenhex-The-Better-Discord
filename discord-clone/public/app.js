@@ -6,9 +6,6 @@
   const $ = (sel) => document.querySelector(sel);
   const socket = io({ autoConnect: false });
 
-  const EMOJIS = ['👍', '👎', '😂', '🤣', '❤️', '🔥', '😮', '😢', '😭', '😡', '🎉', '👀', '💀', '🙏', '😎', '🤔',
-    '🥳', '👏', '💯', '✅', '❌', '😅', '😍', '🥺', '😤', '🤡', '🗿', '👑', '⚡', '🎮', '🍕', '🍺'];
-
   // Perfis de transmissão de tela. "hint" diz ao codificador o tipo de conteúdo e
   // "degradation" decide o que sacrificar quando falta internet: nitidez ou fluidez.
   const SHARE_PRESETS = MediaPolicy.presets;
@@ -26,6 +23,8 @@
   const appearance = savedJson('appearance', {});
   const state = {
     me: null, // { accountId, sid }
+    presence: 'online', // o status que eu escolhi: online | idle | dnd | invisible
+    statusText: '', // minha frase de status
     server: null, // último 'state' do servidor: roles, channels, members, voice, myPerms, bans, ownerId
     permNames: {},
     maxUploadMb: 50,
@@ -45,8 +44,12 @@
     sharePaused: false,
     uploadMbps: Math.min(100, Math.max(3, Number(localStorage.getItem('uploadMbps')) || 10)),
     cameraDeviceId: localStorage.getItem('cameraDeviceId') || '',
+    voiceFx: VoiceFx.valid(localStorage.getItem('voiceFx')) ? localStorage.getItem('voiceFx') : 'none', // modificador de voz (voice-fx.js)
+    voiceChatOpen: localStorage.getItem('voiceChatOpen') === '1', // chat da sala aberto ao lado da chamada
+    lastTextChannel: null, // para onde o chat volta ao fechar o chat da sala
     outputVolume: Math.min(100, Math.max(0, Number(localStorage.getItem('outputVolume') ?? 100))),
     shareAudio: localStorage.getItem('shareAudio') !== 'false',
+    cameraPreview: localStorage.getItem('cameraPreview') !== 'false', // prévia local antes de ligar a câmera
     showStreamStats: localStorage.getItem('showStreamStatsDefault') !== 'visible-v2' || localStorage.getItem('showStreamStats') !== 'false',
     theme: ['dark', 'midnight', 'contrast'].includes(appearance.theme) ? appearance.theme : 'dark',
     density: appearance.density === 'compact' ? 'compact' : 'comfortable',
@@ -151,6 +154,24 @@
     setAvatarContents(node, member.avatarUrl, member.name, member.avatarCrop);
     return node;
   }
+
+  // ---------------- presença (online, ausente, não perturbe, invisível) ----------------
+  const PRESENCE = {
+    online: { label: 'Online', hint: '' },
+    idle: { label: 'Ausente', hint: 'Mostra que você saiu por um tempo.' },
+    dnd: { label: 'Não perturbe', hint: 'Silencia os sons e avisos de mensagens.' },
+    invisible: { label: 'Invisível', hint: 'Você aparece offline, mas continua usando tudo.' },
+    offline: { label: 'Offline', hint: '' },
+  };
+  // Para mim vale o que eu escolhi (inclusive "invisível"); para os outros, o que o servidor manda.
+  const presenceOf = (m) => {
+    if (!m) return 'offline';
+    if (m.id === state.me?.accountId) return state.presence === 'invisible' || m.online !== false ? state.presence || 'online' : 'offline';
+    return m.status || (m.online ? 'online' : 'offline');
+  };
+  const presenceLabel = (m) => PRESENCE[presenceOf(m)].label;
+  const statusTextOf = (m) => (m?.id === state.me?.accountId ? state.statusText : m?.statusText) || '';
+  const statusDot = (m, cls = 'status') => el('span', { class: cls + ' ' + presenceOf(m), role: 'img', tip: presenceLabel(m), ariaLabel: presenceLabel(m) });
 
   function setAvatarContents(node, url, name, crop) {
     const key = (url || '') + ':' + (name || '') + ':' + JSON.stringify(crop || null);
@@ -487,6 +508,8 @@
       localStorage.setItem('token', res.token);
       if (payload.name) localStorage.setItem('name', payload.name);
       state.me = { accountId: res.accountId, sid: res.sid };
+      state.presence = res.presence || 'online';
+      state.statusText = res.statusText || '';
       state.permNames = res.permNames;
       state.iceServers = res.iceServers;
       state.maxUploadMb = res.maxUploadMb;
@@ -514,7 +537,7 @@
         if (!r) return;
         state.unread = r.unread;
         // O canal aberto na tela não conta como "não lido".
-        if (state.view === 'chat' && state.unread[state.textChannel]) markRead(state.textChannel);
+        if (chatShown() && state.unread[state.textChannel]) markRead(state.textChannel);
         if (state.server) render();
       });
       if (state.server) render();
@@ -598,7 +621,8 @@
     if (!s.serverId) state.home = true;
     if (s.serverId) localStorage.setItem('serverId', s.serverId); else localStorage.removeItem('serverId');
     const textChannels = s.channels.filter((c) => c.type === 'text');
-    if (!state.home && !textChannels.some((c) => c.id === state.textChannel)) state.textChannel = textChannels[0]?.id || null;
+    // O chat aberto pode ser o de uma sala de voz.
+    if (!state.home && !s.channels.some((c) => c.id === state.textChannel)) state.textChannel = textChannels[0]?.id || null;
     if (switching) restoreComposerDraft(state.textChannel);
     // Fecha conexões com quem saiu da nossa sala.
     for (const sid of state.peers.keys()) {
@@ -647,15 +671,17 @@
     $('#me-name').style.color = nameColor(me);
     setAvatarContents($('#me-avatar'), me.avatarUrl, me.name, me.avatarCrop);
     $('#me-avatar').style.background = me.color;
-    $('#me-sub').textContent = state.voiceChannel ? 'Em chamada' : 'Online';
+    $('#me-sub').textContent = state.statusText || (state.voiceChannel ? 'Em chamada' : PRESENCE[state.presence].label);
+    $('#me-status').className = 'status ' + state.presence;
     $('#profile-server-identity').classList.toggle('hidden', !state.server.serverId);
     $('#profile-server-label').textContent = serverName();
     $('#profile-server-display').textContent = meMember().name;
     $('#profile-preview-chat-name').textContent = meMember().name;
+    syncVoiceChat();
     // Entrar numa chamada a partir do Início leva de volta para o servidor.
     if (state.home && state.view === 'voice' && state.voiceChannel && !isDm(state.voiceChannel)) leaveHome();
     const salonOpen = !state.home && state.view === 'chat' && !!channelById(state.textChannel)?.mudae && salonMode();
-    $('#app').classList.toggle('hide-members', !state.showMembers || state.home || salonOpen);
+    $('#app').classList.toggle('hide-members', !state.showMembers || state.home || salonOpen || voiceChatShown());
     $('#btn-members').classList.toggle('hidden', state.home || salonOpen);
     $('#btn-members').classList.toggle('active', state.showMembers);
     $('#rail-home').classList.toggle('active', state.home);
@@ -676,13 +702,14 @@
     $('#server-header span').textContent = serverName();
     renderServerIcon();
     if (profileFor) renderProfile();
-    const settingsKey = JSON.stringify([state.server.serverName, state.server.roles, state.server.channels, state.server.categories, state.server.bans, state.server.myPerms,
+    const settingsKey = JSON.stringify([state.server.serverName, state.server.roles, state.server.channels, state.server.categories, state.server.bans, state.server.myPerms, state.server.soundboard, state.server.emojis,
       state.server.members.map((m) => [m.id, m.name, m.color, m.avatarUrl, m.avatarCrop, m.roles, m.online])]);
     if (!$('#server-settings').classList.contains('hidden') && settingsKey !== render.settingsKey) renderServerSettings();
     render.settingsKey = settingsKey;
   }
 
   function updateTitle() {
+    renderVoiceChatButton(); // a bolinha de mensagem nova do chat da sala acompanha as não lidas
     const entries = Object.entries(state.unread).filter(([id]) => channelById(id));
     const serverMentions = entries.filter(([id]) => !isDm(id)).reduce((n, [, u]) => n + u.mentions, 0);
     const dmMessages = entries.filter(([id]) => isDm(id)).reduce((n, [, u]) => n + u.mentions, 0);
@@ -736,6 +763,70 @@
     $('#chat-input').focus();
   }
 
+  // ---------------- chat da sala de voz ----------------
+  // Na chamada de servidor, o chat da própria sala abre ao lado do palco (para mandar links a quem está ali).
+  function voiceChatShown() {
+    return state.view === 'voice' && !!state.voiceChannel && !isDm(state.voiceChannel) && state.textChannel === state.voiceChannel;
+  }
+  function chatShown() {
+    return state.view === 'chat' || voiceChatShown();
+  }
+  // Troca o chat aberto guardando o rascunho; lembra o último canal de texto para a volta.
+  function switchChatChannel(id) {
+    if (state.textChannel === id) return;
+    saveComposerDraft();
+    if (channelById(state.textChannel)?.type === 'text') state.lastTextChannel = state.textChannel;
+    state.editing = state.replyTo = null;
+    state.textChannel = id;
+    restoreComposerDraft(id);
+  }
+  function lastTextChannel() {
+    const texts = state.server.channels.filter((c) => c.type === 'text');
+    return texts.some((c) => c.id === state.lastTextChannel) ? state.lastTextChannel : texts[0]?.id || null;
+  }
+  function toggleVoiceChat(open = !voiceChatShown()) {
+    if (!state.voiceChannel || isDm(state.voiceChannel)) return;
+    state.voiceChatOpen = open;
+    localStorage.setItem('voiceChatOpen', open ? '1' : '');
+    if (open) {
+      switchChatChannel(state.voiceChannel);
+      markRead(state.voiceChannel);
+    } else switchChatChannel(lastTextChannel());
+    render();
+    if (open) $('#chat-input').focus();
+  }
+  // Fora da chamada, o chat de uma sala de voz abre como um canal comum.
+  function openVoiceChat(id) {
+    if (state.voiceChannel === id) {
+      state.view = 'voice';
+      closePanels();
+      toggleVoiceChat(true);
+    } else openTextChannel(id);
+  }
+  // Quem deixou o chat da sala aberto encontra ele aberto na próxima chamada.
+  function syncVoiceChat() {
+    if (state.home || state.view !== 'voice' || !state.voiceChannel || isDm(state.voiceChannel) || !channelById(state.voiceChannel)) return;
+    if (state.voiceChatOpen && state.textChannel !== state.voiceChannel) {
+      switchChatChannel(state.voiceChannel);
+      markRead(state.voiceChannel);
+    }
+  }
+  function renderVoiceChatButton() {
+    const button = $('#btn-voice-chat');
+    const show = state.view === 'voice' && !!state.voiceChannel && !isDm(state.voiceChannel) && !state.home;
+    button.classList.toggle('hidden', !show);
+    if (!show) return;
+    const open = voiceChatShown();
+    const unread = !open && state.unread[state.voiceChannel];
+    button.classList.toggle('active', open);
+    button.classList.toggle('has-unread', !!unread);
+    button.dataset.tip = open ? 'Fechar o chat da sala' : unread ? 'Mensagens novas no chat da sala' : 'Abrir o chat da sala';
+    button.setAttribute('aria-label', button.dataset.tip);
+    button.setAttribute('aria-pressed', String(open));
+    refreshTip(button);
+  }
+  $('#btn-voice-chat').onclick = () => toggleVoiceChat();
+
   // Início: a tela de amigos (sem conversa aberta) e a lista de mensagens diretas.
   function goHome() {
     saveComposerDraft();
@@ -754,7 +845,7 @@
     saveComposerDraft();
     const texts = state.server.channels.filter((c) => c.type === 'text');
     state.home = false;
-    state.textChannel = texts.some((c) => c.id === state.serverChannel) ? state.serverChannel : texts[0]?.id || null;
+    state.textChannel = state.server.channels.some((c) => c.id === state.serverChannel) ? state.serverChannel : texts[0]?.id || null;
     restoreComposerDraft(state.textChannel);
     state.editing = null;
     state.replyTo = null;
@@ -1050,7 +1141,7 @@
     $('#chat-input').focus();
   }
 
-  const openChat = (id) => (isDm(id) ? openDm(id) : openTextChannel(id));
+  const openChat = (id) => (isDm(id) ? openDm(id) : channelById(id)?.type === 'voice' ? openVoiceChat(id) : openTextChannel(id));
 
   // Abre (ou cria) a conversa privada com um amigo.
   async function messageUser(userId) {
@@ -1088,7 +1179,7 @@
         class: 'channel dm' + (state.home && state.textChannel === dm.id ? ' active' : '') + (u ? ' unread' : ''),
         onclick: () => openDm(dm.id),
         oncontextmenu: (e) => openMemberMenu(peer.id, e),
-      }, el('div', { class: 'avatar-wrap' }, avatar(peer, 'small'), el('span', { class: 'status ' + (peer.online ? 'online' : 'offline') })),
+      }, el('div', { class: 'avatar-wrap' }, avatar(peer, 'small'), statusDot(peer)),
       el('span', { class: 'channel-name', textContent: peer.name }),
       state.voiceChannel === dm.id || dmCall.ringing(dm.id)
         ? el('span', { class: 'dm-call-flag' + (dmCall.ringing(dm.id) ? ' ringing' : ''), tip: state.voiceChannel === dm.id ? 'Em chamada' : 'Ligando para você' }, Icon('phone', 14))
@@ -1104,6 +1195,7 @@
     state, el, Icon, call, toast, hasPerm,
     refresh: () => { lastRender.delete('channels'); renderChannels(); },
     open: (c) => c.type === 'text' ? openTextChannel(c.id) : (state.voiceChannel === c.id ? (state.view = 'voice', render()) : joinVoice(c.id)),
+    openChat: (c) => openVoiceChat(c.id),
     voiceUsers: channelVoiceUsers, createChannel: openCreateChannel,
     editChannel: (id) => { if (guardLeave()) openChannelSettings(id); },
     deleteChannel, markRead, guard: () => guardLeave(),
@@ -1139,6 +1231,7 @@
         const flags = el('span', { class: 'flags' });
         if (v.sharing) flags.append(el('span', { class: 'live clickable', textContent: 'AO VIVO', tip: 'Ver a transmissão', onclick: (e) => { e.stopPropagation(); openLiveStream(c.id, v.sid); } }));
         if (v.camera) flags.append(el('span', { tip: 'Câmera ligada' }, Icon('camera', 16)));
+        if (fxPreset(v)) flags.append(el('span', { class: 'fx-flag', tip: 'Voz modificada: ' + fxPreset(v).label }, fxPreset(v).emoji));
         if (state.localMuted.has(m.id)) flags.append(el('span', { tip: 'Mutado para você' }, Icon('volumeX', 16)));
         if (m.serverMuted || timedOut(m)) flags.append(el('span', { class: 'server-flag', tip: timedOut(m) ? 'De castigo' : 'Silenciado pelo servidor' }, Icon('micOff', 16)));
         else if (v.muted) flags.append(el('span', { tip: 'Mutado' }, Icon('micOff', 16)));
@@ -1188,11 +1281,12 @@
         let sub = '';
         if (timedOut(m)) sub = 'De castigo até ' + formatUntil(m.timeoutUntil);
         else if (v) sub = (v.sharing ? 'Transmitindo em ' : 'Em ') + (channelById(v.channel)?.name || 'um canal de voz');
+        else sub = statusTextOf(m);
         list.append(el('div', {
           class: 'member' + (m.online ? '' : ' offline'),
           onclick: (e) => { e.stopPropagation(); openProfile(m.id, e.currentTarget); },
           oncontextmenu: (e) => openMemberMenu(m.id, e),
-        }, el('div', { class: 'avatar-wrap' }, avatar(m), el('span', { class: 'status ' + (m.online ? 'online' : 'offline') })),
+        }, el('div', { class: 'avatar-wrap' }, avatar(m), statusDot(m)),
         el('div', { class: 'member-info' },
           el('div', { class: 'member-name', style: { color: nameColor(m) } }, el('span', { textContent: m.name }),
             isOwner(m.id) ? el('span', { class: 'owner-crown', tip: 'Dono do servidor' }, Icon('crown', 14)) : null),
@@ -1202,7 +1296,11 @@
   }
 
   // Faixa no topo do chat da conversa privada: alguém ligando ou uma chamada acontecendo.
-  const renderDmCallBanner = (c) => $('#dm-call-banner-slot').replaceChildren(c?.type === 'dm' ? dmCall.banner(c.id) || '' : '');
+  // No chat da sala de voz, o lugar dela vira o cabeçalho do painel lateral.
+  const renderDmCallBanner = (c) => $('#dm-call-banner-slot').replaceChildren(c?.type === 'dm' ? dmCall.banner(c.id) || '' : voiceChatShown() ? voiceChatHead(c) : '');
+  const voiceChatHead = (c) => el('div', { class: 'vc-head' }, Icon('message', 18),
+    el('div', { class: 'vc-head-text' }, el('strong', { textContent: 'Chat da sala' }), el('span', { textContent: c.name })),
+    el('button', { type: 'button', class: 'icon-btn vc-close', ariaLabel: 'Fechar o chat da sala', tip: 'Fechar o chat', onclick: () => toggleVoiceChat(false) }, Icon('x', 18)));
 
   // Botões de chamada de voz e de vídeo no cabeçalho de uma conversa privada.
   function renderDmCallTools(c) {
@@ -1220,12 +1318,16 @@
   }
 
   function renderMain() {
+    syncVoiceChat();
     const inVoiceView = state.view === 'voice' && state.voiceChannel;
     const friendsPage = state.home && !state.textChannel;
     // Chamada privada vista da própria conversa: a chamada fica em cima e o chat continua embaixo.
     const dmSplit = !inVoiceView && isDm(state.voiceChannel) && state.home && state.textChannel === state.voiceChannel;
+    const voiceChat = voiceChatShown();
     $('#btn-return-call').classList.toggle('hidden', !state.voiceChannel || !!inVoiceView || dmSplit);
-    $('#chat-view').classList.toggle('hidden', !!inVoiceView || friendsPage);
+    $('#chat-view').classList.toggle('hidden', (!!inVoiceView && !voiceChat) || friendsPage);
+    $('#main').classList.toggle('voice-chat', voiceChat);
+    renderVoiceChatButton();
     $('#friends-view').classList.toggle('hidden', !friendsPage);
     $('#voice-view').classList.toggle('hidden', !inVoiceView && !dmSplit);
     $('#main').classList.toggle('dm-call', dmSplit);
@@ -1248,7 +1350,7 @@
       setHeader(isDm(state.voiceChannel) ? 'phone' : 'volume', callChannelName(), `${n} ${n === 1 ? 'pessoa' : 'pessoas'} na chamada`);
       $('#header-title').append(callClock());
       renderStage();
-      return;
+      if (!voiceChat) return;
     }
     const c = channelById(state.textChannel);
     const salonChannel = !inVoiceView && !friendsPage && c?.mudae && salonMode() ? c : null;
@@ -1257,12 +1359,14 @@
     $('#salon-view').classList.toggle('hidden', !salonChannel);
     salon.sync(salonChannel);
     if (!c) return $('#header-title').replaceChildren();
-    if (c.type === 'dm') {
+    if (inVoiceView) { /* o cabeçalho continua sendo o da chamada */ }
+    else if (c.type === 'dm') {
       $('#header-title').replaceChildren(
-        el('div', { class: 'avatar-wrap' }, avatar(c.peer, 'small'), el('span', { class: 'status ' + (c.peer.online ? 'online' : 'offline') })),
+        el('div', { class: 'avatar-wrap' }, avatar(c.peer, 'small'), statusDot(c.peer)),
         el('span', { class: 'title-text', textContent: c.peer.name }),
-        el('span', { class: 'title-sub', textContent: c.peer.online ? 'Online' : 'Offline' }));
-    } else setHeader(c.mudae ? 'dice' : 'hash', c.name, c.topic || (c.mudae ? 'Salão do Mudae' : c.private ? 'Canal privado' : ''));
+        el('span', { class: 'title-sub', textContent: statusTextOf(c.peer) || presenceLabel(c.peer) }));
+    } else setHeader(c.mudae ? 'dice' : c.type === 'voice' ? 'volume' : 'hash', c.name,
+      c.topic || (c.mudae ? 'Salão do Mudae' : c.type === 'voice' ? 'Chat da sala de voz' : c.private ? 'Canal privado' : ''));
     if (!state.messages[c.id]) {
       state.messages[c.id] = [];
       call('chat:history', { channel: c.id }).then((res) => {
@@ -1289,7 +1393,12 @@
     return extraNodes.get(key);
   }
 
-  const welcomeNode = (c) => cachedNode('welcome:' + c.id + ':' + c.name, () => (c.type === 'dm'
+  const welcomeNode = (c) => cachedNode('welcome:' + c.id + ':' + c.name, () => (c.type === 'voice'
+    ? el('div', { class: 'welcome' },
+      el('div', { class: 'welcome-icon' }, Icon('volume', 42)),
+      el('h2', { textContent: 'Chat de ' + c.name }),
+      el('p', { textContent: 'Mande links e recados para quem está na sala. As mensagens ficam aqui para quem chegar depois.' }))
+    : c.type === 'dm'
     ? el('div', { class: 'welcome' },
       el('div', { class: 'dm-welcome-avatar' }, avatar(c.peer)),
       el('h2', { textContent: c.name }),
@@ -1311,7 +1420,7 @@
 
   // Só reconstrói as mensagens que mudaram, para não reiniciar vídeos/áudios tocando.
   function renderMessages(scrollToEnd = false) {
-    if (state.view !== 'chat') return;
+    if (!chatShown()) return;
     const box = $('#messages');
     const channel = channelById(state.textChannel);
     if (!channel) return;
@@ -1406,7 +1515,7 @@
         if (e.key === 'Escape') { state.editing = null; renderMessages(); }
         if (e.key === 'Enter' && !e.shiftKey) {
           e.preventDefault();
-          const text = Format.toRaw(input.value.trim(), state.server.members, state.server.roles);
+          const text = Format.toRaw(input.value.trim(), state.server.members, state.server.roles, state.server.emojis || []);
           state.editing = null;
           if (text !== msg.text && (text || msg.attachments?.length)) await call('chat:edit', { channel: state.textChannel, id: msg.id, text });
           renderMessages();
@@ -1416,13 +1525,14 @@
       body.append(input, el('div', { class: 'muted-text', textContent: 'Esc para cancelar • Enter para salvar' }));
       setTimeout(() => { autoresize(input); input.focus(); input.setSelectionRange(input.value.length, input.value.length); });
     } else if (msg.text) {
-      const onlyEmoji = /^(\p{Extended_Pictographic}|\p{Emoji_Component}|\s){1,20}$/u.test(msg.text) && !/\d/.test(msg.text);
+      const onlyEmoji = /^(\p{Extended_Pictographic}|\p{Emoji_Component}|<:\w{2,32}:[0-9a-f]{16}>|\s){1,20}$/u.test(msg.text) && !/\d/.test(msg.text.replace(/<:\w+:[0-9a-f]+>/g, ''));
       body.append(el('div', { class: 'msg-text' + (onlyEmoji ? ' jumbo' : '') }, Format.render(msg.text, fmtCtx),
         msg.edited ? el('span', { class: 'edited', textContent: ' (editado)', tip: formatStamp(msg.edited) }) : null));
     }
 
     if (msg.gif) body.append(gifNode(msg.gif));
-    if (msg.attachments?.length) body.append(el('div', { class: 'attachments' }, msg.attachments.map(attachmentNode)));
+    if (msg.attachments?.length) body.append(attachmentsNode(msg.attachments));
+    if (msg.embeds?.length) body.append(el('div', { class: 'embeds' }, msg.embeds.map((e) => embedNode(e, msg))));
 
     const reactions = Object.entries(msg.reactions || {});
     if (reactions.length) {
@@ -1431,7 +1541,7 @@
           class: 'reaction' + (users.includes(state.me.accountId) ? ' mine' : ''),
           tip: users.map((id) => member(id)?.name || '?').join(', '),
           onclick: () => react(msg.id, emoji),
-        }, emoji, el('span', { textContent: String(users.length) }))),
+        }, reactionGlyph(emoji), el('span', { textContent: String(users.length) }))),
         canWrite() ? el('button', { class: 'reaction add', tip: 'Adicionar reação', ariaLabel: 'Adicionar reação', onclick: (e) => openEmojiPicker(e.currentTarget, (em) => react(msg.id, em)) }, Icon('smilePlus', 16)) : null));
     }
     row.append(body);
@@ -1452,6 +1562,16 @@
     }
     if (actions.childElementCount) row.append(actions);
     return row;
+  }
+
+  // Várias fotos na mesma mensagem viram um mosaico (como no Discord); o resto fica embaixo.
+  function attachmentsNode(attachments) {
+    const images = attachments.filter((a) => a.type.startsWith('image/'));
+    const others = attachments.filter((a) => !a.type.startsWith('image/'));
+    const gallery = images.length > 1 ? el('div', { class: 'att-gallery n-' + Math.min(images.length, 5) + (images.length > 4 ? ' many' : '') },
+      images.map((a) => el('button', { type: 'button', class: 'att-tile', ariaLabel: 'Abrir ' + a.name, onclick: () => openLightbox(a) },
+        el('img', { src: a.url, alt: a.name, loading: 'lazy', draggable: false, onload: keepBottom })))) : null;
+    return el('div', { class: 'attachments' }, gallery, (images.length === 1 ? images : []).concat(others).map(attachmentNode));
   }
 
   function attachmentNode(a) {
@@ -1476,13 +1596,53 @@
     return el('div', { class: 'att-gif' }, img, el('span', { class: 'gif-badge', textContent: 'GIF' }));
   }
 
-  function openLightbox(a) {
-    const box = $('#lightbox');
-    box.querySelector('img').src = a.url;
-    box.querySelector('a').href = a.url;
-    box.classList.remove('hidden');
+  // Cartão de prévia de um link (título, descrição e imagem), montado pelo servidor.
+  function embedNode(e, msg) {
+    const open = { href: e.url, target: '_blank', rel: 'noopener noreferrer' };
+    const remove = msg.authorId === state.me.accountId && !msg.ephemeral
+      ? el('button', { type: 'button', class: 'embed-remove', tip: 'Remover prévia', ariaLabel: 'Remover prévia', onclick: () => call('chat:suppressEmbeds', { channel: state.textChannel, id: msg.id }) }, Icon('x', 14))
+      : null;
+    const picture = (cls) => {
+      const img = el('img', { src: e.image, alt: '', loading: 'lazy', draggable: false, onload: keepBottom });
+      const media = e.kind === 'video'
+        ? el('a', { class: cls, ...open, ariaLabel: 'Assistir no YouTube' }, img, el('span', { class: 'embed-play' }, Icon('play', 24)))
+        : el('button', { type: 'button', class: cls, ariaLabel: 'Ampliar imagem', onclick: () => openLightbox({ url: e.image, name: e.title }) }, img);
+      img.onerror = () => media.remove();
+      return media;
+    };
+    if (e.kind === 'image') return el('div', { class: 'embed embed-image' }, picture('embed-media'), remove);
+    const card = el('article', { class: 'embed kind-' + e.kind + (e.image && e.large ? ' large' : '') },
+      el('div', { class: 'embed-body' },
+        e.siteName ? el('div', { class: 'embed-site', textContent: e.siteName }) : null,
+        e.author ? el('div', { class: 'embed-author', textContent: e.author }) : null,
+        e.title ? el('a', { class: 'embed-title', ...open, textContent: e.title }) : null,
+        e.description ? el('p', { class: 'embed-desc', textContent: e.description }) : null,
+        e.image && e.large ? picture('embed-media') : null),
+      e.image && !e.large ? picture('embed-thumb') : null, remove);
+    if (e.color) card.style.setProperty('--embed-color', e.color);
+    return card;
   }
-  $('#lightbox').onclick = (e) => { if (e.target.tagName !== 'A') $('#lightbox').classList.add('hidden'); };
+
+  // O visualizador percorre as imagens do canal aberto (anexos, GIFs e prévias de imagem).
+  const lightbox = window.Lightbox({ el, Icon, root: $('#lightbox') });
+  function channelMedia() {
+    const list = [];
+    for (const m of state.messages[state.textChannel] || []) {
+      const who = member(m.authorId)?.name || '';
+      for (const a of m.attachments || []) if (a.type.startsWith('image/')) list.push({ url: a.url, name: a.name, meta: [who, formatSize(a.size)].filter(Boolean).join(' · ') });
+      if (m.gif) list.push({ url: m.gif.url, thumb: m.gif.webp, name: m.gif.title || 'GIF', meta: who });
+      for (const e of m.embeds || []) if (e.image && e.kind !== 'video') list.push({ url: e.image, name: e.title || 'Imagem do link', meta: who });
+    }
+    return list;
+  }
+  function openLightbox(a) {
+    const all = channelMedia();
+    const i = all.findIndex((item) => item.url === a.url);
+    if (i < 0) return lightbox.open([{ url: a.url, name: a.name || 'Imagem' }], 0);
+    // Perto da foto aberta: a faixa de miniaturas não carrega o histórico inteiro.
+    const from = Math.max(0, i - 50);
+    lightbox.open(all.slice(from, i + 51), i - from);
+  }
 
   function jumpTo(id) {
     const node = $('#messages').querySelector(`[data-id="${id}"]`);
@@ -1535,7 +1695,7 @@
       input.placeholder = 'Você não tem permissão para enviar mensagens.';
     } else {
       input.disabled = false;
-      input.placeholder = 'Conversar em #' + (c?.name || '');
+      input.placeholder = (c?.type === 'voice' ? 'Conversar em ' : 'Conversar em #') + (c?.name || '');
     }
     $('#btn-attach').disabled = input.disabled;
     $('#btn-emoji').disabled = input.disabled;
@@ -1623,7 +1783,7 @@
     const draft = { value: input.value, pending: state.pending, replyTo: state.replyTo };
     const payload = {
       channel: state.textChannel,
-      text: Format.toRaw(text, state.server.members, state.server.roles),
+      text: Format.toRaw(text, state.server.members, state.server.roles, state.server.emojis || []),
       attachments: state.pending.map((p) => p.id),
       replyTo: state.replyTo?.id,
     };
@@ -1655,7 +1815,7 @@
     uploadFiles([...e.target.files]);
     e.target.value = '';
   };
-  $('#btn-emoji').onclick = (e) => openEmojiPicker(e.currentTarget, (emoji) => insertAtCursor(emoji));
+  $('#btn-emoji').onclick = (e) => openEmojiPicker(e.currentTarget, (emoji, item) => insertAtCursor(item?.custom ? ':' + item.name + ': ' : emoji));
 
   $('#btn-gif').onclick = (e) => gifPicker.toggle(e.currentTarget);
   $('#reply-cancel').onclick = () => { state.replyTo = null; renderComposer(); renderMessages(); };
@@ -1806,23 +1966,23 @@
   $('#chat-input').addEventListener('blur', () => setTimeout(closeAutocomplete, 100));
 
   // ---------------- seletor de emoji ----------------
+  const emojiPicker = window.EmojiPicker({ el, Icon, root: $('#emoji-picker'), getCustom: () => state.server?.emojis || [] });
   function openEmojiPicker(anchor, onPick) {
-    const picker = $('#emoji-picker');
-    picker.replaceChildren(el('div', { class: 'emoji-title', textContent: 'Escolha um emoji' }), ...EMOJIS.map((emoji) => el('button', {
-      type: 'button',
-      textContent: emoji,
-      onclick: () => { picker.classList.add('hidden'); onPick(emoji); },
-    })));
-    picker.classList.remove('hidden');
-    const a = anchor.getBoundingClientRect();
-    const p = picker.getBoundingClientRect();
-    picker.style.left = Math.max(8, Math.min(a.right - p.width, innerWidth - p.width - 8)) + 'px';
-    const preferredTop = a.top - p.height - 8 > 8 ? a.top - p.height - 8 : a.bottom + 8;
-    picker.style.top = Math.max(8, Math.min(preferredTop, innerHeight - p.height - 8)) + 'px';
+    if (emojiPicker.isOpen() && emojiPicker.anchor === anchor) return emojiPicker.close();
+    emojiPicker.anchor = anchor;
+    emojiPicker.open(anchor, onPick);
   }
+  // Reação com emoji do servidor (<:nome:id>) vira imagem; as outras ficam como texto.
+  const reactionGlyph = (key) => {
+    const m = /^<:(\w+):([0-9a-f]{16})>$/.exec(key);
+    if (!m) return key;
+    const img = el('img', { class: 'custom-emoji', src: '/emojis/' + m[2], alt: ':' + m[1] + ':', draggable: false });
+    img.onerror = () => img.replaceWith(':' + m[1] + ':');
+    return img;
+  };
 
   // ---------------- não lidas e notificações ----------------
-  const isViewing = (channel) => state.view === 'chat' && state.textChannel === channel && document.visibilityState === 'visible' && document.hasFocus();
+  const isViewing = (channel) => chatShown() && state.textChannel === channel && document.visibilityState === 'visible' && document.hasFocus();
 
   function markRead(channel) {
     if (!channel) return;
@@ -1835,16 +1995,16 @@
     socket.emit('chat:read', { channel }, () => {});
   }
 
-  window.addEventListener('focus', () => { if (state.me && state.view === 'chat') markRead(state.textChannel); });
+  window.addEventListener('focus', () => { if (state.me && chatShown()) markRead(state.textChannel); });
   document.addEventListener('visibilitychange', () => {
-    if (state.me && document.visibilityState === 'visible' && state.view === 'chat') markRead(state.textChannel);
+    if (state.me && document.visibilityState === 'visible' && chatShown()) markRead(state.textChannel);
   });
 
   function notify(msg, channel) {
     if (!state.notify || !('Notification' in window) || Notification.permission !== 'granted') return;
     if (document.visibilityState === 'visible' && document.hasFocus()) return;
     const author = (isDm(channel) ? person(msg.authorId) : serverMember(msg.authorId) || person(msg.authorId))?.name || 'Alguém';
-    const n = new Notification(isDm(channel) ? `${author} (mensagem direta)` : `${author} em #${channelById(channel)?.name || ''}`, {
+    const n = new Notification(isDm(channel) ? `${author} (mensagem direta)` : `${author} em ${channelById(channel)?.type === 'voice' ? '' : '#'}${channelById(channel)?.name || ''}`, {
       body: Format.plain(msg.text, fmtCtx).slice(0, 200) || (msg.gif ? 'GIF' : '📎 Anexo'),
       tag: channel,
       silent: true,
@@ -1881,7 +2041,8 @@
         const u = (state.unread[channel] ||= { unread: true, mentions: 0 });
         if (mentionsMe(msg)) {
           u.mentions++;
-          if (!msg.call) {
+          // "Não perturbe" conta a menção, mas não toca som nem mostra aviso.
+          if (!msg.call && state.presence !== 'dnd') {
             Sounds.play('mention');
             notify(msg, channel);
           }
@@ -2001,6 +2162,11 @@
     });
   }
 
+  // Efeito do modificador de voz que a pessoa está usando (o servidor só repassa o nome).
+  function fxPreset(v) {
+    return v.voiceFx && v.voiceFx !== 'none' && VoiceFx.valid(v.voiceFx) ? VoiceFx.PRESETS[v.voiceFx] : null;
+  }
+
   function renderStage() {
     const stage = $('#stage');
     const primary = $('#stage-primary');
@@ -2048,7 +2214,9 @@
           if (src) video.play().catch(() => { if (video.srcObject === src) mediaNotice('O navegador pausou a reprodução. Clique no vídeo para retomar.'); });
         }
         video.onclick = () => video.play().catch(() => {});
-        tile.querySelector('.label').replaceChildren(Icon('screen', 16), self ? `Sua transmissão · ${SHARE_PRESETS[state.sharePreset].label}` : 'Tela de ' + m.name);
+        tile.querySelector('.label').replaceChildren(
+          el('span', { class: 'live-pill' + (v.paused ? ' paused' : '') }, v.paused ? 'PAUSADO' : 'AO VIVO'),
+          Icon('screen', 16), el('span', { class: 'label-name', textContent: self ? `Sua transmissão · ${SHARE_PRESETS[state.sharePreset].label}` : 'Tela de ' + m.name }));
         tile.querySelector('.label .ico').style.color = '#fff';
         tile.setAttribute('aria-label', self ? 'Destacar sua transmissão' : 'Destacar tela de ' + m.name);
         renderTileControls(tile, { kind: 'screen', self, sid: v.sid, accountId: m.id, hidden });
@@ -2064,7 +2232,7 @@
           style: { '--tile': m.color },
           oncontextmenu: (e) => openMemberMenu(m.id, e),
         }, avatar(m, '', v.sid), el('video', { class: 'cam hidden' + (self ? ' mirror' : ''), autoplay: true, playsInline: true, muted: true }),
-        el('div', { class: 'label' }), el('div', { class: 'tile-controls' }));
+        el('div', { class: 'tile-badges' }), el('div', { class: 'label' }), el('div', { class: 'tile-controls' }));
         setupTile(tile);
         primary.append(tile);
       }
@@ -2077,10 +2245,32 @@
       tile.querySelector('.avatar').classList.toggle('hidden', !!camStream);
       tile.classList.toggle('speaking', state.speaking.has(v.sid));
       const silenced = m.serverMuted || timedOut(m);
+      const micOff = silenced || v.muted, deaf = m.serverDeafened || v.deafened;
       tile.style.setProperty('--tile', m.color);
-      tile.querySelector('.label').replaceChildren(m.name,
-        silenced || v.muted ? Icon('micOff', 16) : '',
-        m.serverDeafened || v.deafened ? Icon('headphonesOff', 16) : '');
+      tile.classList.toggle('cam-on', !!camStream);
+      tile.classList.toggle('mic-off', micOff);
+      // Estado de cada pessoa em selos no canto: dá para ler mesmo nas miniaturas.
+      const badge = (cls, label, content) => el('span', { class: 'tb ' + cls, tip: label, ariaLabel: label, role: 'img' }, content);
+      const badges = [
+        v.sharing ? badge('live', self ? 'Você está transmitindo a tela' : m.name + ' está transmitindo a tela', 'AO VIVO') : null,
+        micOff ? badge('off', silenced ? 'Silenciado pelo servidor' : 'Microfone desligado', Icon('micOff', 14)) : null,
+        deaf ? badge('off', m.serverDeafened ? 'Ensurdecido pelo servidor' : 'Som desligado', Icon('headphonesOff', 14)) : null,
+        fxPreset(v) ? badge('fx', (self ? 'Sua voz está com o efeito ' : 'Voz modificada: ') + fxPreset(v).label, fxPreset(v).emoji) : null,
+      ].filter(Boolean);
+      const badgeBox = tile.querySelector('.tile-badges');
+      const badgeKey = JSON.stringify([v.sharing, micOff, silenced, deaf, v.voiceFx]);
+      if (badgeBox.dataset.key !== badgeKey) { badgeBox.dataset.key = badgeKey; badgeBox.replaceChildren(...badges); }
+      const labelKey = JSON.stringify([m.name, self, !!camStream]);
+      const label = tile.querySelector('.label');
+      if (label.dataset.key !== labelKey) {
+        label.dataset.key = labelKey;
+        label.replaceChildren(...[
+          el('span', { class: 'speak-bars', ariaHidden: 'true' }, el('i'), el('i'), el('i')),
+          camStream ? el('span', { class: 'label-cam', tip: 'Câmera ligada' }, Icon('camera', 14)) : null,
+          el('span', { class: 'label-name', textContent: m.name + (self ? ' (você)' : '') }),
+        ].filter(Boolean));
+      }
+      tile.setAttribute('aria-description', [micOff ? 'microfone desligado' : '', deaf ? 'som desligado' : '', camStream ? 'câmera ligada' : '', v.sharing ? 'transmitindo a tela' : ''].filter(Boolean).join(', '));
       tile.setAttribute('aria-label', 'Destacar ' + m.name);
       renderTileControls(tile, { kind: 'user', self, sid: v.sid, accountId: m.id, camera: !!camStream });
     }
@@ -2089,6 +2279,13 @@
     const pendingTile = dmCall.pendingTile(stage, callInfo());
     if (pendingTile) wanted.add(pendingTile);
     renderDmCallSize();
+    // Sozinho numa sala de servidor: em vez de um palco vazio, um convite para chamar a galera.
+    const entries = voiceEntries(state.voiceChannel);
+    const alone = !isDm(state.voiceChannel) && entries.length === 1 && entries[0].sid === state.me.sid && !entries[0].sharing && !djTile && !pendingTile;
+    let aloneCard = $('#stage-alone');
+    if (alone && !aloneCard) stage.append(aloneCard = stageAloneCard());
+    else if (!alone) aloneCard?.remove();
+    stage.toggleAttribute('data-alone', alone);
 
     for (const tile of stage.querySelectorAll('.tile')) {
       if (!wanted.has(tile.dataset.key)) tile.remove();
@@ -2129,6 +2326,18 @@
     applyAudio();
     syncViewerQuality();
     mobileStream.sync();
+  }
+
+  function stageAloneCard() {
+    const action = (label, icon, onclick, cls = '') => el('button', { type: 'button', class: 'sa-btn ' + cls, onclick }, Icon(icon, 18), el('span', { textContent: label }));
+    return el('div', { id: 'stage-alone', role: 'status' },
+      el('div', { class: 'sa-icon', ariaHidden: 'true' }, Icon('users', 26)),
+      el('strong', { textContent: 'Você é o primeiro aqui' }),
+      el('p', { textContent: 'Chame a galera: com o convite, a pessoa entra no servidor e já encontra a sala.' }),
+      el('div', { class: 'sa-actions' },
+        action('Convidar pessoas', 'userPlus', () => copyInvite(), 'primary'),
+        canVideo() && navigator.mediaDevices?.getDisplayMedia ? action('Compartilhar tela', 'screenShare', (e) => openShareMenu(e.currentTarget)) : null,
+        action('Abrir o chat da sala', 'message', () => toggleVoiceChat(true), 'chat')));
   }
 
   // ---------------- controles dos blocos da chamada (estilo Discord) ----------------
@@ -2381,7 +2590,9 @@
   const FRIEND_TABS = [['online', 'Online'], ['all', 'Todos'], ['pending', 'Pendentes'], ['blocked', 'Bloqueados']];
   const friendStatus = (m) => {
     const v = voiceOf(m);
-    return !m.online ? 'Offline' : v ? 'Em ' + (channelById(v.channel)?.name || 'um canal de voz') : 'Online';
+    if (!m.online) return 'Offline';
+    if (v) return 'Em ' + (channelById(v.channel)?.name || 'um canal de voz');
+    return statusTextOf(m) || presenceLabel(m);
   };
 
   function friendButton(icon, label, onclick, cls = '') {
@@ -2390,7 +2601,7 @@
 
   function friendRow(m, sub, actions, onclick) {
     return el('div', { class: 'friend-row' + (onclick ? ' clickable' : ''), onclick, oncontextmenu: (e) => openMemberMenu(m.id, e) },
-      el('div', { class: 'avatar-wrap' }, avatar(m), el('span', { class: 'status ' + (m.online ? 'online' : 'offline') })),
+      el('div', { class: 'avatar-wrap' }, avatar(m), statusDot(m)),
       el('div', { class: 'friend-info' },
         el('div', { class: 'friend-name', style: { color: nameColor(m) || '' }, textContent: m.name }),
         el('div', { class: 'friend-sub', textContent: sub })),
@@ -2516,7 +2727,7 @@
     const menu = $('#context-menu');
     if (!menu.classList.contains('hidden') && $('#server-header').classList.contains('open')) $('#server-header').dataset.closedAt = Date.now();
     menu.classList.add('hidden');
-    menu.classList.remove('member-menu');
+    menu.classList.remove('member-menu', 'status-menu', 'device-menu');
     menu.style.width = '';
     closeSubmenu();
     $('#server-header').classList.remove('open');
@@ -2645,6 +2856,119 @@
   async function copyInvite() {
     const invite = await call('server:invite');
     if (invite) openInviteLink(invite);
+  }
+
+  // Menu de status (clique no cartão do usuário, embaixo à esquerda).
+  async function setPresence(change) {
+    const before = { presence: state.presence, statusText: state.statusText };
+    Object.assign(state, change);
+    render(); renderProfileIfOpen();
+    const res = await call('presence', change);
+    if (!res) { Object.assign(state, before); render(); renderProfileIfOpen(); return false; }
+    state.presence = res.presence; state.statusText = res.statusText;
+    render(); renderProfileIfOpen();
+    return true;
+  }
+  const renderProfileIfOpen = () => { if (profileFor && !$('#profile-card').classList.contains('hidden')) renderProfile(); };
+
+  function openStatusMenu(x, y) {
+    const menu = $('#context-menu');
+    const item = (key) => el('button', { type: 'button', class: 'menu-item status-item' + (state.presence === key ? ' current' : ''), role: 'menuitemradio', ariaChecked: String(state.presence === key),
+      onclick: () => { closeMenu(); if (state.presence !== key) setPresence({ presence: key }); } },
+      el('span', { class: 'status-glyph ' + key }),
+      el('span', { class: 'status-item-text' }, el('span', { class: 'status-item-label', textContent: PRESENCE[key].label }),
+        PRESENCE[key].hint ? el('small', { textContent: PRESENCE[key].hint }) : null),
+      state.presence === key ? Icon('check', 16) : null);
+    menu.replaceChildren(
+      el('div', { class: 'menu-section', textContent: 'STATUS' }),
+      ...['online', 'idle', 'dnd', 'invisible'].map(item),
+      el('div', { class: 'menu-sep' }),
+      menuAction(state.statusText ? 'Editar frase de status' : 'Definir frase de status', 'message', openStatusTextEditor),
+      ...(state.statusText ? [menuAction('Limpar frase de status', 'x', () => setPresence({ statusText: '' }), 'danger')] : []));
+    menu.classList.add('member-menu', 'status-menu');
+    menu.style.width = '280px';
+    showMenuAt(x, y);
+  }
+  const meCard = $('#me-card');
+  // O clique fora fecha o menu antes deste clique chegar: o estado é lido no pointerdown.
+  const statusMenuOpen = () => !$('#context-menu').classList.contains('hidden') && $('#context-menu').classList.contains('status-menu');
+  meCard.onpointerdown = () => { meCard.dataset.menuWasOpen = statusMenuOpen() ? '1' : ''; };
+  meCard.onclick = (e) => {
+    e.stopPropagation();
+    if (meCard.dataset.menuWasOpen) { meCard.dataset.menuWasOpen = ''; return closeMenu(); }
+    const r = meCard.getBoundingClientRect();
+    openStatusMenu(r.left, r.top - 8 - 330);
+    const menu = $('#context-menu');
+    menu.style.top = Math.max(8, r.top - menu.getBoundingClientRect().height - 8) + 'px';
+  };
+  meCard.onkeydown = (e) => {
+    if (e.key !== 'Enter' && e.key !== ' ') return;
+    e.preventDefault();
+    meCard.dataset.menuWasOpen = statusMenuOpen() ? '1' : '';
+    meCard.click();
+    $('#context-menu .status-item.current')?.focus();
+  };
+
+  const STATUS_IDEAS = ['🎮 Jogando', '🎧 Ouvindo música', '📚 Estudando', '💻 Trabalhando', '⏳ Já volto', '🍿 Vendo um filme'];
+  function openStatusTextEditor() {
+    const me = member(state.me?.accountId);
+    if (!me) return;
+    nicknameDialog?.close(true); closeMenu(); closeProfile();
+    const returnFocus = document.activeElement;
+    const roots = [$('#app'), $('#settings'), $('#server-settings')].map((root) => [root, root.inert]);
+    roots.forEach(([root]) => { root.inert = true; });
+    let busy = false, closed = false;
+    const input = el('input', { id: 'status-text-input', type: 'text', maxLength: 80, autocomplete: 'off', value: state.statusText, placeholder: 'O que você está fazendo?' });
+    const count = el('span', { class: 'status-count' });
+    const previewText = el('small', { class: 'status-preview-text' });
+    const previewDot = el('span', { class: 'status ' + state.presence });
+    const error = el('p', { class: 'nickname-status', role: 'status', ariaLive: 'polite' });
+    const refresh = () => {
+      const value = input.value.trim();
+      previewText.textContent = value || PRESENCE[state.presence].label;
+      previewText.classList.toggle('empty', !value);
+      count.textContent = [...input.value].length + '/80';
+    };
+    input.oninput = () => { error.textContent = ''; refresh(); };
+    const close = (force = false) => {
+      if (closed || (busy && !force)) return;
+      closed = true; overlay.remove(); roots.forEach(([root, inert]) => { root.inert = inert; });
+      document.removeEventListener('keydown', onKey, true); nicknameDialog = null; returnFocus?.focus();
+    };
+    const cancel = el('button', { type: 'button', class: 'btn-ghost', textContent: 'Cancelar', onclick: () => close() });
+    const clear = el('button', { type: 'button', class: 'nickname-reset', textContent: 'Limpar frase', onclick: () => { input.value = ''; refresh(); input.focus(); } });
+    const save = el('button', { type: 'submit', class: 'btn-primary', textContent: 'Salvar' });
+    const ideas = el('div', { class: 'status-ideas' }, STATUS_IDEAS.map((idea) => el('button', { type: 'button', class: 'status-idea', textContent: idea,
+      onclick: () => { input.value = idea; refresh(); input.focus(); } })));
+    const form = el('form', { class: 'nickname-card status-card', role: 'dialog', ariaModal: 'true', ariaLabelledby: 'status-title', onsubmit: async (event) => {
+      event.preventDefault(); if (busy) return;
+      busy = true; input.disabled = cancel.disabled = clear.disabled = save.disabled = true; error.textContent = 'Salvando…';
+      try {
+        const ok = await setPresence({ statusText: input.value });
+        if (closed) return;
+        if (!ok) { error.textContent = 'A frase não foi salva. Confira o aviso e tente novamente.'; return; }
+        busy = false; close(); toast(input.value.trim() ? 'Frase de status atualizada.' : 'Frase de status removida.', 'info');
+      } finally { busy = false; input.disabled = cancel.disabled = clear.disabled = save.disabled = false; }
+    } },
+    el('div', { class: 'nickname-heading' }, Icon('message', 24), el('h2', { id: 'status-title', textContent: 'Frase de status' })),
+    el('p', { class: 'nickname-subtitle', textContent: 'Aparece embaixo do seu nome para amigos e membros dos servidores.' }),
+    el('div', { class: 'nickname-preview' }, el('div', { class: 'avatar-wrap' }, avatar(me), previewDot), el('div', {}, el('strong', { textContent: me.name }), previewText)),
+    el('label', { htmlFor: input.id }, el('span', { class: 'status-label-row' }, 'O QUE VOCÊ ESTÁ FAZENDO?', count), input),
+    ideas, clear, error,
+    el('div', { class: 'confirm-actions' }, cancel, save));
+    const overlay = el('div', { class: 'confirm-overlay nickname-overlay', onmousedown: (event) => { if (event.target === overlay) close(); } }, form);
+    const onKey = (event) => {
+      if (event.key === 'Escape') { event.preventDefault(); event.stopImmediatePropagation(); close(); }
+      if (event.key === 'Tab') {
+        const controls = [...form.querySelectorAll('input, button')].filter((control) => !control.disabled);
+        const first = controls[0], last = controls.at(-1);
+        if (!first) { event.preventDefault(); return; }
+        if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last.focus(); }
+        else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first.focus(); }
+      }
+    };
+    refresh();
+    nicknameDialog = { close }; document.body.append(overlay); document.addEventListener('keydown', onKey, true); input.focus(); input.select();
   }
 
   function openNicknameEditor() {
@@ -2794,7 +3118,7 @@
     applyAudio();
   }
   function mention(m) {
-    if (state.view !== 'chat') { state.view = 'chat'; render(); }
+    if (!chatShown()) { state.view = 'chat'; render(); }
     if (state.home && !state.textChannel) return messageUser(m.id);
     insertAtCursor('@' + (m.username || m.name) + ' ');
   }
@@ -2961,7 +3285,8 @@
     const v = voiceOf(m);
     const room = v && channelById(v.channel);
     const color = m.color || '#5865f2';
-    const presence = !m.online ? ['offline', 'Offline'] : room ? ['online', 'Em ' + room.name] : ['online', 'Online'];
+    const presence = [presenceOf(m), room && presenceOf(m) !== 'offline' ? 'Em ' + room.name : presenceLabel(m)];
+    const statusText = statusTextOf(m);
     const canManageRoles = hasPerm('MANAGE_ROLES') && canActOn(m);
     const myTop = topPos(meMember());
     const roles = sortedRoles(m);
@@ -2997,7 +3322,15 @@
     })() : null;
 
     const actions = [];
-    if (self) actions.push(el('button', { type: 'button', class: 'pc-btn primary', onclick: () => { closeProfile(); $('#btn-settings').click(); } }, Icon('pencil', 16), 'Editar perfil'));
+    if (self) actions.push(el('button', { type: 'button', class: 'pc-btn primary', onclick: () => { closeProfile(); $('#btn-settings').click(); } }, Icon('pencil', 16), 'Editar perfil'),
+      el('button', { type: 'button', class: 'pc-btn', onclick: (e) => {
+        // O menu abre colado ao cartão (do lado que tiver espaço), alinhado ao botão; o perfil continua aberto.
+        const b = e.currentTarget.getBoundingClientRect(), c = card.getBoundingClientRect();
+        openStatusMenu(0, 0);
+        // offsetWidth/Height: o tamanho real, sem a escala da animação de entrada.
+        const menu = $('#context-menu'), w = menu.offsetWidth, h = menu.offsetHeight;
+        showMenuAt(c.left - w - 8 >= 8 ? c.left - w - 8 : c.right + 8, b.bottom - h);
+      } }, el('span', { class: 'status-glyph ' + presence[0] }), 'Mudar status'));
     else {
       const rel = relation(m.id);
       const social = (icon, label, run, primary = true) => actions.push(el('button', { type: 'button', class: 'pc-btn' + (primary ? ' primary' : ''), onclick: () => { closeProfile(); run(); } }, Icon(icon, 16), label));
@@ -3038,6 +3371,7 @@
       el('div', { class: 'pc-body' },
         el('div', { class: 'pc-name', textContent: m.name, style: { color: nameColor(m) || '' } }),
         m.nickname ? el('div', { class: 'pc-username', textContent: 'Nome de usuário: ' + m.username }) : null,
+        statusText ? el('div', { class: 'pc-status-text' + (self ? ' editable' : ''), tip: self ? 'Editar frase de status' : undefined, onclick: self ? () => { closeProfile(); openStatusTextEditor(); } : undefined }, statusText) : null,
         el('div', { class: 'pc-tags' },
           isOwner(m.id) ? el('span', { class: 'pc-tag owner' }, Icon('crown', 12), 'Dono do servidor') : null,
           el('span', { class: 'pc-tag ' + presence[0] }, el('span', { class: 'pc-dot ' + presence[0] }), presence[1]),
@@ -3087,12 +3421,13 @@
     STREAM: ['Vídeo', 'Permite ligar a câmera e compartilhar a tela nos canais de voz.'],
     SOUNDBOARD: ['Usar efeitos sonoros', 'Permite tocar os efeitos do soundboard (grilo, trovão…) na chamada.'],
     MANAGE_SOUNDBOARD: ['Gerenciar efeitos sonoros', 'Permite adicionar e remover os efeitos personalizados deste servidor.'],
+    MANAGE_EMOJIS: ['Gerenciar emojis', 'Permite adicionar, renomear e remover os emojis próprios deste servidor.'],
     MUSIC: ['Usar o DJ', 'Permite pedir músicas do YouTube na chamada e pausar, pular ou parar o DJ para a sala toda.'],
     MUTE_MEMBERS: ['Silenciar e ensurdecer membros', 'Permite silenciar ou ensurdecer outras pessoas para todo o servidor.'],
     MOVE_MEMBERS: ['Mover membros', 'Permite mover e desconectar membros entre canais de voz.'],
   };
   const PERM_GROUPS = [
-    ['Permissões gerais do servidor', ['ADMIN', 'MANAGE_ROLES', 'MANAGE_CHANNELS', 'MANAGE_SOUNDBOARD']],
+    ['Permissões gerais do servidor', ['ADMIN', 'MANAGE_ROLES', 'MANAGE_CHANNELS', 'MANAGE_SOUNDBOARD', 'MANAGE_EMOJIS']],
     ['Permissões de membros', ['KICK', 'BAN', 'TIMEOUT']],
     ['Permissões de canais de texto', ['SEND_MESSAGES', 'MANAGE_MESSAGES', 'MENTION_EVERYONE', 'MUDAE']],
     ['Permissões de canais de voz', ['CONNECT', 'SPEAK', 'STREAM', 'SOUNDBOARD', 'MUSIC', 'MUTE_MEMBERS', 'MOVE_MEMBERS']],
@@ -3104,10 +3439,11 @@
     { id: 'roles', label: 'Cargos', icon: 'crown', perm: 'MANAGE_ROLES' },
     { id: 'channels', label: 'Canais', icon: 'hash', perm: 'MANAGE_CHANNELS' },
     { id: 'soundboard', label: 'Efeitos sonoros', icon: 'music', perm: 'MANAGE_SOUNDBOARD' },
+    { id: 'emojis', label: 'Emojis', icon: 'smile', perm: 'MANAGE_EMOJIS' },
     { id: 'members', label: 'Membros', icon: 'users', perm: null },
     { id: 'bans', label: 'Banimentos', icon: 'lock', perm: 'BAN', group: 'MODERAÇÃO' },
   ];
-  const ADMIN_PERMS = ['ADMIN', 'MANAGE_ROLES', 'MANAGE_CHANNELS', 'MANAGE_SOUNDBOARD', 'BAN', 'KICK', 'TIMEOUT'];
+  const ADMIN_PERMS = ['ADMIN', 'MANAGE_ROLES', 'MANAGE_CHANNELS', 'MANAGE_SOUNDBOARD', 'MANAGE_EMOJIS', 'BAN', 'KICK', 'TIMEOUT'];
   const admin = { mode: 'server', page: 'overview', channelId: null, roleId: null, roleTab: 'display', draft: null, base: null, draftKey: null, search: {}, busy: false };
   const serverName = () => state.server?.serverName || 'Resenha';
   const canAdmin = () => ADMIN_PERMS.some(hasPerm);
@@ -3227,7 +3563,7 @@
     const scroll = body.scrollTop;
     renderAdminNav();
     const content = admin.mode === 'channel' ? channelPage() : {
-      overview: overviewPage, roles: rolesPage, channels: channelsPage, soundboard: soundboardPage, members: membersPage, bans: bansPage,
+      overview: overviewPage, roles: rolesPage, channels: channelsPage, soundboard: soundboardPage, emojis: emojisPage, members: membersPage, bans: bansPage,
     }[admin.page]();
     body.replaceChildren(content);
     body.scrollTop = scroll;
@@ -3682,7 +4018,8 @@
       // Trilha silenciosa para manter a negociação WebRTC igual para todos.
       return getAudioCtx().createMediaStreamDestination().stream;
     }
-    return ai ? suppressNoise(raw, options.noiseMode) : raw;
+    const fx = VoiceFx.valid(options.voiceFx) && options.voiceFx !== 'none';
+    return ai || fx ? processMic(raw, options) : raw;
   }
 
   // ---------------- supressão de ruído por IA (estilo Krisp) ----------------
@@ -3694,39 +4031,62 @@
     'ai-lite': { worklet: 'rnnoise/workletProcessor.js', load: (lib) => lib.loadRnnoise({ url: '/vendor/noise/rnnoise.wasm', simdUrl: '/vendor/noise/rnnoise_simd.wasm' }), Node: 'RnnoiseWorkletNode' },
   };
 
-  async function suppressNoise(raw, mode) {
-    try {
-      const f = NOISE_FILES[mode];
-      // Os modelos trabalham a 48 kHz (a taxa do Opus), então o contexto é criado nessa taxa.
-      noise.ctx ||= new AudioContext({ sampleRate: 48000, latencyHint: 'interactive' });
-      if (noise.ctx.state === 'suspended') noise.ctx.resume();
-      noise.lib ||= await import('/vendor/noise/index.js');
-      if (!noise.modules.has(mode)) {
-        await noise.ctx.audioWorklet.addModule('/vendor/noise/' + f.worklet);
-        noise.modules.add(mode);
+  // Microfone → (supressão de ruído por IA) → (modificador de voz) → chamada, tudo num contexto de 48 kHz.
+  // Se uma etapa falhar, as outras seguem; sem nenhuma, volta o microfone direto.
+  async function processMic(raw, options) {
+    const mode = options.noiseMode, ai = mode === 'ai' || mode === 'ai-lite';
+    const fxId = VoiceFx.valid(options.voiceFx) && options.voiceFx !== 'none' ? options.voiceFx : null;
+    // Os modelos trabalham a 48 kHz (a taxa do Opus), então o contexto é criado nessa taxa.
+    noise.ctx ||= new AudioContext({ sampleRate: 48000, latencyHint: 'interactive' });
+    if (noise.ctx.state === 'suspended') noise.ctx.resume();
+    const source = noise.ctx.createMediaStreamSource(raw);
+    // Converte para mono antes da IA: o modelo processa um canal só e, se o microfone
+    // chegasse em estéreo, o canal vazio na saída cortaria o volume da voz pela metade (-6 dB).
+    const mono = noise.ctx.createGain();
+    mono.channelCount = 1;
+    mono.channelCountMode = 'explicit';
+    source.connect(mono);
+    let tail = mono, node = null, fx = null;
+    if (ai) {
+      try {
+        const f = NOISE_FILES[mode];
+        noise.lib ||= await import('/vendor/noise/index.js');
+        if (!noise.modules.has(mode)) {
+          await noise.ctx.audioWorklet.addModule('/vendor/noise/' + f.worklet);
+          noise.modules.add(mode);
+        }
+        noise.wasm[mode] ||= await f.load(noise.lib);
+        node = new noise.lib[f.Node](noise.ctx, { maxChannels: 1, wasmBinary: noise.wasm[mode] });
+        tail = tail.connect(node);
+      } catch (err) {
+        console.warn('Supressão de ruído por IA indisponível:', err);
+        toast('Não consegui ligar a supressão de ruído por IA neste navegador; usando o microfone normal.');
       }
-      noise.wasm[mode] ||= await f.load(noise.lib);
-      const source = noise.ctx.createMediaStreamSource(raw);
-      // Converte para mono antes da IA: o modelo processa um canal só e, se o microfone
-      // chegasse em estéreo, o canal vazio na saída cortaria o volume da voz pela metade (-6 dB).
-      const mono = noise.ctx.createGain();
-      mono.channelCount = 1;
-      mono.channelCountMode = 'explicit';
-      const node = new noise.lib[f.Node](noise.ctx, { maxChannels: 1, wasmBinary: noise.wasm[mode] });
-      const dest = noise.ctx.createMediaStreamDestination();
-      dest.channelCount = 1;
-      source.connect(mono).connect(node).connect(dest);
-      const out = dest.stream;
-      noise.pipes.set(out, { raw, source, mono, node, dest });
-      return out;
-    } catch (err) {
-      console.warn('Supressão de ruído por IA indisponível:', err);
-      toast('Não consegui ligar a supressão de ruído por IA neste navegador; usando o microfone normal.');
+    }
+    if (fxId) {
+      try {
+        fx = await VoiceFx.create(noise.ctx, fxId);
+        tail.connect(fx.input);
+        tail = fx.output;
+      } catch (err) {
+        console.warn('Modificador de voz indisponível:', err);
+        toast('Não consegui ligar o modificador de voz neste navegador; sua voz vai normal.');
+      }
+    }
+    if (tail === mono) {
+      source.disconnect();
+      mono.disconnect();
       return raw;
     }
+    const dest = noise.ctx.createMediaStreamDestination();
+    dest.channelCount = 1;
+    tail.connect(dest);
+    const out = dest.stream;
+    noise.pipes.set(out, { raw, source, mono, node, fx, dest });
+    return out;
   }
 
-  // Para o microfone e desmonta a supressão de ruído ligada a ele.
+  // Para o microfone e desmonta a supressão de ruído e o modificador de voz ligados a ele.
   function releaseMic(stream) {
     if (!stream) return;
     stream.getTracks().forEach((t) => t.stop());
@@ -3735,8 +4095,9 @@
     pipe.raw.getTracks().forEach((t) => t.stop());
     pipe.source.disconnect();
     pipe.mono.disconnect();
-    pipe.node.disconnect();
-    pipe.node.destroy?.();
+    pipe.node?.disconnect();
+    pipe.node?.destroy?.();
+    pipe.fx?.destroy();
     noise.pipes.delete(stream);
   }
 
@@ -3769,6 +4130,28 @@
     applyAudio();
     unwatchSpeaking(state.me.sid);
     watchSpeaking(state.me.sid, next);
+  }
+
+  // Troca o efeito do modificador de voz. Entre dois efeitos a troca é na hora; ligar ou
+  // desligar refaz o microfone (sem efeito, a voz não passa pelo processamento nem ganha atraso).
+  async function setVoiceFx(id) {
+    if (!VoiceFx.valid(id) || id === state.voiceFx) return;
+    const previous = state.voiceFx;
+    state.voiceFx = id;
+    localStorage.setItem('voiceFx', id);
+    if (state.voiceChannel) {
+      const pipe = noise.pipes.get(state.micStream);
+      try {
+        if (pipe?.fx && id !== 'none') await pipe.fx.set(id);
+        else await restartMic();
+      } catch {
+        state.voiceFx = previous;
+        localStorage.setItem('voiceFx', previous);
+        toast('Não foi possível trocar o efeito de voz.', 'error');
+      }
+      sendVoiceState();
+    }
+    renderControls();
   }
 
   function setNoiseMode(mode) {
@@ -3957,6 +4340,7 @@
       sharing: !!state.local.screen,
       paused: !!state.local.screen && state.sharePaused,
       camera: !!state.local.camera,
+      voiceFx: noise.pipes.get(state.micStream)?.fx?.id || null, // os outros veem um selo com o efeito
     });
   }
 
@@ -4100,6 +4484,7 @@
     if (!opts.keepView && isDm(channel)) openDm(channel);
     else if (!opts.keepView) { state.view = 'voice'; closePanels(); }
     Sounds.play('join');
+    Sounds.preloadBoard(); // os efeitos já ficam prontos para tocar na hora
     watchSpeaking(state.me.sid, state.micStream);
     attachGate(state.micStream);
     applyAudio();
@@ -4112,6 +4497,7 @@
   function leaveVoice(notify = true, sound = true) {
     if (!state.voiceChannel) return;
     Sounds.stopBoard();
+    cameraPreviewSession?.close();
     stopVideo('screen', false);
     stopVideo('camera', false);
     sfu.disconnect();
@@ -4405,6 +4791,67 @@
         } }, Icon('trash', 16), 'Remover'))) : el('p', { class: 'section-description', textContent: 'Ainda não há efeitos personalizados. Adicione o primeiro som da turma.' })));
   }
 
+  // Emojis do servidor: PNG/JPG/WebP viram um PNG quadrado de 128 px; GIF vai como está (até 512 KB).
+  const MAX_EMOJIS = 50;
+  const emojiName = (fileName) => (fileName || 'emoji').replace(/\.[^.]+$/, '').normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^A-Za-z0-9_]+/g, '_').replace(/^_+|_+$/g, '').slice(0, 32).padEnd(2, '_');
+  async function uploadEmojis(files) {
+    const serverId = state.server.serverId;
+    let added = 0;
+    for (const file of files) {
+      if ((state.server.emojis || []).length + added >= MAX_EMOJIS) { toast(`O servidor já tem ${MAX_EMOJIS} emojis.`); break; }
+      try {
+        let body;
+        if (file.type === 'image/gif') {
+          if (file.size > 512 * 1024) throw new Error(`“${file.name}” passa de 512 KB. Use um GIF menor.`);
+          body = file;
+        } else body = await (await fetch(await cropToSquarePng(file, 128))).blob();
+        let name = emojiName(file.name);
+        const taken = new Set((state.server.emojis || []).map((e) => e.name.toLowerCase()));
+        for (let i = 2; taken.has(name.toLowerCase()); i++) name = emojiName(file.name).slice(0, 29) + '_' + i;
+        const response = await fetch('/servers/' + serverId + '/emojis', { method: 'POST', headers: { 'x-token': localStorage.getItem('token'), 'x-emoji-name': encodeURIComponent(name) }, body });
+        const result = await response.json().catch(() => ({}));
+        if (!response.ok) throw new Error(result.error || 'Não foi possível adicionar o emoji.');
+        added++;
+      } catch (error) { toast(error.message || 'Não foi possível adicionar o emoji.'); }
+    }
+    if (added) toast(added === 1 ? 'Emoji adicionado ao servidor!' : `${added} emojis adicionados ao servidor!`, 'info');
+  }
+
+  function emojisPage() {
+    const emojis = state.server.emojis || [];
+    const input = el('input', { type: 'file', accept: 'image/png,image/jpeg,image/webp,image/gif', multiple: true, hidden: true });
+    input.onchange = () => { const files = [...input.files]; input.value = ''; uploadEmojis(files); };
+    const drop = el('button', { type: 'button', class: 'emoji-dropzone', disabled: emojis.length >= MAX_EMOJIS, onclick: () => input.click(),
+      ondragover: (e) => { e.preventDefault(); e.currentTarget.classList.add('dragging'); },
+      ondragleave: (e) => e.currentTarget.classList.remove('dragging'),
+      ondrop: (e) => { e.preventDefault(); e.currentTarget.classList.remove('dragging'); uploadEmojis([...e.dataTransfer.files].filter((f) => f.type.startsWith('image/'))); } },
+    el('span', { class: 'sound-upload-icon' }, Icon('upload', 26)), el('strong', { textContent: 'Enviar emojis' }),
+    el('small', { textContent: 'PNG, JPG, WebP ou GIF · fica quadrado, 128 px · arraste vários de uma vez' }));
+    const row = (emoji) => {
+      const name = el('input', { type: 'text', value: emoji.name, maxLength: 32, spellcheck: false, ariaLabel: 'Nome do emoji ' + emoji.name });
+      const commit = async () => {
+        const next = name.value.trim();
+        if (next === emoji.name) return;
+        if (!await call('emoji:rename', { id: emoji.id, name: next })) name.value = emoji.name;
+        else toast('Emoji renomeado para :' + next + ':', 'info');
+      };
+      name.onkeydown = (e) => { if (e.key === 'Enter') name.blur(); if (e.key === 'Escape') { name.value = emoji.name; name.blur(); } };
+      name.onblur = commit;
+      return el('div', { class: 'server-emoji-row' },
+        el('img', { src: emoji.url, alt: '', class: 'server-emoji-img', draggable: false }),
+        el('label', { class: 'server-emoji-name' }, el('span', { textContent: ':' }), name, el('span', { textContent: ':' })),
+        el('button', { type: 'button', class: 'btn-ghost danger', ariaLabel: 'Remover ' + emoji.name, onclick: async () => {
+          if (await confirmDialog({ title: 'Remover emoji', text: `Remover :${emoji.name}: do servidor? Mensagens antigas mostram só o nome.`, confirm: 'Remover' })) await call('emoji:remove', { id: emoji.id });
+        } }, Icon('trash', 16), 'Remover'));
+    };
+    return el('section', {}, pageHead('Emojis', 'Emojis com a cara de ' + serverName() + '. Todo mundo do servidor pode usar nas mensagens e reações.'),
+      el('div', { class: 'sound-upload emoji-upload' }, el('strong', { textContent: `${emojis.length} de ${MAX_EMOJIS} emojis` }),
+        el('p', { class: 'section-description', textContent: 'Na mensagem, escreva :nome: ou escolha pelo seletor de emojis, na aba do servidor.' }), drop, input),
+      emojis.length ? el('div', { class: 'server-emoji-list' }, emojis.map(row))
+        : el('p', { class: 'section-description', textContent: 'Ainda não há emojis próprios. Envie o primeiro da turma.' }));
+  }
+
   function openSoundboard(anchor) {
     const menu = $('#context-menu');
     const allowed = callPerm('SOUNDBOARD') && !timedOut(callMe());
@@ -4510,6 +4957,94 @@
     showMenuAt(rect.left, rect.top - menu.getBoundingClientRect().height - 8);
   }
 
+  // Leva vozes, transmissões e efeitos para a saída de áudio escolhida.
+  function syncSpeaker() {
+    for (const peer of state.peers.values()) if (peer.audioEl) setSinkId(peer.audioEl);
+    document.querySelectorAll('#stage video').forEach(setSinkId);
+    if (callOutput.bus) audioCtx.setSinkId?.(state.speakerDeviceId || '').catch(() => {});
+    applyAudio();
+  }
+
+  // Menu de dispositivos da chamada: microfone e saída (audio) ou câmera (video).
+  async function openDeviceMenu(kind, anchor) {
+    const devices = await navigator.mediaDevices?.enumerateDevices().catch(() => []) || [];
+    const menu = $('#context-menu');
+    const choices = (deviceKind, key, fallback, apply) => {
+      // "default"/"communications" do Chrome repetem um aparelho real; "Padrão do sistema" já cobre.
+      const found = devices.filter((d) => d.kind === deviceKind && d.deviceId && !['default', 'communications'].includes(d.deviceId));
+      const current = ['default', 'communications'].includes(state[key]) ? '' : state[key];
+      const options = [{ id: '', label: 'Padrão do sistema' }, ...found.map((d, i) => ({ id: d.deviceId, label: d.label || `${fallback} ${i + 1}` }))];
+      if (current && !options.some((o) => o.id === current)) options.push({ id: current, label: 'Dispositivo salvo (desconectado)', missing: true });
+      return options.map((o) => el('button', {
+        type: 'button', class: 'menu-item device-item' + (o.id === current ? ' current' : '') + (o.missing ? ' missing' : ''), role: 'menuitemradio', ariaChecked: String(o.id === current),
+        onclick: async () => { closeMenu(); if (o.id !== current && !o.missing) await apply(o.id, o.label); },
+      }, el('span', { class: 'device-name', textContent: o.label }), o.id === current ? Icon('check', 16) : null));
+    };
+    const items = [];
+    if (kind === 'audio') {
+      items.push(el('div', { class: 'menu-section', textContent: 'MICROFONE' }), ...choices('audioinput', 'micDeviceId', 'Microfone', async (id, label) => {
+        if (state.voiceChannel) {
+          try { await restartMic({ ...state, micDeviceId: id }); }
+          catch { toast('Não foi possível usar esse microfone. O anterior continua ligado.', 'error'); return; }
+        }
+        state.micDeviceId = id;
+        localStorage.setItem('micDeviceId', id);
+        toast('Microfone: ' + label, 'info');
+      }));
+      if ('setSinkId' in HTMLMediaElement.prototype) {
+        items.push(el('div', { class: 'menu-sep' }), el('div', { class: 'menu-section', textContent: 'SAÍDA DE ÁUDIO' }), ...choices('audiooutput', 'speakerDeviceId', 'Saída', (id, label) => {
+          state.speakerDeviceId = id;
+          localStorage.setItem('speakerDeviceId', id);
+          syncSpeaker();
+          toast('Saída de áudio: ' + label, 'info');
+        }));
+      }
+      // Modificador de voz: troca na hora, com o menu aberto para experimentar outros.
+      const chips = Object.entries(VoiceFx.PRESETS).map(([id, p]) => el('button', {
+        type: 'button', class: 'vfx-chip' + (id === state.voiceFx ? ' selected' : ''), role: 'menuitemradio', ariaChecked: String(id === state.voiceFx), tip: p.desc,
+        onclick: async () => {
+          await setVoiceFx(id);
+          for (const chip of chips) {
+            chip.classList.toggle('selected', chip.dataset.fx === state.voiceFx);
+            chip.setAttribute('aria-checked', String(chip.dataset.fx === state.voiceFx));
+          }
+        },
+        data: { fx: id },
+      }, el('span', { textContent: p.emoji, ariaHidden: 'true' }), el('span', { textContent: p.label })));
+      items.push(el('div', { class: 'menu-sep' }), el('div', { class: 'menu-section', textContent: 'EFEITO DE VOZ' }), el('div', { class: 'vfx-chips' }, chips));
+      const vol = el('input', { type: 'range', min: 0, max: 100, value: state.outputVolume, ariaLabel: 'Volume da chamada' });
+      const value = el('span', { textContent: state.outputVolume + '%' });
+      vol.oninput = () => {
+        state.outputVolume = Number(vol.value);
+        value.textContent = vol.value + '%';
+        localStorage.setItem('outputVolume', vol.value);
+        applyAudio();
+      };
+      items.push(el('div', { class: 'menu-sep' }), el('div', { class: 'menu-range' }, el('div', { class: 'menu-range-head' }, el('span', { textContent: 'Volume da chamada' }), value), vol),
+        el('div', { class: 'menu-sep' }), menuItem('Configurações de voz', 'settings', () => { closePanels(); preferences.open('voice'); }));
+    } else {
+      items.push(el('div', { class: 'menu-section', textContent: 'CÂMERA' }), ...choices('videoinput', 'cameraDeviceId', 'Câmera', async (id, label) => {
+        state.cameraDeviceId = id;
+        localStorage.setItem('cameraDeviceId', id);
+        // Com a câmera ligada, reabre já no aparelho novo.
+        if (state.local.camera) { stopVideo('camera'); await startVideo('camera'); }
+        toast('Câmera: ' + label, 'info');
+      }));
+      if (state.voiceChannel && canVideo()) items.push(el('div', { class: 'menu-sep' }),
+        menuItem(state.local.camera ? 'Desligar câmera' : 'Ligar câmera', state.local.camera ? 'cameraOff' : 'camera', () => $('#btn-camera').click()));
+      items.push(el('div', { class: 'menu-sep' }), menuItem('Configurações de vídeo', 'settings', () => { closePanels(); preferences.open('voice'); }));
+    }
+    closeMenu();
+    menu.style.width = '280px';
+    menu.classList.add('device-menu');
+    menu.replaceChildren(...items);
+    // Abre acima da barra inteira da chamada (não por cima dela).
+    const rect = anchor.getBoundingClientRect(), top = (anchor.closest('#stage-controls') || anchor).getBoundingClientRect().top;
+    menu.classList.remove('hidden');
+    showMenuAt(rect.left + rect.width / 2 - 140, top - menu.getBoundingClientRect().height - 8);
+    menu.querySelector('.device-item.current, .device-item')?.focus();
+  }
+
   function openShareMenu(anchor) {
     const menu = $('#context-menu');
     const live = !!state.local.screen;
@@ -4574,7 +5109,75 @@
     if (!canVideo() && !state.local.screen) return;
     openShareMenu(e.currentTarget);
   };
-  $('#btn-camera').onclick = () => (state.local.camera ? stopVideo('camera') : startVideo('camera'));
+  $('#btn-camera').onclick = () => (state.local.camera ? stopVideo('camera') : state.cameraPreview ? openCameraPreview() : startVideo('camera'));
+
+  // Prévia local da câmera: a pessoa confere enquadramento e luz antes de a chamada ver.
+  // A mesma captura vira a câmera da chamada (sem pedir o dispositivo de novo).
+  let cameraPreviewSession = null;
+  async function openCameraPreview() {
+    if (cameraPreviewSession || !state.voiceChannel) return;
+    const returnFocus = document.activeElement;
+    let stream = null, closed = false, epoch = 0;
+    const video = el('video', { class: 'campv-video', autoplay: true, muted: true, playsInline: true });
+    const status = el('div', { class: 'campv-status' }, el('span', { class: 'campv-spinner' }), el('span', { textContent: 'Abrindo a câmera…' }));
+    const select = el('select', { class: 'campv-select', ariaLabel: 'Câmera' });
+    const always = el('input', { type: 'checkbox', checked: state.cameraPreview });
+    const start = el('button', { type: 'button', class: 'btn-primary', disabled: true }, Icon('camera', 18), 'Ligar câmera');
+    const stop = () => { stream?.getTracks().forEach((t) => t.stop()); stream = null; video.srcObject = null; };
+    const close = (keep = false) => {
+      if (closed) return;
+      closed = true; epoch++;
+      if (!keep) stop();
+      overlay.remove(); document.removeEventListener('keydown', onKey, true);
+      cameraPreviewSession = null; returnFocus?.focus?.();
+    };
+    async function open(deviceId) {
+      const current = ++epoch;
+      stop(); start.disabled = true;
+      status.classList.remove('hidden', 'error');
+      status.replaceChildren(el('span', { class: 'campv-spinner' }), el('span', { textContent: 'Abrindo a câmera…' }));
+      try {
+        const next = await navigator.mediaDevices.getUserMedia({ video: { deviceId: deviceId ? { exact: deviceId } : undefined, width: { ideal: 1280 }, height: { ideal: 720 }, frameRate: { ideal: 30 } } });
+        if (closed || current !== epoch) { next.getTracks().forEach((t) => t.stop()); return; }
+        stream = next; video.srcObject = next;
+        status.classList.add('hidden'); start.disabled = false;
+        const devices = (await navigator.mediaDevices.enumerateDevices()).filter((d) => d.kind === 'videoinput');
+        const active = next.getVideoTracks()[0]?.getSettings().deviceId || deviceId;
+        select.replaceChildren(...devices.map((d, i) => new Option(d.label || 'Câmera ' + (i + 1), d.deviceId, false, d.deviceId === active)));
+        select.closest('.campv-device').classList.toggle('hidden', devices.length < 2);
+      } catch (error) {
+        if (closed || current !== epoch) return;
+        status.classList.add('error');
+        status.replaceChildren(Icon('cameraOff', 28), el('strong', { textContent: error.name === 'NotAllowedError' ? 'Câmera bloqueada' : 'Não deu para abrir a câmera' }),
+          el('span', { textContent: error.name === 'NotAllowedError' ? 'Libere a câmera para este site no navegador e tente de novo.' : 'Ela pode estar em uso por outro programa. Feche-o ou escolha outra câmera.' }));
+      }
+    }
+    select.onchange = () => { state.cameraDeviceId = select.value; localStorage.setItem('cameraDeviceId', select.value); open(select.value); };
+    always.onchange = () => { state.cameraPreview = always.checked; localStorage.setItem('cameraPreview', always.checked); };
+    start.onclick = () => {
+      const captured = stream;
+      if (!captured) return;
+      close(true);
+      startVideo('camera', captured);
+    };
+    const card = el('div', { class: 'campv-card', role: 'dialog', ariaModal: 'true', ariaLabelledby: 'campv-title' },
+      el('div', { class: 'campv-head' },
+        el('div', {}, el('h2', { id: 'campv-title', textContent: 'Prévia da câmera' }), el('p', { textContent: 'Só você está vendo. Confira o enquadramento antes de ligar.' })),
+        el('button', { type: 'button', class: 'campv-close', ariaLabel: 'Fechar', onclick: () => close() }, Icon('x', 20))),
+      el('div', { class: 'campv-stage' }, video, status, el('span', { class: 'campv-badge' }, el('span', { class: 'campv-dot' }), 'Só você vê')),
+      el('label', { class: 'campv-device hidden' }, Icon('camera', 16), select),
+      el('label', { class: 'campv-always' }, always, el('span', { textContent: 'Sempre mostrar esta prévia antes de ligar a câmera' })),
+      el('div', { class: 'confirm-actions' }, el('button', { type: 'button', class: 'btn-ghost', textContent: 'Cancelar', onclick: () => close() }), start));
+    const overlay = el('div', { class: 'confirm-overlay campv-overlay', onmousedown: (e) => { if (e.target === overlay) close(); } }, card);
+    const onKey = (e) => {
+      if (e.key === 'Escape') { e.preventDefault(); e.stopImmediatePropagation(); close(); }
+      if (e.key === 'Enter' && !start.disabled && e.target.tagName !== 'SELECT') { e.preventDefault(); start.click(); }
+    };
+    cameraPreviewSession = { close };
+    document.body.append(overlay); document.addEventListener('keydown', onKey, true);
+    start.focus();
+    open(state.cameraDeviceId);
+  }
   $('#btn-leave').onclick = () => leaveVoice();
   $('#sc-leave').onclick = () => leaveVoice();
   $('#sc-mic').onclick = () => $('#btn-mute').click();
@@ -4582,6 +5185,12 @@
   $('#sc-sounds').onclick = (e) => openSoundboard(e.currentTarget);
   $('#sc-music').onclick = (e) => dj.openPanel(e.currentTarget);
   $('#sc-cam').onclick = () => $('#btn-camera').click();
+  // Setinha ao lado (ou clique direito no botão): troca de dispositivo sem sair da chamada.
+  $('#sc-mic-devices').onclick = (e) => openDeviceMenu('audio', e.currentTarget);
+  $('#sc-cam-devices').onclick = (e) => openDeviceMenu('video', e.currentTarget);
+  for (const [id, kind] of [['#sc-mic', 'audio'], ['#sc-deaf', 'audio'], ['#sc-cam', 'video'], ['#btn-mute', 'audio'], ['#btn-deafen', 'audio']]) {
+    $(id).addEventListener('contextmenu', (e) => { e.preventDefault(); openDeviceMenu(kind, e.currentTarget); });
+  }
   $('#sc-screen').onclick = (e) => {
     if (!canVideo() && !state.local.screen) return;
     openShareMenu(e.currentTarget);
@@ -4825,10 +5434,10 @@
   const settingFields = {
     'profile-color': 'color', 'profile-avatar': 'avatar', 'profile-avatar-crop': 'avatarCrop', 'profile-banner': 'banner', 'profile-banner-crop': 'bannerCrop',
     'profile-background': 'background', 'profile-background-crop': 'backgroundCrop', 'mic-select': 'micDeviceId', 'speaker-select': 'speakerDeviceId',
-    'camera-select': 'cameraDeviceId', 'noise-mode': 'noiseMode', 'echo-toggle': 'echoCancellation',
+    'camera-select': 'cameraDeviceId', 'noise-mode': 'noiseMode', 'echo-toggle': 'echoCancellation', 'voice-fx': 'voiceFx',
     'sens-auto': 'sensAuto', 'sens-range': 'sensThreshold', 'input-mode': 'inputMode',
     'ptt-code': 'pttCode', 'ptt-label': 'pttLabel', 'keybinds-data': 'keybinds', 'upload-select': 'uploadMbps',
-    'share-preset': 'sharePreset', 'share-audio': 'shareAudio', 'stream-stats': 'showStreamStats',
+    'share-preset': 'sharePreset', 'share-audio': 'shareAudio', 'stream-stats': 'showStreamStats', 'camera-preview-toggle': 'cameraPreview',
     'sounds-toggle': 'sounds', 'notify-toggle': 'notify', 'sb-toggle': 'soundboard', 'sb-volume': 'sbVolume',
     'output-volume': 'outputVolume', 'theme-select': 'theme', 'density-select': 'density',
     'font-size': 'fontSize', 'reduce-motion': 'reduceMotion',
@@ -4851,6 +5460,7 @@
   function previewAppearance(values) {
     Object.assign(document.documentElement.dataset, { theme: values.theme, density: values.density, reduceMotion: String(values.reduceMotion), streamStats: String(values.showStreamStats) });
     document.documentElement.style.setProperty('--chat-size', values.fontSize + 'px');
+    if (values.voiceFx !== undefined) renderVoiceFxGrid(values.voiceFx);
     if (values.avatar !== undefined) {
       const crop = values.avatarCrop ? JSON.parse(values.avatarCrop) : null;
       setAvatarContents($('#profile-preview-avatar'), values.avatar, meMember()?.name, crop);
@@ -4923,7 +5533,7 @@
   }
   async function applyPreferences(values) {
     stopSettingsTests();
-    const micChanged = ['micDeviceId', 'noiseMode', 'echoCancellation'].some((key) => values[key] !== state[key]);
+    const micChanged = ['micDeviceId', 'noiseMode', 'echoCancellation', 'voiceFx'].some((key) => values[key] !== state[key]);
     if (micChanged) {
       try { await restartMic({ ...state, ...values }); }
       catch { throw new Error('Não foi possível trocar o microfone. A chamada e o dispositivo anterior foram preservados.'); }
@@ -4948,7 +5558,7 @@
         throw error;
       }
     }
-    for (const key of ['micDeviceId', 'speakerDeviceId', 'cameraDeviceId', 'noiseMode', 'echoCancellation', 'sensAuto', 'sensThreshold', 'uploadMbps', 'shareAudio', 'showStreamStats', 'outputVolume', 'notify']) {
+    for (const key of ['micDeviceId', 'speakerDeviceId', 'cameraDeviceId', 'noiseMode', 'echoCancellation', 'voiceFx', 'sensAuto', 'sensThreshold', 'uploadMbps', 'shareAudio', 'showStreamStats', 'cameraPreview', 'outputVolume', 'notify']) {
       state[key] = values[key]; localStorage.setItem(key, state[key]);
     }
     localStorage.setItem('showStreamStatsDefault', 'visible-v2');
@@ -4967,10 +5577,8 @@
     localStorage.setItem('appearance', JSON.stringify({ theme: state.theme, density: state.density, fontSize: state.fontSize, reduceMotion: state.reduceMotion }));
     previewAppearance(state);
     setSharePreset(values.sharePreset);
-    for (const peer of state.peers.values()) if (peer.audioEl) setSinkId(peer.audioEl);
-    document.querySelectorAll('#stage video').forEach(setSinkId);
-    if (callOutput.bus) audioCtx.setSinkId?.(state.speakerDeviceId || '').catch(() => {});
-    applyAudio();
+    syncSpeaker();
+    if (micChanged && state.voiceChannel) sendVoiceState();
     renderControls();
     if (values.notify && (!('Notification' in window) || Notification.permission !== 'granted')) toast('Preferência salva. Libere as notificações no navegador para receber os avisos.', 'info');
   }
@@ -5206,6 +5814,40 @@
     toast(on ? 'Supressão de ruído desligada' : 'Supressão de ruído por IA ligada', 'info');
   };
 
+  // Modificador de voz nas configurações: cartões dos efeitos (o valor vai no campo escondido #voice-fx).
+  function renderVoiceFxGrid(value = $('#voice-fx').value) {
+    const grid = $('#voice-fx-grid');
+    if (!grid.children.length) {
+      grid.append(...Object.entries(VoiceFx.PRESETS).map(([id, p]) => el('button', { type: 'button', class: 'vfx-card', role: 'radio', data: { fx: id }, onclick: () => pickVoiceFx(id) },
+        el('span', { class: 'vfx-emoji', textContent: p.emoji, ariaHidden: 'true' }), el('strong', { textContent: p.label }), el('small', { textContent: p.desc }))));
+    }
+    for (const card of grid.children) {
+      const on = card.dataset.fx === value;
+      card.classList.toggle('selected', on);
+      card.setAttribute('aria-checked', String(on));
+      card.tabIndex = on ? 0 : -1;
+    }
+  }
+  function pickVoiceFx(id) {
+    $('#voice-fx').value = id;
+    $('#voice-fx').dispatchEvent(new Event('input', { bubbles: true }));
+    // Durante o teste, o efeito novo já toca.
+    if (!micTest) return;
+    const pipe = noise.pipes.get(micTest.stream);
+    if (pipe?.fx && id !== 'none') pipe.fx.set(id).catch(() => {});
+    else { stopMicTest(); $('#mic-test').click(); }
+  }
+  $('#voice-fx-grid').addEventListener('keydown', (e) => {
+    const step = { ArrowRight: 1, ArrowDown: 1, ArrowLeft: -1, ArrowUp: -1 }[e.key];
+    if (!step) return;
+    e.preventDefault();
+    const cards = [...$('#voice-fx-grid').children], i = cards.findIndex((c) => c.dataset.fx === $('#voice-fx').value);
+    const next = cards[(i + step + cards.length) % cards.length];
+    pickVoiceFx(next.dataset.fx);
+    next.focus();
+  });
+  $('#voice-fx-test').onclick = () => $('#mic-test').click();
+
   // "Testar microfone": você se ouve (com a supressão escolhida) e vê o nível do som.
   let micTest = null;
   function stopMicTest() {
@@ -5218,6 +5860,7 @@
     releaseMic(micTest.stream);
     micTest = null;
     $('#mic-test').textContent = 'Testar microfone';
+    $('#voice-fx-test').textContent = 'Ouvir minha voz';
     $('#mic-meter-fill').style.width = '0%';
     applyAudio();
     if (wasInCall) toast('Teste encerrado: seu microfone voltou na chamada.', 'info');
@@ -5227,7 +5870,7 @@
     const epoch = ++micTestEpoch;
     $('#mic-test').disabled = true;
     let stream;
-    try { stream = await getMicStream({ ...state, noiseMode: $('#noise-mode').value, echoCancellation: $('#echo-toggle').checked, micDeviceId: $('#mic-select').value }, true); }
+    try { stream = await getMicStream({ ...state, noiseMode: $('#noise-mode').value, echoCancellation: $('#echo-toggle').checked, micDeviceId: $('#mic-select').value, voiceFx: $('#voice-fx').value }, true); }
     catch { toast('Não foi possível testar o microfone. Verifique as permissões.'); return; }
     finally { $('#mic-test').disabled = false; }
     if (epoch !== micTestEpoch || !preferences.isOpen()) { releaseMic(stream); return; }
@@ -5244,6 +5887,7 @@
     const data = new Uint8Array(analyser.fftSize);
     micTest = { stream, audio, analyserSource, raf: 0 };
     $('#mic-test').textContent = 'Parar teste';
+    $('#voice-fx-test').textContent = 'Parar de ouvir';
     applyAudio();
     if (state.voiceChannel) toast('Durante o teste você fica mudo na chamada.', 'info');
     const fdata = new Float32Array(analyser.fftSize);

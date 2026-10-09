@@ -3,6 +3,28 @@
 Histórico de versões. A mesma lista aparece dentro do app em **Novidades** (menu do servidor ou rodapé das Configurações).
 O Resenhex chegou à versão 1.0 em 4 de outubro de 2026.
 
+## v1.2.0 — Modificador de voz, chat nas salas de voz e status
+
+9 de outubro de 2026. Mude sua voz na call, converse no chat da própria sala de voz e mostre se está ausente ou ocupado.
+
+### Novo
+- Modificador de voz com Esquilo, Gigante, Robô, Rádio, Caverna e Alien, nas Configurações e na setinha do microfone; selo com o emoji do efeito para os outros.
+- Chat nas salas de voz, ao lado do palco da call ou pela lista de canais, com aviso de mensagem nova.
+- Troca de microfone, saída de áudio e câmera durante a call, mais o volume da chamada.
+- Status Ausente, Não perturbe e Invisível, com frase de status.
+- Seletor de emojis com busca, categorias e mais usados; até 50 emojis próprios por servidor.
+- Prévia de links no chat (YouTube incluído).
+- Prévia da câmera antes de ligar.
+- Atalhos no palco quando você está sozinho na sala.
+
+### Melhorado
+- Mosaico de imagens e visualizador com zoom, navegação e download.
+- Selos de microfone, fone e AO VIVO nos blocos da call, barras de fala e “(você)”.
+- Efeitos sonoros da call com gravações reais.
+
+### Corrigido
+- Menu de status aberto pelo perfil na lista de membros aparecia solto no pé da tela.
+
 ## v1.1.0 — Calls por servidor de mídia e palco de transmissões novo
 
 7 de outubro de 2026. As calls agora passam por um servidor de mídia (LiveKit): cada pessoa envia a tela uma vez só, não importa quantos assistam.

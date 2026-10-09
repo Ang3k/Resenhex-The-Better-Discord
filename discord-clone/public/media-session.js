@@ -308,13 +308,14 @@ window.MediaSession = function ({ state, socket, call, el, toast, voiceEntry, me
     mediaNotice(error.name === 'NotReadableError' ? 'Não foi possível ler essa fonte. Tente outra janela ou tela.' : 'Não foi possível iniciar a captura. Verifique as permissões e a disponibilidade do dispositivo.');
   }
 
-  async function startVideo(kind) {
-    if (state.captureBusy || state.local[kind] || !state.voiceChannel) return;
+  // "captured" é uma câmera já aberta pela prévia: vira a câmera da chamada sem pedir de novo.
+  async function startVideo(kind, captured = null) {
+    if (state.captureBusy || state.local[kind] || !state.voiceChannel) { captured?.getTracks().forEach((t) => t.stop()); return; }
     const channel = state.voiceChannel, epoch = epochs[kind];
     state.captureBusy = true;
     let stream;
     try {
-      stream = kind === 'screen' ? await captureScreen() : await navigator.mediaDevices.getUserMedia({ video: { deviceId: state.cameraDeviceId ? { exact: state.cameraDeviceId } : undefined, width: { ideal: 1280 }, height: { ideal: 720 }, frameRate: { ideal: 30 } } });
+      stream = kind === 'screen' ? await captureScreen() : captured || await navigator.mediaDevices.getUserMedia({ video: { deviceId: state.cameraDeviceId ? { exact: state.cameraDeviceId } : undefined, width: { ideal: 1280 }, height: { ideal: 720 }, frameRate: { ideal: 30 } } });
       if (state.voiceChannel !== channel || epoch !== epochs[kind]) { stream.getTracks().forEach((track) => track.stop()); return; }
       state.local[kind] = stream;
       if (sfu?.active()) await sfu.publish(kind, stream);

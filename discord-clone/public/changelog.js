@@ -4,6 +4,31 @@
 // O título deve destacar as principais funcionalidades ou correções, com termos objetivos.
 window.CHANGELOG = [
   {
+    version: '1.2.0', date: '2026-10-09', name: 'Modificador de voz, chat nas salas de voz e status',
+    summary: 'Mude sua voz na call (esquilo, gigante, robô e mais), converse no chat da própria sala de voz e mostre se está ausente ou ocupado. Também chegaram o seletor de emojis novo, emojis do servidor e prévia de links no chat.',
+    sections: [
+      { kind: 'new', items: [
+        'Modificador de voz: Esquilo, Gigante, Robô, Rádio, Caverna e Alien. Escolha em Configurações > Voz e vídeo (com “Ouvir minha voz” para testar) ou na setinha do microfone durante a call. Quem está com efeito aparece com o emoji dele no bloco e na lista da sala.',
+        'Chat nas salas de voz: o balão no topo da call abre o chat da sala ao lado do palco, e o balão na lista de canais abre sem entrar na call. Uma bolinha avisa quando chega mensagem com o chat fechado.',
+        'Setinha no microfone e na câmera da call (ou clique direito nos botões): troque microfone, saída de áudio e câmera sem sair da call, e ajuste o volume da chamada.',
+        'Status: Disponível, Ausente, Não perturbe e Invisível, mais uma frase de status. Clique no seu cartão, embaixo à esquerda. Em Não perturbe, menções não tocam som nem mostram aviso.',
+        'Seletor de emojis novo, com busca em português, categorias e os seus mais usados.',
+        'Emojis do servidor: até 50 emojis próprios em Configurações do servidor > Emojis, para usar no chat e nas reações.',
+        'Prévia de links no chat, com título, descrição e imagem (vídeos do YouTube também). Quem escreveu pode remover a prévia.',
+        'Prévia da câmera antes de ligar: confira o enquadramento antes de todo mundo ver (dá para desligar em Voz e vídeo).',
+        'Sozinho na sala de voz: o palco mostra atalhos para convidar pessoas, compartilhar a tela ou abrir o chat da sala.',
+      ] },
+      { kind: 'improved', items: [
+        'Várias imagens numa mensagem viram um mosaico. O visualizador novo amplia (roda do mouse, duplo clique ou + e -), passa entre as fotos do canal e baixa o arquivo.',
+        'Blocos da call mostram selos de microfone e fone desligados e de AO VIVO, barras quando a pessoa fala e “(você)” no seu bloco.',
+        'Efeitos sonoros da call com gravações reais: grilo, trovão, aplausos, ba-dum-tss, buzina, fail, vitória e suspense.',
+      ] },
+      { kind: 'fixed', items: [
+        'O menu de status aberto pelo perfil na lista de membros aparecia solto no pé da tela. Agora ele abre ao lado do perfil.',
+      ] },
+    ],
+  },
+  {
     version: '1.1.0', date: '2026-10-07', name: 'Calls por servidor de mídia e palco de transmissões novo',
     summary: 'As calls agora passam por um servidor de mídia: cada pessoa envia a tela uma vez só, não importa quantos assistam. O palco de transmissões ganhou grade e destaque.',
     sections: [

@@ -65,8 +65,8 @@
 .menu-item:hover .ico { transform: scale(1.1); }
 .msg-actions button .ico { transition: transform .2s var(--spring); }
 .msg-actions button:hover .ico { transform: scale(1.15); }
-#emoji-picker button { transition: background .12s, transform .15s var(--spring); }
-#emoji-picker button:hover { transform: scale(1.18); }
+#emoji-picker .ep-emoji { transition: background .12s, transform .15s var(--spring); }
+#emoji-picker .ep-emoji:hover { transform: scale(1.18); }
 
 /* ---------- Resposta ao clique ---------- */
 .icon-btn, .vp-btn, .friend-btn, .pc-btn, .pc-icon-btn, .ft-tab, .msg-actions button, #chat-form button, .tc-btn, .cat-add, .group-action { transition-property: background, color, transform, opacity, box-shadow; transition-duration: .12s; }

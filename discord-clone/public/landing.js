@@ -135,7 +135,7 @@
   window.addEventListener('hashchange', () => scheduleChat(1200));
   scheduleChat(4200);
 
-  // Soundboard de exemplo: sons sintetizados na hora, sem arquivos.
+  // Soundboard de exemplo: as gravações do app (public/sfx) e dois sons sintetizados só daqui.
   let audio = null;
   function audioOut() {
     audio ||= new AudioContext();
@@ -236,10 +236,15 @@
     },
   };
 
+  const RECORDED = { badumtss: 'badumtss', airhorn: 'buzina', sad: 'fail', claps: 'aplausos' };
   const sounds = landing.querySelector('.ld-art-sounds');
   for (const pad of landing.querySelectorAll('.ld-pad')) {
     pad.addEventListener('click', (event) => {
-      try { SOUNDS[pad.dataset.sound](audioOut()); } catch {}
+      // Os pads que existem no app tocam a mesma gravação; os outros seguem sintetizados aqui.
+      const recorded = RECORDED[pad.dataset.sound];
+      if (!(recorded && window.Sounds?.playBoard(recorded, 0.9))) {
+        try { SOUNDS[pad.dataset.sound](audioOut()); } catch {}
+      }
       // Contorno e barra de progresso enquanto o som toca, como no soundboard do app.
       pad.classList.remove('playing');
       void pad.offsetWidth;

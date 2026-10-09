@@ -12,6 +12,7 @@ window.Format = (() => {
     ['italic', /(?<![\w])_([^_\n]+)_(?![\w])/],
     ['link', /https?:\/\/[^\s<]+[^\s<.,:;"')\]!?]/],
     ['user', /<@([0-9a-f]{16})>/],
+    ['emoji', /<:(\w{2,32}):([0-9a-f]{16})>/],
     ['role', /<@&([0-9a-f]{16})>/],
     ['everyone', /@(everyone|here)\b/],
   ];
@@ -85,6 +86,17 @@ window.Format = (() => {
         return mention('@' + (role?.name || 'cargo-apagado'), role?.color || null);
       }
       case 'everyone': return mention('@' + m[1]);
+      case 'emoji': {
+        // Emoji do servidor; se foi apagado, fica só o nome.
+        const img = document.createElement('img');
+        img.className = 'custom-emoji';
+        img.src = '/emojis/' + m[2];
+        img.alt = img.title = ':' + m[1] + ':';
+        img.draggable = false;
+        img.loading = 'lazy';
+        img.onerror = () => img.replaceWith(':' + m[1] + ':');
+        return img;
+      }
     }
   }
 
@@ -121,6 +133,7 @@ window.Format = (() => {
     return text
       .replace(/<@([0-9a-f]{16})>/g, (_, id) => '@' + (ctx.member(id)?.name || 'desconhecido'))
       .replace(/<@&([0-9a-f]{16})>/g, (_, id) => '@' + (ctx.role(id)?.name || 'cargo'))
+      .replace(/<:(\w{2,32}):[0-9a-f]{16}>/g, ':$1:')
       .replace(/\|\|[\s\S]+?\|\|/g, '▒▒▒▒▒')
       .replace(/```[a-z0-9+-]*\n?|```/gi, '')
       .replace(/\*\*|__|~~|`/g, '')
@@ -133,7 +146,7 @@ window.Format = (() => {
   const escapeRe = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
   // "@Nome" digitado -> <@id>. Nomes mais longos primeiro ("Ana Paula" antes de "Ana").
-  function toRaw(text, members, roles) {
+  function toRaw(text, members, roles, emojis = []) {
     const usernames = new Set(members.map((m) => (m.username || m.name).toLowerCase()));
     const counts = new Map();
     for (const m of members) counts.set(m.name.toLowerCase(), (counts.get(m.name.toLowerCase()) || 0) + 1);
@@ -147,13 +160,22 @@ window.Format = (() => {
       const re = new RegExp(`(^|[\\s(])@${escapeRe(t.name)}(?=$|[\\s.,!?:;)])`, 'gi');
       text = text.replace(re, (_, pre) => pre + t.token);
     }
+    // ":nome:" de um emoji do servidor -> <:nome:id> (fora de blocos de código).
+    if (emojis.length) {
+      const byName = new Map(emojis.map((e) => [e.name.toLowerCase(), e]));
+      text = text.split(/(```[\s\S]*?```|`[^`\n]+`)/).map((part, i) => (i % 2 ? part : part.replace(/(^|[^<\w]):(\w{2,32}):(?!\d)/g, (all, pre, name) => {
+        const e = byName.get(name.toLowerCase());
+        return e ? `${pre}<:${e.name}:${e.id}>` : all;
+      }))).join('');
+    }
     return text;
   }
 
   // <@id> -> "@Nome", para editar uma mensagem.
   const toDisplay = (text, ctx) => text
     .replace(/<@([0-9a-f]{16})>/g, (all, id) => (ctx.member(id) ? '@' + ctx.member(id).name : all))
-    .replace(/<@&([0-9a-f]{16})>/g, (all, id) => (ctx.role(id) ? '@' + ctx.role(id).name : all));
+    .replace(/<@&([0-9a-f]{16})>/g, (all, id) => (ctx.role(id) ? '@' + ctx.role(id).name : all))
+    .replace(/<:(\w{2,32}):[0-9a-f]{16}>/g, ':$1:');
 
   return { render, plain, toRaw, toDisplay };
 })();

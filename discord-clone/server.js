@@ -9,6 +9,7 @@ const express = require('express');
 const { Server } = require('socket.io');
 const { decodeAvatar, decodeBanner, decodeProfileBackground, decodeProfilePhoto, validateAvatarCrop } = require('./avatar');
 const { decodeSound, soundName, MAX_SOUND_BYTES, MAX_SERVER_SOUNDS } = require('./soundboard');
+const linkPreview = require('./link-preview');
 const { channelActions } = require('./channels');
 const { communityStore } = require('./communities');
 const { downloadRoutes } = require('./downloads');
@@ -59,6 +60,7 @@ const PERMS = {
   STREAM: 'Vídeo (câmera e compartilhar tela)',
   SOUNDBOARD: 'Usar efeitos sonoros',
   MANAGE_SOUNDBOARD: 'Gerenciar efeitos sonoros',
+  MANAGE_EMOJIS: 'Gerenciar emojis',
   MUSIC: 'Usar o DJ (pedir e controlar músicas)',
   MUDAE: 'Usar o Mudae (rodar e casar com personagens)',
 };
@@ -380,6 +382,8 @@ app.get('/baixar', (_req, res) => res.sendFile(path.join(__dirname, 'public', 'b
 app.get('/privacidade', (_req, res) => res.sendFile(path.join(__dirname, 'public', 'privacidade.html')));
 // Supressão de ruído por IA (RNNoise e GTCRN compilados para WebAssembly), usada no navegador.
 app.use('/vendor/noise', express.static(path.dirname(require.resolve('@sapphi-red/web-noise-suppressor')), { maxAge: '7d' }));
+// Mudança de tom do modificador de voz (Signalsmith Stretch, MIT, WebAssembly num AudioWorklet).
+app.get('/vendor/stretch.mjs', (_req, res) => res.sendFile(path.join(path.dirname(require.resolve('signalsmith-stretch')), 'SignalsmithStretch.mjs'), { maxAge: '7d' }));
 // Three.js da cena 3D do Salão do Mudae, servido daqui (sem CDN): só o build e os addons.
 const threeDir = path.join(path.dirname(require.resolve('three')), '..');
 app.use('/vendor/three/build', express.static(path.join(threeDir, 'build'), { maxAge: '7d' }));
@@ -399,7 +403,7 @@ app.get('/invites/:code', (req, res) => {
 // Profile pictures are shared with the server, independent of chat attachments.
 // Uma imagem pode ser foto de alguém e ícone do servidor ao mesmo tempo (mesmo conteúdo, mesmo arquivo).
 const IMAGE_FILE = /^[a-f0-9]{64}\.(png|gif)$/;
-const imageInUse = (file) => Object.values(communities.root.servers).some((s) => s.serverIcon === file) || Object.values(db.accounts).some((account) => account.avatar === file || account.banner === file || account.background === file);
+const imageInUse = (file) => Object.values(communities.root.servers).some((s) => s.serverIcon === file || (s.emojis || []).some((e) => e.file === file)) || Object.values(db.accounts).some((account) => account.avatar === file || account.banner === file || account.background === file);
 function removeImageIfUnused(file) {
   if (!file || !IMAGE_FILE.test(file) || imageInUse(file)) return;
   try { fs.unlinkSync(path.join(AVATAR_DIR, file)); } catch (error) { if (error.code !== 'ENOENT') console.warn('Não foi possível remover uma imagem antiga.'); }
@@ -487,6 +491,76 @@ app.get('/servers/:serverId/sounds/:soundId', (req, res) => {
     res.sendFile(path.join(SOUND_DIR, sound.file));
   });
 });
+// ---------------- prévias de links ----------------
+// A chave que assina as imagens das prévias fica no banco: as prévias antigas continuam abrindo.
+db.linkSecret ||= crypto.randomBytes(32).toString('hex');
+const linkImages = linkPreview.imageProxy(db.linkSecret);
+app.get('/link-image', (req, res) => {
+  if (!allow('link-image:' + clientIp(req.headers, req.socket.remoteAddress), 120, 60_000)) return res.status(429).end();
+  linkImages.handle(req, res);
+});
+// Busca as prévias depois de a mensagem sair (não atrasa o envio) e manda a mensagem atualizada.
+// Se ela foi apagada ou editada nesse meio-tempo, a prévia velha é descartada.
+function attachPreviews(c, msg, emit) {
+  if (msg.noEmbeds || !linkPreview.linksIn(msg.text).length) {
+    if (msg.embeds) { delete msg.embeds; emit(); }
+    return;
+  }
+  const text = msg.text;
+  linkPreview.previews(text).then((found) => {
+    const live = (db.messages[c.id] || []).find((m) => m.id === msg.id);
+    if (!live || live.text !== text || live.noEmbeds) return;
+    const embeds = found.map((e) => ({ ...e, image: linkImages.proxied(e.image) }));
+    if (!embeds.length && !live.embeds) return;
+    if (embeds.length) live.embeds = embeds; else delete live.embeds;
+    emit(); save();
+  });
+}
+
+// ---------------- emojis do servidor ----------------
+// Ficam junto das fotos (/avatars) e aparecem nas mensagens como <:nome:id>. /emojis/:id acha o
+// emoji em qualquer servidor, para ele continuar aparecendo em conversas privadas e em citações.
+const MAX_SERVER_EMOJIS = 50;
+const MAX_EMOJI_BYTES = 512 * 1024;
+const EMOJI_NAME = /^[A-Za-z0-9_]{2,32}$/;
+const emojiList = () => (db.emojis || []).map((e) => ({ id: e.id, name: e.name, url: '/emojis/' + e.id }));
+const checkEmojiName = (name, except = null) => {
+  if (!EMOJI_NAME.test(name)) throw new Error('O nome do emoji deve ter de 2 a 32 letras sem acento, números ou _.');
+  if ((db.emojis || []).some((e) => e.id !== except && e.name.toLowerCase() === name.toLowerCase())) throw new Error('Já existe um emoji com esse nome neste servidor.');
+};
+app.post('/servers/:serverId/emojis', express.raw({ type: () => true, limit: MAX_EMOJI_BYTES + 1024 }), (req, res) => {
+  const acc = authFromToken(req);
+  if (!acc) return res.status(401).json({ error: 'Não autenticado' });
+  communities.run(req.params.serverId, () => {
+    if (!communities.joined(acc.id) || !can(communities.accountView(acc), 'MANAGE_EMOJIS')) return res.status(403).json({ error: 'Você não pode gerenciar os emojis deste servidor.' });
+    if (!allow('emoji-upload:' + acc.id, 20, 60000)) return res.status(429).json({ error: 'Muitos envios. Aguarde um minuto.' });
+    db.emojis ||= [];
+    if (db.emojis.length >= MAX_SERVER_EMOJIS) return res.status(400).json({ error: `O servidor já tem ${MAX_SERVER_EMOJIS} emojis.` });
+    try {
+      const name = decodeURIComponent(req.get('x-emoji-name') || '').trim();
+      checkEmojiName(name);
+      const { ext, data } = decodeProfilePhoto(req.body);
+      if (data.length > MAX_EMOJI_BYTES) throw new Error('O emoji deve ter até 512 KB.');
+      const file = crypto.createHash('sha256').update(data).digest('hex') + '.' + ext;
+      fs.writeFileSync(path.join(AVATAR_DIR, file), data);
+      const emoji = { id: newId(), name, file, createdBy: acc.id, ts: Date.now() };
+      db.emojis.push(emoji); save(); broadcastState();
+      res.json({ ok: true, id: emoji.id });
+    } catch (error) { res.status(400).json({ error: error.message }); }
+  });
+});
+app.get('/emojis/:id', (req, res) => {
+  const emoji = /^[0-9a-f]{16}$/.test(req.params.id) && Object.values(communities.root.servers).flatMap((s) => s.emojis || []).find((e) => e.id === req.params.id);
+  if (!emoji || !IMAGE_FILE.test(emoji.file)) return res.status(404).end();
+  res.set({
+    'Content-Type': emoji.file.endsWith('.gif') ? 'image/gif' : 'image/png',
+    'X-Content-Type-Options': 'nosniff',
+    'Content-Security-Policy': "default-src 'none'; sandbox",
+    'Cache-Control': 'public, max-age=3600',
+  });
+  res.sendFile(path.join(AVATAR_DIR, emoji.file));
+});
+
 // ---------------- DJ (músicas do YouTube nas salas de voz) ----------------
 // Cada sala tem a sua fila ("idDoServidor:idDaSala"). Só a busca passa pelo servidor;
 // o vídeo toca no player oficial do YouTube de cada pessoa.
@@ -580,7 +654,7 @@ app.post('/upload', express.raw({ type: () => true, limit: MAX_UPLOAD_MB * 1024 
   if (dm) {
     const peer = dm.users.find((id) => id !== acc.id);
     if (!dm.users.includes(acc.id) || !areFriends(acc.id, peer) || hasBlocked(acc.id, peer) || hasBlocked(peer, acc.id)) return res.status(403).json({ error: 'Conversa não disponível.' });
-  } else if (!can(acc, 'SEND_MESSAGES') || timedOut(acc) || (targetId && !db.channels.some((c) => c.id === targetId && c.type === 'text' && canView(acc, c)))) return res.status(403).json({ error: 'Você não pode enviar arquivos agora.' });
+  } else if (!can(acc, 'SEND_MESSAGES') || timedOut(acc) || (targetId && !db.channels.some((c) => c.id === targetId && CHAT_TYPES.includes(c.type) && canView(acc, c)))) return res.status(403).json({ error: 'Você não pode enviar arquivos agora.' });
   if (!allow('upload:' + acc.id, 20, 60 * 1000)) return res.status(429).json({ error: 'Muitos arquivos seguidos. Espere um pouco.' });
   if (!Buffer.isBuffer(req.body) || !req.body.length) return res.status(400).json({ error: 'Arquivo vazio' });
   let name;
@@ -678,6 +752,9 @@ function voiceSocketsOf(accountId) {
   return [...online].filter(([, s]) => s.accountId === accountId && s.voice && !isDmCall(s) && s.voiceServerId === communities.currentId()).map(([sid]) => io.sockets.sockets.get(sid)).filter(Boolean);
 }
 
+// Status que a própria pessoa escolhe. "offline" é só o que os outros veem.
+const PRESENCES = ['online', 'idle', 'dnd', 'invisible'];
+
 function publicMember(a, onlineIds) {
   return {
     id: a.id,
@@ -693,7 +770,10 @@ function publicMember(a, onlineIds) {
     backgroundCrop: a.background && a.backgroundCrop || null,
     since: a.createdAt || null,
     roles: a.roles,
-    online: onlineIds.has(a.id),
+    // Quem está invisível aparece offline para todo mundo (inclusive a frase de status).
+    online: onlineIds.has(a.id) && a.presence !== 'invisible',
+    status: !onlineIds.has(a.id) || a.presence === 'invisible' ? 'offline' : PRESENCES.includes(a.presence) ? a.presence : 'online',
+    statusText: onlineIds.has(a.id) && a.presence !== 'invisible' ? a.statusText || null : null,
     serverMuted: !!a.serverMuted,
     serverDeafened: !!a.serverDeafened,
     timeoutUntil: a.timeoutUntil || 0,
@@ -728,6 +808,7 @@ function voiceEntry(sid, s) {
     sharing: s.sharing,
     paused: s.paused,
     camera: s.camera,
+    voiceFx: s.voiceFx || null, // efeito do modificador de voz (selo para os outros)
     viewers: [...online].filter(([, viewer]) => viewer.voice === s.voice && viewer.watching?.has(sid)).map(([viewerId]) => viewerId),
     // "silenced": ninguém deve ouvir essa pessoa (mutada pelo servidor, de castigo ou sem permissão de falar).
     // Numa chamada privada não há cargos nem castigo.
@@ -750,6 +831,7 @@ function stateFor(acc, shared = sharedState()) {
     serverName: db.serverName || 'Resenha',
     serverIcon: db.serverIcon ? '/avatars/' + db.serverIcon : null,
     soundboard: db.soundboard.map((s) => ({ id: s.id, name: s.name, duration: s.duration, url: '/servers/' + communities.currentId() + '/sounds/' + s.id })),
+    emojis: emojiList(),
     roles: db.roles,
     channels: visibleChannels,
     categories: db.categories.filter((g) => perms.has('MANAGE_CHANNELS') || visibleChannels.some((c) => c.categoryId === g.id)),
@@ -857,6 +939,7 @@ function leaveVoice(socket) {
   if (![...online.values()].some((o) => o.voice === left.channel && o.voiceServerId === left.server)) media.vacate(left.server, left.channel);
   s.sharing = false;
   s.camera = false;
+  s.voiceFx = null;
   if (dm) dmCalls.left(dm, s.accountId, roomAccounts(dm));
 }
 
@@ -951,6 +1034,9 @@ function scheduleTimeoutEnd(acc) {
 }
 for (const id of Object.keys(communities.root.servers)) communities.run(id, () => Object.values(db.accounts).forEach(scheduleTimeoutEnd));
 
+const CHAT_TYPES = ['text', 'voice'];
+// Efeitos do modificador de voz (public/voice-fx.js); o servidor só repassa qual está ligado.
+const VOICE_FX = ['esquilo', 'gigante', 'robo', 'radio', 'caverna', 'alien'];
 function emitToViewers(channel, event, payload) {
   for (const [sid, s] of online) {
     if (s.serverId === communities.currentId() && canView(db.accounts[s.accountId], channel)) io.to(sid).emit(event, payload);
@@ -1148,7 +1234,7 @@ io.on('connection', (socket) => {
     const serverId = communities.choose(acc.id, payload.serverId || acc.lastServerId);
     online.set(socket.id, { accountId: acc.id, serverId, voice: null, voiceServerId: null, muted: false, deafened: false, sharing: false, camera: false });
     save();
-    ack({ token, accountId: acc.id, serverId, sid: socket.id, iceServers: iceServers(), permNames: PERMS, maxUploadMb: MAX_UPLOAD_MB, version: APP_VERSION, gifKey: process.env.KLIPY_KEY || null });
+    ack({ token, accountId: acc.id, serverId, sid: socket.id, presence: acc.presence || 'online', statusText: acc.statusText || '', iceServers: iceServers(), permNames: PERMS, maxUploadMb: MAX_UPLOAD_MB, version: APP_VERSION, gifKey: process.env.KLIPY_KEY || null });
     // Páginas de antes da 0.99.3 não mandam a versão nem sabem mostrar o aviso de atualização.
     if (!payload.version) socket.emit('notice', 'Saiu uma versão nova do Resenhex. Aperte F5 para atualizar.');
     socket.emit('social', socialFor(acc));
@@ -1179,6 +1265,22 @@ io.on('connection', (socket) => {
     return { ok: true, avatarUrl: acc.avatar ? '/avatars/' + acc.avatar : null };
   });
 
+  on('presence', (acc, { presence, statusText }) => {
+    if (presence !== undefined) {
+      if (!PRESENCES.includes(presence)) fail('Status inválido.');
+      acc.presence = presence === 'online' ? undefined : presence;
+    }
+    if (statusText !== undefined) {
+      if (statusText !== null && typeof statusText !== 'string') fail('Frase de status inválida.');
+      const text = (statusText || '').normalize('NFC').replace(/\p{Cc}/gu, ' ').trim().replace(/\s+/g, ' ');
+      if ([...text].length > 80) fail('A frase de status deve ter até 80 caracteres.');
+      acc.statusText = text || undefined;
+    }
+    if (!allow('presence:' + acc.id, 20, 60000)) fail('Muitas trocas de status. Aguarde um minuto.');
+    save(); broadcastState();
+    return { ok: true, presence: acc.presence || 'online', statusText: acc.statusText || '' };
+  });
+
   on('member:nickname', (acc, { nickname, serverId }) => {
     if (!communities.joined(acc.id)) fail('Entre em um servidor para editar seu nome nele.');
     if (serverId && serverId !== communities.currentId()) fail('O servidor mudou. Abra a edição novamente.');
@@ -1193,8 +1295,9 @@ io.on('connection', (socket) => {
   });
 
   // --- Chat ---
+  // Salas de voz também têm chat (para mandar links a quem está na chamada).
   const textChannel = (acc, id) => {
-    const c = db.channels.find((ch) => ch.id === id && ch.type === 'text');
+    const c = db.channels.find((ch) => ch.id === id && CHAT_TYPES.includes(ch.type));
     if (!c || !canView(acc, c)) fail('Canal não encontrado');
     return c;
   };
@@ -1395,6 +1498,7 @@ io.on('connection', (socket) => {
     emitToChat(c, 'chat:message', { channel: c.id, msg, author: publicProfiles([acc.id])[0] });
     if (listChanged) pushSocial(acc.id, peer.id);
     save();
+    attachPreviews(c, msg, () => emitToChat(c, 'chat:update', { channel: c.id, msg }));
   });
 
   on('chat:edit', (acc, { channel, id, text }) => {
@@ -1408,6 +1512,20 @@ io.on('connection', (socket) => {
     msg.text = text;
     msg.edited = Date.now();
     msg.mentions = mentionsFor(acc, c, text, list.find((m) => m.id === msg.replyTo)?.authorId);
+    // Links que saíram do texto perdem a prévia; os novos ganham a sua logo depois.
+    if (msg.embeds) msg.embeds = msg.embeds.filter((e) => linkPreview.linksIn(text).includes(e.url));
+    if (msg.embeds && !msg.embeds.length) delete msg.embeds;
+    emitToChat(c, 'chat:update', { channel: c.id, msg });
+    save();
+    attachPreviews(c, msg, () => emitToChat(c, 'chat:update', { channel: c.id, msg }));
+  });
+
+  // Quem escreveu pode tirar as prévias da mensagem (o "x" no cartão).
+  on('chat:suppressEmbeds', (acc, { channel, id }) => {
+    const { c, msg } = findMessage(acc, channel, id);
+    if (msg.authorId !== acc.id && (c.dm || !can(acc, 'MANAGE_MESSAGES'))) fail('Só quem escreveu pode remover a prévia.');
+    msg.noEmbeds = true;
+    delete msg.embeds;
     emitToChat(c, 'chat:update', { channel: c.id, msg });
     save();
   });
@@ -1425,7 +1543,9 @@ io.on('connection', (socket) => {
   on('chat:react', (acc, { channel, id, emoji }) => {
     const { c, msg } = findMessage(acc, channel, id);
     emoji = String(emoji || '');
-    if (!emoji || emoji.length > 16 || /[\s<>]/.test(emoji)) fail('Emoji inválido');
+    const custom = /^<:\w{2,32}:([0-9a-f]{16})>$/.exec(emoji);
+    if (!emoji || (!custom && (emoji.length > 16 || /[\s<>]/.test(emoji)))) fail('Emoji inválido');
+    if (custom && !Object.values(communities.root.servers).some((s) => (s.emojis || []).some((e) => e.id === custom[1]))) fail('Esse emoji não existe mais.');
     if (c.dm) dmPeer(acc, c.dm);
     else if (timedOut(acc)) fail('Você está de castigo.');
     if (!allow('react:' + acc.id, 20, 5000)) fail('Calma! Reações rápidas demais.');
@@ -1452,7 +1572,7 @@ io.on('connection', (socket) => {
     const lastRead = (acc.lastRead ||= {});
     const result = {};
     for (const c of db.channels) {
-      if (c.type !== 'text' || !canView(acc, c)) continue;
+      if (!CHAT_TYPES.includes(c.type) || !canView(acc, c)) continue;
       lastRead[c.id] ??= Date.now();
       const fresh = (db.messages[c.id] || []).filter((m) => m.ts > lastRead[c.id] && m.authorId !== acc.id);
       if (fresh.length) result[c.id] = { unread: true, mentions: fresh.filter((m) => mentionsAccount(m, acc)).length };
@@ -1674,7 +1794,7 @@ io.on('connection', (socket) => {
     broadcastState();
   });
 
-  on('voice:state', (acc, { muted, deafened, sharing, paused, camera }) => {
+  on('voice:state', (acc, { muted, deafened, sharing, paused, camera, voiceFx }) => {
     const s = online.get(socket.id);
     const video = !!s.voice && (isDmCall(s) || (can(acc, 'STREAM') && !timedOut(acc)));
     s.muted = !!muted;
@@ -1684,6 +1804,7 @@ io.on('connection', (socket) => {
     // Transmissão pausada: a janela compartilhada foi minimizada (o navegador para de capturar).
     s.paused = s.sharing && !!paused;
     s.camera = !!camera && video;
+    s.voiceFx = VOICE_FX.includes(voiceFx) ? voiceFx : null;
     broadcastState();
   }, { voice: true });
 
@@ -1752,6 +1873,26 @@ io.on('connection', (socket) => {
     if (!sound) fail('Efeito não encontrado neste servidor.');
     db.soundboard = db.soundboard.filter((s) => s.id !== id);
     save(); broadcastState(); removeSoundIfUnused(sound.file);
+    return { ok: true };
+  });
+
+  on('emoji:remove', (acc, { id }) => {
+    if (!can(acc, 'MANAGE_EMOJIS')) fail('Você não pode gerenciar os emojis deste servidor.');
+    const emoji = (db.emojis || []).find((e) => e.id === id);
+    if (!emoji) fail('Emoji não encontrado neste servidor.');
+    db.emojis = db.emojis.filter((e) => e.id !== id);
+    save(); broadcastState(); removeImageIfUnused(emoji.file);
+    return { ok: true };
+  });
+
+  on('emoji:rename', (acc, { id, name }) => {
+    if (!can(acc, 'MANAGE_EMOJIS')) fail('Você não pode gerenciar os emojis deste servidor.');
+    const emoji = (db.emojis || []).find((e) => e.id === id);
+    if (!emoji) fail('Emoji não encontrado neste servidor.');
+    name = String(name || '').trim();
+    try { checkEmojiName(name, id); } catch (error) { fail(error.message); }
+    emoji.name = name;
+    save(); broadcastState();
     return { ok: true };
   });
 
