@@ -1,0 +1,47 @@
+.minecraft-nav .icon { color: var(--green); }
+.minecraft-nav-group { padding-bottom: 8px; margin-bottom: 8px; border-bottom: 1px solid var(--divider); }
+.minecraft-nav-label { margin-left: auto; font-size: 10px; color: var(--text-muted); }
+.minecraft-nav.playing .minecraft-nav-label { color: var(--green); font-weight: 700; }
+
+/* O jogo ocupa a área principal; numa chamada, ela fica em cima (layout dividido da chamada privada). */
+#game-view { flex: 1; display: flex; min-height: 0; min-width: 0; }
+#main.game-call > #game-view { order: 2; }
+#main.game-call { --dm-call-h: 260px; }
+.minecraft-shell { flex: 1; min-width: 0; min-height: 0; display: flex; flex-direction: column; overflow: hidden; background: var(--bg-main); }
+.minecraft-toolbar { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-shrink: 0; min-height: 44px; padding: 4px 8px 4px 16px; background: var(--bg-panel); border-bottom: 1px solid var(--divider); }
+.minecraft-heading, .minecraft-actions { display: flex; align-items: center; gap: 10px; min-width: 0; }
+.minecraft-mark { display: grid; place-items: center; color: var(--green); }
+.minecraft-heading h2 { margin: 0; font-size: 14px; font-weight: 650; color: var(--text-strong); white-space: nowrap; }
+.minecraft-heading h2 span { margin-left: 8px; color: var(--text-muted); font-size: 12px; font-weight: 400; }
+.minecraft-actions { gap: 4px; }
+.minecraft-actions button { display: grid; place-items: center; width: 32px; height: 32px; padding: 0; color: var(--interactive); background: transparent; border: 0; border-radius: 6px; cursor: pointer; }
+.minecraft-actions button:hover { color: var(--text-strong); background: var(--hover-strong); }
+.minecraft-actions button:focus-visible, .minecraft-retry:focus-visible, .game-invite-join:focus-visible { outline: 2px solid var(--brand); outline-offset: 2px; }
+.minecraft-stage { flex: 1; position: relative; min-height: 0; min-width: 0; background: #000; }
+.minecraft-frame { display: block; width: 100%; height: 100%; border: 0; }
+.minecraft-loading { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; flex-direction: column; gap: 14px; background: var(--bg-main); color: var(--text-strong); padding: 24px; text-align: center; }
+.minecraft-loading strong { font-size: 18px; }
+.minecraft-loading p { margin: 0; color: var(--text-muted); font-size: 13px; }
+.minecraft-spinner { width: 26px; height: 26px; border: 2px solid color-mix(in srgb, var(--green) 20%, transparent); border-top-color: var(--green); border-radius: 50%; animation: minecraft-spin 1s linear infinite; }
+.minecraft-retry { padding: 9px 14px; margin-top: 4px; border: 1px solid var(--divider); border-radius: 6px; background: var(--bg-input); color: var(--text-strong); cursor: pointer; }
+.minecraft-footer { display: flex; justify-content: space-between; gap: 12px; padding: 6px 16px; font-size: 11px; color: var(--text-muted); background: var(--bg-panel); border-top: 1px solid var(--divider); }
+.minecraft-shell:fullscreen { width: 100%; height: 100%; }
+.minecraft-shell:fullscreen .minecraft-footer { display: none; }
+@keyframes minecraft-spin { to { transform: rotate(360deg); } }
+
+/* Quem está jogando: selo no quadro e na lista da sala, e convite para quem ainda não abriu. */
+.tb.game { padding: 0; width: 26px; background: color-mix(in srgb, var(--green) 85%, #000); }
+#stage-strip > .tile .tb.game { width: 20px; }
+.flags .game-flag { display: grid; color: var(--green); }
+#game-invite { display: flex; align-items: center; gap: 10px; margin: 12px 14px 0; padding: 8px 8px 8px 12px; border: 1px solid color-mix(in srgb, var(--green) 40%, var(--divider)); border-radius: 10px; background: color-mix(in srgb, var(--green) 10%, var(--bg-panel)); color: var(--text-strong); font-size: 14px; }
+#game-invite.hidden { display: none; }
+.game-invite-mark { display: grid; color: var(--green); }
+.game-invite-text { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.game-invite-join { flex-shrink: 0; padding: 7px 12px; border: 0; border-radius: 6px; background: var(--green); color: #fff; font-weight: 600; font-size: 13px; cursor: pointer; }
+.game-invite-join:hover { filter: brightness(1.08); }
+
+@media (max-width: 700px) {
+  .minecraft-heading h2 span, .minecraft-footer { display: none; }
+  #game-invite { margin: 8px 10px 0; }
+}
+@media (prefers-reduced-motion: reduce) { .minecraft-spinner { animation: none; } }

@@ -84,7 +84,7 @@ async function ui(t, invited = false, options = {}) {
   let copied = '';
   Object.defineProperty(w.navigator, 'clipboard', { value: { writeText: async (text) => { copied = text; } } });
   options.setup?.(w);
-  for (const file of ['icons.js', 'format.js', 'sounds.js', 'media-policy.js', 'keybinds.js', 'settings.js', 'photo-editor.js', 'media-session.js', 'media-sfu.js', 'mobile-stream.js', 'stream-zoom.js', 'changelog.js', 'confetti.js', 'channel-navigation.js', 'music.js', 'mudae.js', 'mudae-salao.js', 'dm-call.js', 'gif-picker.js', 'emoji-picker.js', 'lightbox.js', 'voice-fx.js', 'app.js', 'landing.js']) w.eval(fs.readFileSync(path.join(publicDir, file), 'utf8'));
+  for (const file of ['icons.js', 'format.js', 'sounds.js', 'media-policy.js', 'keybinds.js', 'settings.js', 'photo-editor.js', 'media-session.js', 'media-sfu.js', 'mobile-stream.js', 'stream-zoom.js', 'changelog.js', 'confetti.js', 'channel-navigation.js', 'music.js', 'mudae.js', 'mudae-salao.js', 'dm-call.js', 'gif-picker.js', 'emoji-picker.js', 'lightbox.js', 'voice-fx.js', 'minecraft.js', 'app.js', 'landing.js']) w.eval(fs.readFileSync(path.join(publicDir, file), 'utf8'));
   w.localStorage.setItem('seenVersion', w.APP_VERSION);
   t.after(() => { dom.window.close(); assert.deepEqual(errors.map((e) => e.message), []); });
   await settle();
@@ -152,6 +152,90 @@ async function voicePreviewApp(t, options = {}) {
   app.d.querySelector('[data-channel-id="room-1"] .channel-entry').click(); await settle();
   return { ...app, captures, played, effects, destinations, Stream, setCapture(fn) { capture = fn; } };
 }
+
+test('Minecraft: joga dentro do Resenhex com a chamada visível e avisa a sala', async (t) => {
+  const app = await voicePreviewApp(t);
+  const { d, w } = app;
+  const track = app.captures[0].getAudioTracks()[0];
+  const lastState = () => app.events.filter(e => e.event === 'voice:state').at(-1)?.payload;
+  assert.equal(d.querySelector('.minecraft-frame'), null, 'não carrega o cliente antes de clicar');
+  // Bia já está jogando: a sala mostra isso e oferece entrar.
+  const bia = { id: 'b'.repeat(16), name: 'Bia', color: '#3ba55d', roles: [], online: true, timeoutUntil: 0 };
+  const room = snapshot('server-1', 'Turma', [{ id: 'server-1', name: 'Turma', owner: true }]);
+  room.myPerms.push('SPEAK');
+  room.members.push(bia); room.people.push(bia);
+  room.categories.push({ id: 'voice', name: 'Voz' });
+  room.channels.push({ id: 'room-1', name: 'Sala 1', type: 'voice', categoryId: 'voice', allowedRoles: [] });
+  room.voice.push({ accountId: userId, sid: 'ui-socket', channel: 'room-1' }, { accountId: bia.id, sid: 'bia-socket', channel: 'room-1', game: 'minecraft' });
+  app.setSnapshot(room); await settle();
+  assert.ok(d.querySelector('[data-key="user-bia-socket"] [aria-label="Bia está jogando Minecraft"]'), 'selo no quadro de quem joga');
+  assert.ok(d.querySelector('.voice-user [aria-label="Jogando Minecraft"]'), 'selo na lista da sala');
+  const invite = d.querySelector('#game-invite');
+  assert.equal(invite.classList.contains('hidden'), false);
+  assert.match(invite.textContent, /Bia está jogando Minecraft/);
+  await app.clickText('Entrar no Minecraft');
+
+  // O jogo fica no meio do app, a chamada continua em cima e o resto do app segue usável.
+  const frame = d.querySelector('#game-view .minecraft-frame');
+  assert.ok(frame, 'o jogo abre dentro da área principal');
+  const gameOrigin = new URL(frame.src).origin;
+  assert.notEqual(gameOrigin, w.location.origin);
+  assert.equal(new URL(frame.src).searchParams.get('parentOrigin'), w.location.origin);
+  assert.ok(!d.querySelector('#app').inert);
+  assert.equal(d.querySelector('#voice-view').classList.contains('hidden'), false, 'a chamada continua visível');
+  assert.ok(d.querySelector('#main').classList.contains('game-call'));
+  assert.equal(d.querySelector('#chat-view').classList.contains('hidden'), true);
+  assert.equal(invite.classList.contains('hidden'), true, 'quem já está jogando não vê o convite');
+  assert.equal(lastState().game, 'minecraft', 'a sala fica sabendo');
+  d.querySelector('#sc-mic').click(); await settle();
+  assert.equal(lastState().muted, true, 'dá para mutar sem sair do jogo');
+  assert.equal(lastState().game, 'minecraft');
+  assert.equal(track.readyState, 'live');
+
+  // Trocar de canal deixa o jogo rodando escondido; o botão volta para ele.
+  d.querySelector('#nav-minecraft').click();
+  assert.equal(d.querySelectorAll('.minecraft-frame').length, 1, 'mantém uma única sessão');
+  d.querySelector('[data-channel-id="server-1-chat"] .channel-entry').click(); await settle();
+  assert.equal(d.querySelector('#game-view').classList.contains('hidden'), true);
+  assert.equal(d.querySelector('#chat-view').classList.contains('hidden'), false);
+  assert.equal(d.querySelector('.minecraft-frame'), frame, 'o jogo continua aberto');
+  assert.ok(d.querySelector('#nav-minecraft').classList.contains('playing'));
+  d.querySelector('#nav-minecraft').click(); await settle();
+  assert.equal(d.querySelector('#game-view').classList.contains('hidden'), false);
+
+  // Mensagens só valem vindas do próprio jogo, na origem dele.
+  const message = (origin, source, type) => w.dispatchEvent(new w.MessageEvent('message', { origin, source, data: { type: 'resenhex:minecraft:' + type } }));
+  message(w.location.origin, frame.contentWindow, 'ready');
+  message(gameOrigin, w, 'ready');
+  assert.equal(d.querySelector('.minecraft-loading').classList.contains('hidden'), false);
+  message(gameOrigin, frame.contentWindow, 'error');
+  d.querySelector('.minecraft-retry').click();
+  assert.equal(new URL(frame.src).searchParams.get('runtime'), 'js');
+  message(gameOrigin, frame.contentWindow, 'ready');
+  assert.equal(d.querySelector('.minecraft-loading').classList.contains('hidden'), true);
+
+  // Fechar pede para salvar, volta para a chamada e não derruba ninguém.
+  d.querySelector('.minecraft-close').click(); await settle();
+  assert.ok(d.querySelector('.minecraft-frame'), 'aguarda confirmar que o mundo foi salvo');
+  await app.clickText('Fechar jogo');
+  assert.equal(d.querySelector('.minecraft-frame'), null);
+  assert.equal(d.querySelector('#game-view').classList.contains('hidden'), true);
+  assert.equal(d.querySelector('#main').classList.contains('game-call'), false);
+  assert.equal(d.querySelector('#voice-view').classList.contains('hidden'), false, 'volta para a chamada');
+  assert.equal(lastState().game, null);
+  assert.equal(track.readyState, 'live');
+  assert.equal(app.events.filter(e => e.event === 'voice:leave').length, 0);
+
+  // Sem chamada, o jogo ocupa a área toda; carregamento interrompido fecha sem perguntar.
+  d.querySelector('#nav-minecraft').click(); await settle();
+  d.querySelector('#sc-leave').click(); await settle();
+  assert.ok(d.querySelector('.minecraft-frame'), 'sair da chamada não fecha o jogo');
+  assert.equal(d.querySelector('#voice-view').classList.contains('hidden'), true);
+  assert.equal(d.querySelector('#main').classList.contains('game-call'), false);
+  assert.equal(d.querySelector('#game-view').classList.contains('hidden'), false);
+  d.querySelector('.minecraft-close').click(); await settle();
+  assert.equal(d.querySelector('.minecraft-frame'), null, 'carregamento interrompido libera o cliente');
+});
 
 test('teste de voz no menu: ouve os efeitos, silencia a chamada e libera o microfone ao fechar', async (t) => {
   const app = await voicePreviewApp(t);

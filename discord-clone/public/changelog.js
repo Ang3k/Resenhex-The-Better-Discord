@@ -4,6 +4,18 @@
 // O título deve destacar as principais funcionalidades ou correções, com termos objetivos.
 window.CHANGELOG = [
   {
+    version: '1.3.0', date: '2026-10-09', name: 'Minecraft dentro do Resenhex, com a call na tela',
+    summary: 'Jogue Minecraft 1.8.8 (Eaglercraft) sem sair do Resenhex. A call continua em cima do jogo, a sala vê quem está jogando e quem ainda não abriu entra com um clique.',
+    sections: [
+      { kind: 'new', items: [
+        'Minecraft na lateral: abre o jogo na área principal. Cada pessoa joga o seu, com mundos salvos no próprio navegador; para jogar junto, use o compartilhamento de mundo do próprio jogo.',
+        'Numa call, ela fica em cima do jogo com os botões de microfone, som, câmera, tela e desligar. Arraste o divisor para mudar o tamanho.',
+        'Quem está jogando aparece com um bloquinho verde no quadro da call e na lista da sala, e quem está na call vê “Entrar no Minecraft” para abrir com um clique.',
+        'Trocar de canal deixa o jogo rodando; “Minecraft · Jogando” na lateral leva de volta. Fechar o jogo lembra de salvar o mundo e não derruba a call.',
+      ] },
+    ],
+  },
+  {
     version: '1.2.1', date: '2026-10-09', name: 'Teste de voz, menu de áudio e ajustes no chat da call',
     summary: 'Ouça os efeitos na sua própria voz direto na call. O menu de áudio ficou mais organizado, o aviso de efeito ficou discreto e o campo de mensagem do chat da sala agora mostra o texto inteiro.',
     sections: [
