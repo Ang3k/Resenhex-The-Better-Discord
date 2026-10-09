@@ -3,6 +3,21 @@
 Histórico de versões. A mesma lista aparece dentro do app em **Novidades** (menu do servidor ou rodapé das Configurações).
 O Resenhex chegou à versão 1.0 em 4 de outubro de 2026.
 
+## v1.2.1 — Teste de voz, menu de áudio e ajustes no chat da call
+
+9 de outubro de 2026. Ouça os efeitos na sua própria voz direto na call, com um menu de áudio mais organizado e o campo de mensagem sem cortes.
+
+### Novo
+- “Ouvir minha voz” no menu do microfone da call, com retorno no fone. Durante o teste, seu microfone fica mudo para as outras pessoas; fechar o menu ou sair da chamada encerra a escuta.
+
+### Melhorado
+- Microfone e saída de áudio em seletores compactos, volume da chamada acessível e efeitos de voz numa seção expansível.
+- “FX” pequeno e cinza no canto superior direito do bloco da pessoa na call; passe o mouse para ver qual efeito está ativo.
+
+### Corrigido
+- Campo de mensagem do chat da call cortando nomes de salas ou mensagens com mais de uma linha. A altura agora acompanha o conteúdo e a largura disponível.
+- Escuta dos efeitos acompanha a troca de efeito, microfone e saída de áudio, com liberação da captura ao terminar.
+
 ## v1.2.0 — Modificador de voz, chat nas salas de voz e status
 
 9 de outubro de 2026. Mude sua voz na call, converse no chat da própria sala de voz e mostre se está ausente ou ocupado.

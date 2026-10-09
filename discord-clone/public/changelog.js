@@ -4,6 +4,23 @@
 // O título deve destacar as principais funcionalidades ou correções, com termos objetivos.
 window.CHANGELOG = [
   {
+    version: '1.2.1', date: '2026-10-09', name: 'Teste de voz, menu de áudio e ajustes no chat da call',
+    summary: 'Ouça os efeitos na sua própria voz direto na call. O menu de áudio ficou mais organizado, o aviso de efeito ficou discreto e o campo de mensagem do chat da sala agora mostra o texto inteiro.',
+    sections: [
+      { kind: 'new', items: [
+        '“Ouvir minha voz” no menu do microfone da call: teste os efeitos com retorno no seu fone. Durante o teste, seu microfone fica mudo para as outras pessoas; fechar o menu ou sair da chamada encerra a escuta.',
+      ] },
+      { kind: 'improved', items: [
+        'Menu de áudio mais compacto: microfone e saída de áudio em seletores, volume da chamada acessível e efeitos de voz numa seção que você pode abrir quando precisar.',
+        'Efeito ativo indicado por um “FX” pequeno e cinza no canto superior direito do bloco da pessoa na call. Passe o mouse para ver o efeito escolhido.',
+      ] },
+      { kind: 'fixed', items: [
+        'O campo de mensagem do chat da call cortava o texto quando o nome da sala ou a mensagem ocupava mais de uma linha. A altura agora acompanha o conteúdo e a largura disponível.',
+        'Trocar o efeito, o microfone ou a saída durante a escuta mantém o teste atualizado e libera a captura ao terminar.',
+      ] },
+    ],
+  },
+  {
     version: '1.2.0', date: '2026-10-09', name: 'Modificador de voz, chat nas salas de voz e status',
     summary: 'Mude sua voz na call (esquilo, gigante, robô e mais), converse no chat da própria sala de voz e mostre se está ausente ou ocupado. Também chegaram o seletor de emojis novo, emojis do servidor e prévia de links no chat.',
     sections: [

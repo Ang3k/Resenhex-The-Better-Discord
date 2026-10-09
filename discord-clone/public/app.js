@@ -1231,7 +1231,6 @@
         const flags = el('span', { class: 'flags' });
         if (v.sharing) flags.append(el('span', { class: 'live clickable', textContent: 'AO VIVO', tip: 'Ver a transmissão', onclick: (e) => { e.stopPropagation(); openLiveStream(c.id, v.sid); } }));
         if (v.camera) flags.append(el('span', { tip: 'Câmera ligada' }, Icon('camera', 16)));
-        if (fxPreset(v)) flags.append(el('span', { class: 'fx-flag', tip: 'Voz modificada: ' + fxPreset(v).label }, fxPreset(v).emoji));
         if (state.localMuted.has(m.id)) flags.append(el('span', { tip: 'Mutado para você' }, Icon('volumeX', 16)));
         if (m.serverMuted || timedOut(m)) flags.append(el('span', { class: 'server-flag', tip: timedOut(m) ? 'De castigo' : 'Silenciado pelo servidor' }, Icon('micOff', 16)));
         else if (v.muted) flags.append(el('span', { tip: 'Mutado' }, Icon('micOff', 16)));
@@ -1664,8 +1663,10 @@
 
   // ---------------- caixa de mensagem ----------------
   function autoresize(input = $('#chat-input')) {
+    if (!input.clientWidth) return;
     input.style.height = 'auto';
     input.style.height = Math.min(input.scrollHeight, 240) + 'px';
+    input.style.overflowY = input.scrollHeight > input.clientHeight ? 'auto' : 'hidden';
   }
 
   // GIF escolhido vai sozinho, como no Discord: o texto digitado continua na caixa.
@@ -1716,6 +1717,7 @@
       el('div', { class: 'pending-name', textContent: p.name }),
       el('div', { class: 'muted-text', textContent: p.uploading ? 'enviando…' : formatSize(p.size) }),
       el('button', { type: 'button', class: 'pending-remove', tip: 'Remover anexo', ariaLabel: 'Remover anexo', onclick: () => removePending(p) }, Icon('trash', 18)))));
+    autoresize(input);
   }
 
   function removePending(p) {
@@ -1965,6 +1967,15 @@
   });
   $('#chat-input').addEventListener('blur', () => setTimeout(closeAutocomplete, 100));
 
+  // O chat da chamada muda de largura; rascunho e placeholder acompanham o espaço disponível.
+  let composerWidth = 0;
+  new ResizeObserver(([entry]) => {
+    const width = entry.contentRect.width;
+    if (width === composerWidth) return;
+    composerWidth = width;
+    if (width) autoresize();
+  }).observe($('#chat-input'));
+
   // ---------------- seletor de emoji ----------------
   const emojiPicker = window.EmojiPicker({ el, Icon, root: $('#emoji-picker'), getCustom: () => state.server?.emojis || [] });
   function openEmojiPicker(anchor, onPick) {
@@ -2167,6 +2178,13 @@
     return v.voiceFx && v.voiceFx !== 'none' && VoiceFx.valid(v.voiceFx) ? VoiceFx.PRESETS[v.voiceFx] : null;
   }
 
+  function voiceFxIndicator(v) {
+    const preset = fxPreset(v);
+    if (!preset) return null;
+    const label = 'Efeito de voz: ' + preset.label;
+    return el('span', { class: 'voice-fx-indicator', tip: label, ariaLabel: label, role: 'img', textContent: 'FX' });
+  }
+
   function renderStage() {
     const stage = $('#stage');
     const primary = $('#stage-primary');
@@ -2232,7 +2250,7 @@
           style: { '--tile': m.color },
           oncontextmenu: (e) => openMemberMenu(m.id, e),
         }, avatar(m, '', v.sid), el('video', { class: 'cam hidden' + (self ? ' mirror' : ''), autoplay: true, playsInline: true, muted: true }),
-        el('div', { class: 'tile-badges' }), el('div', { class: 'label' }), el('div', { class: 'tile-controls' }));
+        el('div', { class: 'tile-badges' }), el('div', { class: 'tile-fx' }), el('div', { class: 'label' }), el('div', { class: 'tile-controls' }));
         setupTile(tile);
         primary.append(tile);
       }
@@ -2249,17 +2267,21 @@
       tile.style.setProperty('--tile', m.color);
       tile.classList.toggle('cam-on', !!camStream);
       tile.classList.toggle('mic-off', micOff);
+      tile.classList.toggle('voice-fx-active', !!fxPreset(v));
       // Estado de cada pessoa em selos no canto: dá para ler mesmo nas miniaturas.
       const badge = (cls, label, content) => el('span', { class: 'tb ' + cls, tip: label, ariaLabel: label, role: 'img' }, content);
       const badges = [
         v.sharing ? badge('live', self ? 'Você está transmitindo a tela' : m.name + ' está transmitindo a tela', 'AO VIVO') : null,
         micOff ? badge('off', silenced ? 'Silenciado pelo servidor' : 'Microfone desligado', Icon('micOff', 14)) : null,
         deaf ? badge('off', m.serverDeafened ? 'Ensurdecido pelo servidor' : 'Som desligado', Icon('headphonesOff', 14)) : null,
-        fxPreset(v) ? badge('fx', (self ? 'Sua voz está com o efeito ' : 'Voz modificada: ') + fxPreset(v).label, fxPreset(v).emoji) : null,
       ].filter(Boolean);
       const badgeBox = tile.querySelector('.tile-badges');
       const badgeKey = JSON.stringify([v.sharing, micOff, silenced, deaf, v.voiceFx]);
-      if (badgeBox.dataset.key !== badgeKey) { badgeBox.dataset.key = badgeKey; badgeBox.replaceChildren(...badges); }
+      if (badgeBox.dataset.key !== badgeKey) {
+        badgeBox.dataset.key = badgeKey;
+        badgeBox.replaceChildren(...badges);
+        tile.querySelector('.tile-fx').replaceChildren(...[voiceFxIndicator(v)].filter(Boolean));
+      }
       const labelKey = JSON.stringify([m.name, self, !!camStream]);
       const label = tile.querySelector('.label');
       if (label.dataset.key !== labelKey) {
@@ -2724,10 +2746,11 @@
 
   // ---------------- menu de membro (clique direito) ----------------
   function closeMenu() {
+    if (micTestScope === 'menu') stopMicTest();
     const menu = $('#context-menu');
     if (!menu.classList.contains('hidden') && $('#server-header').classList.contains('open')) $('#server-header').dataset.closedAt = Date.now();
     menu.classList.add('hidden');
-    menu.classList.remove('member-menu', 'status-menu', 'device-menu');
+    menu.classList.remove('member-menu', 'status-menu', 'device-menu', 'audio-device-menu');
     menu.style.width = '';
     closeSubmenu();
     $('#server-header').classList.remove('open');
@@ -2761,7 +2784,9 @@
     el('span', { textContent: label }), icon ? Icon(icon, 18) : null);
   $('#context-menu').addEventListener('keydown', (e) => {
     if (!['ArrowDown', 'ArrowUp', 'Home', 'End'].includes(e.key)) return;
-    const items = [...e.currentTarget.querySelectorAll('button:not(:disabled)')];
+    if (e.target.closest('select, input, textarea')) return;
+    const items = [...e.currentTarget.querySelectorAll('button:not(:disabled), select:not(:disabled), input:not(:disabled)')]
+      .filter((item) => !item.closest('.hidden'));
     if (!items.length) return;
     e.preventDefault();
     const index = items.indexOf(document.activeElement);
@@ -4252,7 +4277,7 @@
     const me = callMe();
     return state.muted || state.deafened || !!me?.serverDeafened || !!me?.serverMuted || timedOut(me) || !callPerm('SPEAK')
       || (state.ptt.enabled && !state.pttHeld)
-      || !!micTest // testando o microfone: os outros não te ouvem
+      || !!micTestScope // testando ou trocando o microfone do teste: os outros não te ouvem
       || (!state.ptt.enabled && !gate.open); // abaixo da sensibilidade de entrada
   }
 
@@ -4307,6 +4332,7 @@
 
   // Aplica mudo/surdo (meu, do servidor e local) em tudo que toca ou transmite.
   function applyAudio() {
+    if (micTest) routeAudio('mic-test', micTest.audio, micTest.stream, false, 1);
     if (!state.server || !state.me) return;
     const me = callMe();
     if (!me) return;
@@ -4496,6 +4522,7 @@
 
   function leaveVoice(notify = true, sound = true) {
     if (!state.voiceChannel) return;
+    if (micTestScope === 'menu') stopMicTest(false);
     Sounds.stopBoard();
     cameraPreviewSession?.close();
     stopVideo('screen', false);
@@ -4960,6 +4987,7 @@
   // Leva vozes, transmissões e efeitos para a saída de áudio escolhida.
   function syncSpeaker() {
     for (const peer of state.peers.values()) if (peer.audioEl) setSinkId(peer.audioEl);
+    if (micTest) setSinkId(micTest.audio);
     document.querySelectorAll('#stage video').forEach(setSinkId);
     if (callOutput.bus) audioCtx.setSinkId?.(state.speakerDeviceId || '').catch(() => {});
     applyAudio();
@@ -4969,12 +4997,40 @@
   async function openDeviceMenu(kind, anchor) {
     const devices = await navigator.mediaDevices?.enumerateDevices().catch(() => []) || [];
     const menu = $('#context-menu');
-    const choices = (deviceKind, key, fallback, apply) => {
+    const width = kind === 'audio' ? 320 : 280;
+    const positionMenu = () => {
+      const rect = anchor.getBoundingClientRect(), top = (anchor.closest('#stage-controls') || anchor).getBoundingClientRect().top;
+      showMenuAt(rect.left + rect.width / 2 - width / 2, top - menu.getBoundingClientRect().height - 8);
+    };
+    const choices = (deviceKind, key, fallback, apply, compact = false) => {
       // "default"/"communications" do Chrome repetem um aparelho real; "Padrão do sistema" já cobre.
       const found = devices.filter((d) => d.kind === deviceKind && d.deviceId && !['default', 'communications'].includes(d.deviceId));
       const current = ['default', 'communications'].includes(state[key]) ? '' : state[key];
       const options = [{ id: '', label: 'Padrão do sistema' }, ...found.map((d, i) => ({ id: d.deviceId, label: d.label || `${fallback} ${i + 1}` }))];
       if (current && !options.some((o) => o.id === current)) options.push({ id: current, label: 'Dispositivo salvo (desconectado)', missing: true });
+      if (compact) {
+        const label = deviceKind === 'audioinput' ? 'Microfone' : 'Saída de áudio';
+        const select = el('select', { class: 'device-select', ariaLabel: label, data: { device: key } },
+          options.map((o) => el('option', { value: o.id, textContent: o.label, disabled: !!o.missing })));
+        select.value = current;
+        select.title = options.find((o) => o.id === current)?.label || label;
+        select.onchange = async () => {
+          const option = options.find((o) => o.id === select.value);
+          if (!option || option.missing) return;
+          select.disabled = true;
+          const testing = deviceKind === 'audioinput' && micTestScope === 'menu';
+          if (testing) stopMicTest(false, 'menu');
+          try { await apply(option.id, option.label); }
+          finally {
+            select.value = ['default', 'communications'].includes(state[key]) ? '' : state[key];
+            select.title = options.find((o) => o.id === select.value)?.label || label;
+            select.disabled = false;
+          }
+          if (testing && menu.contains(select) && !menu.classList.contains('hidden') && state.voiceChannel) await startMicTest('menu', false);
+        };
+        return [el('label', { class: 'device-field' },
+          el('span', { class: 'device-field-label' }, Icon(deviceKind === 'audioinput' ? 'mic' : 'headphones', 14), el('span', { textContent: label })), select)];
+      }
       return options.map((o) => el('button', {
         type: 'button', class: 'menu-item device-item' + (o.id === current ? ' current' : '') + (o.missing ? ' missing' : ''), role: 'menuitemradio', ariaChecked: String(o.id === current),
         onclick: async () => { closeMenu(); if (o.id !== current && !o.missing) await apply(o.id, o.label); },
@@ -4982,7 +5038,7 @@
     };
     const items = [];
     if (kind === 'audio') {
-      items.push(el('div', { class: 'menu-section', textContent: 'MICROFONE' }), ...choices('audioinput', 'micDeviceId', 'Microfone', async (id, label) => {
+      const fields = choices('audioinput', 'micDeviceId', 'Microfone', async (id, label) => {
         if (state.voiceChannel) {
           try { await restartMic({ ...state, micDeviceId: id }); }
           catch { toast('Não foi possível usar esse microfone. O anterior continua ligado.', 'error'); return; }
@@ -4990,38 +5046,69 @@
         state.micDeviceId = id;
         localStorage.setItem('micDeviceId', id);
         toast('Microfone: ' + label, 'info');
-      }));
+      }, true);
       if ('setSinkId' in HTMLMediaElement.prototype) {
-        items.push(el('div', { class: 'menu-sep' }), el('div', { class: 'menu-section', textContent: 'SAÍDA DE ÁUDIO' }), ...choices('audiooutput', 'speakerDeviceId', 'Saída', (id, label) => {
+        fields.push(...choices('audiooutput', 'speakerDeviceId', 'Saída', (id, label) => {
           state.speakerDeviceId = id;
           localStorage.setItem('speakerDeviceId', id);
           syncSpeaker();
           toast('Saída de áudio: ' + label, 'info');
-        }));
+        }, true));
       }
+      items.push(el('div', { class: 'device-head' }, Icon('waves', 18), el('strong', { textContent: 'Áudio da chamada' })),
+        el('div', { class: 'device-fields' }, fields));
+      const vol = el('input', { type: 'range', min: 0, max: 100, value: state.outputVolume, ariaLabel: 'Volume da chamada' });
+      const value = el('span', { textContent: state.outputVolume + '%' });
+      vol.style.setProperty('--fill', state.outputVolume + '%');
+      vol.oninput = () => {
+        state.outputVolume = Number(vol.value);
+        value.textContent = vol.value + '%';
+        vol.style.setProperty('--fill', vol.value + '%');
+        localStorage.setItem('outputVolume', vol.value);
+        applyAudio();
+      };
+      items.push(el('div', { class: 'menu-range' }, el('div', { class: 'menu-range-head' }, el('span', { textContent: 'Volume da chamada' }), value), vol));
+      const fxCurrent = el('span', { class: 'device-effect-current' });
+      const updateCurrentFx = () => {
+        const preset = VoiceFx.PRESETS[state.voiceFx];
+        fxCurrent.dataset.active = String(state.voiceFx !== 'none');
+        fxCurrent.replaceChildren(el('span', { class: 'device-effect-emoji', textContent: preset.emoji, ariaHidden: 'true' }), el('span', { textContent: preset.label }));
+      };
+      updateCurrentFx();
       // Modificador de voz: troca na hora, com o menu aberto para experimentar outros.
       const chips = Object.entries(VoiceFx.PRESETS).map(([id, p]) => el('button', {
         type: 'button', class: 'vfx-chip' + (id === state.voiceFx ? ' selected' : ''), role: 'menuitemradio', ariaChecked: String(id === state.voiceFx), tip: p.desc,
         onclick: async () => {
-          await setVoiceFx(id);
-          for (const chip of chips) {
-            chip.classList.toggle('selected', chip.dataset.fx === state.voiceFx);
-            chip.setAttribute('aria-checked', String(chip.dataset.fx === state.voiceFx));
+          chips.forEach((chip) => { chip.disabled = true; });
+          try {
+            await setVoiceFx(id);
+            if (micTestScope === 'menu') await updateMicTestFx(state.voiceFx);
+            for (const chip of chips) {
+              chip.classList.toggle('selected', chip.dataset.fx === state.voiceFx);
+              chip.setAttribute('aria-checked', String(chip.dataset.fx === state.voiceFx));
+            }
+            updateCurrentFx();
+          } finally {
+            chips.forEach((chip) => { chip.disabled = micTestStarting; });
           }
         },
         data: { fx: id },
       }, el('span', { textContent: p.emoji, ariaHidden: 'true' }), el('span', { textContent: p.label })));
-      items.push(el('div', { class: 'menu-sep' }), el('div', { class: 'menu-section', textContent: 'EFEITO DE VOZ' }), el('div', { class: 'vfx-chips' }, chips));
-      const vol = el('input', { type: 'range', min: 0, max: 100, value: state.outputVolume, ariaLabel: 'Volume da chamada' });
-      const value = el('span', { textContent: state.outputVolume + '%' });
-      vol.oninput = () => {
-        state.outputVolume = Number(vol.value);
-        value.textContent = vol.value + '%';
-        localStorage.setItem('outputVolume', vol.value);
-        applyAudio();
-      };
-      items.push(el('div', { class: 'menu-sep' }), el('div', { class: 'menu-range' }, el('div', { class: 'menu-range-head' }, el('span', { textContent: 'Volume da chamada' }), value), vol),
-        el('div', { class: 'menu-sep' }), menuItem('Configurações de voz', 'settings', () => { closePanels(); preferences.open('voice'); }));
+      const fxOptions = el('div', { id: 'voice-fx-options', class: 'device-effect-options hidden' }, el('div', { class: 'vfx-chips' }, chips));
+      const fxToggle = el('button', {
+        type: 'button', id: 'voice-fx-toggle', class: 'device-effects-toggle', ariaExpanded: 'false', ariaControls: 'voice-fx-options',
+        onclick: () => {
+          const open = fxOptions.classList.toggle('hidden') === false;
+          fxToggle.setAttribute('aria-expanded', String(open));
+          positionMenu();
+        },
+      }, el('span', { class: 'device-effects-label' }, Icon('sparkles', 16), el('span', { textContent: 'Efeitos de voz' })), fxCurrent, Icon('chevronDown', 16));
+      items.push(el('div', { class: 'device-effects' }, fxToggle, fxOptions));
+      items.push(el('button', {
+        type: 'button', id: 'voice-fx-preview', class: 'vfx-preview', ariaPressed: 'false', onclick: () => toggleMicTest('menu'),
+      }, Icon('headphones', 16), el('span', { textContent: 'Ouvir minha voz' })),
+      el('p', { class: 'vfx-preview-note', textContent: 'Use fone. Durante o teste, seu microfone fica mudo na chamada.' }));
+      items.push(el('div', { class: 'device-footer' }, menuItem('Configurações de voz', 'settings', () => { closePanels(); preferences.open('voice'); })));
     } else {
       items.push(el('div', { class: 'menu-section', textContent: 'CÂMERA' }), ...choices('videoinput', 'cameraDeviceId', 'Câmera', async (id, label) => {
         state.cameraDeviceId = id;
@@ -5035,14 +5122,14 @@
       items.push(el('div', { class: 'menu-sep' }), menuItem('Configurações de vídeo', 'settings', () => { closePanels(); preferences.open('voice'); }));
     }
     closeMenu();
-    menu.style.width = '280px';
+    menu.style.width = width + 'px';
     menu.classList.add('device-menu');
+    menu.classList.toggle('audio-device-menu', kind === 'audio');
     menu.replaceChildren(...items);
     // Abre acima da barra inteira da chamada (não por cima dela).
-    const rect = anchor.getBoundingClientRect(), top = (anchor.closest('#stage-controls') || anchor).getBoundingClientRect().top;
     menu.classList.remove('hidden');
-    showMenuAt(rect.left + rect.width / 2 - 140, top - menu.getBoundingClientRect().height - 8);
-    menu.querySelector('.device-item.current, .device-item')?.focus();
+    positionMenu();
+    menu.querySelector('.device-select, .device-item.current, .device-item')?.focus();
   }
 
   function openShareMenu(anchor) {
@@ -5832,10 +5919,7 @@
     $('#voice-fx').value = id;
     $('#voice-fx').dispatchEvent(new Event('input', { bubbles: true }));
     // Durante o teste, o efeito novo já toca.
-    if (!micTest) return;
-    const pipe = noise.pipes.get(micTest.stream);
-    if (pipe?.fx && id !== 'none') pipe.fx.set(id).catch(() => {});
-    else { stopMicTest(); $('#mic-test').click(); }
+    if (micTestScope === 'settings') updateMicTestFx(id);
   }
   $('#voice-fx-grid').addEventListener('keydown', (e) => {
     const step = { ArrowRight: 1, ArrowDown: 1, ArrowLeft: -1, ArrowUp: -1 }[e.key];
@@ -5846,62 +5930,118 @@
     pickVoiceFx(next.dataset.fx);
     next.focus();
   });
-  $('#voice-fx-test').onclick = () => $('#mic-test').click();
+  $('#voice-fx-test').onclick = () => toggleMicTest('settings');
 
-  // "Testar microfone": você se ouve (com a supressão escolhida) e vê o nível do som.
+  // Teste local compartilhado pelas configurações e pelo menu de efeitos da chamada.
   let micTest = null;
-  function stopMicTest() {
+  let micTestScope = null;
+  let micTestStarting = false;
+  function updateMicTestButtons() {
+    $('#mic-test').disabled = $('#voice-fx-test').disabled = micTestStarting;
+    $('#mic-test').textContent = micTestStarting ? 'Preparando…' : micTest ? 'Parar teste' : 'Testar microfone';
+    $('#voice-fx-test').textContent = micTestStarting ? 'Preparando…' : micTest ? 'Parar de ouvir' : 'Ouvir minha voz';
+    const preview = $('#voice-fx-preview');
+    if (!preview) return;
+    const active = micTest?.scope === 'menu';
+    preview.disabled = micTestStarting;
+    preview.classList.toggle('active', active);
+    preview.setAttribute('aria-pressed', String(active));
+    preview.setAttribute('aria-busy', String(micTestStarting));
+    preview.replaceChildren(Icon(active ? 'stop' : 'headphones', 16), el('span', { textContent: micTestStarting ? 'Preparando…' : active ? 'Parar de ouvir' : 'Ouvir minha voz' }));
+    $('#context-menu').querySelectorAll('.vfx-chip').forEach((chip) => { chip.disabled = micTestStarting; });
+  }
+  function stopMicTest(announce = true, nextScope = null) {
     micTestEpoch++;
-    if (!micTest) return;
+    micTestScope = nextScope;
+    micTestStarting = !!nextScope;
+    updateMicTestButtons();
+    if (!micTest) { applyAudio(); return; }
     const wasInCall = !!state.voiceChannel;
     cancelAnimationFrame(micTest.raf);
+    dropRoute('mic-test');
+    micTest.audio.pause();
     micTest.audio.srcObject = null;
-    micTest.analyserSource.disconnect();
+    micTest.analyserSource?.disconnect();
     releaseMic(micTest.stream);
     micTest = null;
-    $('#mic-test').textContent = 'Testar microfone';
-    $('#voice-fx-test').textContent = 'Ouvir minha voz';
+    updateMicTestButtons();
     $('#mic-meter-fill').style.width = '0%';
     applyAudio();
-    if (wasInCall) toast('Teste encerrado: seu microfone voltou na chamada.', 'info');
+    if (announce && wasInCall) toast('Teste encerrado: seu microfone voltou na chamada.', 'info');
   }
-  $('#mic-test').onclick = async () => {
-    if (micTest) return stopMicTest();
+  async function updateMicTestFx(id) {
+    const scope = micTestScope;
+    if (!scope) return;
+    const session = micTest;
+    const pipe = noise.pipes.get(session?.stream);
+    if (pipe?.fx && id !== 'none') {
+      try { await pipe.fx.set(id); }
+      catch {
+        if (micTest === session) { stopMicTest(false); toast('Não foi possível testar esse efeito de voz.', 'error'); }
+      }
+    } else {
+      stopMicTest(false);
+      await startMicTest(scope, false);
+    }
+  }
+  function toggleMicTest(scope) {
+    if (micTestScope) return stopMicTest();
+    return startMicTest(scope);
+  }
+  async function startMicTest(scope, announce = true) {
     const epoch = ++micTestEpoch;
-    $('#mic-test').disabled = true;
-    let stream;
-    try { stream = await getMicStream({ ...state, noiseMode: $('#noise-mode').value, echoCancellation: $('#echo-toggle').checked, micDeviceId: $('#mic-select').value, voiceFx: $('#voice-fx').value }, true); }
-    catch { toast('Não foi possível testar o microfone. Verifique as permissões.'); return; }
-    finally { $('#mic-test').disabled = false; }
-    if (epoch !== micTestEpoch || !preferences.isOpen()) { releaseMic(stream); return; }
-    fillDevices();
-    const audio = new Audio();
-    audio.srcObject = stream;
-    setSinkId(audio);
-    audio.play().catch(() => {});
-    const ctx = getAudioCtx();
-    const analyserSource = ctx.createMediaStreamSource(stream);
-    const analyser = ctx.createAnalyser();
-    analyser.fftSize = 1024;
-    analyserSource.connect(analyser);
-    const data = new Uint8Array(analyser.fftSize);
-    micTest = { stream, audio, analyserSource, raf: 0 };
-    $('#mic-test').textContent = 'Parar teste';
-    $('#voice-fx-test').textContent = 'Parar de ouvir';
+    micTestScope = scope;
+    micTestStarting = true;
+    updateMicTestButtons();
     applyAudio();
-    if (state.voiceChannel) toast('Durante o teste você fica mudo na chamada.', 'info');
-    const fdata = new Float32Array(analyser.fftSize);
-    const tick = () => {
-      if (!micTest) return;
-      analyser.getFloatTimeDomainData(fdata);
-      let sum = 0;
-      for (const x of fdata) sum += x * x;
-      const db = 20 * Math.log10(Math.sqrt(sum / fdata.length) + 1e-6);
-      drawMeter(db, db > ($('#sens-auto').checked ? gateThreshold() : Number($('#sens-range').value)));
-      micTest.raf = requestAnimationFrame(tick);
-    };
-    tick();
-  };
+    const options = scope === 'settings' ? { ...state, noiseMode: $('#noise-mode').value, echoCancellation: $('#echo-toggle').checked, micDeviceId: $('#mic-select').value, voiceFx: $('#voice-fx').value } : { ...state };
+    let stream, session;
+    try {
+      stream = await getMicStream(options, true);
+      const visible = scope === 'settings' ? preferences.isOpen() : !!state.voiceChannel && !$('#context-menu').classList.contains('hidden') && !!$('#voice-fx-preview');
+      if (epoch !== micTestEpoch || !visible) { releaseMic(stream); return; }
+      if (scope === 'settings') fillDevices();
+      const audio = new Audio();
+      audio.srcObject = stream;
+      setSinkId(audio);
+      session = micTest = { scope, stream, audio, analyserSource: null, raf: 0 };
+      applyAudio();
+      await audio.play();
+      if (epoch !== micTestEpoch || micTest !== session) return;
+      if (announce && state.voiceChannel) toast('Durante o teste você fica mudo na chamada.', 'info');
+      if (scope === 'settings') {
+        const ctx = getAudioCtx(), analyser = ctx.createAnalyser();
+        session.analyserSource = ctx.createMediaStreamSource(stream);
+        analyser.fftSize = 1024;
+        session.analyserSource.connect(analyser);
+        const fdata = new Float32Array(analyser.fftSize);
+        const tick = () => {
+          if (micTest !== session) return;
+          analyser.getFloatTimeDomainData(fdata);
+          let sum = 0;
+          for (const x of fdata) sum += x * x;
+          const db = 20 * Math.log10(Math.sqrt(sum / fdata.length) + 1e-6);
+          drawMeter(db, db > ($('#sens-auto').checked ? gateThreshold() : Number($('#sens-range').value)));
+          session.raf = requestAnimationFrame(tick);
+        };
+        tick();
+      }
+    } catch {
+      if (epoch === micTestEpoch) {
+        if (micTest === session) stopMicTest(false);
+        else releaseMic(stream);
+        toast('Não foi possível ouvir o microfone. Verifique as permissões e a saída de áudio.', 'error');
+      }
+    } finally {
+      if (epoch === micTestEpoch) {
+        micTestStarting = false;
+        if (!micTest) micTestScope = null;
+        updateMicTestButtons();
+        applyAudio();
+      }
+    }
+  }
+  $('#mic-test').onclick = () => toggleMicTest('settings');
 
   window.addEventListener('beforeunload', () => leaveVoice(true, false));
   $('#noise-mode').replaceChildren(...Object.entries(NOISE_MODES).map(([value, label]) => new Option(label, value)));

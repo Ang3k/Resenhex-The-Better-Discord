@@ -373,7 +373,7 @@ blockquote { margin: 2px 0; padding: 0 8px 0 12px; border-left: 4px solid color-
 #chat-form { display: flex; align-items: flex-start; gap: 0; background: var(--bg-input); border-radius: 8px; padding: 0 6px 0 4px; }
 #composer:has(#reply-bar:not(.hidden)) #chat-form, #composer:has(#attachments-bar:not(.hidden)) #chat-form { border-top-left-radius: 0; border-top-right-radius: 0; }
 #chat-input {
-  flex: 1; resize: none; background: transparent; border: 0; padding: 11px 6px; color: var(--text);
+  flex: 1; min-width: 0; resize: none; overflow-y: hidden; background: transparent; border: 0; padding: 11px 6px; color: var(--text);
   font: inherit; outline: none; max-height: 50vh; min-height: 44px;
 }
 #chat-input::placeholder { color: #6d6f78; }

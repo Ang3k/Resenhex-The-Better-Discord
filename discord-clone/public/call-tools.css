@@ -20,6 +20,44 @@
 .device-item.missing { color: var(--text-muted); font-style: italic; cursor: default; }
 .device-item.missing:hover { background: transparent; color: var(--text-muted); }
 
+/* Áudio: dispositivos compactos, volume acessível e efeitos sob demanda. */
+#context-menu.audio-device-menu { padding: 14px; border: 1px solid var(--divider); border-radius: 14px; }
+.device-head { display: flex; align-items: center; gap: 8px; margin-bottom: 16px; color: var(--text-strong); font-size: 14px; }
+.device-head > .ico { color: var(--brand); }
+.device-fields { display: grid; gap: 12px; }
+.device-field { display: grid; gap: 6px; min-width: 0; }
+.device-field-label { display: flex; align-items: center; gap: 6px; color: var(--text-muted); font-size: 11px; font-weight: 600; letter-spacing: .03em; text-transform: uppercase; }
+.device-select { width: 100%; min-width: 0; height: 38px; padding: 0 10px; border: 1px solid var(--divider); border-radius: 8px; background-color: var(--bg-panel); color: var(--text-strong); font: inherit; font-size: 13px; text-overflow: ellipsis; }
+.device-select:hover:not(:disabled) { border-color: color-mix(in srgb, var(--brand) 60%, var(--divider)); }
+.device-select:focus-visible { outline: 2px solid var(--brand); outline-offset: 2px; }
+.device-select:disabled { opacity: .55; cursor: wait; }
+.audio-device-menu .menu-range { margin: 14px 0; padding: 12px 0; border-block: 1px solid var(--divider); font-size: 12px; }
+.device-effects { border: 1px solid var(--divider); border-radius: 10px; background: var(--bg-panel); }
+.device-effects-toggle { display: flex; align-items: center; gap: 8px; width: 100%; padding: 10px; border: 0; border-radius: 10px; background: transparent; color: var(--text-strong); font: inherit; font-size: 13px; }
+.device-effects-toggle:hover { background: var(--hover); }
+.device-effects-toggle:focus-visible { outline: 2px solid var(--brand); outline-offset: 2px; }
+.device-effects-label { display: flex; align-items: center; gap: 6px; flex: 1; white-space: nowrap; font-weight: 600; }
+.device-effects-label > .ico { color: var(--brand); }
+.device-effect-current { display: flex; align-items: center; gap: 4px; padding: 3px 6px; border-radius: 6px; color: var(--text-muted); font-size: 11px; }
+.device-effect-current[data-active="true"] { background: color-mix(in srgb, var(--brand) 16%, transparent); color: var(--text-strong); }
+.device-effect-emoji { display: inline-flex; align-items: center; justify-content: center; font-family: "Segoe UI Emoji", "Apple Color Emoji", "Noto Color Emoji", sans-serif; font-size: 14px; line-height: 1; }
+.device-effects-toggle > .ico { color: var(--text-muted); transition: transform .15s; }
+.device-effects-toggle[aria-expanded="true"] > .ico { transform: rotate(180deg); }
+.device-effect-options { padding: 0 10px 10px; }
+.audio-device-menu .vfx-chips { grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; padding: 6px 0 0; }
+.audio-device-menu .vfx-chip { min-height: 54px; font-size: 11px; }
+.audio-device-menu .vfx-preview { width: 100%; margin: 10px 0 0; }
+.audio-device-menu .vfx-preview-note { margin: 8px 2px 0; font-size: 11px; }
+.device-footer { margin-top: 12px; padding-top: 8px; border-top: 1px solid var(--divider); }
+.device-footer .menu-item { margin: 0; padding: 6px 2px; font-size: 12px; }
+
+@media (max-width: 360px) {
+  #context-menu.audio-device-menu { padding: 12px; }
+  .device-effects-toggle { gap: 5px; padding: 8px; font-size: 12px; }
+  .device-effects-label { gap: 4px; }
+  .audio-device-menu .vfx-chips { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+}
+
 /* ---------- sozinho na sala ---------- */
 #main #voice-view #stage[data-alone] #stage-primary {
   flex: 0 1 auto; width: min(100%, 520px); min-height: 0; margin: auto auto 0; grid-template-columns: minmax(0, 1fr);
@@ -90,10 +128,19 @@
 }
 
 /* ---------- modificador de voz ---------- */
-/* Selo no bloco de quem está com efeito (emoji do efeito). */
-.tb.fx { padding: 0; width: 26px; background: color-mix(in srgb, var(--brand) 82%, #000); font-size: 14px; letter-spacing: 0; }
-#stage-strip > .tile .tb.fx { width: 20px; font-size: 11px; }
-.flags .fx-flag { font-size: 13px; line-height: 1; }
+/* Aviso de efeito no canto direito da chamada; o detalhe fica no tooltip. */
+.tile-fx { position: absolute; top: 10px; right: 10px; z-index: 2; display: flex; }
+.tile-fx:empty { display: none; }
+.voice-fx-indicator {
+  display: inline-flex; align-items: center; justify-content: center; flex: 0 0 auto; align-self: center;
+  color: var(--text-muted); font-size: 9px; font-weight: 600; line-height: 1; letter-spacing: .04em;
+}
+.tile-fx .voice-fx-indicator {
+  height: 16px; padding: 0 4px; border-radius: 3px; background: rgba(0, 0, 0, .35); color: #c1c3c8; pointer-events: auto;
+}
+#stage-strip > .tile .voice-fx-indicator { height: 14px; font-size: 8px; }
+#stage-strip > .tile .tile-fx { top: 6px; right: 6px; }
+#stage-strip > .tile.voice-fx-active .tile-controls { right: 32px; }
 
 /* Botões de efeito no menu de dispositivos da chamada. */
 .vfx-chips { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 4px; padding: 2px 4px 6px; }
@@ -107,6 +154,16 @@
 .vfx-chip:hover { background: var(--hover-strong); color: var(--text-strong); }
 .vfx-chip.selected { border-color: var(--brand); background: color-mix(in srgb, var(--brand) 16%, transparent); color: var(--text-strong); }
 .vfx-chip:focus-visible { outline: 2px solid var(--brand); outline-offset: 1px; }
+.vfx-preview {
+  display: flex; align-items: center; justify-content: center; gap: 8px; width: calc(100% - 8px); margin: 4px;
+  padding: 9px 8px; border: 1px solid var(--divider); border-radius: 8px; background: var(--bg-panel);
+  color: var(--text-strong); font: inherit; font-size: 13px; font-weight: 600;
+}
+.vfx-preview:hover:not(:disabled) { background: var(--hover-strong); border-color: var(--brand); }
+.vfx-preview.active { background: color-mix(in srgb, var(--brand) 16%, transparent); border-color: var(--brand); }
+.vfx-preview:focus-visible { outline: 2px solid var(--brand); outline-offset: 1px; }
+.vfx-preview:disabled, .vfx-chip:disabled { opacity: .55; }
+.vfx-preview-note { margin: 6px 8px 8px; color: var(--text-muted); font-size: 12px; line-height: 1.4; }
 
 /* Cartões dos efeitos nas configurações de voz. */
 .vfx-intro { margin: -4px 0 0; }

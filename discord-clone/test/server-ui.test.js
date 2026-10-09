@@ -102,6 +102,189 @@ async function ui(t, invited = false, options = {}) {
     setSnapshot: (next) => { current = structuredClone(next); push(); }, get copied() { return copied; } };
 }
 
+async function voicePreviewApp(t, options = {}) {
+  const captures = [], played = [], effects = [], destinations = [];
+  let capture;
+  let sequence = 0;
+  const track = () => ({ kind: 'audio', enabled: true, readyState: 'live', id: 'track-' + ++sequence,
+    stop() { this.readyState = 'ended'; }, clone() { return track(); } });
+  class Stream {
+    constructor(tracks = [track()]) { this.tracks = tracks; this.id = 'stream-' + ++sequence; }
+    getTracks() { return this.tracks; }
+    getAudioTracks() { return this.tracks.filter(t => t.kind === 'audio'); }
+    getVideoTracks() { return []; }
+  }
+  const node = () => ({ gain: { value: 1 }, connect(next) { return next; }, disconnect() {} });
+  const app = await ui(t, false, {
+    storage: { noiseMode: 'off', ...options.storage }, reply: { 'voice:join': () => ({ peers: [] }) },
+    setup(w) {
+      capture = async () => { const stream = new Stream(); captures.push(stream); return stream; };
+      Object.defineProperty(w.navigator, 'mediaDevices', { value: {
+        getUserMedia: () => capture(), enumerateDevices: async () => options.devices || [],
+        addEventListener() {}, removeEventListener() {},
+      } });
+      w.MediaStream = Stream;
+      w.AudioContext = class {
+        constructor() { this.state = 'running'; this.destination = node(); }
+        createGain() { return node(); }
+        createMediaStreamSource() { return node(); }
+        createMediaStreamDestination() { const stream = new Stream(); destinations.push(stream); return { ...node(), stream }; }
+        createAnalyser() { return { ...node(), fftSize: 1024, getFloatTimeDomainData(data) { data.fill(0.1); }, getByteTimeDomainData(data) { data.fill(128); } }; }
+      };
+      w.HTMLMediaElement.prototype.play = async function () { played.push(this); };
+      if (options.output) w.HTMLMediaElement.prototype.setSinkId = async function (id) { this.sinkId = id; };
+    },
+  });
+  await app.register();
+  app.w.Sounds.play = () => {};
+  app.w.VoiceFx.create = async (ctx, id) => {
+    const effect = { id, input: node(), output: node(), destroyed: false,
+      async set(next) { this.id = next; }, destroy() { this.destroyed = true; } };
+    effects.push(effect);
+    return effect;
+  };
+  const state = snapshot('server-1', 'Turma', [{ id: 'server-1', name: 'Turma', owner: true }]);
+  state.myPerms.push('SPEAK');
+  state.categories.push({ id: 'voice', name: 'Voz' });
+  state.channels.push({ id: 'room-1', name: 'Sala 1', type: 'voice', categoryId: 'voice', allowedRoles: [] });
+  state.voice.push({ accountId: userId, sid: 'ui-socket', channel: 'room-1' });
+  app.setSnapshot(state); await settle();
+  app.d.querySelector('[data-channel-id="room-1"] .channel-entry').click(); await settle();
+  return { ...app, captures, played, effects, destinations, Stream, setCapture(fn) { capture = fn; } };
+}
+
+test('teste de voz no menu: ouve os efeitos, silencia a chamada e libera o microfone ao fechar', async (t) => {
+  const app = await voicePreviewApp(t);
+  const d = app.d;
+  const mainTrack = app.captures[0].getAudioTracks()[0];
+  assert.equal(mainTrack.enabled, true);
+  d.querySelector('#sc-mic-devices').click(); await settle();
+  const preview = d.querySelector('#voice-fx-preview');
+  assert.equal(d.querySelector('#voice-fx-options').classList.contains('hidden'), true);
+  assert.equal(preview.textContent, 'Ouvir minha voz');
+  preview.click(); await settle();
+  assert.equal(preview.textContent, 'Parar de ouvir');
+  assert.equal(preview.getAttribute('aria-pressed'), 'true');
+  assert.equal(mainTrack.enabled, false, 'o áudio do teste não sai pelo microfone da chamada');
+  assert.equal(app.played.at(-1).srcObject, app.captures[1]);
+
+  d.querySelector('#voice-fx-toggle').click();
+  assert.equal(d.querySelector('#voice-fx-toggle').getAttribute('aria-expanded'), 'true');
+  d.querySelector('.vfx-chip[data-fx="radio"]').click(); await settle();
+  assert.equal(app.effects.at(-1).id, 'radio');
+  assert.equal(app.captures[1].getAudioTracks()[0].readyState, 'ended');
+  assert.equal(app.played.at(-1).srcObject.getAudioTracks()[0].enabled, true);
+  const count = app.captures.length;
+  d.querySelector('.vfx-chip[data-fx="robo"]').click(); await settle();
+  assert.equal(app.effects.at(-1).id, 'robo');
+  assert.match(d.querySelector('.device-effect-current').textContent, /Robô/);
+  assert.equal(app.captures.length, count, 'trocar entre efeitos mantém a captura do teste');
+  const processedCallTrack = app.destinations[0].getAudioTracks()[0];
+  assert.equal(processedCallTrack.enabled, false);
+  assert.equal(processedCallTrack.readyState, 'live');
+
+  const monitoredAudio = app.played.at(-1), monitoredTrack = monitoredAudio.srcObject.getAudioTracks()[0];
+  d.dispatchEvent(new app.w.KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+  assert.equal(monitoredAudio.srcObject, null);
+  assert.equal(monitoredTrack.readyState, 'ended');
+  assert.equal(processedCallTrack.enabled, true, 'o microfone processado da chamada volta sem desligar o efeito');
+  assert.equal(d.querySelector('#context-menu').classList.contains('hidden'), true);
+  assert.equal(d.querySelector('#voice-fx-preview').getAttribute('aria-pressed'), 'false');
+  assert.equal(d.querySelector('#voice-fx-test').textContent, 'Ouvir minha voz');
+  d.querySelector('#sc-mic-devices').click(); await settle();
+  d.querySelector('#voice-fx-toggle').click();
+  d.querySelector('.vfx-chip[data-fx="none"]').click(); await settle();
+  assert.equal(app.captures.at(-1).getAudioTracks()[0].enabled, true, 'o microfone volta ao estado anterior depois do teste');
+});
+
+test('painel de áudio compacto preserva dispositivos, volume e troca durante a escuta', async (t) => {
+  const app = await voicePreviewApp(t, {
+    output: true, storage: { micDeviceId: 'missing-mic' }, devices: [
+      { kind: 'audioinput', deviceId: 'default', label: 'Padrão duplicado' },
+      { kind: 'audioinput', deviceId: 'communications', label: 'Comunicações duplicado' },
+      { kind: 'audioinput', deviceId: 'mic-1', label: 'Microfone USB' },
+      { kind: 'audioinput', deviceId: 'mic-2', label: 'Microfone Webcam' },
+      ...Array.from({ length: 7 }, (_, i) => ({ kind: 'audiooutput', deviceId: 'speaker-' + i, label: 'Saída ' + i })),
+    ],
+  });
+  const d = app.d;
+  d.querySelector('#sc-mic-devices').click(); await settle();
+  const menu = d.querySelector('#context-menu');
+  const mic = menu.querySelector('select[data-device="micDeviceId"]');
+  const output = menu.querySelector('select[data-device="speakerDeviceId"]');
+  assert.equal(menu.querySelectorAll('select').length, 2);
+  assert.equal(mic.options.length, 4, 'padrão, dois microfones e o salvo desconectado');
+  assert.equal(mic.selectedOptions[0].disabled, true);
+  assert.equal(output.options.length, 8, 'todas as saídas continuam disponíveis sem aumentar o painel');
+  const arrow = new app.w.KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true, cancelable: true });
+  mic.dispatchEvent(arrow);
+  assert.equal(arrow.defaultPrevented, false, 'as setas continuam funcionando dentro do seletor');
+
+  d.querySelector('#voice-fx-preview').click(); await settle();
+  const previousAudio = app.played.at(-1);
+  let resolveDevice;
+  let deferDevice = true;
+  app.setCapture(() => {
+    if (deferDevice) { deferDevice = false; return new Promise(resolve => { resolveDevice = resolve; }); }
+    const stream = new app.Stream(); app.captures.push(stream); return Promise.resolve(stream);
+  });
+  mic.value = 'mic-1'; mic.dispatchEvent(new app.w.Event('change', { bubbles: true })); await settle();
+  assert.equal(app.captures[0].getAudioTracks()[0].enabled, false, 'a chamada continua muda enquanto o novo dispositivo abre');
+  const replacement = new app.Stream(); app.captures.push(replacement); resolveDevice(replacement); await settle();
+  assert.equal(previousAudio.srcObject, null);
+  assert.equal(app.w.localStorage.getItem('micDeviceId'), 'mic-1');
+  assert.equal(mic.value, 'mic-1');
+  assert.equal(menu.classList.contains('hidden'), false);
+  assert.equal(d.querySelector('#voice-fx-preview').getAttribute('aria-pressed'), 'true', 'a escuta usa o novo microfone');
+  output.value = 'speaker-3'; output.dispatchEvent(new app.w.Event('change', { bubbles: true })); await settle();
+  assert.equal(app.played.at(-1).sinkId, 'speaker-3');
+  const volume = menu.querySelector('input[type="range"]');
+  volume.value = '35'; volume.dispatchEvent(new app.w.Event('input', { bubbles: true }));
+  assert.equal(app.w.localStorage.getItem('outputVolume'), '35');
+  assert.equal(volume.style.getPropertyValue('--fill'), '35%');
+  d.querySelector('#voice-fx-preview').click(); await settle();
+
+  app.setCapture(async () => { throw new Error('Microfone indisponível'); });
+  mic.value = 'mic-2'; mic.dispatchEvent(new app.w.Event('change', { bubbles: true })); await settle();
+  assert.equal(mic.value, 'mic-1', 'falhas preservam o microfone que estava funcionando');
+  assert.equal(mic.disabled, false);
+});
+
+test('teste de voz: fechar enquanto abre o microfone cancela o retorno e as configurações continuam funcionando', async (t) => {
+  const app = await voicePreviewApp(t);
+  const d = app.d;
+  d.querySelector('#sc-mic-devices').click(); await settle();
+  app.setCapture(async () => { throw new Error('Sem permissão'); });
+  d.querySelector('#voice-fx-preview').click(); await settle();
+  assert.equal(d.querySelector('#voice-fx-preview').textContent, 'Ouvir minha voz');
+  assert.equal(d.querySelector('#voice-fx-preview').disabled, false);
+  assert.equal(app.captures[0].getAudioTracks()[0].enabled, true, 'uma falha no teste não deixa a chamada muda');
+  let resolveCapture;
+  app.setCapture(() => new Promise(resolve => { resolveCapture = resolve; }));
+  d.querySelector('#voice-fx-preview').click(); await settle();
+  assert.equal(d.querySelector('#voice-fx-preview').disabled, true);
+  d.dispatchEvent(new app.w.KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+  const cancelled = new app.Stream();
+  resolveCapture(cancelled); await settle();
+  assert.equal(cancelled.getAudioTracks()[0].readyState, 'ended');
+  assert.equal(app.played.length, 0);
+  assert.equal(app.captures[0].getAudioTracks()[0].enabled, true);
+
+  app.setCapture(async () => { const stream = new app.Stream(); app.captures.push(stream); return stream; });
+  d.querySelector('#sc-mic-devices').click(); await settle();
+  await app.clickText('Configurações de voz');
+  d.querySelector('#voice-fx-test').click(); await settle();
+  assert.equal(d.querySelector('#voice-fx-test').textContent, 'Parar de ouvir');
+  assert.equal(app.captures[0].getAudioTracks()[0].enabled, false);
+  d.querySelector('.vfx-card[data-fx="radio"]').click(); await settle();
+  assert.equal(app.effects.at(-1).id, 'radio');
+  const audio = app.played.at(-1), track = audio.srcObject.getAudioTracks()[0];
+  d.querySelector('#voice-fx-test').click(); await settle();
+  assert.equal(audio.srcObject, null);
+  assert.equal(track.readyState, 'ended');
+  assert.equal(app.captures[0].getAudioTracks()[0].enabled, true);
+});
+
 test('transmissões simultâneas usam grade, alternam destaque e preservam os players', async (t) => {
   const app = await ui(t, false, {
     storage: { noiseMode: 'off' }, reply: { 'voice:join': () => ({ peers: [] }) },
@@ -116,6 +299,7 @@ test('transmissões simultâneas usam grade, alternam destaque e preservam os pl
   s.channels.push({ id: 'room-1', name: 'Sala 1', type: 'voice', categoryId: 'voice', allowedRoles: [] });
   s.members.push({ ...person, id: 'b'.repeat(16), name: 'Bruno' }, { ...person, id: 'c'.repeat(16), name: 'Clara' });
   s.voice = s.members.map((m, i) => ({ accountId: m.id, sid: i ? 'remote-' + i : 'ui-socket', channel: 'room-1', sharing: i > 0 }));
+  s.voice[1].voiceFx = 'robo';
   app.setSnapshot(s); await settle();
   app.d.querySelector('[data-channel-id="room-1"] .channel-entry').click(); await settle();
   const stage = app.d.querySelector('#stage');
@@ -128,6 +312,11 @@ test('transmissões simultâneas usam grade, alternam destaque e preservam os pl
   assert.equal(primary.querySelectorAll('.screen').length, 2);
   assert.equal(stage.querySelectorAll('.focus').length, 0);
   assert.equal(strip.querySelectorAll('.tile').length, 3);
+  const participant = stage.querySelector('[data-key="user-remote-1"]');
+  assert.equal(participant.querySelector('.label .voice-fx-indicator'), null, 'o nome fica livre do indicador');
+  assert.equal(participant.querySelector('.tile-badges .voice-fx-indicator'), null, 'o efeito fica fora dos selos à esquerda');
+  assert.equal(participant.querySelector('.tile-fx .voice-fx-indicator').dataset.tip, 'Efeito de voz: Robô');
+  assert.equal(app.d.querySelector('.voice-user .voice-fx-indicator'), null, 'a lista lateral não mostra o efeito');
   assert.equal(app.d.querySelector('#stage-summary').textContent, '2 transmissões');
   first.click();
   assert.equal(stage.dataset.layout, 'focus');
@@ -144,13 +333,19 @@ test('transmissões simultâneas usam grade, alternam destaque e preservam os pl
   app.d.querySelector('#stage-focus').click();
   assert.equal(primary.firstElementChild, first);
   s.voice[1].sharing = false;
+  s.voice[1].voiceFx = 'caverna';
   app.setSnapshot(s); await settle();
+  assert.equal(participant.querySelector('.tile-fx .voice-fx-indicator').dataset.tip, 'Efeito de voz: Caverna', 'o detalhe acompanha a troca do efeito');
   assert.equal(stage.querySelector('[data-key="screen-remote-1"]'), null);
   assert.equal(primary.firstElementChild, second, 'quando a tela destacada encerra, destaca a restante');
   app.d.querySelector('#stage-grid').click();
   assert.equal(stage.dataset.layout, 'streams', 'a grade também funciona com uma tela');
   s.voice[2].sharing = false;
+  s.voice[1].voiceFx = 'none';
   app.setSnapshot(s); await settle();
+  assert.equal(participant.querySelector('.voice-fx-indicator'), null);
+  assert.equal(participant.classList.contains('voice-fx-active'), false);
+  assert.equal(app.d.querySelector('.voice-user .voice-fx-indicator'), null, 'o indicador some ao desligar o efeito');
   assert.equal(stage.dataset.layout, 'people');
   assert.equal(app.d.querySelector('#stage-toolbar').classList.contains('hidden'), true);
   assert.equal(primary.querySelectorAll('.tile').length, 3);
