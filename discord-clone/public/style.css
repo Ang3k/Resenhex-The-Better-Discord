@@ -500,10 +500,10 @@ blockquote { margin: 2px 0; padding: 0 8px 0 12px; border-left: 4px solid color-
 #stage-controls .sc-btn { width: clamp(44px, 9cqw, 56px); height: clamp(44px, 9cqw, 56px); flex: 0 0 auto; }
 /* A chamada responde à largura do próprio palco, inclusive com a navegação aberta. */
 @container (max-width: 440px) {
-  #voice-view #stage-controls { display: grid; grid-template-columns: repeat(4, 44px); gap: 8px; padding: 10px; border-radius: 24px; }
-  #stage-controls .sc-btn { width: 44px; height: 44px; }
-  #stage-controls .sc-btn.hangup { grid-column: 4; }
-  #voice-view #stage { padding-bottom: 144px; }
+  /* Uma linha só no celular: os botões encolhem com a largura do palco em vez de quebrar em duas. */
+  #voice-view #stage-controls { gap: clamp(3px, 1.6cqw, 8px); padding: 6px; }
+  #stage-controls .sc-btn { width: clamp(34px, 10.5cqw, 44px); height: clamp(34px, 10.5cqw, 44px); }
+  #voice-view #stage { padding-bottom: 84px; }
 }
 .sc-btn:hover:not(:disabled) { background: color-mix(in srgb, var(--text) 12%, var(--bg-panel)); }
 .sc-btn:active:not(:disabled) { transform: scale(.95); }
