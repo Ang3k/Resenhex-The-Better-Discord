@@ -1424,14 +1424,14 @@ io.on('connection', (socket) => {
   on('mudae:presence', (acc, { channel }) => {
     const s = online.get(socket.id);
     const c = channel ? salonOf(acc, channel) : null;
-    if (c && s.salon === c.id && s.salonServerId === communities.currentId()) return { ok: true, ...mudae.status(mudaeStore(), acc.id), sources: mudae.sources };
+    if (c && s.salon === c.id && s.salonServerId === communities.currentId()) return { ok: true, ...mudae.status(mudaeStore(), acc.id), sources: mudae.sources, warm: mudae.warmup() };
     leaveSalon(s);
     if (c) {
       s.salon = c.id;
       s.salonServerId = communities.currentId();
       pushSalon(s.salonServerId, c.id);
     }
-    return { ok: true, ...(c ? { ...mudae.status(mudaeStore(), acc.id), sources: mudae.sources } : {}) };
+    return { ok: true, ...(c ? { ...mudae.status(mudaeStore(), acc.id), sources: mudae.sources, warm: mudae.warmup() } : {}) };
   });
 
   // Reações rápidas no palco: só para quem está no Salão agora, sem gravar.

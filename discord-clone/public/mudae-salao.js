@@ -32,6 +32,7 @@ window.MudaeSalon = function ({ state, el, Icon, call, onSocket, member, avatar,
   let ticker = null;
   let activeSpin = null;
   let stageArt = null;
+  const REEL_CELLS = 11;
 
   const msgs = () => state.messages[S.channel] || [];
   const rolls = () => msgs().filter((m) => m.bot === 'mudae' && m.mudae?.kind === 'roll' && m.mudae.card);
@@ -89,6 +90,34 @@ window.MudaeSalon = function ({ state, el, Icon, call, onSocket, member, avatar,
     img.src = src;
     return record;
   }
+
+  // Estoque de fotos já baixadas, por fonte, para a roleta sempre girar com personagens: vem do
+  // servidor ao abrir o Salão e cresce com as iscas de cada roll (de qualquer pessoa).
+  const WARM_MAX = 24;
+  const warm = new Map();
+  function warmUp(source, srcs) {
+    if (!srcs?.length) return [];
+    const list = warm.get(source) || new Map();
+    warm.set(source, list);
+    const records = srcs.map((src) => {
+      let record = list.get(src);
+      if (record) list.delete(src);
+      else record = picture(src, { priority: 'low' });
+      list.set(src, record);
+      return record;
+    });
+    for (const src of list.keys()) { if (list.size <= WARM_MAX) break; list.delete(src); }
+    return records;
+  }
+  // Fotos prontas do estoque, da fonte do roll primeiro, sem repetir as que já estão na faixa.
+  function warmExtras(source, skip, count) {
+    const pickFrom = (list) => [...list.values()].filter((r) => r.ready && !skip.has(r.src)).sort(() => Math.random() - .5);
+    const same = pickFrom(warm.get(source) || new Map());
+    const others = [...warm].filter(([s]) => s !== source).flatMap(([, list]) => pickFrom(list));
+    return [...same, ...others].slice(0, count);
+  }
+  // Uma <img> só pode estar num lugar; a cópia usa os pixels que o navegador já tem.
+  const copyOf = (record) => { const img = record.image.cloneNode(); img.alt = ''; img.className = ''; return img; };
 
   function cardBack() {
     return el('div', { class: 'salon-card-back', ariaHidden: 'true' }, Icon('dice', 40));
@@ -148,7 +177,11 @@ window.MudaeSalon = function ({ state, el, Icon, call, onSocket, member, avatar,
     renderBody();
     updateStatus();
     pickInitialStage();
-    call('mudae:presence', { channel: channel.id }).then((res) => { if (res && S.channel === channel.id) setStatus(res); });
+    call('mudae:presence', { channel: channel.id }).then((res) => {
+      if (!res || S.channel !== channel.id) return;
+      setStatus(res);
+      for (const [source, srcs] of Object.entries(res.warm || {})) warmUp(source, srcs);
+    });
     call('mudae:profile', { accountId: me() }).then((res) => { if (S.channel === channel.id) { S.favorite = res?.summary?.favorite || null; if (!S.stage) renderStage(); } });
     clearInterval(ticker);
     ticker = setInterval(tick, 250);
@@ -522,7 +555,8 @@ window.MudaeSalon = function ({ state, el, Icon, call, onSocket, member, avatar,
     renderRollBar();
     // O resultado tem prioridade; iscas lentas ou inválidas não entram no giro.
     const winner = stageArt = picture(d.card.image, { priority: 'high' });
-    const decoys = [...d.decoys, ...d.decoys.slice(0, 3)].map((src) => picture(src, { priority: 'low' }));
+    const source = d.card.source || 'a';
+    const decoys = warmUp(source, d.decoys);
     const cover = el('div', { class: 'salon-reel-cover' }, cardBack());
     const reel = el('div', { class: `salon-reel is-preparing r-${rarity}` }, cover, el('div', { class: 'salon-reel-shade' }));
     nodes.cardSlot.replaceChildren(reel, el('div', { class: 'salon-stage-caption', textContent: (m.by === me() ? 'Você está' : whoName(m.by) + ' está') + ' rodando…' }));
@@ -544,13 +578,20 @@ window.MudaeSalon = function ({ state, el, Icon, call, onSocket, member, avatar,
     if (!current() || !reel.isConnected) return;
     const remaining = (d.revealAt ?? m.ts) - now();
     if (remaining <= 0) return done();
-    const images = decoys.filter((record) => record.ready).map((record) => record.image);
-    // Sem fotos prontas, um baralho de versos mantém a animação inteira.
+    const ready = decoys.filter((record) => record.ready);
+    // O que não chegou a tempo é completado com o estoque; versos só se não houver foto nenhuma.
+    const fill = warmExtras(source, new Set(ready.map((r) => r.src)), REEL_CELLS - ready.length);
+    const cells = [...ready, ...fill].sort(() => Math.random() - .5);
+    const images = [...cells, ...cells.slice(0, REEL_CELLS - cells.length)].map(copyOf);
     while (images.length < 3) images.push(cardBack());
+    if (winner.ready) { winner.image.alt = ''; winner.image.className = ''; }
     images.push(winner.ready ? winner.image : cardBack());
-    for (const img of images) if (img.tagName === 'IMG') { img.alt = ''; img.className = ''; }
     const strip = el('div', { class: 'salon-reel-strip' }, images.map((image) => el('div', { class: 'salon-reel-cell' }, image)));
     reel.prepend(strip);
+    // A casa do resultado só aparece no fim do giro: a foto entra nela assim que chegar.
+    if (!winner.ready) winner.promise.then(() => {
+      if (current() && winner.ready) { winner.image.alt = ''; winner.image.className = ''; strip.lastChild.replaceChildren(winner.image); }
+    });
     reel.classList.remove('is-preparing');
     reel.classList.add('is-ready');
     const n = images.length;
@@ -807,6 +848,7 @@ window.MudaeSalon = function ({ state, el, Icon, call, onSocket, member, avatar,
     if (channel !== S.channel || m.bot !== 'mudae') return;
     const d = m.mudae || {};
     if (d.kind === 'roll' && d.card) {
+      if (d.decoys) warmUp(d.card.source || 'a', d.decoys);
       const mine = m.by === me();
       const stageMsg = S.stage && byId(S.stage);
       const busy = S.spinning || (stageMsg && stageMsg.id !== m.id && claimable(stageMsg));

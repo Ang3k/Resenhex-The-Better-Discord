@@ -5,7 +5,7 @@ const path = require('node:path');
 const { JSDOM } = require('jsdom');
 
 // Relógio e rede controlados; executa o Salão real, inclusive load/decode separados.
-function salon(t, { reduced = false } = {}) {
+function salon(t, { reduced = false, presence = null } = {}) {
   const dom = new JSDOM('<div id="main"><div id="salon-view"></div><div id="chat-view"></div></div>', { runScripts: 'outside-only' });
   const w = dom.window, d = w.document;
   t.after(() => w.close());
@@ -70,14 +70,14 @@ function salon(t, { reduced = false } = {}) {
   }
   const state = { me: { accountId: 'me' }, messages: { room: [] } };
   w.eval(fs.readFileSync(path.join(__dirname, '../public/mudae-salao.js'), 'utf8'));
-  const api = w.MudaeSalon({ state, el, Icon: () => el('svg'), call: async () => null, onSocket() {}, member: () => null,
+  const api = w.MudaeSalon({ state, el, Icon: () => el('svg'), call: async (name) => (name === 'mudae:presence' ? presence : null), onSocket() {}, member: () => null,
     ui: { num: String, minutes: String, kakera: () => el('span'), seriesLine: (card) => card.series,
       serverNow: () => time, RARITY: { common: 'Comum' }, SOURCES: { a: { label: 'Anime' } } }, Sounds: { play() {} } });
   api.sync({ id: 'room' });
-  function roll(id = 'roll', image = 'winner', decoys = ['fast', 'slow', 'broken', 'decode-late']) {
+  function roll(id = 'roll', image = 'winner', decoys = ['fast', 'slow', 'broken', 'decode-late'], source = 'a') {
     const msg = { id, bot: 'mudae', by: 'me', ts: time, mudae: { kind: 'roll', revealAt: time + 2000,
       expires: time + 47_000, priorityUntil: time + 5000, decoys,
-      card: { name: id, image, rarity: 'common', series: 'Teste', rank: 1, value: 100 } } };
+      card: { name: id, image, rarity: 'common', series: 'Teste', rank: 1, value: 100, source } } };
     state.messages.room.push(msg); api.onMessage('room', msg); return msg;
   }
   return { d, api, roll, load, requests, animations, advance, flush };
@@ -129,6 +129,19 @@ test('rede lenta mantém versos visíveis no giro e na revelação até a foto d
   assert.equal(art.querySelector('.salon-card-back'), null);
   assert.ok(art.querySelector('img.ready'));
   assert.ok(app.d.querySelector('.salon-showcase.has-art'));
+});
+
+test('fotos do roll atrasadas: a roleta gira com o estoque pré-carregado, da mesma fonte primeiro', async (t) => {
+  const app = salon(t, { presence: { ok: true, rollsLeft: 9, rollsMax: 10, warm: { g: ['g1', 'g2', 'g3'], a: ['a1', 'a2'] } } });
+  await app.flush();
+  ['g1', 'g2', 'g3', 'a1', 'a2'].forEach((src) => app.load(src));
+  await app.flush();
+  app.roll('jogo', 'winner-g', ['lenta1', 'lenta2'], 'g');
+  await app.advance(300);
+  const srcs = [...app.d.querySelectorAll('.salon-reel-cell img')].map((img) => img.getAttribute('src'));
+  assert.equal(app.d.querySelectorAll('.salon-reel-cell .salon-card-back').length, 1, 'só o resultado (ainda baixando) fica de verso');
+  assert.ok(srcs.length >= 5);
+  assert.deepEqual([...new Set(srcs)].sort(), ['a1', 'a2', 'g1', 'g2', 'g3']);
 });
 
 test('falha na imagem do resultado mantém uma carta visível e o casamento disponível', async (t) => {

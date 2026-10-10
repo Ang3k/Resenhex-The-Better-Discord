@@ -84,6 +84,12 @@ function createMudae({ catalog, now = Date.now, random = Math.random, refSize = 
   }
 
   const imageOf = (c) => (/^https?:\/\//.test(c.img) ? c.img : IMG_PREFIX + c.img);
+  // As fotos que só passam na roleta (borradas, em movimento) vão no tamanho menor de cada site.
+  const thumbOf = (c) => imageOf(c)
+    .replace('/scale-to-width-down/400', '/scale-to-width-down/200')
+    .replace('/uploads/scale_large/', '/uploads/scale_small/')
+    .replace('/t_cover_big_2x/', '/t_cover_big/')
+    .replace('/t/p/w342/', '/t/p/w185/');
   const valueOfChar = (c) => valueOf(c.eq - 1);
   const card = (c) => ({ id: c.id, name: c.name, series: c.series, image: imageOf(c), value: valueOfChar(c), rank: c.pos,
     rarity: rarityOf(c.eq), source: c.source });
@@ -115,8 +121,15 @@ function createMudae({ catalog, now = Date.now, random = Math.random, refSize = 
     const windowId = Math.floor(now() / ROLL_RESET_MS);
     if (u.rollWindow !== windowId) { u.rollWindow = windowId; u.rolls = 0; }
     u.rolls++;
-    const decoys = Array.from({ length: DECOYS }, () => imageOf(pick(list)));
+    const decoys = Array.from({ length: DECOYS }, () => thumbOf(pick(list)));
     return { card: card(c), ownerId: store.claims[c.id]?.ownerId || null, rollsLeft: left - 1, decoys };
+  }
+
+  // Fotos para o navegador já deixar carregadas ao abrir o Salão: a roleta nunca gira vazia,
+  // mesmo quando as fotos sorteadas no roll (wikis, Comic Vine) demoram a chegar.
+  // Separadas por fonte, para um roll de jogos girar fotos de jogos.
+  function warmup(perSource = 8) {
+    return Object.fromEntries([...bySource.keys()].map((s) => [s, Array.from({ length: perSource }, () => thumbOf(pick(pools['m' + s])))]));
   }
 
   // Casar com o personagem de um roll. Quem chamar primeiro leva (o servidor processa um de cada vez).
@@ -235,7 +248,7 @@ function createMudae({ catalog, now = Date.now, random = Math.random, refSize = 
   // Quantos personagens há em cada fonte (a tela mostra só os filtros que existem).
   const sources = Object.fromEntries([...bySource].map(([s, list]) => [s, list.length]));
 
-  return { size: chars.length, sources, parse, status, roll, claim, harem, album, summary, setFavorite, ranking, info, divorce, divorceId,
+  return { size: chars.length, sources, parse, status, roll, warmup, claim, harem, album, summary, setFavorite, ranking, info, divorce, divorceId,
     card: (id) => (lookup(id) ? card(lookup(id)) : null) };
 }
 
