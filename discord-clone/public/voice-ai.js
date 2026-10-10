@@ -84,8 +84,9 @@ window.VoiceAI = (() => {
       finally { busy = false; if (!destroyed) consumed(); }
     };
     controllers.add(controller);
-    // Loading failures use the same stable output track and respect the current gate.
-    await controller.reload();
+    // O personagem carrega em segundo plano (conferir arquivos, abrir o motor e aquecer a GPU leva
+    // alguns segundos): entrar na call não espera por isso. Falhas caem na voz normal, no mesmo track.
+    controller.reload();
     return controller;
   }
   // Populate both effect pickers on startup, before the first preview or call.

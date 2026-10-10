@@ -37,6 +37,8 @@ class ResenhexVoiceProcessor extends AudioWorkletProcessor {
     if (!output) return true;
     output.fill(0);
     if (this.blocked || !input) return true;
+    // Enquanto o personagem carrega, silêncio (a voz real não vaza); se falhar, volta a voz normal.
+    if (this.mode === 'waiting') { output.fill(0); return true; }
     if (this.mode !== 'active') { output.set(input); return true; }
     for (let i = 0; i < input.length;) {
       if (!this.used) this.captureFrame = currentFrame + i;
