@@ -5,6 +5,8 @@ const { EventEmitter } = require('node:events');
 const { encode, Decoder } = require('./voice-protocol');
 const { downloadModel, verifyFile } = require('./voice-download');
 const catalog = require('./voice-catalog.json');
+// Quanto as características do personagem (índice) entram na voz: 0 = sem índice, 1 = só o índice.
+const DEFAULT_INDEX_RATE = 0.6;
 
 const PERFORMANCE = { fast: { blockMs: 80, contextMs: 320 }, economy: { blockMs: 160, contextMs: 320 }, balanced: { blockMs: 120, contextMs: 480 }, quality: { blockMs: 160, contextMs: 640 } };
 class VoiceEngine extends EventEmitter {
@@ -12,22 +14,27 @@ class VoiceEngine extends EventEmitter {
     super();
     this.catalog = models; this.dataDir = dataDir; this.resources = resources; this.python = python; this.script = script;
     this.store = store; this.fetch = request; this.spawn = start;
-    this.preferences = { model: '', backend: 'auto', performance: 'balanced', pitchShift: 0, ...store.get('voiceAi') };
+    this.preferences = { model: '', backend: 'auto', performance: 'balanced', pitchShift: 0, indexRate: DEFAULT_INDEX_RATE, ...store.get('voiceAi') };
     if (!this.catalog.voices.some((v) => v.id === this.preferences.model)) this.preferences.model = '';
     if (!['auto', 'gpu', 'cpu'].includes(this.preferences.backend)) this.preferences.backend = 'auto';
     if (!PERFORMANCE[this.preferences.performance]) this.preferences.performance = 'balanced';
     this.preferences.pitchShift = Math.max(-12, Math.min(12, Number(this.preferences.pitchShift) || 0));
+    this.preferences.indexRate = Number.isFinite(Number(this.preferences.indexRate)) ? Math.max(0, Math.min(1, Number(this.preferences.indexRate))) : DEFAULT_INDEX_RATE;
     this.state = 'idle'; this.error = ''; this.child = null; this.pending = new Map(); this.sequence = 0;
     this.download = null; this.progress = null; this.sessions = new Map(); this.generation = 0; this.loadedKey = ''; this.idleTimer = null;
   }
   file(spec) { return path.join(this.dataDir, 'models', spec.file); }
   components(voice) { return [this.catalog.components[voice.encoder || 'encoder'], this.catalog.components.pitch]; }
+  // Arquivos do próprio personagem: o modelo e, quando houver, o índice de semelhança.
+  ownFiles(voice) { return voice.index ? [voice, voice.index] : [voice]; }
   async snapshot() {
     const voices = await Promise.all(this.catalog.voices.map(async (voice) => {
-      const { url, file, sha256, checkpoint, ...publicVoice } = voice;
+      const { url, file, sha256, checkpoint, index, ...publicVoice } = voice;
       let installed = false;
-      try { installed = (await fs.promises.stat(this.file(voice))).size === voice.bytes; } catch {}
-      return { ...publicVoice, installed };
+      try {
+        installed = (await Promise.all(this.ownFiles(voice).map(async (spec) => (await fs.promises.stat(this.file(spec))).size === spec.bytes))).every(Boolean);
+      } catch {}
+      return { ...publicVoice, hasIndex: !!index, installed };
     }));
     return { state: this.state, error: this.error, preferences: this.preferences, voices, progress: this.progress,
       available: !!this.python && fs.existsSync(this.python), backend: this.backend || null,
@@ -42,7 +49,7 @@ class VoiceEngine extends EventEmitter {
     if (!voice) throw new Error('Voz desconhecida.');
     const controller = this.download = new AbortController();
     this.state = 'downloading'; this.error = '';
-    const specs = [...this.components(voice), voice];
+    const specs = [...this.components(voice), ...this.ownFiles(voice)];
     const total = specs.reduce((n, s) => n + s.bytes, 0);
     let completed = 0, notified = 0;
     this.progress = { id, received: 0, total }; this.changed();
@@ -83,7 +90,7 @@ class VoiceEngine extends EventEmitter {
     if (this.preferences.model === id) {
       this.stop(); this.preferences.model = ''; this.save();
     }
-    await fs.promises.rm(this.file(voice), { force: true });
+    for (const spec of this.ownFiles(voice)) await fs.promises.rm(this.file(spec), { force: true });
     this.changed(); return this.snapshot();
   }
   async configure(values) {
@@ -93,6 +100,8 @@ class VoiceEngine extends EventEmitter {
     if (values.model !== undefined) {
       if (!this.catalog.voices.some((v) => v.id === values.model)) throw new Error('Voz desconhecida.');
       next.model = values.model;
+      // Cada personagem já começa no tom que combina com ele; o ajuste manual continua valendo depois.
+      if (values.pitchShift === undefined && values.model !== this.preferences.model) next.pitchShift = this.catalog.voices.find((v) => v.id === values.model).pitchShift || 0;
     }
     if (values.backend !== undefined) {
       if (!['auto', 'gpu', 'cpu'].includes(values.backend)) throw new Error('Aceleração inválida.');
@@ -101,6 +110,10 @@ class VoiceEngine extends EventEmitter {
     if (values.performance !== undefined) {
       if (!PERFORMANCE[values.performance]) throw new Error('Qualidade inválida.');
       next.performance = values.performance;
+    }
+    if (values.indexRate !== undefined) {
+      if (typeof values.indexRate !== 'number' || !(values.indexRate >= 0 && values.indexRate <= 1)) throw new Error('Semelhança inválida.');
+      next.indexRate = Math.round(values.indexRate * 20) / 20;
     }
     if (values.pitchShift !== undefined) {
       if (!Number.isInteger(values.pitchShift) || Math.abs(values.pitchShift) > 12) throw new Error('Tom inválido.');
@@ -158,13 +171,14 @@ class VoiceEngine extends EventEmitter {
       // Pitch/profile updates reuse graphs already verified and loaded in memory.
       // Every new graph load and worker restart still verifies the complete files.
       if (!this.child || this.loadedGraphKey !== graphKey) {
-        for (const spec of [...this.components(voice), voice]) {
+        for (const spec of [...this.components(voice), ...this.ownFiles(voice)]) {
           if (!await verifyFile(this.file(spec), spec)) throw new Error('Modelo ausente ou danificado. Baixe a voz novamente.');
         }
       }
       this.start();
       const reply = await this.request({ op: 'load', encoder: this.file(this.catalog.components[voice.encoder || 'encoder']), pitch: this.file(this.catalog.components.pitch), voice: this.file(voice), sampleRate: voice.sampleRate,
-        backend: this.preferences.backend, pitchShift: this.preferences.pitchShift, ...PERFORMANCE[this.preferences.performance] }, undefined, 120000);
+        backend: this.preferences.backend, pitchShift: this.preferences.pitchShift,
+        index: voice.index ? this.file(voice.index) : null, indexRate: this.preferences.indexRate, ...PERFORMANCE[this.preferences.performance] }, undefined, 120000);
       this.generation = reply.generation; this.backend = reply.backend; this.loadedKey = key; this.loadedGraphKey = graphKey;
       this.state = 'ready'; this.changed();
     } catch (error) { this.state = 'error'; this.error = error.message; this.changed(); throw error; }

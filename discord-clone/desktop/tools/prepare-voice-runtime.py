@@ -59,6 +59,10 @@ def main():
         for wheel in lock["wheels"]:
             print("Preparing", wheel["name"], flush=True)
             extract(verified_download(wheel, cache), packages)
+        # Only what the worker imports at runtime: no test suites, converters or training tools.
+        for pattern in ("numpy/**/tests", "onnxruntime/transformers", "onnxruntime/tools", "onnxruntime/quantization", "onnxruntime/datasets", "onnxruntime/backend", "**/__pycache__"):
+            for path in list(packages.glob(pattern)):
+                shutil.rmtree(path, ignore_errors=True)
         # App-local Microsoft C++ libraries: neither administrator rights nor a separate installer.
         redist = verified_download(lock["vcredist"], cache)
         sevenzip = os.environ["RESENHEX_BUILD_7ZIP"]

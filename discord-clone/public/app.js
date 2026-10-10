@@ -5203,13 +5203,44 @@
               chip.setAttribute('aria-checked', String(chip.dataset.fx === VoiceFx.selection(state.voiceFx)));
             }
             updateCurrentFx();
+            updatePitch();
           } catch (error) { toast(error.message, 'error'); } finally {
             chips.forEach((chip) => { chip.disabled = micTestStarting || voicePresetUnavailable(chip.dataset.fx); });
           }
         },
         data: { fx: id },
       }, voicePresetIcon(p, 'vfx-chip-icon'), el('span', { textContent: p.label })));
-      const fxOptions = el('div', { id: 'voice-fx-options', class: 'device-effect-options hidden' }, el('div', { class: 'vfx-chips' }, chips));
+      // Tom da voz por IA ao alcance da chamada: cada personagem começa no tom dele e o ajuste vale na hora.
+      const pitchLabel = (n) => (n > 0 ? '+' + n : String(n));
+      const pitchValue = el('span');
+      const showPitch = () => { pitchValue.textContent = pitchLabel(Number(pitch.value)); pitch.style.setProperty('--fill', ((Number(pitch.value) + 12) / 24 * 100) + '%'); };
+      const pitch = el('input', { type: 'range', min: '-12', max: '12', step: '1', ariaLabel: 'Tom da voz por IA',
+        oninput: showPitch,
+        onchange: () => VoiceAI.command('configure', { pitchShift: Number(pitch.value) }).catch((error) => { toast(error.message, 'error'); updatePitch(); }) });
+      const pitchRow = el('div', { class: 'menu-range vfx-pitch' }, el('div', { class: 'menu-range-head' }, el('span', { textContent: 'Tom da voz' }), pitchValue), pitch);
+      // Semelhança: quanto o índice do personagem puxa a fala para o jeito dele (0% = sem índice).
+      const likenessValue = el('span');
+      const showLikeness = () => { likenessValue.textContent = likeness.value + '%'; likeness.style.setProperty('--fill', likeness.value + '%'); };
+      const likeness = el('input', { type: 'range', min: '0', max: '100', step: '5', ariaLabel: 'Semelhança com o personagem',
+        oninput: showLikeness,
+        onchange: () => VoiceAI.command('configure', { indexRate: Number(likeness.value) / 100 }).catch((error) => { toast(error.message, 'error'); updatePitch(); }) });
+      const likenessRow = el('div', { class: 'menu-range vfx-pitch' }, el('div', { class: 'menu-range-head' }, el('span', { textContent: 'Semelhança com o personagem' }), likenessValue), likeness);
+      function updatePitch() {
+        const ai = VoiceFx.selection(state.voiceFx).startsWith('ai:') && window.VoiceAI?.state;
+        const voice = ai && VoiceAI.state.voices?.find((v) => v.id === VoiceAI.state.preferences.model);
+        pitchRow.classList.toggle('hidden', !ai);
+        likenessRow.classList.toggle('hidden', !voice?.hasIndex);
+        if (voice?.hasIndex) {
+          likeness.value = String(Math.round((VoiceAI.state.preferences.indexRate ?? 0.6) * 100));
+          showLikeness();
+        }
+        if (!ai) return;
+        pitch.value = String(VoiceAI.state.preferences.pitchShift || 0);
+        showPitch();
+        markPitchHome(pitch, voicePitchHome());
+      }
+      updatePitch();
+      const fxOptions = el('div', { id: 'voice-fx-options', class: 'device-effect-options hidden' }, el('div', { class: 'vfx-chips' }, chips), pitchRow, likenessRow);
       const fxToggle = el('button', {
         type: 'button', id: 'voice-fx-toggle', class: 'device-effects-toggle', ariaExpanded: 'false', ariaControls: 'voice-fx-options',
         onclick: () => {
@@ -6119,6 +6150,21 @@
       card.tabIndex = on ? 0 : -1;
     }
   }
+  // Marca no controle de tom onde fica o tom original do personagem (o ponto ideal).
+  function markPitchHome(input, value) {
+    let track = input.parentElement?.classList.contains('pitch-track') ? input.parentElement : null;
+    if (!track) {
+      track = el('span', { class: 'pitch-track' });
+      input.replaceWith(track);
+      track.append(input, el('span', { class: 'pitch-home', ariaHidden: 'true' }));
+    }
+    const home = track.querySelector('.pitch-home');
+    home.hidden = value == null;
+    if (value == null) return;
+    home.style.setProperty('--home', String((Number(value) - Number(input.min)) / (Number(input.max) - Number(input.min))));
+    home.title = 'Tom original do personagem: ' + (value > 0 ? '+' + value : value);
+  }
+  const voicePitchHome = () => VoiceAI.state?.voices?.find((voice) => voice.id === VoiceAI.state.preferences.model)?.pitchShift ?? 0;
   async function pickVoiceFx(id) {
     if (voicePresetUnavailable(id)) return;
     try { id = await prepareVoicePreset(id); } catch (error) { toast(error.message, 'error'); return; }
@@ -6139,6 +6185,7 @@
     $('#voice-ai-backend').value = snapshot.preferences.backend;
     $('#voice-ai-performance').value = snapshot.preferences.performance;
     $('#voice-ai-pitch').value = snapshot.preferences.pitchShift;
+    markPitchHome($('#voice-ai-pitch'), snapshot.preferences.model ? voicePitchHome() : null);
     $('#voice-ai-pitch-value').textContent = snapshot.preferences.pitchShift > 0 ? `+${snapshot.preferences.pitchShift}` : String(snapshot.preferences.pitchShift);
     for (const id of ['voice-ai-backend', 'voice-ai-performance', 'voice-ai-pitch']) $('#' + id).disabled = busy;
     const key = JSON.stringify([snapshot.voices, snapshot.preferences.model, busy, snapshot.available]);

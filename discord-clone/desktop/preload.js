@@ -32,7 +32,7 @@ if (location.protocol === 'file:') {
       install: (id) => ipcRenderer.invoke('desktop:voice-ai:install', String(id)),
       cancel: () => ipcRenderer.invoke('desktop:voice-ai:cancel'),
       remove: (id) => ipcRenderer.invoke('desktop:voice-ai:remove', String(id)),
-      configure: (values) => ipcRenderer.invoke('desktop:voice-ai:configure', { model: values?.model, backend: values?.backend, performance: values?.performance, pitchShift: values?.pitchShift }),
+      configure: (values) => ipcRenderer.invoke('desktop:voice-ai:configure', { model: values?.model, backend: values?.backend, performance: values?.performance, pitchShift: values?.pitchShift, indexRate: values?.indexRate }),
       open: () => ipcRenderer.invoke('desktop:voice-ai:open'),
       convert: (frame) => ipcRenderer.invoke('desktop:voice-ai:convert', { stream: String(frame?.stream || ''), epoch: frame?.epoch, pcm: frame?.pcm }),
       close: (id) => ipcRenderer.invoke('desktop:voice-ai:close', String(id)),

@@ -1,4 +1,4 @@
-// Gera os ícones do app instalável (PWA e Android) a partir de public/resenhax-logo.png.
+// Gera os ícones do app instalável (PWA e Android) a partir de tools/marca/resenhax-logo.png (o original em alta).
 // O fundo em degradê é reconstruído por um ajuste de superfície, então dá para afastar o desenho
 // (ícone "maskable", que o Android recorta em círculo ou gota) sem aparecer a borda do logo original.
 // Uso: node tools/icones-app.js
@@ -7,7 +7,7 @@ const path = require('path');
 const { PNG } = require('pngjs');
 
 const root = path.join(__dirname, '..');
-const logo = PNG.sync.read(fs.readFileSync(path.join(root, 'public', 'resenhax-logo.png')));
+const logo = PNG.sync.read(fs.readFileSync(path.join(root, 'tools', 'marca', 'resenhax-logo.png')));
 const W = logo.width;
 const H = logo.height;
 const at = (x, y) => (y * W + x) * 4;

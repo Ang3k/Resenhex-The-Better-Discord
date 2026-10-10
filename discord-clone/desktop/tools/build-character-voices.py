@@ -44,6 +44,29 @@ def checkpoint_source(voice, output, cache):
     finally:
         temporary.unlink(missing_ok=True)
 
+def store_half(graph):
+    """Store float weights as fp16 and cast them back to fp32 inside the graph.
+
+    RVC checkpoints are saved in half precision, so this is exact (the build refuses any value that
+    would change) and halves the file. ONNX Runtime folds the casts when it loads the session, so
+    inference still runs in fp32 with the same weights.
+    """
+    import numpy as np
+    from onnx import numpy_helper, helper, TensorProto
+    initializers, casts = [], []
+    for init in graph.graph.initializer:
+        weights = numpy_helper.to_array(init)
+        if weights.dtype != np.float32 or weights.size < 16:
+            initializers.append(init); continue
+        half = weights.astype(np.float16)
+        if not np.array_equal(half.astype(np.float32), weights):
+            raise ValueError(f"Weight {init.name} is not exactly representable in fp16")
+        initializers.append(numpy_helper.from_array(half, init.name + "__fp16"))
+        casts.append(helper.make_node("Cast", [init.name + "__fp16"], [init.name], to=TensorProto.FLOAT, name=init.name + "__cast"))
+    del graph.graph.initializer[:]; graph.graph.initializer.extend(initializers)
+    nodes = list(graph.graph.node); del graph.graph.node[:]; graph.graph.node.extend(casts + nodes)
+
+
 def main():
     import argparse
     import torch
@@ -85,6 +108,7 @@ def main():
         torch.onnx.export(model, inputs, str(temporary), input_names=["feats", "p_len", "pitch", "pitchf", "sid", "decoder_start"], output_names=["audio"], opset_version=17,
                           dynamic_axes={"feats": {1: "frames"}, "pitch": {1: "frames"}, "pitchf": {1: "frames"}}, do_constant_folding=False, dynamo=False)
         graph = onnx.load(str(temporary))
+        store_half(graph)
         onnx.helper.set_model_props(graph, {"metadata": json.dumps({"samplingRate": checkpoint["config"][-1], "f0": True, "embChannels": channels, "version": "2.3", "decoderMode": "bounded-v1"})})
         onnx.checker.check_model(graph)
         onnx.save(graph, str(temporary))

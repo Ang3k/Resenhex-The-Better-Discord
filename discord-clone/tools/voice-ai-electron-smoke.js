@@ -16,7 +16,7 @@ async function main() {
   assert.ok(python && models && wav, 'Set RESENHEX_VOICE_PYTHON, RESENHEX_VOICE_DATA_DIR and RESENHEX_VOICE_TEST_WAV');
   const expected = process.env.RESENHEX_VOICE_TEST_EXPECT || 'realtime';
   const backend = process.env.RESENHEX_VOICE_TEST_BACKEND || 'auto';
-  const voice = process.env.RESENHEX_VOICE_TEST_MODEL || 'kaede';
+  const voice = process.env.RESENHEX_VOICE_TEST_MODEL || 'braum';
   assert.ok(catalog.voices.some((v) => v.id === voice), 'Test model must be in the catalog');
   assert.ok(['realtime', 'fallback'].includes(expected), 'Expected mode must be realtime or fallback');
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'resenhex-voice-e2e-'));

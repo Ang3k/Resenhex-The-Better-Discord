@@ -4,6 +4,26 @@
 // O título deve destacar as principais funcionalidades ou correções, com termos objetivos.
 window.CHANGELOG = [
   {
+    version: '1.3.0', date: '2026-10-10', name: 'Voz de personagem por IA na call',
+    summary: 'No app de Windows, sua voz pode virar a de um personagem na call: Braum, Kled, Tristana, Veigar, Naruto, Akali, Sett, Reyna e Draven, quase todos com a dublagem brasileira. Cada um já começa no tom certo, e a atualização do app ficou bem mais leve.',
+    sections: [
+      { kind: 'new', items: [
+        'Voz por IA no app de Windows: escolha um personagem em Efeitos de voz (no menu de áudio da call ou nas Configurações) e fale com a voz dele. A conversão roda no seu computador, de preferência na placa de vídeo, e quem ouve não precisa instalar nada.',
+        'Nove personagens: Braum, Kled, Tristana, Veigar, Sett, Akali e Draven (League of Legends), Reyna (Valorant) e Naruto. Quase todos com a dublagem brasileira.',
+        'Tom da voz direto no menu da call, com um anel pontilhado mostrando o tom original de cada personagem.',
+        '“Semelhança com o personagem”: puxa a fala para o jeito dele. Em 0% fica só o timbre.',
+      ] },
+      { kind: 'improved', items: [
+        'Cada personagem já começa no tom que combina com ele.',
+        'Os personagens são baixados só quando você escolhe um, então a atualização do app ficou muito menor.',
+        'O motor de voz ficou com menos da metade do tamanho, sem mudar o som.',
+      ] },
+      { kind: 'fixed', items: [
+        'A roleta do Mudae gira com personagens de verdade em desenhos, jogos e quadrinhos, em vez de versos com dado.',
+      ] },
+    ],
+  },
+  {
     version: '1.2.5', date: '2026-10-10', name: 'App para Android e Resenhex redondo no celular',
     summary: 'O Resenhex agora tem app para Android, baixado direto da página do site, com a call funcionando de tela bloqueada. E o celular ficou com cara de app: o botão voltar fecha a janela aberta, abrir um link não tira você da call e o toque longo numa mensagem abre as ações, como no Discord.',
     sections: [

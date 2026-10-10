@@ -32,6 +32,7 @@
 .device-select:focus-visible { outline: 2px solid var(--brand); outline-offset: 2px; }
 .device-select:disabled { opacity: .55; cursor: wait; }
 .audio-device-menu .menu-range { margin: 14px 0; padding: 12px 0; border-block: 1px solid var(--divider); font-size: 12px; }
+.audio-device-menu .menu-range.vfx-pitch { margin: 10px 0 0; padding: 10px 0 0; border-bottom: 0; }
 .device-effects { border: 1px solid var(--divider); border-radius: 10px; background: var(--bg-panel); }
 .device-effects-toggle { display: flex; align-items: center; gap: 8px; width: 100%; padding: 10px; border: 0; border-radius: 10px; background: transparent; color: var(--text-strong); font: inherit; font-size: 13px; }
 .device-effects-toggle:hover { background: var(--hover); }
@@ -202,3 +203,10 @@
 .voice-ai-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: auto; }
 #voice-ai-progress { width: 100%; margin: 12px 0 6px; accent-color: var(--brand); }
 @media (max-width: 600px) { .voice-ai-catalog, .voice-ai-options { grid-template-columns: 1fr; } }
+/* Controle de tom da voz por IA: anel pontilhado no tom original do personagem. */
+.pitch-track { position: relative; display: block; }
+.pitch-track > input[type=range] { width: 100%; display: block; }
+.pitch-home {
+  position: absolute; top: 50%; left: calc(8px + (100% - 16px) * var(--home, .5)); width: 24px; height: 24px; transform: translate(-50%, -50%);
+  border: 2px dotted color-mix(in srgb, var(--text) 70%, transparent); border-radius: 50%; pointer-events: none;
+}

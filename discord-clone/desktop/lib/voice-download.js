@@ -21,7 +21,9 @@ async function downloadModel(spec, file, { fetch: request = fetch, signal, progr
   const temporary = file + '.partial';
   try {
     const response = await request(spec.url, { signal, redirect: 'follow' });
-    if (!response.ok || !response.body || !response.url.startsWith('https://')) throw new Error(`Download indisponível (${response.status}).`);
+    // O net.fetch do Electron devolve url vazia; nesse caso vale o endereço HTTPS do catálogo.
+    const finalUrl = response.url || spec.url;
+    if (!response.ok || !response.body || !finalUrl.startsWith('https://')) throw new Error(`Download indisponível (${response.status}).`);
     const hash = crypto.createHash('sha256');
     let received = 0;
     const check = new Transform({ transform(chunk, _encoding, done) {

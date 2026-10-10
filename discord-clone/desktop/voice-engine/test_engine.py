@@ -49,7 +49,7 @@ class EngineTests(unittest.TestCase):
                 actual = self.worker.resample_window(audio, offset, 8640)
                 np.testing.assert_allclose(actual, full[offset:offset + 8640], atol=2e-6)
 
-    def test_cached_fir_is_identical_to_scipy_default_and_preserves_coefficients(self):
+    def test_cached_fir_matches_default_design_and_preserves_coefficients(self):
         from math import gcd
         np = self.worker.np
         for dtype in (np.float32, np.float64):
@@ -61,6 +61,38 @@ class EngineTests(unittest.TestCase):
                     np.testing.assert_array_equal(self.worker.resample(audio, source, target), expected)
                     np.testing.assert_array_equal(self.worker.resample(audio, source, target), expected)
                     self.assertEqual(design.call_count, 1)
+
+    def test_index_blends_frames_towards_nearest_character_frames(self):
+        import tempfile, os
+        np = self.worker.np
+        rng = np.random.default_rng(3)
+        vectors = rng.standard_normal((50, 768)).astype(np.float16)
+        with tempfile.TemporaryDirectory() as folder:
+            path = os.path.join(folder, "voice.index.npy")
+            np.save(path, vectors)
+            self.worker.channels = 768
+            self.worker.load_index(path, 1.0)
+            frames = vectors[[3, 7]].astype(np.float32)[None]
+            np.testing.assert_allclose(self.worker.retrieve(frames)[0], frames[0], atol=1e-3)
+            self.worker.load_index(path, 0.0)
+            self.assertIs(self.worker.retrieve(frames), frames)
+            self.worker.load_index(None, 0.6)
+            self.assertIsNone(self.worker.index)
+
+    def test_numpy_resampler_matches_scipy(self):
+        try:
+            from scipy.signal import firwin as scipy_firwin, resample_poly as scipy_resample
+        except ImportError:
+            self.skipTest("SciPy is not installed (it is no longer shipped with the app)")
+        from math import gcd
+        np = self.worker.np
+        for source, target in ((48000, 16000), (16000, 48000), (32000, 48000), (40000, 48000), (48000, 32000), (48000, 40000)):
+            factor = gcd(source, target); up, down = target // factor, source // factor; rate = max(up, down)
+            ours = engine.firwin(20 * rate + 1, 1 / rate)
+            np.testing.assert_allclose(ours, scipy_firwin(20 * rate + 1, 1 / rate, window=("kaiser", 5.0)), atol=1e-15)
+            audio = np.random.default_rng(9).normal(size=7681).astype(np.float32)
+            window = ours.astype(np.float32)
+            np.testing.assert_allclose(engine.resample_poly(audio, up, down, window=window), scipy_resample(audio, up, down, window=window), atol=2e-6)
 
     def test_parallel_inference_drains_pitch_on_encoder_failure_before_next_rpc(self):
         import threading
@@ -136,7 +168,8 @@ class EngineTests(unittest.TestCase):
                 self.worker.load(meta)
                 self.assertFalse(self.worker.parallel_inference)
 
-    def test_directml_uses_independent_parallel_sessions_even_with_few_cpu_cores(self):
+    def test_directml_runs_encoder_and_pitch_sequentially(self):
+        # Two DirectML graphs running at once crash the worker (access violation on Windows).
         class Session:
             def get_inputs(self):
                 return [SimpleNamespace(name=name, shape=[1, None, 768], type="tensor(float)") for name in ("feats", "p_len", "pitch", "pitchf", "sid", "decoder_start")]
@@ -145,7 +178,7 @@ class EngineTests(unittest.TestCase):
         meta = {"encoder": "contentvec", "pitch": "rmvpe", "voice": "braum", "contextMs": 320, "blockMs": 80}
         with patch.object(engine.os, "cpu_count", return_value=2), patch.object(self.worker.ort, "get_available_providers", return_value=["DmlExecutionProvider", "CPUExecutionProvider"]), patch.object(self.worker, "session", side_effect=lambda *_: Session()) as sessions, patch.object(self.worker, "convert", return_value=({}, b"")):
             self.assertEqual(self.worker.load(meta)["backend"], "directml")
-            self.assertTrue(self.worker.parallel_inference)
+            self.assertFalse(self.worker.parallel_inference)
             self.worker.load({**meta, "pitchShift": 3})
             self.assertEqual(sessions.call_count, 3)
             self.worker.load({**meta, "blockMs": 160})

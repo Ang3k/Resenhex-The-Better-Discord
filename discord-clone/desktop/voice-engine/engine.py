@@ -55,13 +55,55 @@ def write_packet(stream, meta, pcm=b""):
     stream.flush()
 
 
+def firwin(numtaps, cutoff, window=("kaiser", 5.0)):
+    """Low-pass FIR identical to scipy.signal.firwin with a Kaiser window (unit DC gain).
+
+    SciPy was only used for this and resample_poly; dropping it saves ~130 MB in the installer.
+    """
+    import numpy as np
+    kind, beta = window
+    if kind != "kaiser":
+        raise ValueError("Only the Kaiser window is supported")
+    m = np.arange(numtaps) - 0.5 * (numtaps - 1)
+    h = cutoff * np.sinc(cutoff * m) * np.kaiser(numtaps, beta)
+    return h / h.sum()
+
+
+def resample_poly(x, up, down, window=None):
+    """scipy.signal.resample_poly with zero padding (its default), as a NumPy polyphase filter."""
+    import numpy as np
+    divisor = math.gcd(up, down)
+    up, down = up // divisor, down // divisor
+    if up == down == 1:
+        return x.copy()
+    if window is None:
+        rate = max(up, down)
+        window = firwin(20 * rate + 1, 1 / rate).astype(x.dtype)
+    n_in = x.shape[0]
+    n_out = n_in * up // down + bool(n_in * up % down)
+    h = np.array(window) * up
+    half_len = (h.size - 1) // 2
+    n_pre_pad = down - half_len % down
+    n_pre_remove = (half_len + n_pre_pad) // down
+    n_post_pad = 0
+    while ((n_in - 1) * up + h.size + n_pre_pad + n_post_pad - 1) // down + 1 < n_out + n_pre_remove:
+        n_post_pad += 1
+    h = np.concatenate((np.zeros(n_pre_pad, h.dtype), h, np.zeros(n_post_pad, h.dtype)))
+    # Upsampled convolution one phase at a time: y[q * up + r] = conv(x, h[r::up])[q].
+    full = np.zeros((n_in - 1) * up + h.size, dtype=np.result_type(x, h))
+    for r in range(up):
+        phase = np.convolve(x, h[r::up])
+        full[r::up][:phase.size] = phase
+    return full[::down][n_pre_remove:n_pre_remove + n_out]
+
+
 class RvcEngine:
     def __init__(self):
         from concurrent.futures import ThreadPoolExecutor
         import numpy as np
         import onnxruntime as ort
-        from scipy.signal import firwin, resample_poly
         self.np, self.ort, self.resample_poly = np, ort, resample_poly
+        self.index, self.index_path, self.index_rate = None, None, 0.0
         self.firwin, self.resample_filters = firwin, {}
         # Independent sessions can run together, including DirectML. Only one
         # pitch task exists at a time; RPC and voice synthesis remain sequential.
@@ -154,8 +196,11 @@ class RvcEngine:
         self.histories.clear()
         self.generation += 1
         self.backend = {"DmlExecutionProvider": "directml", "CUDAExecutionProvider": "cuda"}.get(voice.get_providers()[0], "cpu")
-        self.parallel_inference = self.backend != "cpu" or (os.cpu_count() or 2) >= 4
+        # DirectML trava o processo (access violation) com dois grafos rodando ao mesmo tempo
+        # em threads diferentes; na GPU, ContentVec e RMVPE rodam um depois do outro.
+        self.parallel_inference = self.backend == "cpu" and (os.cpu_count() or 2) >= 4
         self.pitch_shift = max(-12, min(12, float(meta.get("pitchShift", 0))))
+        self.load_index(meta.get("index"), meta.get("indexRate", 0))
         self.context_ms = context_ms
         self.block_ms = block_ms
         # Compile/warm each graph while the UI says Loading, before accepting microphone frames.
@@ -168,6 +213,36 @@ class RvcEngine:
         finally:
             self.histories.clear()
         return {"backend": self.backend, "providers": voice.get_providers(), "sampleRate": sr, "generation": self.generation}
+
+    def load_index(self, path, rate):
+        """Retrieval index: representative ContentVec frames of the character (N x 768, fp16 on disk)."""
+        np = self.np
+        self.index_rate = max(0.0, min(1.0, float(rate or 0)))
+        if not path:
+            self.index, self.index_path = None, None
+            return
+        if path != getattr(self, "index_path", None):
+            vectors = np.load(path, allow_pickle=False)
+            if vectors.ndim != 2 or vectors.shape[1] != self.channels or not len(vectors):
+                raise ValueError("Índice de voz incompatível com o modelo")
+            self.index = np.ascontiguousarray(vectors, dtype=np.float32)
+            self.index_norms = np.einsum("ij,ij->i", self.index, self.index)
+            self.index_path = path
+
+    def retrieve(self, feats):
+        """RVC index blending: each frame moves towards its 8 nearest character frames (inverse-square weights)."""
+        np = self.np
+        if self.index is None or self.index_rate <= 0:
+            return feats
+        frames = feats[0].astype(np.float32, copy=False)
+        distances = np.einsum("ij,ij->i", frames, frames)[:, None] - 2 * frames @ self.index.T + self.index_norms[None]
+        k = min(8, len(self.index))
+        nearest = np.argpartition(distances, k - 1, axis=1)[:, :k]
+        score = np.maximum(np.take_along_axis(distances, nearest, axis=1), 1e-8)
+        weight = np.square(1 / score)
+        weight /= weight.sum(axis=1, keepdims=True)
+        blended = np.einsum("tk,tkc->tc", weight, self.index[nearest])
+        return (blended * self.index_rate + frames * (1 - self.index_rate))[None].astype(feats.dtype, copy=False)
 
     def resample(self, audio, source, target):
         if source == target:
@@ -255,6 +330,7 @@ class RvcEngine:
         feats = next((item for item in features if item.ndim == 3 and item.shape[-1] == self.channels), None)
         if feats is None:
             raise ValueError("ContentVec não retornou as características do modelo")
+        feats = self.retrieve(feats)
         feats = np.repeat(feats, 2, axis=1)
         frames = min(feats.shape[1], len(audio) // 160)
         feats = feats[:, :frames]

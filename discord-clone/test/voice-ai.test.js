@@ -24,6 +24,11 @@ test('voice model download verifies hash and size, atomically installs and reuse
   await downloadModel(model, file, { fetch: request });
   assert.equal(requests, 1); assert.equal(fs.existsSync(file + '.partial'), false);
 });
+test('download aceita a url vazia que o net.fetch do Electron devolve', async (t) => {
+  const dir = temporary(t), bytes = Buffer.from('electron net'), model = spec(bytes), file = path.join(dir, model.file);
+  await downloadModel(model, file, { fetch: async () => ({ ...response(bytes), url: '' }) });
+  assert.equal(await verifyFile(file, model), true);
+});
 test('corrupt or oversized model downloads leave no usable model or partial file', async (t) => {
   const dir = temporary(t), model = spec(Buffer.from('good'));
   for (const bytes of [Buffer.from('evil'), Buffer.from('too large')]) {
@@ -240,4 +245,18 @@ test('AI playback preserves every sample under delivery jitter and adds no start
   jittered.p.send({ type: 'gate', blocked: true });
   assert.equal(jittered.p.node.buffered, 0);
   assert.ok(jittered.p.tick().every((v) => v === 0));
+});
+
+test('escolher um personagem aplica o tom dele, e o ajuste manual continua valendo', async (t) => {
+  const dir = temporary(t), saved = [];
+  const voice = (id, pitchShift) => ({ ...spec(Buffer.from(id), id + '.onnx'), id, name: id, sampleRate: 40000, pitchShift });
+  const engine = new VoiceEngine({ dataDir: dir, python: process.execPath, script: 'engine.py', resources: dir,
+    catalog: { voices: [voice('braum', 0), voice('ahri', 12)], components: {} }, store: { get: () => ({}), set: (_k, v) => saved.push(v) } });
+  await engine.configure({ model: 'ahri' });
+  assert.equal(engine.preferences.pitchShift, 12);
+  await engine.configure({ pitchShift: 9 });
+  await engine.configure({ model: 'ahri' });
+  assert.equal(engine.preferences.pitchShift, 9, 'reescolher a mesma voz não desfaz o ajuste');
+  await engine.configure({ model: 'braum' });
+  assert.equal(engine.preferences.pitchShift, 0);
 });

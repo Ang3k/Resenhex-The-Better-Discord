@@ -10,19 +10,48 @@
       "sha256": "1ada9222fe928d32cca4b91fc374fb41cacb6157f0122a390ca611c3e2c29daa"
     },
     {
-      "file": "zed.png",
-      "source": "https://ddragon.leagueoflegends.com/cdn/16.20.1/img/champion/Zed.png",
-      "sha256": "3ad3e956e9ad5ca3127d8f685faf69d4251fb726e9b4f0be989764f0027e9c5f"
+      "file": "veigar.png",
+      "source": "https://ddragon.leagueoflegends.com/cdn/16.20.1/img/champion/Veigar.png",
+      "sha256": "ace2c32c06d8a96b4de943228b01812f220adf3a4dfaa396e922f7c696221024"
     },
     {
-      "file": "pantheon.png",
-      "source": "https://ddragon.leagueoflegends.com/cdn/16.20.1/img/champion/Pantheon.png",
-      "sha256": "0ab8b436d5d7dd0a4163ec105a4977fc77abfd16757d46a9e958242f2d6858c1"
+      "file": "tristana.png",
+      "source": "https://ddragon.leagueoflegends.com/cdn/16.20.1/img/champion/Tristana.png",
+      "sha256": "9f46e6dd9d49bf8fd2c6dc7397fa4badb35bf0f355334301782c7f9e13f00aa5"
     },
     {
-      "file": "ahri.png",
-      "source": "https://ddragon.leagueoflegends.com/cdn/16.20.1/img/champion/Ahri.png",
-      "sha256": "8e93368d97e3d302463c4e83ac5980d1f0a3a0aaf92ac44435730fecbd55b565"
+      "file": "kled.png",
+      "source": "https://ddragon.leagueoflegends.com/cdn/16.20.1/img/champion/Kled.png",
+      "sha256": "4d71421e5e0a4fd8092fc9b6d91cc10fb36a067fc8a74b5e2fce2e718d3f2566"
+    },
+    {
+      "file": "sett.png",
+      "source": "https://ddragon.leagueoflegends.com/cdn/16.20.1/img/champion/Sett.png",
+      "sha256": "95823a0688664a52d1d46ebb0392c3cc45e26ab7e7a2510292a4f36239d9eea0"
+    },
+    {
+      "file": "akali.png",
+      "source": "https://ddragon.leagueoflegends.com/cdn/16.20.1/img/champion/Akali.png",
+      "sha256": "a62acc32c454b5cc39cebd0769f940b34f3d39ddaf157b95acb176027f81e17a"
+    },
+    {
+      "file": "naruto.png",
+      "owner": "Masashi Kishimoto / Shueisha / Studio Pierrot",
+      "source": "https://s4.anilist.co/file/anilistcdn/character/large/b17-phjcWCkRuIhu.png",
+      "note": "Imagem do AniList recortada para 128x128 para identificar o personagem; direitos pertencem aos detentores de Naruto.",
+      "sha256": "caf950d292a51c2a0814b98ac98523f5c07997f92e9742bdd05d2a57457b33b2"
+    },
+    {
+      "file": "reyna.png",
+      "owner": "Riot Games",
+      "source": "https://media.valorant-api.com/agents/a3bfb853-43b2-7238-a4f1-ad90e9e46bcc/displayicon.png",
+      "note": "Ícone do agente (Valorant) com fundo escuro, reduzido para 128x128.",
+      "sha256": "35b47455f3e493e75008dd2ee9e370adeb553af16db7bbe8c788f6adbeb5ffec"
+    },
+    {
+      "file": "draven.png",
+      "source": "https://ddragon.leagueoflegends.com/cdn/16.20.1/img/champion/Draven.png",
+      "sha256": "9b62ecd81173ff55d83a7a9e42d7f9553288856e8365cc3bcbbf4ce3bf4091a6"
     }
   ]
 }

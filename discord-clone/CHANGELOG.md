@@ -3,6 +3,26 @@
 Histórico de versões. A mesma lista aparece dentro do app em **Novidades** (menu do servidor ou rodapé das Configurações).
 O Resenhex chegou à versão 1.0 em 4 de outubro de 2026.
 
+## v1.3.0 — Voz de personagem por IA na call
+
+10 de outubro de 2026.
+
+No app de Windows, sua voz pode virar a de um personagem na call: Braum, Kled, Tristana, Veigar, Naruto, Akali, Sett, Reyna e Draven, quase todos com a dublagem brasileira. Cada um já começa no tom certo, e a atualização do app ficou bem mais leve.
+
+### Novidades
+- Voz por IA no app de Windows: escolha um personagem em Efeitos de voz (no menu de áudio da call ou nas Configurações) e fale com a voz dele. A conversão roda no seu computador, de preferência na placa de vídeo, e quem ouve não precisa instalar nada.
+- Nove personagens: Braum, Kled, Tristana, Veigar, Sett, Akali e Draven (League of Legends), Reyna (Valorant) e Naruto. Quase todos com a dublagem brasileira.
+- Tom da voz direto no menu da call, com um anel pontilhado mostrando o tom original de cada personagem.
+- “Semelhança com o personagem”: puxa a fala para o jeito dele. Em 0% fica só o timbre.
+
+### Melhorias
+- Cada personagem já começa no tom que combina com ele.
+- Os personagens são baixados só quando você escolhe um, então a atualização do app ficou muito menor.
+- O motor de voz ficou com menos da metade do tamanho, sem mudar o som.
+
+### Correções
+- A roleta do Mudae gira com personagens de verdade em desenhos, jogos e quadrinhos, em vez de versos com dado.
+
 ## v1.2.5 — App para Android e Resenhex redondo no celular
 
 10 de outubro de 2026.

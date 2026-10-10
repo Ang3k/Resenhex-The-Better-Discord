@@ -1,7 +1,7 @@
 {
   "name": "resenhex",
   "productName": "Resenhex",
-  "version": "1.0.6",
+  "version": "1.1.0",
   "description": "Resenhex para Windows",
   "author": "Resenhex",
   "main": "main.js",
@@ -13,6 +13,7 @@
     "icons": "electron tools/render-icons.js",
     "voice:runtime": "node tools/build-voice-runtime.js",
     "voice:models": "node tools/build-character-voices.js",
+    "voice:indexes": "python tools/build-voice-indexes.py",
     "predist": "node tools/patch-uiohook.js --build && npm run voice:runtime && npm run voice:models",
     "dist": "electron-builder --win --publish never",
     "predist:store": "node tools/patch-uiohook.js --build && npm run voice:runtime && npm run voice:models",
@@ -61,7 +62,7 @@
       "es",
       "es-419"
     ],
-    "extraResources": [{ "from": "voice-engine", "to": "voice-engine", "filter": ["engine.py", "windows-runtime.lock.json", "THIRD-PARTY-NOTICES.md", "licenses/**", "runtime/**", "models/**"] }],
+    "extraResources": [{ "from": "voice-engine", "to": "voice-engine", "filter": ["engine.py", "windows-runtime.lock.json", "THIRD-PARTY-NOTICES.md", "licenses/**", "runtime/**"] }],
     "win": {
       "target": [
         {
