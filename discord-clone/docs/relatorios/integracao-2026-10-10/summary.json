@@ -1,0 +1,25 @@
+{
+  "checkedAtUtc": "2026-10-10T17:11:33.462162+00:00",
+  "baseBefore": "f9737d53bed9e4b5b903d661c68be666b6f41f15",
+  "baseAfter": "1d5c66d051eb4860d1e6b104876e42087c8c3754",
+  "upstreamBranch": "codex/interface-transmissoes",
+  "upstreamCommits": 8,
+  "preservedLocalFiles": 97,
+  "unchangedLocalFiles": 91,
+  "nodeTests": {
+    "tests": 259,
+    "pass": 259,
+    "fail": 0,
+    "cancelled": 0,
+    "skipped": 0,
+    "durationMs": 116847.226171
+  },
+  "pythonTests": {
+    "tests": 15,
+    "pass": 15,
+    "fail": 0
+  },
+  "checkPassed": true,
+  "unresolvedFiles": [],
+  "deployed": false
+}

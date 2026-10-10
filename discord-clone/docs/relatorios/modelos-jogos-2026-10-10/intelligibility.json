@@ -1,0 +1,12 @@
+{
+  "tool": "faster-whisper tiny / int8 / CPU",
+  "scope": "Diagnóstico automático com fala sintética de 4 segundos; não substitui avaliação humana",
+  "transcriptions": {
+    "source": "lá, amigos, estou testando os efeitos de voz no Resentex. Vamos jogar!",
+    "braum": "Lánicos, estão testando os efeitas de vós-no-ris e antes. Dá-los, o gai!",
+    "zed": "Olá, amigos. Estou testando os efeitos de voos no Resentos. Tomos o Gajo.",
+    "pantheon": "O ánibus está testando os refritos de voz no HZX. Tomos olgados.",
+    "ahri": "lá, nigos, estão testando os afetras de voz noise em apps. Damos o gai.",
+    "kratos": "lá, amigos. Estou testando os efeitos de voçam-los em eps. Tão os lugares."
+  }
+}

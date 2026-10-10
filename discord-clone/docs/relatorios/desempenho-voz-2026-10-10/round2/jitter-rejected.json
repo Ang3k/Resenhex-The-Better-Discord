@@ -1,0 +1,49 @@
+{
+  "results": [
+    {
+      "case": "stable",
+      "before": {
+        "firstLatencyMs": 93.33333333333333,
+        "gapMs": 0,
+        "interruptions": 0,
+        "samplesPreserved": true
+      },
+      "candidate": {
+        "firstLatencyMs": 93.33333333333333,
+        "gapMs": 0,
+        "interruptions": 0,
+        "samplesPreserved": true
+      }
+    },
+    {
+      "case": "alternating",
+      "before": {
+        "firstLatencyMs": 93.33333333333333,
+        "gapMs": 18.666666666666668,
+        "interruptions": 1,
+        "samplesPreserved": true
+      },
+      "candidate": {
+        "firstLatencyMs": 93.33333333333333,
+        "gapMs": 34.666666666666664,
+        "interruptions": 1,
+        "samplesPreserved": true
+      }
+    },
+    {
+      "case": "rising",
+      "before": {
+        "firstLatencyMs": 93.33333333333333,
+        "gapMs": 48,
+        "interruptions": 9,
+        "samplesPreserved": true
+      },
+      "candidate": {
+        "firstLatencyMs": 93.33333333333333,
+        "gapMs": 58.666666666666664,
+        "interruptions": 2,
+        "samplesPreserved": true
+      }
+    }
+  ]
+}

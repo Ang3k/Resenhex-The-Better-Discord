@@ -720,6 +720,21 @@
 <p class="hint vfx-intro">Mude sua voz na chamada: todo mundo ouve com o efeito, e um selo mostra que ela está modificada.</p>
 <input type="hidden" id="voice-fx" value="none">
 <div id="voice-fx-grid" class="vfx-grid" role="radiogroup" aria-label="Efeito de voz"></div>
+<div id="voice-ai-panel" class="voice-ai-panel" aria-label="Vozes por inteligência artificial">
+<p id="voice-ai-status" class="hint" role="status" aria-live="polite">A conversão por IA está disponível no aplicativo Windows. Quem ouve pode usar qualquer dispositivo.</p>
+<p id="voice-ai-metrics" class="hint"></p>
+<button type="button" id="voice-ai-retry" class="secondary hidden">Tentar conversão novamente</button>
+<div id="voice-ai-download" class="hidden"><progress id="voice-ai-progress" max="1" value="0"></progress><span id="voice-ai-download-label" class="hint"></span><button type="button" id="voice-ai-cancel" class="secondary">Cancelar download</button></div>
+<div id="voice-ai-options" class="hidden">
+<div class="voice-ai-options">
+<label>Aceleração<select id="voice-ai-backend"><option value="auto">Automático · GPU primeiro</option><option value="gpu">GPU</option><option value="cpu">CPU</option></select></label>
+<label>Qualidade<select id="voice-ai-performance"><option value="fast">Menor atraso</option><option value="economy">Menor consumo</option><option value="balanced">Equilibrada</option><option value="quality">Mais contexto</option></select></label>
+<label>Tom <output id="voice-ai-pitch-value">0</output><input id="voice-ai-pitch" type="range" min="-12" max="12" step="1" value="0"></label>
+</div>
+<div id="voice-ai-catalog" class="voice-ai-catalog" aria-label="Catálogo de vozes"></div>
+<p class="hint">Na primeira voz, os componentes comuns também são baixados. Voz, aceleração e qualidade são salvas automaticamente. O áudio é processado neste computador.</p>
+</div>
+</div>
 <div class="vfx-test">
 <button type="button" id="voice-fx-test" class="secondary">Ouvir minha voz</button>
 <span class="hint">Use fone para não dar microfonia. Esquilo, Gigante e Alien atrasam a voz um pouquinho.</span>
@@ -1082,6 +1097,7 @@
   <script src="gif-picker.js"></script>
   <script src="emoji-picker.js"></script>
   <script src="lightbox.js"></script>
+  <script src="voice-ai.js"></script>
   <script src="voice-fx.js"></script>
   <script src="app.js">
 </script>

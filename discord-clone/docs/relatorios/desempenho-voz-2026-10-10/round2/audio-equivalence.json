@@ -1,0 +1,266 @@
+{
+  "passed": true,
+  "referenceEngineSha256": "40dea94e1c0809bae08427550707fcec9f42688cd4c67b82e2d1b4665e56f61b",
+  "candidateEngineSha256": "5752a0d89d682945a23ef617b8a10c8687630c8f298cc1d9fc463c1f86f5dc4d",
+  "referenceEngine": "/workspace/.local/share/resenhex/voice-validation/performance/round2/engine-before.py",
+  "candidateEngine": "/workspace/Resenhex-The-Better-Discord/discord-clone/desktop/voice-engine/engine.py",
+  "seed": 20261010,
+  "results": [
+    {
+      "voice": "braum",
+      "contextMs": 320,
+      "blockMs": 80,
+      "blocks": 3,
+      "maxAbsoluteError": 0.0,
+      "muteEpochSilent": true
+    },
+    {
+      "voice": "braum",
+      "contextMs": 320,
+      "blockMs": 160,
+      "blocks": 3,
+      "maxAbsoluteError": 0.0,
+      "muteEpochSilent": true
+    },
+    {
+      "voice": "braum",
+      "contextMs": 480,
+      "blockMs": 120,
+      "blocks": 3,
+      "maxAbsoluteError": 0.0,
+      "muteEpochSilent": true
+    },
+    {
+      "voice": "braum",
+      "contextMs": 640,
+      "blockMs": 160,
+      "blocks": 3,
+      "maxAbsoluteError": 0.0,
+      "muteEpochSilent": true
+    },
+    {
+      "voice": "zed",
+      "contextMs": 320,
+      "blockMs": 80,
+      "blocks": 3,
+      "maxAbsoluteError": 0.0,
+      "muteEpochSilent": true
+    },
+    {
+      "voice": "zed",
+      "contextMs": 320,
+      "blockMs": 160,
+      "blocks": 3,
+      "maxAbsoluteError": 0.0,
+      "muteEpochSilent": true
+    },
+    {
+      "voice": "zed",
+      "contextMs": 480,
+      "blockMs": 120,
+      "blocks": 3,
+      "maxAbsoluteError": 0.0,
+      "muteEpochSilent": true
+    },
+    {
+      "voice": "zed",
+      "contextMs": 640,
+      "blockMs": 160,
+      "blocks": 3,
+      "maxAbsoluteError": 0.0,
+      "muteEpochSilent": true
+    },
+    {
+      "voice": "pantheon",
+      "contextMs": 320,
+      "blockMs": 80,
+      "blocks": 3,
+      "maxAbsoluteError": 0.0,
+      "muteEpochSilent": true
+    },
+    {
+      "voice": "pantheon",
+      "contextMs": 320,
+      "blockMs": 160,
+      "blocks": 3,
+      "maxAbsoluteError": 0.0,
+      "muteEpochSilent": true
+    },
+    {
+      "voice": "pantheon",
+      "contextMs": 480,
+      "blockMs": 120,
+      "blocks": 3,
+      "maxAbsoluteError": 0.0,
+      "muteEpochSilent": true
+    },
+    {
+      "voice": "pantheon",
+      "contextMs": 640,
+      "blockMs": 160,
+      "blocks": 3,
+      "maxAbsoluteError": 0.0,
+      "muteEpochSilent": true
+    },
+    {
+      "voice": "ahri",
+      "contextMs": 320,
+      "blockMs": 80,
+      "blocks": 3,
+      "maxAbsoluteError": 0.0,
+      "muteEpochSilent": true
+    },
+    {
+      "voice": "ahri",
+      "contextMs": 320,
+      "blockMs": 160,
+      "blocks": 3,
+      "maxAbsoluteError": 0.0,
+      "muteEpochSilent": true
+    },
+    {
+      "voice": "ahri",
+      "contextMs": 480,
+      "blockMs": 120,
+      "blocks": 3,
+      "maxAbsoluteError": 0.0,
+      "muteEpochSilent": true
+    },
+    {
+      "voice": "ahri",
+      "contextMs": 640,
+      "blockMs": 160,
+      "blocks": 3,
+      "maxAbsoluteError": 0.0,
+      "muteEpochSilent": true
+    },
+    {
+      "voice": "kaede",
+      "contextMs": 320,
+      "blockMs": 80,
+      "blocks": 3,
+      "maxAbsoluteError": 0.0,
+      "muteEpochSilent": true
+    },
+    {
+      "voice": "kaede",
+      "contextMs": 320,
+      "blockMs": 160,
+      "blocks": 3,
+      "maxAbsoluteError": 0.0,
+      "muteEpochSilent": true
+    },
+    {
+      "voice": "kaede",
+      "contextMs": 480,
+      "blockMs": 120,
+      "blocks": 3,
+      "maxAbsoluteError": 0.0,
+      "muteEpochSilent": true
+    },
+    {
+      "voice": "kaede",
+      "contextMs": 640,
+      "blockMs": 160,
+      "blocks": 3,
+      "maxAbsoluteError": 0.0,
+      "muteEpochSilent": true
+    },
+    {
+      "voice": "uzuki",
+      "contextMs": 320,
+      "blockMs": 80,
+      "blocks": 3,
+      "maxAbsoluteError": 0.0,
+      "muteEpochSilent": true
+    },
+    {
+      "voice": "uzuki",
+      "contextMs": 320,
+      "blockMs": 160,
+      "blocks": 3,
+      "maxAbsoluteError": 0.0,
+      "muteEpochSilent": true
+    },
+    {
+      "voice": "uzuki",
+      "contextMs": 480,
+      "blockMs": 120,
+      "blocks": 3,
+      "maxAbsoluteError": 0.0,
+      "muteEpochSilent": true
+    },
+    {
+      "voice": "uzuki",
+      "contextMs": 640,
+      "blockMs": 160,
+      "blocks": 3,
+      "maxAbsoluteError": 0.0,
+      "muteEpochSilent": true
+    },
+    {
+      "voice": "woman-1",
+      "contextMs": 320,
+      "blockMs": 80,
+      "blocks": 3,
+      "maxAbsoluteError": 0.0,
+      "muteEpochSilent": true
+    },
+    {
+      "voice": "woman-1",
+      "contextMs": 320,
+      "blockMs": 160,
+      "blocks": 3,
+      "maxAbsoluteError": 0.0,
+      "muteEpochSilent": true
+    },
+    {
+      "voice": "woman-1",
+      "contextMs": 480,
+      "blockMs": 120,
+      "blocks": 3,
+      "maxAbsoluteError": 0.0,
+      "muteEpochSilent": true
+    },
+    {
+      "voice": "woman-1",
+      "contextMs": 640,
+      "blockMs": 160,
+      "blocks": 3,
+      "maxAbsoluteError": 0.0,
+      "muteEpochSilent": true
+    },
+    {
+      "voice": "woman-2",
+      "contextMs": 320,
+      "blockMs": 80,
+      "blocks": 3,
+      "maxAbsoluteError": 0.0,
+      "muteEpochSilent": true
+    },
+    {
+      "voice": "woman-2",
+      "contextMs": 320,
+      "blockMs": 160,
+      "blocks": 3,
+      "maxAbsoluteError": 0.0,
+      "muteEpochSilent": true
+    },
+    {
+      "voice": "woman-2",
+      "contextMs": 480,
+      "blockMs": 120,
+      "blocks": 3,
+      "maxAbsoluteError": 0.0,
+      "muteEpochSilent": true
+    },
+    {
+      "voice": "woman-2",
+      "contextMs": 640,
+      "blockMs": 160,
+      "blocks": 3,
+      "maxAbsoluteError": 0.0,
+      "muteEpochSilent": true
+    }
+  ]
+}

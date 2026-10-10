@@ -1,0 +1,15 @@
+{
+  "passed": true,
+  "expected": "fallback",
+  "probe": {
+    "samples": 3840,
+    "finite": true,
+    "inferenceMs": 421.04726299930917,
+    "rtf": 5.263090787491365,
+    "backend": "cpu"
+  },
+  "receivedBytes": 7913,
+  "realInferenceBlocks": 2,
+  "localLatencyP95Ms": 522.6666666666666,
+  "recovery": "Conversão lenta; tente GPU ou outra qualidade. Sua voz voltou ao normal."
+}

@@ -1,0 +1,27 @@
+{
+  "python": "3.12.14 (main, Aug 25 2026, 14:00:49) [Clang 22.1.3 ]",
+  "input": "/workspace/.cache/resenhex/voice/test-pt-br.wav",
+  "results": [
+    {
+      "voice": "woman-1",
+      "backend": "cpu",
+      "blockMs": 160,
+      "contextMs": 320,
+      "loadMs": 2591.6429630015045,
+      "blocks": 25,
+      "inferenceMedianMs": 350.270126000396,
+      "inferenceP95Ms": 403.42772800213424,
+      "rpcP95Ms": 403.85146900080144,
+      "rtfMedian": 2.189188287502475,
+      "peak": 0.8691065311431885,
+      "rms": 0.10384069383144379,
+      "finite": true,
+      "stagesMedianMs": {
+        "prepare": 0.2355880023969803,
+        "encoderPitch": 72.26603900198825,
+        "synthesis": 271.4206769996963,
+        "output": 0.4960410005878657
+      }
+    }
+  ]
+}

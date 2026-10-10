@@ -1,0 +1,12 @@
+{
+  "tool": "faster-whisper tiny, int8 CPU, language=pt",
+  "input": "Fala sintética em português brasileiro, 4 segundos",
+  "reference": "Olá, amigos. Estou testando os efeitos de voz no Resenhex. Vamos jogar.",
+  "scope": "Diagnóstico automático; qualidade e semelhança não certificadas por avaliação humana",
+  "outputs": {
+    "kaede": "Ah, amigos, estou testando o Zefeito de voz no Hezenets. Tomo joga aí.",
+    "uzuki": "Lá, amigos. Estou que estão dos efeitos. Jibos no Resenhets. Tomos joga aí.",
+    "woman-1": "planigos, estão testando os efeitos de voos no risentos. Vamos jogar!",
+    "woman-2": "lá, amigos. Estou testando os afeitas de voz no Resent eps. Tamos o lugar."
+  }
+}

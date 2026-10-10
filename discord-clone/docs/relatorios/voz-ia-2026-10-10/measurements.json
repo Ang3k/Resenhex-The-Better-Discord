@@ -1,0 +1,66 @@
+{
+  "python": "3.12.14 (main, Aug 25 2026, 14:00:49) [Clang 22.1.3 ]",
+  "input": "/workspace/.cache/resenhex/voice/test-pt-br.wav",
+  "results": [
+    {
+      "voice": "kaede",
+      "backend": "cpu",
+      "blockMs": 160,
+      "contextMs": 320,
+      "loadMs": 2455.755515000419,
+      "blocks": 25,
+      "inferenceMedianMs": 386.25134699941555,
+      "inferenceP95Ms": 444.0591998003583,
+      "rpcP95Ms": 444.34541979971976,
+      "rtfMedian": 2.414070918746347,
+      "peak": 0.7336301803588867,
+      "rms": 0.11922351270914078,
+      "finite": true
+    },
+    {
+      "voice": "uzuki",
+      "backend": "cpu",
+      "blockMs": 160,
+      "contextMs": 320,
+      "loadMs": 1119.922470000347,
+      "blocks": 25,
+      "inferenceMedianMs": 385.80812200052605,
+      "inferenceP95Ms": 433.10851520036516,
+      "rpcP95Ms": 433.35403680048324,
+      "rtfMedian": 2.411300762503288,
+      "peak": 0.6529302000999451,
+      "rms": 0.09578447043895721,
+      "finite": true
+    },
+    {
+      "voice": "woman-1",
+      "backend": "cpu",
+      "blockMs": 160,
+      "contextMs": 320,
+      "loadMs": 1763.1559780002135,
+      "blocks": 25,
+      "inferenceMedianMs": 439.5705540000563,
+      "inferenceP95Ms": 494.13945500018593,
+      "rpcP95Ms": 494.4079430002602,
+      "rtfMedian": 2.747315962500352,
+      "peak": 0.8119262456893921,
+      "rms": 0.10505542904138565,
+      "finite": true
+    },
+    {
+      "voice": "woman-2",
+      "backend": "cpu",
+      "blockMs": 160,
+      "contextMs": 320,
+      "loadMs": 1356.586201999562,
+      "blocks": 25,
+      "inferenceMedianMs": 428.03747700054373,
+      "inferenceP95Ms": 481.63906340014364,
+      "rpcP95Ms": 481.89547400052106,
+      "rtfMedian": 2.6752342312533983,
+      "peak": 0.7820473909378052,
+      "rms": 0.0729418620467186,
+      "finite": true
+    }
+  ]
+}

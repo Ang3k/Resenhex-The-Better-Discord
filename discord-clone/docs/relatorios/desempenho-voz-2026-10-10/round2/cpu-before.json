@@ -1,0 +1,54 @@
+{
+  "python": "3.12.14 (main, Aug 25 2026, 14:00:49) [Clang 22.1.3 ]",
+  "input": "/workspace/.cache/resenhex/voice/test-pt-br.wav",
+  "results": [
+    {
+      "voice": "braum",
+      "backend": "cpu",
+      "blockMs": 160,
+      "contextMs": 320,
+      "loadMs": 2429.210434998822,
+      "blocks": 25,
+      "inferenceMedianMs": 227.58389400041779,
+      "inferenceP95Ms": 259.2278953983623,
+      "rpcP95Ms": 259.6124563970079,
+      "rtfMedian": 1.4223993375026112,
+      "peak": 0.949999988079071,
+      "rms": 0.13942629098892212,
+      "finite": true,
+      "workerCpuMs": 16600.0,
+      "workerCpuMsPerBlock": 664.0,
+      "stagesMedianMs": {
+        "prepare": 0.370317000488285,
+        "encoder": 59.536111999477725,
+        "pitch": 38.001209002686664,
+        "synthesis": 127.02458199782996,
+        "output": 0.7042700017336756
+      }
+    },
+    {
+      "voice": "woman-1",
+      "backend": "cpu",
+      "blockMs": 160,
+      "contextMs": 320,
+      "loadMs": 1200.2842749971023,
+      "blocks": 25,
+      "inferenceMedianMs": 382.5673419996747,
+      "inferenceP95Ms": 422.0465276011964,
+      "rpcP95Ms": 422.41794620058494,
+      "rtfMedian": 2.3910458874979668,
+      "peak": 0.8608587384223938,
+      "rms": 0.1045890599489212,
+      "finite": true,
+      "workerCpuMs": 30210.0,
+      "workerCpuMsPerBlock": 1208.4,
+      "stagesMedianMs": {
+        "prepare": 0.37493400304811075,
+        "encoder": 58.51201800032868,
+        "pitch": 44.84853699977975,
+        "synthesis": 273.6048939987086,
+        "output": 0.7342740027524997
+      }
+    }
+  ]
+}

@@ -37,6 +37,8 @@ Plataforma própria de chat e voz para você e seus amigos, inspirada no Discord
 
 ## App para Windows
 
+O recurso local de **Voz por IA** inclui catálogo RVC, download de modelos, teste de microfone e integração às chamadas. Consulte [como usar e gerar o aplicativo](docs/VOZ-IA.md) e [os resultados e limites da validação](docs/relatorios/VALIDACAO-VOZ-IA-2026-10-10.md). Os personagens aparecem junto dos efeitos com retratos locais; consulte também o [relatório de desempenho](docs/relatorios/DESEMPENHO-VOZ-IA-2026-10-10.md) e a [segunda rodada de otimizações](docs/relatorios/DESEMPENHO-VOZ-IA-RODADA-2-2026-10-10.md). A validação de GPU e instalador Windows permanece pendente.
+
 Mande para os amigos o link **`https://seu-dominio/baixar`**. Lá tem o botão de download e o passo a passo. No site, quem usa Windows também vê um botão verde de download na barra de servidores.
 
 - O instalador tem cerca de 107 MB, instala em segundos (sem pedir administrador) e já abre o app. Na primeira vez, o Windows pode mostrar **“O Windows protegeu o computador”**, porque o app não tem assinatura paga: é só clicar em **Mais informações** e depois em **Executar assim mesmo**.

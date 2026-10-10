@@ -1,0 +1,38 @@
+[
+  {
+    "id": "braum",
+    "bytes": 110946412,
+    "sha256": "15adfc74f2b0a5308419e309700fa0681fdee5dfe4cf5e2fb99cc8cd848ab91e",
+    "schema": "bounded-v1"
+  },
+  {
+    "id": "zed",
+    "bytes": 110946412,
+    "sha256": "0c492def0ed3341e056b8b48f476bfec0764f870ec866568d57790519243ddcf",
+    "schema": "bounded-v1"
+  },
+  {
+    "id": "pantheon",
+    "bytes": 110946412,
+    "sha256": "8af318c8c978dc2660b6d6d23aa3d3276ae521d4ec1a968c3211ea6be8418d27",
+    "schema": "bounded-v1"
+  },
+  {
+    "id": "ahri",
+    "bytes": 110946412,
+    "sha256": "36102cb625e304fee19a9b8baddc4d89450f06910cd58fd6c531a3499d886e01",
+    "schema": "bounded-v1"
+  },
+  {
+    "id": "kaede",
+    "bytes": 110553196,
+    "sha256": "ff0b60a55fef5dcda9214965f8e5d2ea9463f7a5d30f8f09d17d5bbc8ef2c20f",
+    "schema": "bounded-v1"
+  },
+  {
+    "id": "uzuki",
+    "bytes": 110553196,
+    "sha256": "fb19e9377f075ef555fe4f27f62dcc16812a36c9279f2bfe0e0fc4496a69ee74",
+    "schema": "bounded-v1"
+  }
+]

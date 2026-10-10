@@ -10,6 +10,7 @@ window.VoiceFx = (() => {
     radio: { label: 'Rádio', emoji: '📻', desc: 'Comunicador chiado' },
     caverna: { label: 'Caverna', emoji: '🦇', desc: 'Eco de lugar enorme' },
     alien: { label: 'Alien', emoji: '👽', desc: 'Aguda e ondulada', pitch: 4 },
+    ai: { label: 'Voz por IA', emoji: '✨', desc: 'Timbres do catálogo local' },
   };
 
   let stretchLib = null;
@@ -88,6 +89,7 @@ window.VoiceFx = (() => {
 
   // Cria o efeito num AudioContext: input → (tom) → efeito → limitador → output.
   async function create(ctx, id) {
+    if (id === 'ai') return window.VoiceAI.create(ctx);
     const input = ctx.createGain(), output = ctx.createGain();
     // Limitador no fim: eco e distorção não estouram o volume.
     const limiter = ctx.createDynamicsCompressor();
@@ -97,7 +99,7 @@ window.VoiceFx = (() => {
 
     async function set(next) {
       const preset = PRESETS[next];
-      if (!preset || next === 'none') throw new Error('Efeito de voz inválido.');
+      if (!preset || next === 'none' || next === 'ai') throw new Error('Efeito de voz inválido.');
       if (preset.pitch && !stretch) {
         const createStretch = await loadStretch();
         stretch = await createStretch(ctx, { numberOfInputs: 1, numberOfOutputs: 1, outputChannelCount: [1] });
@@ -131,5 +133,17 @@ window.VoiceFx = (() => {
     return { input, output, set, destroy, get id() { return current; }, get latency() { return PRESETS[current]?.pitch ? latency : 0; } };
   }
 
-  return { PRESETS, create, valid: (id) => Object.hasOwn(PRESETS, id) };
+  function options() {
+    const voices = window.VoiceAI?.state?.voices || [];
+    return [...Object.entries(PRESETS).filter(([id]) => id !== 'ai' || !voices.length),
+      ...voices.map((voice) => ['ai:' + voice.id, { label: voice.character || voice.name.split(' · ')[0],
+        desc: voice.installed ? 'IA · ' + (voice.game || 'Voz comunitária') : 'IA · Baixar para usar',
+        emoji: voice.emoji || '✨', icon: voice.icon, model: voice.id, installed: voice.installed }])];
+  }
+  function selection(id) {
+    const model = window.VoiceAI?.state?.preferences.model;
+    return id === 'ai' && model && window.VoiceAI.state?.voices.some((voice) => voice.id === model) ? 'ai:' + model : id;
+  }
+  function choice(id) { return options().find(([key]) => key === selection(id))?.[1] || PRESETS[id]; }
+  return { PRESETS, create, options, selection, choice, valid: (id) => Object.hasOwn(PRESETS, id) };
 })();

@@ -1,0 +1,176 @@
+{
+  "dynamic4": {
+    "python": "3.12.14 (main, Aug 25 2026, 14:00:49) [Clang 22.1.3 ]",
+    "input": "/workspace/.cache/resenhex/voice/test-pt-br.wav",
+    "results": [
+      {
+        "voice": "braum",
+        "backend": "cpu",
+        "blockMs": 160,
+        "contextMs": 320,
+        "loadMs": 2567.9131770011736,
+        "blocks": 25,
+        "inferenceMedianMs": 224.2734549981833,
+        "inferenceP95Ms": 255.89087180123894,
+        "rpcP95Ms": 256.292744201346,
+        "rtfMedian": 1.4017090937386456,
+        "peak": 0.949999988079071,
+        "rms": 0.14171306788921356,
+        "finite": true,
+        "stagesMedianMs": {
+          "prepare": 0.3749429997697007,
+          "encoder": 54.596734000369906,
+          "pitch": 39.869275999080855,
+          "synthesis": 127.4547809989599,
+          "output": 0.7133220024115872
+        }
+      }
+    ]
+  },
+  "extended": {
+    "python": "3.12.14 (main, Aug 25 2026, 14:00:49) [Clang 22.1.3 ]",
+    "input": "/workspace/.cache/resenhex/voice/test-pt-br.wav",
+    "results": [
+      {
+        "voice": "braum",
+        "backend": "cpu",
+        "blockMs": 160,
+        "contextMs": 320,
+        "loadMs": 2317.1860949987604,
+        "blocks": 25,
+        "inferenceMedianMs": 226.31123899918748,
+        "inferenceP95Ms": 238.4064930010936,
+        "rpcP95Ms": 238.78871899796647,
+        "rtfMedian": 1.4144452437449218,
+        "peak": 0.949999988079071,
+        "rms": 0.1365150511264801,
+        "finite": true,
+        "stagesMedianMs": {
+          "prepare": 0.34331599817960523,
+          "encoder": 53.597603997332044,
+          "pitch": 44.550230999448104,
+          "synthesis": 125.19287200120743,
+          "output": 0.6923609980731271
+        }
+      }
+    ]
+  },
+  "five": {
+    "python": "3.12.14 (main, Aug 25 2026, 14:00:49) [Clang 22.1.3 ]",
+    "input": "/workspace/.cache/resenhex/voice/test-pt-br.wav",
+    "results": [
+      {
+        "voice": "braum",
+        "backend": "cpu",
+        "blockMs": 160,
+        "contextMs": 320,
+        "loadMs": 2391.390954999224,
+        "blocks": 25,
+        "inferenceMedianMs": 193.9727800017863,
+        "inferenceP95Ms": 255.87042020051734,
+        "rpcP95Ms": 256.18490799897694,
+        "rtfMedian": 1.2123298750111644,
+        "peak": 0.949999988079071,
+        "rms": 0.13763563334941864,
+        "finite": true,
+        "stagesMedianMs": {
+          "prepare": 0.3488949987513479,
+          "encoder": 47.62638199827052,
+          "pitch": 35.966412997368025,
+          "synthesis": 110.63449599896558,
+          "output": 0.709556999936467
+        }
+      }
+    ]
+  },
+  "conv2d": {
+    "python": "3.12.14 (main, Aug 25 2026, 14:00:49) [Clang 22.1.3 ]",
+    "input": "/workspace/.cache/resenhex/voice/test-pt-br.wav",
+    "results": [
+      {
+        "voice": "braum",
+        "backend": "cpu",
+        "blockMs": 160,
+        "contextMs": 320,
+        "loadMs": 2739.4281809974927,
+        "blocks": 25,
+        "inferenceMedianMs": 256.8134499997541,
+        "inferenceP95Ms": 274.51173980080057,
+        "rpcP95Ms": 274.92053660171223,
+        "rtfMedian": 1.605084062498463,
+        "peak": 0.9487757086753845,
+        "rms": 0.13650496304035187,
+        "finite": true,
+        "stagesMedianMs": {
+          "prepare": 0.3412440019019414,
+          "encoder": 52.77575500076637,
+          "pitch": 36.26650799924391,
+          "synthesis": 165.66489899923909,
+          "output": 0.6414659983420279
+        }
+      }
+    ]
+  },
+  "parallel": {
+    "python": "3.12.14 (main, Aug 25 2026, 14:00:49) [Clang 22.1.3 ]",
+    "input": "/workspace/.cache/resenhex/voice/test-pt-br.wav",
+    "results": [
+      {
+        "voice": "braum",
+        "backend": "cpu",
+        "blockMs": 160,
+        "contextMs": 320,
+        "loadMs": 2469.7222720024,
+        "blocks": 25,
+        "inferenceMedianMs": 182.50853599965922,
+        "inferenceP95Ms": 204.00100300103077,
+        "rpcP95Ms": 204.41713460240862,
+        "rtfMedian": 1.14067834999787,
+        "peak": 0.9324636459350586,
+        "rms": 0.14116565883159637,
+        "finite": true,
+        "stagesMedianMs": {
+          "prepare": 0.341302999004256,
+          "encoder": 63.53705000219634,
+          "pitch": 0.09699300062493421,
+          "synthesis": 118.68870800026343,
+          "output": 0.6883249989186879
+        }
+      }
+    ]
+  },
+  "static": {
+    "python": "3.12.14 (main, Aug 25 2026, 14:00:49) [Clang 22.1.3 ]",
+    "input": "/workspace/.cache/resenhex/voice/test-pt-br.wav",
+    "results": [
+      {
+        "voice": "braum",
+        "backend": "cpu",
+        "blockMs": 160,
+        "contextMs": 320,
+        "loadMs": 2413.6009469984856,
+        "blocks": 25,
+        "inferenceMedianMs": 213.90629300003638,
+        "inferenceP95Ms": 234.1373529983684,
+        "rpcP95Ms": 234.46234080111023,
+        "rtfMedian": 1.3369143312502274,
+        "peak": 0.9474079608917236,
+        "rms": 0.13716177642345428,
+        "finite": true,
+        "stagesMedianMs": {
+          "prepare": 0.371998998161871,
+          "encoder": 53.89237299823435,
+          "pitch": 36.2896950027789,
+          "synthesis": 123.21641900052782,
+          "output": 0.7270120004250202
+        }
+      }
+    ]
+  },
+  "fixedShapeRejected": {
+    "reason": "failed strict PCM equivalence",
+    "maxAbsoluteDifference": 7.531047e-05,
+    "absoluteTolerance": 2e-05,
+    "relativeTolerance": 2e-05
+  }
+}

@@ -169,6 +169,17 @@ test('moderation affects only that membership and preserves global sessions and 
   assert.equal(friend.last.call, null);
 });
 
+test('AI voice effect state is accepted in calls and arbitrary model names are rejected', async (t) => {
+  const { connect } = await fixture(t);
+  const owner = await connect('Dono'), friend = await connect('Amigo');
+  const room = owner.last.channels.find((c) => c.type === 'voice').id;
+  await owner.call('voice:join', { channel: room }); await friend.call('voice:join', { channel: room });
+  await owner.call('voice:state', { voiceFx: 'ai' });
+  await eventually(() => assert.equal(friend.last.voice.find((v) => v.accountId === owner.auth.accountId).voiceFx, 'ai'));
+  await owner.call('voice:state', { voiceFx: '../../model' });
+  await eventually(() => assert.equal(friend.last.voice.find((v) => v.accountId === owner.auth.accountId).voiceFx, null));
+});
+
 test('switching servers keeps the call; call data, moderation and sounds stay tied to the call server', async (t) => {
   const { connect } = await fixture(t);
   const owner = await connect('Dono'); const friend = await connect('Amigo');

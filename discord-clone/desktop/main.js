@@ -15,6 +15,8 @@ const { uiohookKeycode } = require('./lib/ptt-keys');
 const { globalBindings, matchBinding } = require('./lib/keybinds');
 const { createLog } = require('./lib/log');
 const { systemAudioDevice } = require('./lib/system-audio');
+const { VoiceEngine } = require('./lib/voice-engine');
+if (!app.isPackaged && process.env.RESENHEX_USER_DATA_DIR) app.setPath('userData', path.resolve(process.env.RESENHEX_USER_DATA_DIR));
 
 const APP_URL = new URL(process.env.RESENHEX_URL || 'https://resenhex.duckdns.org/');
 const ORIGIN = APP_URL.origin;
@@ -67,6 +69,30 @@ let retryTimer = null;
 
 const isAppUrl = (url) => { try { return new URL(url).origin === ORIGIN; } catch { return false; } };
 const fromSite = (event) => isAppUrl(event.senderFrame?.url || '');
+const voiceRoot = app.isPackaged ? path.join(process.resourcesPath, 'voice-engine') : path.join(__dirname, 'voice-engine');
+const voiceEngine = new VoiceEngine({
+  dataDir: process.env.RESENHEX_VOICE_DATA_DIR || path.join(app.getPath('userData'), 'voice-ai'),
+  resources: voiceRoot,
+  python: app.isPackaged ? path.join(voiceRoot, 'runtime', 'python.exe') : process.env.RESENHEX_VOICE_PYTHON || (process.platform === 'win32' ? path.join(voiceRoot, 'runtime', 'python.exe') : ''),
+  script: path.join(voiceRoot, 'engine.py'), store, fetch: (url, options) => net.fetch(url, options),
+});
+const fromVoiceSite = (event) => fromSite(event) && event.sender === site?.webContents && event.senderFrame === site.webContents.mainFrame;
+for (const [name, action] of Object.entries({
+  status: () => voiceEngine.snapshot(), install: (id) => voiceEngine.install(id), cancel: () => voiceEngine.cancel(),
+  remove: (id) => voiceEngine.remove(id), configure: (values) => voiceEngine.configure(values || {}),
+  open: () => voiceEngine.open(), convert: (frame) => voiceEngine.convert(frame || {}), close: (id) => voiceEngine.close(id),
+})) ipcMain.handle('desktop:voice-ai:' + name, (event, value) => {
+  if (!fromVoiceSite(event)) throw new Error('Origem não autorizada.');
+  return action(value);
+});
+let voiceNotification = 0;
+voiceEngine.on('changed', () => {
+  clearTimeout(voiceNotification);
+  voiceNotification = setTimeout(async () => {
+    const snapshot = await voiceEngine.snapshot();
+    if (site && !site.webContents.isDestroyed()) site.webContents.send('desktop:voice-ai:state', snapshot);
+  }, 30);
+});
 ipcMain.handle('desktop:media-capabilities', (event) => {
   if (!fromSite(event)) throw new Error('Origem não autorizada.');
   return { videoEncode: app.getGPUFeatureStatus().video_encode || 'unknown' };
@@ -186,7 +212,8 @@ function wireSite(contents) {
   contents.on('did-fail-load', (_event, code, _description, url, isMainFrame) => {
     if (isMainFrame && code !== -3 && isAppUrl(url)) showOffline(); // -3: navegação cancelada
   });
-  contents.on('render-process-gone', (_event, details) => { if (details.reason !== 'clean-exit') loadSite(); });
+  contents.on('render-process-gone', (_event, details) => { voiceEngine.destroy(); if (details.reason !== 'clean-exit') loadSite(); });
+  contents.on('did-start-navigation', (_event, _url, _inPlace, mainFrame) => { if (mainFrame) voiceEngine.destroy(); });
   contents.on('page-title-updated', (_event, title) => {
     if (offline) return;
     win?.setTitle(title);
@@ -481,6 +508,7 @@ function installUpdate() {
 app.on('second-instance', () => { if (!quitting) showWindow(); });
 app.on('before-quit', () => { quitting = true; saveBounds(); });
 app.on('will-quit', () => {
+  voiceEngine.destroy();
   log.info('Encerrando');
   try { hook?.stop(); } catch { /* já parado */ }
 });

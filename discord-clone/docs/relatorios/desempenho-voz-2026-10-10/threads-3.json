@@ -1,0 +1,28 @@
+{
+  "python": "3.12.14 (main, Aug 25 2026, 14:00:49) [Clang 22.1.3 ]",
+  "input": "/workspace/.cache/resenhex/voice/test-pt-br-48k.wav",
+  "results": [
+    {
+      "voice": "braum",
+      "backend": "cpu",
+      "blockMs": 160,
+      "contextMs": 320,
+      "loadMs": 2703.6236469975847,
+      "blocks": 25,
+      "inferenceMedianMs": 310.9950399993977,
+      "inferenceP95Ms": 361.760492400208,
+      "rpcP95Ms": 362.278507398878,
+      "rtfMedian": 1.9437189999962357,
+      "peak": 0.949999988079071,
+      "rms": 0.13909725844860077,
+      "finite": true,
+      "stagesMedianMs": {
+        "prepare": 0.3511380018608179,
+        "encoder": 58.78830000074231,
+        "pitch": 41.368351001437986,
+        "synthesis": 217.57280599922524,
+        "output": 0.7210229996417183
+      }
+    }
+  ]
+}

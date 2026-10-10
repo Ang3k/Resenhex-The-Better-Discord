@@ -1,0 +1,217 @@
+{
+  "version": 1,
+  "components": {
+    "pitch": {
+      "file": "rmvpe.onnx",
+      "url": "https://huggingface.co/wok000/weights_gpl/resolve/d1b578cfcdf944dd3910786f7604754c79234b36/rmvpe/rmvpe_20231006.onnx",
+      "bytes": 362003174,
+      "sha256": "84f0586308e36157f75b77c8591bf636d6719c0c4ba95f8faf3df479e7566219",
+      "source": "https://huggingface.co/wok000/weights_gpl",
+      "license": "GPL-3.0 (declaração do distribuidor)"
+    },
+    "encoder256": {
+      "file": "encoder256.onnx",
+      "url": "https://huggingface.co/ozada/onnx_rvc/resolve/73aba2944d5e02d7b64b99cb9fb6efb6d0ad0eea/vec-256-layer-9.onnx",
+      "bytes": 293348935,
+      "sha256": "61d0d0598803f74d5a4bcba65ca367571889accc0e86196f0982e8e455d56393",
+      "source": "https://huggingface.co/ozada/onnx_rvc",
+      "license": "MIT (declarada pelo distribuidor)"
+    },
+    "encoder768": {
+      "file": "encoder768.onnx",
+      "url": "https://huggingface.co/ozada/onnx_rvc/resolve/73aba2944d5e02d7b64b99cb9fb6efb6d0ad0eea/vec-768-layer-12.onnx",
+      "bytes": 377655729,
+      "sha256": "b3886e7dff1495cda514f94f4680a7b1261e05d6929f5c764cdb17934b413c2a",
+      "source": "https://huggingface.co/ozada/onnx_rvc",
+      "license": "MIT (declarada pelo distribuidor)"
+    }
+  },
+  "voices": [
+    {
+      "id": "braum",
+      "name": "Braum · LoL",
+      "character": "Braum",
+      "game": "League of Legends",
+      "description": "Voz experimental de Braum (League of Legends). Teste antes de usar na chamada.",
+      "language": "Inglês (indicado pelo nome do catálogo de origem)",
+      "source": "https://huggingface.co/AzathothSeven/Braum-League_Of_Legends-EN/blob/4eb6eb5c7f011c25e3eb4d33ff0eba0c5ce95fc3/README.md",
+      "license": "MIT (declarada pelo distribuidor)",
+      "conditions": "Preservar o aviso MIT do distribuidor. Modelo sem vínculo oficial; dados de treinamento e semelhança artística não certificados.",
+      "sampleRate": 40000,
+      "file": "braum.onnx",
+      "bundled": true,
+      "encoder": "encoder768",
+      "bytes": 110946412,
+      "sha256": "15adfc74f2b0a5308419e309700fa0681fdee5dfe4cf5e2fb99cc8cd848ab91e",
+      "checkpoint": {
+        "member": "Braum/Braum.pth",
+        "bytes": 55193241,
+        "sha256": "f321a345e96fc4966f41b009720d2712fb46e91b6a064e78a64c856e73e70a0b",
+        "archive": {
+          "url": "https://huggingface.co/AzathothSeven/Braum-League_Of_Legends-EN/resolve/4eb6eb5c7f011c25e3eb4d33ff0eba0c5ce95fc3/Braum-League_Of_Legends-EN.zip",
+          "bytes": 77834867,
+          "sha256": "fd0a7d0abe06e53cd4889b6a543e0d05812a22bfd0276e3faf36d48eb7b5c67f"
+        }
+      },
+      "icon": "/assets/voice-characters/braum.png",
+      "emoji": "🛡️"
+    },
+    {
+      "id": "zed",
+      "name": "Zed · LoL",
+      "character": "Zed",
+      "game": "League of Legends",
+      "description": "Voz experimental de Zed (League of Legends). Teste antes de usar na chamada.",
+      "language": "Inglês (indicado pelo nome do catálogo de origem)",
+      "source": "https://huggingface.co/AzathothSeven/Zed-League_Of_Legends-EN/blob/9a35adcabb25a8b47952d170654cfbff846d4324/README.md",
+      "license": "MIT (declarada pelo distribuidor)",
+      "conditions": "Preservar o aviso MIT do distribuidor. Modelo sem vínculo oficial; dados de treinamento e semelhança artística não certificados.",
+      "sampleRate": 40000,
+      "file": "zed.onnx",
+      "bundled": true,
+      "encoder": "encoder768",
+      "bytes": 110946412,
+      "sha256": "0c492def0ed3341e056b8b48f476bfec0764f870ec866568d57790519243ddcf",
+      "checkpoint": {
+        "member": "Zed/Zed.pth",
+        "bytes": 55192195,
+        "sha256": "da4c327fe1566d8c82d2ba74e366248055194cf6378945e7751eeecc7ad4616c",
+        "archive": {
+          "url": "https://huggingface.co/AzathothSeven/Zed-League_Of_Legends-EN/resolve/9a35adcabb25a8b47952d170654cfbff846d4324/Zed-League_Of_Legends-EN.zip",
+          "bytes": 62390035,
+          "sha256": "a747ed75e1c9ec120bbba232a73f7eb54811c59246ec49aaabc5d64e32e7434e"
+        }
+      },
+      "icon": "/assets/voice-characters/zed.png",
+      "emoji": "🥷"
+    },
+    {
+      "id": "pantheon",
+      "name": "Pantheon · LoL",
+      "character": "Pantheon",
+      "game": "League of Legends",
+      "description": "Voz experimental de Pantheon (League of Legends). Teste antes de usar na chamada.",
+      "language": "Inglês (indicado pelo nome do catálogo de origem)",
+      "source": "https://huggingface.co/AzathothSeven/Pantheon-League_Of_Legends-EN/blob/0bf928d959683edb15279f49d904f09d0c262e13/README.md",
+      "license": "MIT (declarada pelo distribuidor)",
+      "conditions": "Preservar o aviso MIT do distribuidor. Modelo sem vínculo oficial; dados de treinamento e semelhança artística não certificados.",
+      "sampleRate": 40000,
+      "file": "pantheon.onnx",
+      "bundled": true,
+      "encoder": "encoder768",
+      "bytes": 110946412,
+      "sha256": "8af318c8c978dc2660b6d6d23aa3d3276ae521d4ec1a968c3211ea6be8418d27",
+      "checkpoint": {
+        "member": "Pantheon/Pantheon.pth",
+        "bytes": 55223738,
+        "sha256": "0ed465d3397ecc3b6344aa271538beec9eaaccda05ebe2bb443b7a3860975b2e",
+        "archive": {
+          "url": "https://huggingface.co/AzathothSeven/Pantheon-League_Of_Legends-EN/resolve/0bf928d959683edb15279f49d904f09d0c262e13/Pantheon-League_Of_Legends-EN.zip",
+          "bytes": 107982575,
+          "sha256": "1852f2c9b5f632c132fe66bbb14a6b17efc02d5a427831829935d36f1141fe8e"
+        }
+      },
+      "icon": "/assets/voice-characters/pantheon.png",
+      "emoji": "⚔️"
+    },
+    {
+      "id": "ahri",
+      "name": "Ahri · Ruined King",
+      "character": "Ahri",
+      "game": "League of Legends / Ruined King",
+      "description": "Voz experimental de Ahri (League of Legends / Ruined King). Teste antes de usar na chamada.",
+      "language": "Não informado pelo distribuidor",
+      "source": "https://huggingface.co/Igniszath/AhriRuinedKing/blob/d253726566dc43498837efb0ea33a1ccdb9351fe/README.md",
+      "license": "WTFPL (declarada pelo distribuidor)",
+      "conditions": "WTFPL declarada pelo distribuidor; texto da licença acompanha os avisos. Modelo sem vínculo oficial; dados de treinamento e semelhança artística não certificados.",
+      "sampleRate": 40000,
+      "file": "ahri.onnx",
+      "bundled": true,
+      "encoder": "encoder768",
+      "bytes": 110946412,
+      "sha256": "36102cb625e304fee19a9b8baddc4d89450f06910cd58fd6c531a3499d886e01",
+      "checkpoint": {
+        "member": "AhriRuinedKing.pth",
+        "bytes": 55232064,
+        "sha256": "7ad404737c884965f84a3cf932edc01321a8b8596fcc296fdbbdfcb1581a09a7",
+        "archive": {
+          "url": "https://huggingface.co/Igniszath/AhriRuinedKing/resolve/d253726566dc43498837efb0ea33a1ccdb9351fe/AhriRuinedKing.zip",
+          "bytes": 360568315,
+          "sha256": "d48c273732ec495d585babc623d9c8e3edabe061d4df89d0da6a95780ba4a3e3"
+        }
+      },
+      "icon": "/assets/voice-characters/ahri.png",
+      "emoji": "🦊"
+    },
+    {
+      "id": "kaede",
+      "name": "Kaede · comunitária",
+      "description": "Modelo de personagem do catálogo RVC de sobabeats/rikineko.",
+      "language": "Não informado pelo distribuidor; nome original do modelo preservado",
+      "source": "https://huggingface.co/sobabeats/RVC_Models/blob/da7d25ef4955751cd2e911ece8c419ff9f2ce36c/README.md",
+      "license": "MIT (declarada pelo distribuidor)",
+      "conditions": "Modelo comunitário sem vínculo oficial. Preservar o aviso MIT; dados de treinamento não documentados.",
+      "sampleRate": 40000,
+      "file": "kaede.onnx",
+      "bundled": true,
+      "checkpoint": {
+        "url": "https://huggingface.co/sobabeats/RVC_Models/resolve/da7d25ef4955751cd2e911ece8c419ff9f2ce36c/kaede_40k/kaede.pth",
+        "bytes": 54996633,
+        "sha256": "f2515be041ef50391c284fbd5536316930fae32b5fc0ce9f8aab7f07f4f7e421"
+      },
+      "bytes": 110553196,
+      "sha256": "ff0b60a55fef5dcda9214965f8e5d2ea9463f7a5d30f8f09d17d5bbc8ef2c20f",
+      "encoder": "encoder256"
+    },
+    {
+      "id": "uzuki",
+      "name": "Uzuki · comunitária",
+      "description": "Modelo de personagem do catálogo RVC de sobabeats/rikineko.",
+      "language": "Não informado pelo distribuidor; nome original do modelo preservado",
+      "source": "https://huggingface.co/sobabeats/RVC_Models/blob/da7d25ef4955751cd2e911ece8c419ff9f2ce36c/README.md",
+      "license": "MIT (declarada pelo distribuidor)",
+      "conditions": "Modelo comunitário sem vínculo oficial. Preservar o aviso MIT; dados de treinamento não documentados.",
+      "sampleRate": 40000,
+      "file": "uzuki.onnx",
+      "bundled": true,
+      "checkpoint": {
+        "url": "https://huggingface.co/sobabeats/RVC_Models/resolve/da7d25ef4955751cd2e911ece8c419ff9f2ce36c/uzukiv2_40k/uzukiv2.pth",
+        "bytes": 55026095,
+        "sha256": "c9e1dec2ddd221011a50384e93a1130274117b58e31c032c511130ec4a69ab7a"
+      },
+      "bytes": 110553196,
+      "sha256": "fb19e9377f075ef555fe4f27f62dcc16812a36c9279f2bfe0e0fc4496a69ee74",
+      "encoder": "encoder256"
+    },
+    {
+      "id": "woman-1",
+      "name": "Voz feminina 1",
+      "description": "Voz comunitária para experimentar a conversão de timbre.",
+      "language": "Não informado pelo distribuidor",
+      "source": "https://huggingface.co/ozada/onnx_rvc/blob/73aba2944d5e02d7b64b99cb9fb6efb6d0ad0eea/README.md",
+      "license": "MIT (declarada no catálogo de origem)",
+      "conditions": "Preservar o aviso MIT. Origem do treinamento não documentada; voz sem vínculo oficial com personagens.",
+      "sampleRate": 40000,
+      "file": "woman_1.onnx",
+      "url": "https://huggingface.co/ozada/onnx_rvc/resolve/73aba2944d5e02d7b64b99cb9fb6efb6d0ad0eea/woman_1.onnx",
+      "bytes": 110925800,
+      "sha256": "dade8e8c5b1e637fc934fbfa706262ac855c267c2b3c826dd71f0df6d9317db1",
+      "encoder": "encoder768"
+    },
+    {
+      "id": "woman-2",
+      "name": "Voz feminina 2",
+      "description": "Outro timbre comunitário para conversar e testar.",
+      "language": "Não informado pelo distribuidor",
+      "source": "https://huggingface.co/ozada/onnx_rvc/blob/73aba2944d5e02d7b64b99cb9fb6efb6d0ad0eea/README.md",
+      "license": "MIT (declarada no catálogo de origem)",
+      "conditions": "Preservar o aviso MIT. Origem do treinamento não documentada; voz sem vínculo oficial com personagens.",
+      "sampleRate": 40000,
+      "file": "woman_2.onnx",
+      "url": "https://huggingface.co/ozada/onnx_rvc/resolve/73aba2944d5e02d7b64b99cb9fb6efb6d0ad0eea/woman_2.onnx",
+      "bytes": 110925800,
+      "sha256": "fad68092dfaf6c19dad0c4974a2b052269cf41afeb19833243c6b3048c859613",
+      "encoder": "encoder768"
+    }
+  ]
+}

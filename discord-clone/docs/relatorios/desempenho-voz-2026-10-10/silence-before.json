@@ -1,0 +1,21 @@
+{
+  "python": "3.12.14 (main, Aug 25 2026, 14:00:49) [Clang 22.1.3 ]",
+  "input": "/workspace/.local/share/resenhex/voice-validation/performance/silence.wav",
+  "results": [
+    {
+      "voice": "braum",
+      "backend": "cpu",
+      "blockMs": 160,
+      "contextMs": 320,
+      "loadMs": 2831.7833449982572,
+      "blocks": 25,
+      "inferenceMedianMs": 401.86910800184705,
+      "inferenceP95Ms": 479.03522839842475,
+      "rpcP95Ms": 479.357924802025,
+      "rtfMedian": 2.511681925011544,
+      "peak": 0.0007042044308036566,
+      "rms": 6.212299194885418e-05,
+      "finite": true
+    }
+  ]
+}

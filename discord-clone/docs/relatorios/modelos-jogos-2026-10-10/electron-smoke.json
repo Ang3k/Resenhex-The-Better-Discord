@@ -1,0 +1,18 @@
+{
+  "passed": true,
+  "expected": "fallback",
+  "voice": "braum",
+  "catalogVoices": 8,
+  "probe": {
+    "installed": true,
+    "samples": 3840,
+    "finite": true,
+    "inferenceMs": 350.26636000020517,
+    "rtf": 4.378329500002565,
+    "backend": "cpu"
+  },
+  "receivedBytes": 8625,
+  "realInferenceBlocks": 2,
+  "localLatencyP95Ms": 552,
+  "recovery": "Conversão lenta; tente GPU ou outra qualidade. Sua voz voltou ao normal."
+}

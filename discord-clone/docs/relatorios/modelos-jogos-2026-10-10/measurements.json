@@ -1,0 +1,81 @@
+{
+  "python": "3.12.14 (main, Aug 25 2026, 14:00:49) [Clang 22.1.3 ]",
+  "input": "/workspace/.cache/resenhex/voice/test-pt-br.wav",
+  "results": [
+    {
+      "voice": "braum",
+      "backend": "cpu",
+      "blockMs": 160,
+      "contextMs": 320,
+      "loadMs": 2993.8404720005565,
+      "blocks": 25,
+      "inferenceMedianMs": 416.51272700073605,
+      "inferenceP95Ms": 481.5560904005906,
+      "rpcP95Ms": 481.9289192004362,
+      "rtfMedian": 2.6032045437546003,
+      "peak": 0.9475322961807251,
+      "rms": 0.13787402212619781,
+      "finite": true
+    },
+    {
+      "voice": "zed",
+      "backend": "cpu",
+      "blockMs": 160,
+      "contextMs": 320,
+      "loadMs": 1281.739818999995,
+      "blocks": 25,
+      "inferenceMedianMs": 445.4042549996302,
+      "inferenceP95Ms": 483.27042939981766,
+      "rpcP95Ms": 483.59840880002594,
+      "rtfMedian": 2.783776593747689,
+      "peak": 0.9132628440856934,
+      "rms": 0.21682585775852203,
+      "finite": true
+    },
+    {
+      "voice": "pantheon",
+      "backend": "cpu",
+      "blockMs": 160,
+      "contextMs": 320,
+      "loadMs": 1297.5165240004571,
+      "blocks": 25,
+      "inferenceMedianMs": 423.3786600007079,
+      "inferenceP95Ms": 451.9613526003013,
+      "rpcP95Ms": 452.2214738000912,
+      "rtfMedian": 2.6461166250044243,
+      "peak": 0.8276580572128296,
+      "rms": 0.14754989743232727,
+      "finite": true
+    },
+    {
+      "voice": "kratos",
+      "backend": "cpu",
+      "blockMs": 160,
+      "contextMs": 320,
+      "loadMs": 1378.0828189992462,
+      "blocks": 25,
+      "inferenceMedianMs": 426.942826999948,
+      "inferenceP95Ms": 490.9909567995782,
+      "rpcP95Ms": 491.2667322001652,
+      "rtfMedian": 2.668392668749675,
+      "peak": 0.7764205932617188,
+      "rms": 0.08845749497413635,
+      "finite": true
+    },
+    {
+      "voice": "ahri",
+      "backend": "cpu",
+      "blockMs": 160,
+      "contextMs": 320,
+      "loadMs": 1152.2410079996916,
+      "blocks": 25,
+      "inferenceMedianMs": 412.6229820003573,
+      "inferenceP95Ms": 479.66345619988715,
+      "rpcP95Ms": 479.9237136005104,
+      "rtfMedian": 2.578893637502233,
+      "peak": 0.774093747138977,
+      "rms": 0.12552951276302338,
+      "finite": true
+    }
+  ]
+}

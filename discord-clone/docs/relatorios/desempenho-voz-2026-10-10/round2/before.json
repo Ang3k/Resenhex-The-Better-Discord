@@ -1,0 +1,182 @@
+{
+  "python": "3.12.14 (main, Aug 25 2026, 14:00:49) [Clang 22.1.3 ]",
+  "input": "/workspace/.cache/resenhex/voice/test-pt-br.wav",
+  "results": [
+    {
+      "voice": "braum",
+      "backend": "cpu",
+      "blockMs": 160,
+      "contextMs": 320,
+      "loadMs": 2287.731806998636,
+      "blocks": 25,
+      "inferenceMedianMs": 217.11167499961448,
+      "inferenceP95Ms": 235.973844002001,
+      "rpcP95Ms": 236.38812279896229,
+      "rtfMedian": 1.3569479687475905,
+      "peak": 0.949999988079071,
+      "rms": 0.13866026699543,
+      "finite": true,
+      "stagesMedianMs": {
+        "prepare": 0.35964099879493006,
+        "encoder": 53.91089100157842,
+        "pitch": 35.87358499862603,
+        "synthesis": 124.95694100289256,
+        "output": 0.7145449999370612
+      }
+    },
+    {
+      "voice": "zed",
+      "backend": "cpu",
+      "blockMs": 160,
+      "contextMs": 320,
+      "loadMs": 961.9165639996936,
+      "blocks": 25,
+      "inferenceMedianMs": 221.53422699921066,
+      "inferenceP95Ms": 270.40680219943164,
+      "rpcP95Ms": 270.7627557989326,
+      "rtfMedian": 1.3845889187450666,
+      "peak": 0.9318906664848328,
+      "rms": 0.2128576785326004,
+      "finite": true,
+      "stagesMedianMs": {
+        "prepare": 0.3592300017771777,
+        "encoder": 61.172727997472975,
+        "pitch": 35.39607299899217,
+        "synthesis": 123.62738600131706,
+        "output": 0.7655800000065938
+      }
+    },
+    {
+      "voice": "pantheon",
+      "backend": "cpu",
+      "blockMs": 160,
+      "contextMs": 320,
+      "loadMs": 1124.820412002009,
+      "blocks": 25,
+      "inferenceMedianMs": 205.2168440022797,
+      "inferenceP95Ms": 231.9655330014939,
+      "rpcP95Ms": 232.286776399269,
+      "rtfMedian": 1.282605275014248,
+      "peak": 0.8784077167510986,
+      "rms": 0.14485883712768555,
+      "finite": true,
+      "stagesMedianMs": {
+        "prepare": 0.36858400198980235,
+        "encoder": 54.727361999539426,
+        "pitch": 33.378228999936255,
+        "synthesis": 113.1756549984857,
+        "output": 0.7588599983137101
+      }
+    },
+    {
+      "voice": "ahri",
+      "backend": "cpu",
+      "blockMs": 160,
+      "contextMs": 320,
+      "loadMs": 932.7665269993304,
+      "blocks": 25,
+      "inferenceMedianMs": 221.55763999762712,
+      "inferenceP95Ms": 245.3714081995713,
+      "rpcP95Ms": 245.70149419814697,
+      "rtfMedian": 1.3847352499851695,
+      "peak": 0.8072287440299988,
+      "rms": 0.12502600252628326,
+      "finite": true,
+      "stagesMedianMs": {
+        "prepare": 0.3747530026885215,
+        "encoder": 59.249375997751486,
+        "pitch": 38.81780400115531,
+        "synthesis": 125.64031399961095,
+        "output": 0.7443890026479494
+      }
+    },
+    {
+      "voice": "kaede",
+      "backend": "cpu",
+      "blockMs": 160,
+      "contextMs": 320,
+      "loadMs": 1108.1891730027564,
+      "blocks": 25,
+      "inferenceMedianMs": 184.75702700015972,
+      "inferenceP95Ms": 208.14620940072928,
+      "rpcP95Ms": 208.4903757990105,
+      "rtfMedian": 1.1547314187509983,
+      "peak": 0.7391330003738403,
+      "rms": 0.1183437779545784,
+      "finite": true,
+      "stagesMedianMs": {
+        "prepare": 0.35413200021139346,
+        "encoder": 37.2302710020449,
+        "pitch": 38.046926998504205,
+        "synthesis": 111.28464400098892,
+        "output": 0.7256009994307533
+      }
+    },
+    {
+      "voice": "uzuki",
+      "backend": "cpu",
+      "blockMs": 160,
+      "contextMs": 320,
+      "loadMs": 852.2571360008442,
+      "blocks": 25,
+      "inferenceMedianMs": 196.46276899948134,
+      "inferenceP95Ms": 231.3665871988632,
+      "rpcP95Ms": 231.7108270006428,
+      "rtfMedian": 1.2278923062467584,
+      "peak": 0.756154477596283,
+      "rms": 0.09573334455490112,
+      "finite": true,
+      "stagesMedianMs": {
+        "prepare": 0.35878999915439636,
+        "encoder": 44.99857400151086,
+        "pitch": 35.81554199990933,
+        "synthesis": 116.73093400168,
+        "output": 0.7585699968331028
+      }
+    },
+    {
+      "voice": "woman-1",
+      "backend": "cpu",
+      "blockMs": 160,
+      "contextMs": 320,
+      "loadMs": 1533.3990860017366,
+      "blocks": 25,
+      "inferenceMedianMs": 317.5211849993502,
+      "inferenceP95Ms": 339.22210079981596,
+      "rpcP95Ms": 339.5345058015664,
+      "rtfMedian": 1.984507406245939,
+      "peak": 0.8043585419654846,
+      "rms": 0.10388828068971634,
+      "finite": true,
+      "stagesMedianMs": {
+        "prepare": 0.33822899786173366,
+        "encoder": 54.01573000199278,
+        "pitch": 33.286759000475286,
+        "synthesis": 225.94566800034954,
+        "output": 0.7297669981198851
+      }
+    },
+    {
+      "voice": "woman-2",
+      "backend": "cpu",
+      "blockMs": 160,
+      "contextMs": 320,
+      "loadMs": 1242.147926997859,
+      "blocks": 25,
+      "inferenceMedianMs": 330.8485559973633,
+      "inferenceP95Ms": 366.034580401174,
+      "rpcP95Ms": 366.3405078004871,
+      "rtfMedian": 2.0678034749835206,
+      "peak": 0.6235357522964478,
+      "rms": 0.07215247303247452,
+      "finite": true,
+      "stagesMedianMs": {
+        "prepare": 0.34021199826383963,
+        "encoder": 52.303304997622035,
+        "pitch": 37.56704199986416,
+        "synthesis": 239.9971100021503,
+        "output": 0.7276139986061025
+      }
+    }
+  ]
+}

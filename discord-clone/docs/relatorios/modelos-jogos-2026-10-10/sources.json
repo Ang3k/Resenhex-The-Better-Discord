@@ -1,0 +1,539 @@
+{
+  "date": "2026-10-10",
+  "models": [
+    {
+      "id": "AzathothSeven/Braum-League_Of_Legends-EN",
+      "revision": "4eb6eb5c7f011c25e3eb4d33ff0eba0c5ce95fc3",
+      "source": "https://huggingface.co/AzathothSeven/Braum-League_Of_Legends-EN",
+      "cardData": {
+        "license": "mit"
+      },
+      "files": [
+        {
+          "path": ".gitattributes",
+          "bytes": 1519,
+          "sha256": null
+        },
+        {
+          "path": "Braum-League_Of_Legends-EN.zip",
+          "bytes": 77834867,
+          "sha256": "fd0a7d0abe06e53cd4889b6a543e0d05812a22bfd0276e3faf36d48eb7b5c67f"
+        },
+        {
+          "path": "README.md",
+          "bytes": 21,
+          "sha256": null
+        }
+      ],
+      "card": "---\nlicense: mit\n---\n"
+    },
+    {
+      "id": "AzathothSeven/Zed-League_Of_Legends-EN",
+      "revision": "9a35adcabb25a8b47952d170654cfbff846d4324",
+      "source": "https://huggingface.co/AzathothSeven/Zed-League_Of_Legends-EN",
+      "cardData": {
+        "license": "mit"
+      },
+      "files": [
+        {
+          "path": ".gitattributes",
+          "bytes": 1519,
+          "sha256": null
+        },
+        {
+          "path": "README.md",
+          "bytes": 21,
+          "sha256": null
+        },
+        {
+          "path": "Zed-League_Of_Legends-EN.zip",
+          "bytes": 62390035,
+          "sha256": "a747ed75e1c9ec120bbba232a73f7eb54811c59246ec49aaabc5d64e32e7434e"
+        }
+      ],
+      "card": "---\nlicense: mit\n---\n"
+    },
+    {
+      "id": "AzathothSeven/Pantheon-League_Of_Legends-EN",
+      "revision": "0bf928d959683edb15279f49d904f09d0c262e13",
+      "source": "https://huggingface.co/AzathothSeven/Pantheon-League_Of_Legends-EN",
+      "cardData": {
+        "license": "mit"
+      },
+      "files": [
+        {
+          "path": ".gitattributes",
+          "bytes": 1519,
+          "sha256": null
+        },
+        {
+          "path": "Pantheon-League_Of_Legends-EN.zip",
+          "bytes": 107982575,
+          "sha256": "1852f2c9b5f632c132fe66bbb14a6b17efc02d5a427831829935d36f1141fe8e"
+        },
+        {
+          "path": "README.md",
+          "bytes": 21,
+          "sha256": null
+        }
+      ],
+      "card": "---\nlicense: mit\n---\n"
+    },
+    {
+      "id": "Igniszath/AhriRuinedKing",
+      "revision": "d253726566dc43498837efb0ea33a1ccdb9351fe",
+      "source": "https://huggingface.co/Igniszath/AhriRuinedKing",
+      "cardData": {
+        "license": "wtfpl"
+      },
+      "files": [
+        {
+          "path": ".gitattributes",
+          "bytes": 1519,
+          "sha256": null
+        },
+        {
+          "path": "AhriRuinedKing.zip",
+          "bytes": 360568315,
+          "sha256": "d48c273732ec495d585babc623d9c8e3edabe061d4df89d0da6a95780ba4a3e3"
+        },
+        {
+          "path": "README.md",
+          "bytes": 22,
+          "sha256": null
+        }
+      ],
+      "card": "---\nlicense: wtfpl\n---"
+    },
+    {
+      "id": "LukeAndarilhoCeu/kratos",
+      "revision": "b87080cbd265e3bdfe8d03ddee05bc83c9567427",
+      "source": "https://huggingface.co/LukeAndarilhoCeu/kratos",
+      "cardData": {
+        "license": "apache-2.0"
+      },
+      "files": [
+        {
+          "path": ".gitattributes",
+          "bytes": 1519,
+          "sha256": null
+        },
+        {
+          "path": "Kratos(720 epochs, 128 crepe).zip",
+          "bytes": 107984564,
+          "sha256": "efdb99c0c1fb527617da7f95f13801da5005b01a82bb94dbd27a976815cc04ca"
+        },
+        {
+          "path": "README.md",
+          "bytes": 28,
+          "sha256": null
+        }
+      ],
+      "card": "---\nlicense: apache-2.0\n---\n"
+    },
+    {
+      "id": "EuSouBrocha/Kratos",
+      "revision": "c06fce62e6cfd23851052827dd7d9998cd0ebb4c",
+      "source": "https://huggingface.co/EuSouBrocha/Kratos",
+      "cardData": {
+        "license": "openrail"
+      },
+      "files": [
+        {
+          "path": ".gitattributes",
+          "bytes": 1519,
+          "sha256": null
+        },
+        {
+          "path": "Kratos (300 epochs).zip",
+          "bytes": 107935200,
+          "sha256": "15ac5ab1d14b94a855e59be0306c3f096135ad9ba2e9b3c32bc1a0bb7dd82bbf"
+        },
+        {
+          "path": "Kratos(720 epochs, 128 crepe).zip",
+          "bytes": 107984564,
+          "sha256": "efdb99c0c1fb527617da7f95f13801da5005b01a82bb94dbd27a976815cc04ca"
+        },
+        {
+          "path": "Kratos(765 epochs).zip",
+          "bytes": 107926345,
+          "sha256": "2d2133d9f20c4c2e98025889c4f4f486e7dccd9f5e62ff20bb2cdcb49eb91769"
+        },
+        {
+          "path": "README.md",
+          "bytes": 26,
+          "sha256": null
+        }
+      ],
+      "card": "---\nlicense: openrail\n---\n"
+    },
+    {
+      "id": "Homiebear/KratosGoWR",
+      "revision": "b531c68605f71eebb0fa7c0ee82865eb342e300a",
+      "source": "https://huggingface.co/Homiebear/KratosGoWR",
+      "cardData": {
+        "license": "openrail"
+      },
+      "files": [
+        {
+          "path": ".gitattributes",
+          "bytes": 1519,
+          "sha256": null
+        },
+        {
+          "path": "KratosGoWR.zip",
+          "bytes": 146448128,
+          "sha256": "df34f029390f6fd83fa5bc1ae7d7c3bdf9a17937c8c542962901ec1fc26c20cd"
+        },
+        {
+          "path": "README.md",
+          "bytes": 26,
+          "sha256": null
+        }
+      ],
+      "card": "---\nlicense: openrail\n---\n"
+    },
+    {
+      "id": "menhguin/JinxLeague",
+      "revision": "461d33428783fc414d9d860fccf499faf0f69632",
+      "source": "https://huggingface.co/menhguin/JinxLeague",
+      "cardData": {
+        "license": "openrail"
+      },
+      "files": [
+        {
+          "path": ".gitattributes",
+          "bytes": 1519,
+          "sha256": null
+        },
+        {
+          "path": "JinxLeague.zip",
+          "bytes": 151487257,
+          "sha256": "d18244eb5ee2ff84c6e5c725125389170da7a6836601e3f7d9c55a5d14d22b71"
+        },
+        {
+          "path": "README.md",
+          "bytes": 26,
+          "sha256": null
+        }
+      ],
+      "card": "---\nlicense: openrail\n---\n"
+    },
+    {
+      "id": "Messeraicovers/ahribr",
+      "revision": "1fe6de734c9c96113358f30356a3de18db7c19ca",
+      "source": "https://huggingface.co/Messeraicovers/ahribr",
+      "cardData": {
+        "license": "openrail++"
+      },
+      "files": [
+        {
+          "path": ".gitattributes",
+          "bytes": 1519,
+          "sha256": null
+        },
+        {
+          "path": "README.md",
+          "bytes": 28,
+          "sha256": null
+        },
+        {
+          "path": "ahri.zip",
+          "bytes": 59028588,
+          "sha256": "779e5b77e3ce4edb29d43f06657a56b291f816cc4f4ff31a2cd59b23609de99c"
+        }
+      ],
+      "card": "---\nlicense: openrail++\n---\n"
+    },
+    {
+      "id": "Astarossa/GeraltWitcher3",
+      "revision": "7904562783674f3106cc5a3309ebc20bcfea7133",
+      "source": "https://huggingface.co/Astarossa/GeraltWitcher3",
+      "cardData": {
+        "license": "apache-2.0"
+      },
+      "files": [
+        {
+          "path": ".gitattributes",
+          "bytes": 1519,
+          "sha256": null
+        },
+        {
+          "path": "G_200.pth",
+          "bytes": 548688142,
+          "sha256": "39c4311a24aa684460fb26cc8dc1c710c3346e0953c8df30cad91a0c36e6a94a"
+        },
+        {
+          "path": "README.md",
+          "bytes": 31,
+          "sha256": null
+        },
+        {
+          "path": "config.json",
+          "bytes": 2092,
+          "sha256": null
+        }
+      ],
+      "card": "---\nlicense: apache-2.0\n---\n"
+    },
+    {
+      "id": "Homiebear/MasterChief",
+      "revision": "54e46f149da7c4054a4aa4f0da4f79f8a863a5db",
+      "source": "https://huggingface.co/Homiebear/MasterChief",
+      "cardData": {
+        "license": "openrail"
+      },
+      "files": [
+        {
+          "path": ".gitattributes",
+          "bytes": 1519,
+          "sha256": null
+        },
+        {
+          "path": "MasterChief.zip",
+          "bytes": 60938925,
+          "sha256": "87fd587ba3c93879c39230ff3725fa5a8fae0c47791341bdd2877f44f8c5ef7e"
+        },
+        {
+          "path": "README.md",
+          "bytes": 26,
+          "sha256": null
+        }
+      ],
+      "card": "---\nlicense: openrail\n---\n"
+    },
+    {
+      "id": "Homiebear/GLaDOSV4",
+      "revision": "77068206de83ea94d06813d0184fbc0de282325b",
+      "source": "https://huggingface.co/Homiebear/GLaDOSV4",
+      "cardData": {
+        "license": "openrail"
+      },
+      "files": [
+        {
+          "path": ".gitattributes",
+          "bytes": 1519,
+          "sha256": null
+        },
+        {
+          "path": "GLaDOS.zip",
+          "bytes": 80556224,
+          "sha256": "bd89b277f0c02d4232308d69a6113c306e251dbdf763d938099df9c5a6217543"
+        },
+        {
+          "path": "README.md",
+          "bytes": 29,
+          "sha256": null
+        }
+      ],
+      "card": "---\nlicense: openrail\n---\n"
+    },
+    {
+      "id": "Homiebear/ArthurMorgan",
+      "revision": "77b8788c5db464bbd18885f01fa8f0a0c76d089e",
+      "source": "https://huggingface.co/Homiebear/ArthurMorgan",
+      "cardData": {
+        "license": "openrail"
+      },
+      "files": [
+        {
+          "path": ".gitattributes",
+          "bytes": 1519,
+          "sha256": null
+        },
+        {
+          "path": "ArthurMorgan_465e_28365s.zip",
+          "bytes": 623618450,
+          "sha256": "3dabdadd2690cb285ff7ed8c6c43a8495ee77ab7967c6f35532337ed30d53913"
+        },
+        {
+          "path": "README.md",
+          "bytes": 29,
+          "sha256": null
+        }
+      ],
+      "card": "---\nlicense: openrail\n---\n"
+    },
+    {
+      "id": "Narufan/Super_Mario_By_Mboisuper_450_Epochs",
+      "revision": "6a801fbec0fe0220b8a82d5131534a42dbe88de2",
+      "source": "https://huggingface.co/Narufan/Super_Mario_By_Mboisuper_450_Epochs",
+      "cardData": {
+        "license": "openrail"
+      },
+      "files": [
+        {
+          "path": ".gitattributes",
+          "bytes": 1519,
+          "sha256": null
+        },
+        {
+          "path": "README.md",
+          "bytes": 26,
+          "sha256": null
+        },
+        {
+          "path": "super-mario-by-mboisuper.zip",
+          "bytes": 229276099,
+          "sha256": "824f5fcbd37c7c0609a0a0a7290e25233c7f3c5eb0e3670486a3130095d14ba0"
+        }
+      ],
+      "card": "---\nlicense: openrail\n---\n"
+    },
+    {
+      "id": "Homiebear/ATREUS",
+      "revision": "521577aa8397c767364721cb72cb62075e0ab404",
+      "source": "https://huggingface.co/Homiebear/ATREUS",
+      "cardData": {
+        "license": "openrail"
+      },
+      "files": [
+        {
+          "path": ".gitattributes",
+          "bytes": 1519,
+          "sha256": null
+        },
+        {
+          "path": "Atreus.zip",
+          "bytes": 136910967,
+          "sha256": "a8819c8e3dde649cf8d42d2bcc0af9e04453316bd8fb1b51c9e135ac70e5896c"
+        },
+        {
+          "path": "README.md",
+          "bytes": 26,
+          "sha256": null
+        }
+      ],
+      "card": "---\nlicense: openrail\n---\n"
+    },
+    {
+      "id": "TheGreasyGamer/Mimir",
+      "revision": "3d3ba9c83f60b58a9dfda02e1acf33117ec62377",
+      "source": "https://huggingface.co/TheGreasyGamer/Mimir",
+      "cardData": {
+        "license": "openrail"
+      },
+      "files": [
+        {
+          "path": ".gitattributes",
+          "bytes": 1519,
+          "sha256": null
+        },
+        {
+          "path": "Mimir.zip",
+          "bytes": 155122680,
+          "sha256": "95e41a79e40fe632264d9a8fe5964c01f42fcef83a75e9b1a1642a4d52ebc950"
+        },
+        {
+          "path": "README.md",
+          "bytes": 26,
+          "sha256": null
+        }
+      ],
+      "card": "---\nlicense: openrail\n---\n"
+    },
+    {
+      "id": "Homiebear/TrevorPhilipsV3",
+      "revision": "272521e7d06c4e44791e8dfb2d45cd4cd1f657b3",
+      "source": "https://huggingface.co/Homiebear/TrevorPhilipsV3",
+      "cardData": {
+        "license": "openrail"
+      },
+      "files": [
+        {
+          "path": ".gitattributes",
+          "bytes": 1519,
+          "sha256": null
+        },
+        {
+          "path": "README.md",
+          "bytes": 29,
+          "sha256": null
+        },
+        {
+          "path": "Trevor Philips.zip",
+          "bytes": 338772333,
+          "sha256": "fbd904aee13d9cb4be9469c2ea13f553eb7e1e1249c198ff8131ff77d7aa03bf"
+        }
+      ],
+      "card": "---\r\nlicense: openrail\r\n---\r\n"
+    },
+    {
+      "id": "grandtheftauto/gta5characters",
+      "revision": "576d569c431f6f57905addacc1063040b7460b5c",
+      "source": "https://huggingface.co/grandtheftauto/gta5characters",
+      "cardData": {
+        "license": "openrail"
+      },
+      "files": [
+        {
+          "path": ".gitattributes",
+          "bytes": 1519,
+          "sha256": null
+        },
+        {
+          "path": "Amanda De Santa (CV_ Vicki van Tassel - Grand Theft Auto 5) - Weights.gg Model.zip",
+          "bytes": 134508253,
+          "sha256": "782a1757006973a9284de51983174233bc181628a678151bd6d8f3cacfe6dc0f"
+        },
+        {
+          "path": "Big Smoke - Weights.gg Model.zip",
+          "bytes": 53680892,
+          "sha256": "408d82b1353ead9312a137e42e97d589022da948f10b937a25de9ff899c2eba5"
+        },
+        {
+          "path": "CJ Gta San Andreas - Weights.gg Model.zip",
+          "bytes": 66978942,
+          "sha256": "66d2a66049a422540a051c1edd90c6b45c497f9e885346bc828ddb99f51d91b5"
+        },
+        {
+          "path": "Jimmy De Santa - GTA 5 - Weights.gg Model.zip",
+          "bytes": 153902536,
+          "sha256": "ecaa32f4157535a8c97ef46f9a065a2cbd8c3d681e34c05f71bfa7b8dd57679c"
+        },
+        {
+          "path": "Lamar Davis (GTA V) - Weights.gg Model.zip",
+          "bytes": 113180219,
+          "sha256": "ace017db9cfd55db1e5c28b32cf37ef0d077608245d7ec08b2f33b4ef79b3516"
+        },
+        {
+          "path": "README.md",
+          "bytes": 26,
+          "sha256": null
+        },
+        {
+          "path": "Tracey De Santa (CV_ Michal Sinnott - Grand Theft Auto 5) - Weights.gg Model.zip",
+          "bytes": 80623590,
+          "sha256": "cd431d4cd20de75a8bb459ff2655cec06942a54d6865c387fc05220d7a68caa7"
+        }
+      ],
+      "card": "---\nlicense: openrail\n---\n"
+    },
+    {
+      "id": "b0nateur/YasuoRVCModel",
+      "revision": "32626dc2576a943a9e0abf7a54ac69c4c9ff4dfa",
+      "source": "https://huggingface.co/b0nateur/YasuoRVCModel",
+      "cardData": {
+        "license": "openrail"
+      },
+      "files": [
+        {
+          "path": ".gitattributes",
+          "bytes": 1519,
+          "sha256": null
+        },
+        {
+          "path": "README.md",
+          "bytes": 26,
+          "sha256": null
+        },
+        {
+          "path": "Yasuo.zip",
+          "bytes": 58328788,
+          "sha256": "13f86bdd60ffeca6cf26c98d959dcf359879eb8835c7173c89aa0eeeae8ced29"
+        }
+      ],
+      "card": "---\nlicense: openrail\n---\n"
+    }
+  ]
+}

@@ -84,7 +84,7 @@ async function ui(t, invited = false, options = {}) {
   let copied = '';
   Object.defineProperty(w.navigator, 'clipboard', { value: { writeText: async (text) => { copied = text; } } });
   options.setup?.(w);
-  for (const file of ['icons.js', 'format.js', 'sounds.js', 'media-policy.js', 'keybinds.js', 'settings.js', 'photo-editor.js', 'media-session.js', 'media-sfu.js', 'mobile-stream.js', 'stream-zoom.js', 'changelog.js', 'confetti.js', 'channel-navigation.js', 'music.js', 'mudae.js', 'mudae-salao.js', 'dm-call.js', 'gif-picker.js', 'emoji-picker.js', 'lightbox.js', 'voice-fx.js', 'app.js', 'landing.js']) w.eval(fs.readFileSync(path.join(publicDir, file), 'utf8'));
+  for (const file of ['icons.js', 'format.js', 'sounds.js', 'media-policy.js', 'keybinds.js', 'settings.js', 'photo-editor.js', 'media-session.js', 'media-sfu.js', 'mobile-stream.js', 'stream-zoom.js', 'changelog.js', 'confetti.js', 'channel-navigation.js', 'music.js', 'mudae.js', 'mudae-salao.js', 'dm-call.js', 'gif-picker.js', 'emoji-picker.js', 'lightbox.js', 'voice-ai.js', 'voice-fx.js', 'app.js', 'landing.js']) w.eval(fs.readFileSync(path.join(publicDir, file), 'utf8'));
   w.localStorage.setItem('seenVersion', w.APP_VERSION);
   t.after(() => { dom.window.close(); assert.deepEqual(errors.map((e) => e.message), []); });
   await settle();
@@ -123,6 +123,7 @@ async function voicePreviewApp(t, options = {}) {
         getUserMedia: () => capture(), enumerateDevices: async () => options.devices || [],
         addEventListener() {}, removeEventListener() {},
       } });
+      options.setup?.(w);
       w.MediaStream = Stream;
       w.AudioContext = class {
         constructor() { this.state = 'running'; this.destination = node(); }
@@ -138,7 +139,8 @@ async function voicePreviewApp(t, options = {}) {
   await app.register();
   app.w.Sounds.play = () => {};
   app.w.VoiceFx.create = async (ctx, id) => {
-    const effect = { id, input: node(), output: node(), destroyed: false,
+    const effect = { id, input: node(), output: node(), destroyed: false, blocked: false,
+      setBlocked(value) { this.blocked = !!value; },
       async set(next) { this.id = next; }, destroy() { this.destroyed = true; } };
     effects.push(effect);
     return effect;
@@ -283,6 +285,99 @@ test('teste de voz: fechar enquanto abre o microfone cancela o retorno e as conf
   assert.equal(audio.srcObject, null);
   assert.equal(track.readyState, 'ended');
   assert.equal(app.captures[0].getAudioTracks()[0].enabled, true);
+});
+
+test('voz por IA: mute, teste local e troca entre IA e efeitos preservam os controles da chamada', async (t) => {
+  const status = { state: 'idle', available: true, error: '', preferences: { model: 'test', backend: 'auto', performance: 'balanced', pitchShift: 0 },
+    blockMs: 120, voices: [{ id: 'test', name: 'Voz de teste', description: 'Teste', language: 'pt-BR', source: 'https://models.test/', license: 'MIT', conditions: 'Teste', bytes: 100, installed: true }] };
+  const app = await voicePreviewApp(t, { storage: { voiceFx: 'ai' }, setup(w) {
+    w.resenhexDesktop = { onPushToTalk() {}, setPushToTalk() {}, voiceAi: { onState() {}, status: async () => status } };
+  } });
+  const effect = app.effects[0], track = app.destinations[0].getAudioTracks()[0];
+  assert.equal(effect.id, 'ai'); assert.equal(effect.blocked, false); assert.equal(track.enabled, true);
+  app.d.querySelector('#sc-mic').click(); await settle();
+  assert.equal(effect.blocked, true); assert.equal(track.enabled, false);
+  app.d.querySelector('#btn-settings').click(); await settle();
+  assert.match(app.d.querySelector('#voice-ai-catalog').textContent, /Voz de teste/);
+  app.d.querySelector('#voice-fx-test').click(); await settle();
+  assert.equal(app.effects.at(-1).id, 'ai'); assert.equal(app.effects.at(-1).blocked, false, 'o teste local tem seu próprio portão');
+  assert.equal(effect.blocked, true); assert.equal(track.enabled, false, 'mute da chamada continua valendo durante o teste');
+  app.d.querySelector('.vfx-card[data-fx="radio"]').click(); await settle();
+  assert.equal(app.effects.at(-1).id, 'radio'); assert.equal(app.effects[1].destroyed, true, 'trocar IA por DSP desmonta o motor do teste');
+  app.d.querySelector('#voice-fx-test').click(); await settle();
+  assert.equal(track.enabled, false); assert.equal(effect.blocked, true);
+  app.d.querySelector('#sc-mic').click(); await settle();
+  assert.equal(track.enabled, true); assert.equal(effect.blocked, false);
+});
+
+test('voz por IA: push-to-talk abre só enquanto a tecla está pressionada e troca de microfone preserva mute', async (t) => {
+  const app = await voicePreviewApp(t, { storage: { voiceFx: 'ai', ptt: JSON.stringify({ enabled: true, code: 'Backquote', label: '`' }) }, setup(w) {
+    w.resenhexDesktop = { onPushToTalk() {}, setPushToTalk() {}, voiceAi: { onState() {} } };
+  } });
+  const effect = app.effects[0], track = app.destinations[0].getAudioTracks()[0];
+  assert.equal(effect.blocked, true); assert.equal(track.enabled, false);
+  app.d.dispatchEvent(new app.w.KeyboardEvent('keydown', { code: 'Backquote', bubbles: true })); await settle();
+  assert.equal(effect.blocked, false); assert.equal(track.enabled, true);
+  app.d.dispatchEvent(new app.w.KeyboardEvent('keyup', { code: 'Backquote', bubbles: true })); await settle();
+  assert.equal(effect.blocked, true); assert.equal(track.enabled, false);
+  app.d.querySelector('#sc-mic').click();
+  app.d.querySelector('#sc-mic-devices').click(); await settle();
+  const mic = app.d.querySelector('select[data-device="micDeviceId"]');
+  mic.value = ''; mic.dispatchEvent(new app.w.Event('change', { bubbles: true })); await settle();
+  assert.equal(app.effects.at(-1).blocked, true); assert.equal(app.destinations.at(-1).getAudioTracks()[0].enabled, false);
+});
+
+function characterVoiceBridge(w, commands) {
+  let listener;
+  const status = { state: 'idle', available: true, error: '', preferences: { model: 'braum', backend: 'auto', performance: 'balanced', pitchShift: 0 }, blockMs: 120,
+    voices: [
+      { id: 'braum', name: 'Braum · LoL', character: 'Braum', game: 'League of Legends', icon: '/assets/voice-characters/braum.png', emoji: '🛡️', installed: true },
+      { id: 'zed', name: 'Zed · LoL', character: 'Zed', game: 'League of Legends', icon: '/assets/voice-characters/zed.png', emoji: '🥷', installed: false },
+      { id: 'kaede', name: 'Kaede · comunitária', installed: true },
+    ].map((v) => ({ ...v, description: 'Voz experimental', language: 'Inglês', source: 'https://models.test/', license: 'MIT', conditions: 'Teste', bytes: 100 })) };
+  w.resenhexDesktop = { onPushToTalk() {}, setPushToTalk() {}, voiceAi: {
+    onState(fn) { listener = fn; }, status: async () => status,
+    install: async (id) => { commands.push(['install', id]); status.voices.find((v) => v.id === id).installed = true; return status; },
+    configure: async (preferences) => { commands.push(['configure', preferences]); status.preferences = { ...status.preferences, ...preferences }; return status; },
+  } };
+  return { status, publish: () => listener({ ...status }) };
+}
+
+test('personagens aparecem junto dos efeitos, com retratos locais, seleção e download automático', async (t) => {
+  const commands = []; let bridge;
+  const app = await voicePreviewApp(t, { setup(w) { bridge = characterVoiceBridge(w, commands); } });
+  await app.w.VoiceAI.refresh(); app.d.querySelector('#btn-settings').click(); await settle();
+  const grid = app.d.querySelector('#voice-fx-grid');
+  assert.ok(grid.querySelector('[data-fx="robo"]'));
+  assert.ok(grid.querySelector('[data-fx="ai:braum"] img[src="/assets/voice-characters/braum.png"]'));
+  assert.match(grid.querySelector('[data-fx="ai:kaede"]').textContent, /Kaede/);
+  grid.querySelector('[data-fx="ai:zed"]').click(); await settle();
+  assert.deepEqual(JSON.parse(JSON.stringify(commands)), [['install', 'zed'], ['configure', { model: 'zed' }]]);
+  assert.equal(app.d.querySelector('#voice-fx').value, 'ai');
+  assert.equal(grid.querySelector('[data-fx="ai:zed"]').getAttribute('aria-checked'), 'true');
+  const portrait = grid.querySelector('[data-fx="ai:zed"] img');
+  portrait.dispatchEvent(new app.w.Event('error'));
+  assert.match(grid.querySelector('[data-fx="ai:zed"]').textContent, /🥷/);
+  bridge.status.state = 'downloading'; bridge.publish();
+  assert.equal(grid.querySelector('[data-fx="ai:braum"]').disabled, true);
+  assert.equal(grid.querySelector('[data-fx="radio"]').disabled, false);
+});
+
+test('menu da chamada mostra os personagens com ícones e ativa a voz escolhida preservando mute', async (t) => {
+  const commands = [];
+  const app = await voicePreviewApp(t, { setup(w) { characterVoiceBridge(w, commands); } });
+  app.d.querySelector('#sc-mic').click(); await settle();
+  app.d.querySelector('#sc-mic-devices').click(); await settle();
+  app.d.querySelector('#voice-fx-toggle').click();
+  const character = app.d.querySelector('.vfx-chip[data-fx="ai:braum"]');
+  assert.ok(character.querySelector('img[src="/assets/voice-characters/braum.png"]'));
+  assert.ok(app.d.querySelector('.vfx-chip[data-fx="esquilo"]'));
+  character.click(); await settle();
+  assert.equal(app.effects.at(-1).id, 'ai');
+  assert.equal(app.effects.at(-1).blocked, true);
+  assert.equal(app.destinations.at(-1).getAudioTracks()[0].enabled, false);
+  assert.equal(character.getAttribute('aria-checked'), 'true');
+  assert.match(app.d.querySelector('.device-effect-current').textContent, /Braum/);
 });
 
 test('transmissões simultâneas usam grade, alternam destaque e preservam os players', async (t) => {

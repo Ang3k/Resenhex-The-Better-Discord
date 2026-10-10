@@ -11,9 +11,11 @@
     "prestart": "node tools/patch-uiohook.js --build",
     "postinstall": "node tools/patch-uiohook.js",
     "icons": "electron tools/render-icons.js",
-    "predist": "node tools/patch-uiohook.js --build",
+    "voice:runtime": "node tools/build-voice-runtime.js",
+    "voice:models": "node tools/build-character-voices.js",
+    "predist": "node tools/patch-uiohook.js --build && npm run voice:runtime && npm run voice:models",
     "dist": "electron-builder --win --publish never",
-    "predist:store": "node tools/patch-uiohook.js --build",
+    "predist:store": "node tools/patch-uiohook.js --build && npm run voice:runtime && npm run voice:models",
     "dist:store": "electron-builder --win appx --x64 --publish never -c.toolsets.winCodeSign=1.1.0",
     "test": "node --test"
   },
@@ -59,6 +61,7 @@
       "es",
       "es-419"
     ],
+    "extraResources": [{ "from": "voice-engine", "to": "voice-engine", "filter": ["engine.py", "windows-runtime.lock.json", "THIRD-PARTY-NOTICES.md", "licenses/**", "runtime/**", "models/**"] }],
     "win": {
       "target": [
         {

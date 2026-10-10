@@ -1,0 +1,28 @@
+{
+  "owner": "Riot Games",
+  "usage": "Ícones do Data Dragon para identificação de personagens em projeto de fã. Direitos das imagens pertencem à Riot Games; não são cobertos pela licença dos modelos de voz.",
+  "terms": "https://www.riotgames.com/en/legal",
+  "version": "16.20.1",
+  "assets": [
+    {
+      "file": "braum.png",
+      "source": "https://ddragon.leagueoflegends.com/cdn/16.20.1/img/champion/Braum.png",
+      "sha256": "1ada9222fe928d32cca4b91fc374fb41cacb6157f0122a390ca611c3e2c29daa"
+    },
+    {
+      "file": "zed.png",
+      "source": "https://ddragon.leagueoflegends.com/cdn/16.20.1/img/champion/Zed.png",
+      "sha256": "3ad3e956e9ad5ca3127d8f685faf69d4251fb726e9b4f0be989764f0027e9c5f"
+    },
+    {
+      "file": "pantheon.png",
+      "source": "https://ddragon.leagueoflegends.com/cdn/16.20.1/img/champion/Pantheon.png",
+      "sha256": "0ab8b436d5d7dd0a4163ec105a4977fc77abfd16757d46a9e958242f2d6858c1"
+    },
+    {
+      "file": "ahri.png",
+      "source": "https://ddragon.leagueoflegends.com/cdn/16.20.1/img/champion/Ahri.png",
+      "sha256": "8e93368d97e3d302463c4e83ac5980d1f0a3a0aaf92ac44435730fecbd55b565"
+    }
+  ]
+}
