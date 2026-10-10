@@ -155,6 +155,14 @@ async function voicePreviewApp(t, options = {}) {
   return { ...app, captures, played, effects, destinations, Stream, setCapture(fn) { capture = fn; } };
 }
 
+// A voz por IA começa desligada ao entrar na call; liga pelo menu de áudio, como a pessoa faria.
+async function enableAiInCall(app, id = 'ai:test') {
+  assert.equal(app.effects.length, 0, 'a call entra sem o efeito de IA');
+  app.d.querySelector('#sc-mic-devices').click(); await settle();
+  app.d.querySelector(`.vfx-chip[data-fx="${id}"]`).click(); await settle();
+  app.d.dispatchEvent(new app.w.KeyboardEvent('keydown', { key: 'Escape', bubbles: true })); await settle();
+}
+
 test('teste de voz no menu: ouve os efeitos, silencia a chamada e libera o microfone ao fechar', async (t) => {
   const app = await voicePreviewApp(t);
   const d = app.d;
@@ -293,6 +301,7 @@ test('voz por IA: mute, teste local e troca entre IA e efeitos preservam os cont
   const app = await voicePreviewApp(t, { storage: { voiceFx: 'ai' }, setup(w) {
     w.resenhexDesktop = { onPushToTalk() {}, setPushToTalk() {}, voiceAi: { onState() {}, status: async () => status } };
   } });
+  await enableAiInCall(app);
   const effect = app.effects[0], track = app.destinations[0].getAudioTracks()[0];
   assert.equal(effect.id, 'ai'); assert.equal(effect.blocked, false); assert.equal(track.enabled, true);
   app.d.querySelector('#sc-mic').click(); await settle();
@@ -311,9 +320,12 @@ test('voz por IA: mute, teste local e troca entre IA e efeitos preservam os cont
 });
 
 test('voz por IA: push-to-talk abre só enquanto a tecla está pressionada e troca de microfone preserva mute', async (t) => {
+  const status = { state: 'idle', available: true, error: '', preferences: { model: 'test', backend: 'auto', performance: 'balanced', pitchShift: 0 },
+    blockMs: 120, voices: [{ id: 'test', name: 'Voz de teste', description: 'Teste', language: 'pt-BR', source: 'https://models.test/', license: 'MIT', conditions: 'Teste', bytes: 100, installed: true }] };
   const app = await voicePreviewApp(t, { storage: { voiceFx: 'ai', ptt: JSON.stringify({ enabled: true, code: 'Backquote', label: '`' }) }, setup(w) {
-    w.resenhexDesktop = { onPushToTalk() {}, setPushToTalk() {}, voiceAi: { onState() {} } };
+    w.resenhexDesktop = { onPushToTalk() {}, setPushToTalk() {}, voiceAi: { onState() {}, status: async () => status } };
   } });
+  await enableAiInCall(app);
   const effect = app.effects[0], track = app.destinations[0].getAudioTracks()[0];
   assert.equal(effect.blocked, true); assert.equal(track.enabled, false);
   app.d.dispatchEvent(new app.w.KeyboardEvent('keydown', { code: 'Backquote', bubbles: true })); await settle();

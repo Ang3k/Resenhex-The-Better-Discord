@@ -4569,6 +4569,13 @@
     joining = true;
     try {
       if (state.voiceChannel) leaveVoice(true, false);
+      // A voz por IA sempre começa desligada ao entrar numa call: o personagem leva alguns
+      // segundos para carregar, então quem quiser liga no menu de áudio já dentro da call.
+      if (state.voiceFx === 'ai') {
+        state.voiceFx = 'none';
+        localStorage.setItem('voiceFx', 'none');
+        if ($('#voice-fx')) $('#voice-fx').value = 'none';
+      }
       state.micStream = await getMicStream();
       // opts.serverId: sala de outro servidor (reconectar ou ser movido enquanto olha outro servidor).
       const res = await call('voice:join', isDm(channel) ? { dm: channel, silent: !!opts.silent, mediaVersion: 1 } : { channel, serverId: opts.serverId ?? state.server.serverId, mediaVersion: 1 });
