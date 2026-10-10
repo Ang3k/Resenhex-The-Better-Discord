@@ -150,8 +150,7 @@ window.GifPicker = ({ el, Icon, getKey, getUserId, onPick }) => {
     place();
     const input = $input();
     if (!page) search(input.value.trim());
-    input.focus();
-    input.select();
+    if (window.hasMouse?.()) { input.focus(); input.select(); }
   }
 
   function close() {

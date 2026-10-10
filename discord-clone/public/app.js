@@ -760,7 +760,7 @@
     markRead(id);
     render();
     closePanels();
-    $('#chat-input').focus();
+    if (hasMouse()) $('#chat-input').focus();
   }
 
   // ---------------- chat da sala de voz ----------------
@@ -793,7 +793,7 @@
       markRead(state.voiceChannel);
     } else switchChatChannel(lastTextChannel());
     render();
-    if (open) $('#chat-input').focus();
+    if (open && hasMouse()) $('#chat-input').focus();
   }
   // Fora da chamada, o chat de uma sala de voz abre como um canal comum.
   function openVoiceChat(id) {
@@ -1138,7 +1138,7 @@
     markRead(id);
     render();
     closePanels();
-    $('#chat-input').focus();
+    if (hasMouse()) $('#chat-input').focus();
   }
 
   const openChat = (id) => (isDm(id) ? openDm(id) : channelById(id)?.type === 'voice' ? openVoiceChat(id) : openTextChannel(id));
@@ -1416,6 +1416,14 @@
   const keepBottom = () => {
     if (stickToBottom) $('#messages').scrollTop = $('#messages').scrollHeight;
   };
+  // Quando o teclado do celular abre, a lista encolhe sem disparar rolagem: quem estava no fim continua no fim.
+  let messagesHeight = 0;
+  new ResizeObserver(([entry]) => {
+    const height = entry.contentRect.height;
+    if (height === messagesHeight) return;
+    messagesHeight = height;
+    keepBottom();
+  }).observe($('#messages'));
 
   // Só reconstrói as mensagens que mudaram, para não reiniciar vídeos/áudios tocando.
   function renderMessages(scrollToEnd = false) {
@@ -1553,14 +1561,83 @@
       actions.append(action('Responder', 'reply', () => startReply(msg)));
     }
     if (mine && canWrite()) actions.append(action('Editar', 'pencil', () => { state.editing = msg.id; renderMessages(); }));
-    if (mine || (!inDm() && hasPerm('MANAGE_MESSAGES'))) {
-      actions.append(action('Apagar (Shift+clique apaga sem perguntar)', 'trash', async (e) => {
-        const channel = state.textChannel;
-        if (e.shiftKey || await confirmDialog({ title: 'Apagar mensagem', text: 'Quer apagar esta mensagem? Esta ação não pode ser desfeita.', confirm: 'Apagar' })) call('chat:delete', { channel, id: msg.id });
-      }, 'danger'));
-    }
+    const canDelete = mine || (!inDm() && hasPerm('MANAGE_MESSAGES'));
+    if (canDelete) actions.append(action('Apagar (Shift+clique apaga sem perguntar)', 'trash', (e) => deleteMessage(msg, e.shiftKey), 'danger'));
     if (actions.childElementCount) row.append(actions);
+    // No toque, o toque longo abre a folha de ações com o mesmo que a barra oferece.
+    row.sheet = { msg, canWrite: canWrite(), canEdit: mine && canWrite(), canDelete };
     return row;
+  }
+
+  async function deleteMessage(msg, skipConfirm = false) {
+    const channel = state.textChannel;
+    if (skipConfirm || await confirmDialog({ title: 'Apagar mensagem', text: 'Quer apagar esta mensagem? Esta ação não pode ser desfeita.', confirm: 'Apagar' })) call('chat:delete', { channel, id: msg.id });
+  }
+
+  // ---------------- folha de ações da mensagem (toque longo, estilo Discord) ----------------
+  const QUICK_REACTIONS = ['👍', '❤️', '😂', '😮', '😢', '🔥'];
+  let messageSheet = null;
+  function closeMessageSheet() {
+    if (!messageSheet) return;
+    const { node, row } = messageSheet;
+    messageSheet = null;
+    row.classList.remove('sheet-target');
+    node.classList.add('closing');
+    setTimeout(() => node.remove(), 160);
+  }
+  async function copyText(text) {
+    try { await navigator.clipboard.writeText(text); }
+    catch {
+      const area = el('textarea', { value: text, readOnly: true, style: { position: 'fixed', opacity: '0' } });
+      document.body.append(area); area.select();
+      try { document.execCommand('copy'); } finally { area.remove(); }
+    }
+    toast('Texto copiado.', 'info');
+  }
+  function openMessageSheet(row) {
+    const { msg, canWrite: write, canEdit, canDelete } = row.sheet;
+    closeMessageSheet();
+    const run = (fn) => () => { closeMessageSheet(); fn(); };
+    const item = (label, icon, fn, cls = '') => el('button', { type: 'button', class: 'sheet-item ' + cls, onclick: run(fn) }, Icon(icon, 20), el('span', { textContent: label }));
+    const mineReactions = new Set(Object.entries(msg.reactions || {}).filter(([, users]) => users.includes(state.me.accountId)).map(([emoji]) => emoji));
+    const panel = el('div', { class: 'sheet-panel' },
+      el('div', { class: 'sheet-grip' }),
+      write ? el('div', { class: 'sheet-reactions' },
+        QUICK_REACTIONS.map((emoji) => el('button', { type: 'button', class: 'sheet-reaction' + (mineReactions.has(emoji) ? ' mine' : ''), ariaLabel: 'Reagir com ' + emoji, onclick: run(() => react(msg.id, emoji)) }, emoji)),
+        el('button', { type: 'button', class: 'sheet-reaction more', ariaLabel: 'Mais reações', onclick: run(() => openEmojiPicker($('#btn-emoji'), (em) => react(msg.id, em))) }, Icon('smilePlus', 22))) : null,
+      el('div', { class: 'sheet-list' },
+        write ? item('Responder', 'reply', () => startReply(msg)) : null,
+        msg.text ? item('Copiar texto', 'copy', () => copyText(Format.toDisplay(msg.text, fmtCtx))) : null,
+        canEdit && msg.text != null ? item('Editar mensagem', 'pencil', () => { state.editing = msg.id; renderMessages(); }) : null,
+        canDelete ? item('Apagar mensagem', 'trash', () => deleteMessage(msg), 'danger') : null));
+    const node = el('div', { id: 'msg-sheet', role: 'dialog', ariaModal: 'true', ariaLabel: 'Ações da mensagem', onclick: (e) => { if (e.target === node) closeMessageSheet(); } }, panel);
+    document.body.append(node);
+    row.classList.add('sheet-target');
+    messageSheet = { node, row };
+    navigator.vibrate?.(10);
+  }
+  document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && messageSheet) closeMessageSheet(); });
+  // Toque longo numa mensagem: abre a folha (e não a seleção de texto do Android). Rolar ou soltar antes cancela.
+  {
+    const box = $('#messages');
+    let press = null, suppressClickUntil = 0;
+    const cancel = () => { if (press) clearTimeout(press.timer); press = null; };
+    box.addEventListener('pointerdown', (e) => {
+      if (hasMouse() || e.button > 0) return;
+      const row = e.target.closest('.msg');
+      if (!row?.sheet || e.target.closest('textarea, input, .msg-edit')) return;
+      cancel();
+      press = { x: e.clientX, y: e.clientY, timer: setTimeout(() => {
+        press = null;
+        if (!row.isConnected) return;
+        suppressClickUntil = Date.now() + 700;
+        openMessageSheet(row);
+      }, 450) };
+    });
+    box.addEventListener('pointermove', (e) => { if (press && Math.hypot(e.clientX - press.x, e.clientY - press.y) > 10) cancel(); });
+    for (const type of ['pointerup', 'pointercancel', 'scroll']) box.addEventListener(type, cancel, { passive: true });
+    box.addEventListener('contextmenu', (e) => { if (!hasMouse() && e.target.closest('.msg')) e.preventDefault(); });
+    box.addEventListener('click', (e) => { if (Date.now() < suppressClickUntil) { e.preventDefault(); e.stopPropagation(); } }, true);
   }
 
   // Várias fotos na mesma mensagem viram um mosaico (como no Discord); o resto fica embaixo.
@@ -1678,7 +1755,7 @@
       const payload = { channel: state.textChannel, gif, replyTo: state.replyTo?.id };
       if (state.replyTo) { state.replyTo = null; renderComposer(); renderMessages(); }
       await call('chat:send', payload);
-      $('#chat-input').focus();
+      if (hasMouse()) $('#chat-input').focus();
     },
   });
   function renderComposer() {
@@ -2751,7 +2828,7 @@
     const menu = $('#context-menu');
     if (!menu.classList.contains('hidden') && $('#server-header').classList.contains('open')) $('#server-header').dataset.closedAt = Date.now();
     menu.classList.add('hidden');
-    menu.classList.remove('member-menu', 'status-menu', 'device-menu', 'audio-device-menu');
+    menu.classList.remove('member-menu', 'status-menu', 'device-menu', 'audio-device-menu', 'sheet-menu');
     menu.style.width = '';
     closeSubmenu();
     $('#server-header').classList.remove('open');
@@ -2832,10 +2909,14 @@
         el('h3', {}, el('span', { textContent: CHANGE_KINDS[sec.kind].label })),
         el('ul', {}, sec.items.map((item) => el('li', { textContent: item }))))),
       el('p', { class: 'cl-footnote', textContent: 'Ideias e bugs são bem-vindos no chat.' }));
+    const oldNav = box.querySelector('.cl-versions');
     box.querySelector('.cl-card').replaceChildren(
       el('button', { type: 'button', class: 'cl-close', ariaLabel: 'Fechar novidades', tip: 'Fechar', onclick: closeChangelog }, Icon('x', 20)),
       nav, body);
     box.classList.remove('hidden');
+    // Trocar de versão não volta a faixa de abas para o começo, e a aba escolhida fica à vista (no celular a faixa rola de lado).
+    if (oldNav) { nav.scrollLeft = oldNav.scrollLeft; nav.scrollTop = oldNav.scrollTop; }
+    nav.querySelector('.cl-version.active')?.scrollIntoView({ block: 'nearest', inline: 'nearest' });
     body.scrollTop = 0;
     // Versão marco (a 1.0): confete estourando dos cantos do topo.
     box.querySelector('.confetti-layer')?.remove();
@@ -5158,12 +5239,14 @@
       const why = !window.isSecureContext
         ? `A transmissão de tela só funciona em conexão segura. Abra o site por https://${location.host}${location.pathname} e tente de novo.`
         : mobileStream.touch
-          ? 'Navegadores de celular não permitem transmitir a tela. Pelo celular você pode assistir às transmissões em tela cheia (pince para aproximar) e ligar a câmera; para transmitir, use um computador.'
+          ? (window.ResenhexAndroid ? 'No celular não dá para transmitir a tela.' : 'Navegadores de celular não permitem transmitir a tela.') + ' Pelo celular você pode assistir às transmissões em tela cheia (pince para aproximar) e ligar a câmera; para transmitir, use um computador.'
           : 'Este navegador não permite transmitir a tela. Use o Chrome, Edge ou Firefox atualizado no computador (navegadores embutidos em outros apps não funcionam).';
       menu.replaceChildren(el('div', { class: 'menu-section', textContent: 'COMPARTILHAR TELA' }),
         el('div', { class: 'menu-tip', textContent: why }),
         ...(state.local.camera || !canVideo() ? [] : [menuItem('Ligar câmera', 'camera', () => startVideo('camera'))]));
       const rect = anchor.getBoundingClientRect();
+      // No celular o aviso abre como folha embaixo, sem vazar da gaveta de canais para cima do chat.
+      menu.classList.toggle('sheet-menu', !hasMouse() && matchMedia('(max-width:640px)').matches);
       menu.classList.remove('hidden');
       showMenuAt(rect.left, rect.top - menu.getBoundingClientRect().height - 8);
       return;
@@ -5691,6 +5774,7 @@
     onOpen: async () => {
       $('#profile-preview-name').textContent = meMember().username || meMember().name;
       $('#profile-preview-chat-name').textContent = meMember().name;
+      $('#profile-preview-chat-time').textContent = formatStamp(Date.now()); // mesmo formato do chat ("Hoje às 06:43")
       setAvatarContents($('#profile-preview-avatar'), $('#profile-avatar').value, meMember().name, meMember().avatarCrop);
       setAvatarContents($('#profile-preview-chat-avatar'), $('#profile-avatar').value, meMember().name, meMember().avatarCrop);
       setAvatarContents($('#profile-photo-thumb'), $('#profile-avatar').value, meMember().name, meMember().avatarCrop);
@@ -5902,6 +5986,65 @@
   $('#btn-salon').onclick = () => setMudaeSimple(false);
   $('#btn-return-call').onclick = () => returnToCall();
   document.addEventListener('keydown', (event) => { if (event.key === 'Escape') closePanels(); });
+
+  // ---------------- botão Voltar do celular ----------------
+  // No toque (app Android e navegador do celular), cada camada aberta ganha uma entrada no histórico: o Voltar
+  // fecha a camada de cima em vez de sair da página. Fechar pela interface consome a entrada que sobrou.
+  // As camadas vão da mais alta para a mais baixa; "close" fecha só aquela.
+  const isShown = (sel) => { const node = $(sel); return !!node && !node.classList.contains('hidden'); };
+  const openDialogs = () => [...document.querySelectorAll('body > .confirm-overlay, body > #server-dialog, body > [role="dialog"][aria-modal="true"]:not(.hidden)')]
+    .filter((node) => !node.matches('#msg-sheet, #settings, #server-settings, #create-channel, #lightbox, #changelog, #emoji-picker, #gif-picker, #profile-card'));
+  const dismissDialog = (node) => {
+    const target = node.contains(document.activeElement) ? document.activeElement : node;
+    target.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', code: 'Escape', bubbles: true, cancelable: true }));
+  };
+  const backLayers = [
+    { open: () => lightbox.isOpen(), close: () => lightbox.close() },
+    { open: () => !!messageSheet, close: () => closeMessageSheet() },
+    { open: () => openDialogs().length, count: () => openDialogs().length, close: () => dismissDialog(openDialogs().at(-1)) },
+    { open: () => isShown('#create-channel'), close: () => closeCreateChannel() },
+    { open: () => isShown('#context-menu') || $('#server-header').classList.contains('open'), close: () => closeMenu() },
+    { open: () => emojiPicker.isOpen(), close: () => emojiPicker.close() },
+    { open: () => gifPicker.isOpen(), close: () => gifPicker.close() },
+    { open: () => isShown('#profile-card'), close: () => closeProfile() },
+    { open: () => isShown('#changelog'), close: () => closeChangelog() },
+    { open: () => adminOpen(), close: () => closeServerSettings() },
+    { open: () => isShown('#settings'), close: () => $('#settings-close').click() },
+    { open: () => voiceChatShown() && matchMedia('(max-width:1000px)').matches, close: () => toggleVoiceChat(false) },
+    { open: () => $('#app').classList.contains('channels-open') || $('#app').classList.contains('members-open'), close: () => closePanels() },
+  ];
+  const openLayerCount = () => backLayers.reduce((sum, layer) => sum + (layer.count ? layer.count() : layer.open() ? 1 : 0), 0);
+  const historyDepth = () => history.state?.resenhexLayers || 0;
+  let backSyncQueued = false, backExpected = 0;
+  function syncBackLayers() {
+    backSyncQueued = false;
+    if (hasMouse() || backExpected) return;
+    try { syncBackHistory(); } catch {} // a janela pode ter sido fechada no meio (ex.: fim dos testes)
+  }
+  function syncBackHistory() {
+    const open = openLayerCount(), depth = historyDepth();
+    if (open > depth) {
+      const { resenhexStream, ...base } = history.state || {};
+      for (let i = depth + 1; i <= open; i++) history.pushState({ ...base, resenhexLayers: i }, '');
+    } else if (open < depth && !history.state?.resenhexStream) {
+      backExpected++;
+      history.go(open - depth);
+    }
+  }
+  const queueBackSync = () => { if (!backSyncQueued) { backSyncQueued = true; requestAnimationFrame(syncBackLayers); } };
+  new MutationObserver(queueBackSync).observe(document.body, { childList: true, subtree: true, attributes: true, attributeFilter: ['class'] });
+  addEventListener('popstate', () => {
+    if (backExpected) { backExpected--; queueBackSync(); return; }
+    if (hasMouse()) return;
+    const depth = historyDepth();
+    for (let guard = 0; guard < 8; guard++) {
+      const open = openLayerCount();
+      if (open <= depth) break;
+      backLayers.find((layer) => layer.open())?.close();
+      if (openLayerCount() >= open) break; // a camada não fechou (ex.: alterações não salvas); não insiste
+    }
+    queueBackSync();
+  });
   // Existing rows contain a separate edit button. Keep their actions keyboard-accessible.
   function keyboardRows() {
     for (const node of document.querySelectorAll('.channel:not(.grouped-channel), .voice-user, .member')) {
@@ -6061,6 +6204,9 @@
   }
   $('#mic-test').onclick = () => toggleMicTest('settings');
 
-  window.addEventListener('beforeunload', () => leaveVoice(true, false));
+  // No app Android, um link com target="_blank" dispara o beforeunload antes do app cancelar a navegação
+  // (o link abre fora e a página continua). Lá, sair da call é desnecessário: se o app fechar de verdade,
+  // o socket cai e o servidor tira a pessoa da sala.
+  window.addEventListener('beforeunload', () => { if (!window.ResenhexAndroid) leaveVoice(true, false); });
   $('#noise-mode').replaceChildren(...Object.entries(NOISE_MODES).map(([value, label]) => new Option(label, value)));
 })();

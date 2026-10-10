@@ -4,27 +4,8 @@
 // O título deve destacar as principais funcionalidades ou correções, com termos objetivos.
 window.CHANGELOG = [
   {
-    version: '1.2.4', date: '2026-10-10', name: 'Voz não some com a janela minimizada ou o celular bloqueado',
-    summary: 'Com o navegador minimizado, atrás de um jogo ou com o celular bloqueado, sua voz continua chegando para a galera na call.',
-    sections: [
-      { kind: 'fixed', items: [
-        'Com a janela do navegador minimizada, a aba em segundo plano ou o navegador atrás de um jogo em tela cheia, o corte de ruído deixava o microfone fechado e ninguém ouvia você. Agora a voz continua chegando.',
-        'App de Android 1.3.0: a call não fica mais muda com o celular bloqueado na mesa, e o pedido para rodar em segundo plano aparece até ser liberado, com o passo extra de cada marca de celular.',
-      ] },
-    ],
-  },
-  {
-    version: '1.2.3', date: '2026-10-10', name: 'Barra da call em uma linha no celular',
-    summary: 'No celular, os botões da call ficam numa linha só, sem o espaço vazio antes do botão de desligar.',
-    sections: [
-      { kind: 'fixed', items: [
-        'No celular, os botões da call quebravam em duas linhas e deixavam um espaço vazio antes do botão de desligar. Agora ficam numa linha só e se ajustam à largura da tela.',
-      ] },
-    ],
-  },
-  {
-    version: '1.2.2', date: '2026-10-09', name: 'App para Android',
-    summary: 'O Resenhex agora tem app para Android, baixado direto da página do site. A call continua com a tela bloqueada, como no Discord, e as mensagens chegam como notificação do celular.',
+    version: '1.2.5', date: '2026-10-10', name: 'App para Android e Resenhex redondo no celular',
+    summary: 'O Resenhex agora tem app para Android, baixado direto da página do site, com a call funcionando de tela bloqueada. E o celular ficou com cara de app: o botão voltar fecha a janela aberta, abrir um link não tira você da call e o toque longo numa mensagem abre as ações, como no Discord.',
     sections: [
       { kind: 'new', items: [
         'App para Android: na página Baixar, quem abre pelo celular vê o botão “Baixar para Android”. O app fica na tela inicial e abre o Resenhex em tela cheia, já com a sua conta.',
@@ -34,6 +15,32 @@ window.CHANGELOG = [
       ] },
       { kind: 'improved', items: [
         'O site pode ser instalado como app (ícone novo para a tela inicial), e o app instalado abre direto no Resenhex, sem passar pela página de apresentação.',
+        'Toque longo numa mensagem abre uma folha de ações embaixo: reações rápidas, responder, copiar texto, editar e apagar.',
+        'O botão voltar do celular fecha a gaveta de canais, a lista de membros, o chat da call, os seletores de emoji e GIF, o perfil, as Configurações, as Novidades, os menus e as janelas de confirmação, em vez de sair do app.',
+        'O teclado não sobe mais sozinho ao abrir uma conversa, o chat da call ou os seletores de emoji e GIF. Quando você toca na caixa de texto, a última mensagem continua visível logo acima dela.',
+        'Nos quadros da call, o nome fica embaixo à esquerda, sem encostar no avatar, no ícone de mudo nem no botão de fixar.',
+        'Novidades e Configurações: as abas terminam antes do X e a aba escolhida fica sempre à vista.',
+        'O aviso de "Tela" no celular abre como folha embaixo, sem vazar da gaveta.',
+        'A prévia de vídeo do YouTube preenche o cartão, sem faixas pretas.',
+        'Opções que só fazem sentido no computador (atalhos de teclado, apertar para falar e opções de envio da transmissão) ficam escondidas no celular, e os textos dizem "toque" e "aparelho".',
+      ] },
+      { kind: 'fixed', items: [
+        'No celular, os botões da call quebravam em duas linhas e deixavam um espaço vazio antes do botão de desligar. Agora ficam numa linha só e se ajustam à largura da tela.',
+        'No app de Android, tocar num link ou num vídeo do YouTube durante a call tirava você da sala.',
+        'Barras de rolagem grossas de computador apareciam no celular, no chat, na gaveta, nos blocos de código e na página inicial.',
+        'A estrelinha da etiqueta de versão aparecia como um quadrado roxo em celulares com o navegador desatualizado.',
+        'O horário da mensagem quebrava em duas linhas em telas estreitas, o X do aviso de notificações caía numa linha sozinho e o divisor de data do chat da call tinha fundo de outra cor.',
+        'A prévia do perfil mostrava um horário fixo em vez do horário atual.',
+      ] },
+    ],
+  },
+  {
+    version: '1.2.4', date: '2026-10-10', name: 'Voz não some com a janela minimizada ou o celular bloqueado',
+    summary: 'Com o navegador minimizado, atrás de um jogo ou com o celular bloqueado, sua voz continua chegando para a galera na call.',
+    sections: [
+      { kind: 'fixed', items: [
+        'Com a janela do navegador minimizada, a aba em segundo plano ou o navegador atrás de um jogo em tela cheia, o corte de ruído deixava o microfone fechado e ninguém ouvia você. Agora a voz continua chegando.',
+        'App de Android 1.3.0: a call não fica mais muda com o celular bloqueado na mesa, e o pedido para rodar em segundo plano aparece até ser liberado, com o passo extra de cada marca de celular.',
       ] },
     ],
   },

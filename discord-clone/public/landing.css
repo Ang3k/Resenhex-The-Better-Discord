@@ -50,6 +50,7 @@
   position: relative; display: grid; grid-template-columns: minmax(0, .92fr) minmax(0, 1.08fr); align-items: center; gap: 56px;
   max-width: 1200px; margin: 0 auto; padding: 56px 32px 96px;
 }
+.ld-keep { white-space: nowrap; }
 .ld-hero h1 {
   margin: 0; color: #fff; font-size: clamp(40px, 5.4vw, 66px); font-weight: 900; line-height: 1.02; letter-spacing: -.04em; text-wrap: balance;
 }
@@ -337,6 +338,15 @@
   .ld-final { margin: 16px 16px 48px; padding: 52px 20px; border-radius: 24px; }
   .ld-footer { flex-direction: column; padding: 24px 16px 32px; }
   .ld-footer nav { justify-content: center; }
+}
+/* Celular: os enfeites encostam fora da área com texto (não cobrem o nome "Ju", o "Conversar em #geral"
+   nem o título "JOGOS"). */
+@media (max-width: 720px) {
+  .ld-float-call { left: 10px; bottom: -50px; }
+  .ld-art .ld-invite { transform: rotate(-2deg) translate(0, -6px); }
+  .ld-art .ld-channels { margin-top: 10px; transform: rotate(2deg) translate(24px, 4px); }
+  .ld-art-voice { gap: 0; }
+  .ld-chip-noise { position: relative; right: auto; bottom: auto; justify-self: end; margin: -6px -4px 0 0; transform: rotate(1.5deg); }
 }
 @media (max-width: 480px) {
   .ld-cta { flex-direction: column; align-self: stretch; width: 100%; }

@@ -188,7 +188,7 @@ window.EmojiPicker = ({ el, Icon, root, getCustom }) => {
     root.classList.remove('hidden');
     render();
     position(anchor);
-    if (matchMedia('(pointer: fine)').matches) built.search.focus({ preventScroll: true });
+    if (window.hasMouse?.()) built.search.focus({ preventScroll: true });
     pending?.then(() => { if (isOpen() && root.contains(built.body)) render(); });
   }
 

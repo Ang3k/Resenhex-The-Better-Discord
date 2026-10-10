@@ -25,9 +25,11 @@
   --red-dark: #d9434b;
 }
 :root { --rail-w: 72px; --side-w: 252px; --bg-members: var(--bg-sidebar); --dock-gap: 8px; }
-#messages::-webkit-scrollbar-track { background: transparent; }
-* { scrollbar-color: #ffffff1c transparent; }
-::-webkit-scrollbar-thumb { background: #ffffff1c; }
+@media (hover: hover) and (pointer: fine) {
+  #messages::-webkit-scrollbar-track { background: transparent; }
+  * { scrollbar-color: #ffffff1c transparent; }
+  ::-webkit-scrollbar-thumb { background: #ffffff1c; }
+}
 
 /* ---------- Estrutura: dock atravessando servidores + canais ---------- */
 #app, #app.hide-members {
@@ -144,7 +146,7 @@
 .msg:hover { background: rgba(255, 255, 255, .025); }
 .msg .avatar { width: 40px; height: 40px; margin-top: 2px; }
 .msg-author { font-size: 15.5px; font-weight: 600; letter-spacing: .005em; }
-.msg-time { font-size: 11.5px; font-weight: 400; color: var(--text-muted); margin-left: 8px; opacity: .85; }
+.msg-time { font-size: 11.5px; font-weight: 400; color: var(--text-muted); margin-left: 8px; opacity: .85; white-space: nowrap; }
 .msg-text { font-size: var(--chat-size); line-height: 1.42; color: var(--text); }
 .msg.continued .msg-text { line-height: 1.42; }
 .hover-time { font-size: 10.5px; line-height: 22px; opacity: .8; }
@@ -204,3 +206,12 @@
 
 /* Fundo escurecido das janelas (configurações, confirmações) também neutro */
 :root:not([data-theme=midnight]) .settings-overlay { background: rgba(10, 10, 12, .88); }
+
+/* Celular: aviso de notificações em grade, com o X fixo no canto superior direito
+   (antes ele caía sozinho numa terceira linha). */
+@media (max-width: 640px) {
+  #notify-banner { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; column-gap: 8px; row-gap: 8px; padding: 10px 8px 10px 12px; }
+  #notify-banner span { grid-column: 1; grid-row: 1; }
+  #notify-banner #notify-enable { grid-column: 1; grid-row: 2; justify-self: start; }
+  #notify-banner #notify-dismiss { grid-column: 2; grid-row: 1; align-self: start; }
+}

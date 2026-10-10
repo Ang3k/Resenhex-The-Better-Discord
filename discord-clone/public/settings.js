@@ -49,6 +49,8 @@ window.SettingsPanel = function ({ read, apply, preview, onOpen, onClose }) {
     });
     root.querySelectorAll('[data-settings-page]').forEach((page) => page.classList.toggle('hidden', page.dataset.settingsPage !== section));
     root.querySelector('#settings-content').scrollTop = 0;
+    // No celular as abas rolam de lado: a escolhida fica sempre à vista.
+    nav.find((button) => button.dataset.section === section)?.scrollIntoView({ block: 'nearest', inline: 'nearest' });
     if (focus) nav.find((button) => button.dataset.section === section).focus();
   }
   nav.forEach((button, i) => {

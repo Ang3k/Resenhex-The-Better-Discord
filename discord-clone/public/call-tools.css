@@ -115,6 +115,8 @@
 #main.voice-chat .welcome h2 { font-size: 20px; }
 #main.voice-chat .welcome-icon { width: 56px; height: 56px; }
 #main.voice-chat #composer { padding-inline: 12px; }
+/* O painel do chat tem outro fundo: o rótulo do divisor de data acompanha, sem virar um retângulo de outra cor. */
+#main.voice-chat > #chat-view .day-divider span, #main.salon-mode > #chat-view .day-divider span { background: var(--bg-sidebar); }
 
 /* Botão de chat na linha da sala de voz (aparece ao passar o mouse, ou sempre que há mensagem nova). */
 #channel-groups .grouped-channel.unread .voice-chat-open { visibility: visible; }

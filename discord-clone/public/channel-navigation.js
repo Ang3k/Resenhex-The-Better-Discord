@@ -316,7 +316,7 @@ window.ChannelNavigation = function ({ state, el, Icon, call, toast, hasPerm, re
       dropTarget(header, group.id, null, group.id, true);
       const visible = collapsed ? list.filter((c) => c.id === state.textChannel || c.id === state.voiceChannel || state.unread[c.id]) : list;
       const ul = el('ul', { class: 'group-channel-list' }, visible.map((c) => channelRow(c, admin)));
-      if (!list.length && canManage() && !collapsed) ul.append(el('li', { class: 'group-empty', textContent: 'Crie um canal ou arraste para cá.' }));
+      if (!list.length && canManage() && !collapsed) ul.append(el('li', { class: 'group-empty', textContent: window.hasMouse?.() ? 'Crie um canal ou arraste para cá.' : 'Toque no + para criar um canal aqui.' }));
       // O espaço ao fim da lista recebe canais após o último item.
       dropTarget(ul, group.id);
       container.append(el('section', { class: 'channel-group', ariaLabel: group.name, data: { categoryId: group.id || '' } }, header, ul));

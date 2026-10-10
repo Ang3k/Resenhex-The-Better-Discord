@@ -37,6 +37,12 @@
   <link rel="stylesheet" href="chat-media.css">
   <link rel="stylesheet" href="call-tools.css">
   <script>
+    // Mouse de verdade = hover + ponteiro fino. O emulador Android responde "pointer: fine" sem hover,
+    // então "pointer: fine" sozinho não serve para saber se é toque. A classe "touch" troca textos e opções.
+    window.hasMouse = () => !!window.matchMedia?.('(hover: hover) and (pointer: fine)').matches;
+    document.documentElement.classList.toggle('touch', !window.hasMouse());
+  </script>
+  <script>
     // Quem chega pela primeira vez vê a página inicial; quem já entrou neste navegador, veio por convite
     // ou usa um app (desktop ou Android) vai direto para o Resenhex. Decidido antes de pintar, para não piscar.
     try {
@@ -65,7 +71,7 @@
     <main>
       <section class="ld-hero">
         <div class="ld-hero-copy">
-          <h1>A galera já tá na call</h1>
+          <h1>A galera já <span class="ld-keep">tá na call</span></h1>
           <p class="ld-lead">Chat, voz, vídeo e compartilhamento de tela para você e seus amigos. A conta só pede nome e senha, e o convite do servidor é um link que você manda no grupo.</p>
           <div class="ld-cta">
             <a class="ld-btn ld-btn-light ld-download hidden" href="/baixar"><span data-icon="download" data-size="20"></span>Baixar para Windows</a>
@@ -658,12 +664,12 @@
 <span class="profile-chat-label">No chat</span>
 <div class="profile-chat-message">
 <div id="profile-preview-chat-avatar" class="avatar" aria-hidden="true"></div>
-<div class="profile-chat-text"><div><strong id="profile-preview-chat-name"></strong><time>hoje às 21:07</time></div><p>Bora uma call hoje? 🎮</p></div>
+<div class="profile-chat-text"><div><strong id="profile-preview-chat-name"></strong><time id="profile-preview-chat-time"></time></div><p>Bora uma call hoje? 🎮</p></div>
 </div>
 </div>
 </div>
 </div>
-<p class="hint profile-preview-note">Clique em qualquer parte da prévia para trocar. Nada muda até você salvar.</p>
+<p class="hint profile-preview-note"><span class="mouse-only">Clique</span><span class="touch-only">Toque</span> em qualquer parte da prévia para trocar. Nada muda até você salvar.</p>
 </aside>
 </div>
 </section>
@@ -683,7 +689,7 @@
         <label>SUPRESSÃO DE RUÍDO
           <select id="noise-mode">
 </select>
-          <span class="hint">A IA roda no seu computador e tira barulhos de fundo (teclado, ventilador, obra, cachorro) antes da sua voz ir para a chamada.</span>
+          <span class="hint">A IA roda no seu aparelho e tira barulhos de fundo (teclado, ventilador, obra, cachorro) antes da sua voz ir para a chamada.</span>
         </label>
         <label class="row">
 <input type="checkbox" id="echo-toggle" checked> Cancelamento de eco (deixe ligado se não usa fone)</label>
@@ -748,7 +754,8 @@
 <p>Parar de assistir encerra o recebimento da tela e mantém a conversa de voz.</p>
 </div>
 </div>
-<div class="setting-group">
+<p class="hint touch-only">Pelo celular você assiste às transmissões em tela cheia. As opções de envio valem quando você transmite pelo computador.</p>
+<div class="setting-group mouse-only">
 <h3>Qualidade de imagem</h3>
 <label>Perfil padrão<select id="share-preset">
 </select>
@@ -765,7 +772,7 @@
 <span class="hint">Escolha um valor abaixo do upload da sua conexão. Reservamos espaço para voz e dividimos o restante entre os espectadores.</span>
 </label>
 </div>
-<div class="setting-group">
+<div class="setting-group mouse-only">
 <h3>Ao compartilhar</h3>
 <label class="setting-switch">
 <span>Solicitar áudio da tela<small>Na próxima captura. Depende da fonte e do navegador.</small>
@@ -853,7 +860,7 @@
 <input id="reduce-motion" type="checkbox">
 </label>
 </div>
-<div class="setting-group">
+<div class="setting-group mouse-only">
 <h3>Modo de entrada</h3>        <label>MODO DE ENTRADA
           <select id="input-mode">
             <option value="voice">Detecção de voz</option>
@@ -869,7 +876,7 @@
 <input type="hidden" id="ptt-code">
 <input type="hidden" id="ptt-label">
 </div>
-<div class="setting-group" id="keybinds-group">
+<div class="setting-group mouse-only" id="keybinds-group">
 <div class="keybinds-head">
 <h3>Atalhos de teclado</h3>
 <button type="button" id="keybinds-reset" class="secondary small">Restaurar padrões</button>
@@ -882,7 +889,7 @@
 </p>
 <input type="hidden" id="keybinds-data">
 </div>
-<div class="setting-group">
+<div class="setting-group mouse-only">
 <h3>Atalhos fixos</h3>
 <div class="shortcut-row">
 <span>Enviar mensagem</span>

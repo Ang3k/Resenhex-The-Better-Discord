@@ -31,7 +31,7 @@
 .cl-hero-glow { display: none; }
 .cl-hero-top { position: relative; display: flex; align-items: center; gap: 10px; margin-bottom: 14px; }
 .cl-pill { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 800; letter-spacing: .03em; padding: 3px 10px; border-radius: 999px; background: color-mix(in srgb, var(--brand) 14%, transparent); color: var(--text-strong); border: 1px solid color-mix(in srgb, var(--brand) 35%, transparent); }
-.cl-pill::before { content: ''; width: 13px; height: 13px; background: var(--brand); mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath fill='black' d='m12 2 3 7 7 3-7 3-3 7-3-7-7-3 7-3Z'/%3E%3C/svg%3E") center / contain no-repeat; }
+.cl-pill::before { content: ''; width: 13px; height: 13px; background: var(--brand); -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath fill='black' d='m12 2 3 7 7 3-7 3-3 7-3-7-7-3 7-3Z'/%3E%3C/svg%3E") center / contain no-repeat; mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath fill='black' d='m12 2 3 7 7 3-7 3-3 7-3-7-7-3 7-3Z'/%3E%3C/svg%3E") center / contain no-repeat; }
 .cl-date { font-size: 12.5px; color: var(--text-muted); }
 .cl-hero h2 { position: relative; margin: 0 0 8px; font-size: 30px; line-height: 1.15; letter-spacing: -.02em; color: var(--text-strong); }
 .cl-hero p { position: relative; margin: 0; max-width: 560px; font-size: 15px; line-height: 1.5; color: var(--interactive); }
@@ -59,7 +59,12 @@
 @media (max-width: 700px) {
   #changelog { padding: 0; }
   .cl-card { height: 100%; border-radius: 0; border: 0; grid-template-columns: 1fr; grid-template-rows: auto minmax(0, 1fr); }
-  .cl-versions { flex-direction: row; overflow-x: auto; padding: 10px 56px 10px 10px; border-right: 0; border-bottom: 1px solid var(--divider); gap: 6px; }
+  /* A faixa de abas termina antes do X (a sombra só pinta o fundo e a divisória atrás dele), com um degradê
+     na borda direita indicando que há mais versões. */
+  .cl-versions { flex-direction: row; overflow-x: auto; margin-right: 52px; padding: 10px; border-right: 0; border-bottom: 1px solid var(--divider); gap: 6px;
+    box-shadow: 52px 0 0 var(--bg-sidebar), 52px 1px 0 var(--divider); scrollbar-width: none; }
+  .cl-versions::-webkit-scrollbar { display: none; }
+  .cl-versions::after { content: ''; position: sticky; right: -10px; flex: 0 0 28px; margin: -10px -10px -10px -28px; background: linear-gradient(to right, transparent, var(--bg-sidebar)); pointer-events: none; }
   .cl-versions-title, .cl-version::after, .cl-version-text small { display: none; }
   .cl-version { width: auto; flex-shrink: 0; padding: 8px 12px; gap: 8px; }
   .cl-close { top: 10px; right: 10px; }

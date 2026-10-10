@@ -152,3 +152,13 @@
 .campv-status.error ~ .campv-badge { display: none; }
 /* No palco a tela já tem o selo AO VIVO no canto; o do nome fica para as miniaturas (e o PAUSADO). */
 #stage-primary > .tile.screen .live-pill:not(.paused) { display: none; }
+
+/* No toque o quadro só mostra o botão de fixar (canto inferior direito): o nome fica embaixo à esquerda,
+   longe do avatar e do ícone de mudo, e termina em reticências antes do botão. */
+html.touch #stage-primary > .tile:not(.screen) .label { bottom: 10px; left: 10px; max-width: calc(100% - 64px); font-size: 12px; }
+/* O avatar acompanha a altura do quadro e sobe um pouco, deixando a faixa de baixo livre para o nome
+   (em 360dp os quadros ficam bem mais baixos). */
+html.touch #stage-primary > .tile:not(.screen) { container-type: size; }
+html.touch #stage-primary > .tile:not(.screen) > .avatar {
+  --av: min(64px, calc(100cqh - 50px)); width: var(--av); height: var(--av); font-size: calc(var(--av) * .38); margin-bottom: 26px;
+}

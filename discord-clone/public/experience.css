@@ -146,3 +146,11 @@ button[hidden] { display: none !important; }
 :root[data-reduce-motion=true] .keybind-wait { animation: none; }
 @media (prefers-reduced-motion: reduce) { .keybind-wait { animation: none; } }
 #keybinds-group { scroll-margin-top: 84px; }
+
+/* Celular: a faixa de abas das Configurações termina antes do X (nada passa por baixo dele), com degradê
+   na borda direita indicando que há mais abas. */
+@media (max-width: 640px) {
+  .settings-nav nav { margin-right: 32px; padding-right: 0; scrollbar-width: none; }
+  .settings-nav nav::-webkit-scrollbar { display: none; }
+  .settings-nav nav::after { content: ''; position: sticky; right: 0; flex: 0 0 28px; margin-left: -28px; background: linear-gradient(to right, transparent, var(--bg-sidebar)); pointer-events: none; }
+}

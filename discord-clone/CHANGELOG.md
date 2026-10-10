@@ -3,6 +3,37 @@
 Histórico de versões. A mesma lista aparece dentro do app em **Novidades** (menu do servidor ou rodapé das Configurações).
 O Resenhex chegou à versão 1.0 em 4 de outubro de 2026.
 
+## v1.2.5 — App para Android e Resenhex redondo no celular
+
+10 de outubro de 2026.
+
+O Resenhex agora tem app para Android, baixado direto da página do site, com a call funcionando de tela bloqueada. E o celular ficou com cara de app: o botão voltar fecha a janela aberta, abrir um link não tira você da call e o toque longo numa mensagem abre as ações, como no Discord.
+
+### Novidades
+- App para Android: na página Baixar, quem abre pelo celular vê o botão “Baixar para Android”. O app fica na tela inicial e abre o Resenhex em tela cheia, já com a sua conta.
+- A call continua com a tela bloqueada: o app mostra a notificação “Na call”, com os botões Silenciar e Sair da call, e pede para o Android não pausá-lo durante a chamada.
+- Notificações de mensagens e de quem está ligando no Android, com a pessoa de fora do app.
+- A página inicial mostra “Baixar para Android” para quem chega pelo celular.
+
+### Melhorias
+- O site pode ser instalado como app (ícone novo para a tela inicial), e o app instalado abre direto no Resenhex, sem passar pela página de apresentação.
+- Toque longo numa mensagem abre uma folha de ações embaixo: reações rápidas, responder, copiar texto, editar e apagar.
+- O botão voltar do celular fecha a gaveta de canais, a lista de membros, o chat da call, os seletores de emoji e GIF, o perfil, as Configurações, as Novidades, os menus e as janelas de confirmação, em vez de sair do app.
+- O teclado não sobe mais sozinho ao abrir uma conversa, o chat da call ou os seletores de emoji e GIF. Quando você toca na caixa de texto, a última mensagem continua visível logo acima dela.
+- Nos quadros da call, o nome fica embaixo à esquerda, sem encostar no avatar, no ícone de mudo nem no botão de fixar.
+- Novidades e Configurações: as abas terminam antes do X e a aba escolhida fica sempre à vista.
+- O aviso de "Tela" no celular abre como folha embaixo, sem vazar da gaveta.
+- A prévia de vídeo do YouTube preenche o cartão, sem faixas pretas.
+- Opções que só fazem sentido no computador (atalhos de teclado, apertar para falar e opções de envio da transmissão) ficam escondidas no celular, e os textos dizem "toque" e "aparelho".
+
+### Correções
+- No celular, os botões da call quebravam em duas linhas e deixavam um espaço vazio antes do botão de desligar. Agora ficam numa linha só e se ajustam à largura da tela.
+- No app de Android, tocar num link ou num vídeo do YouTube durante a call tirava você da sala.
+- Barras de rolagem grossas de computador apareciam no celular, no chat, na gaveta, nos blocos de código e na página inicial.
+- A estrelinha da etiqueta de versão aparecia como um quadrado roxo em celulares com o navegador desatualizado.
+- O horário da mensagem quebrava em duas linhas em telas estreitas, o X do aviso de notificações caía numa linha sozinho e o divisor de data do chat da call tinha fundo de outra cor.
+- A prévia do perfil mostrava um horário fixo em vez do horário atual.
+
 ## v1.2.4 — Voz não some com a janela minimizada ou o celular bloqueado
 
 10 de outubro de 2026.
@@ -10,26 +41,6 @@ O Resenhex chegou à versão 1.0 em 4 de outubro de 2026.
 ### Correções
 - Com a janela do navegador minimizada, a aba em segundo plano ou o navegador atrás de um jogo em tela cheia, o corte de ruído deixava o microfone fechado e ninguém ouvia você. Agora a voz continua chegando.
 - App de Android 1.3.0: a call não fica mais muda com o celular bloqueado na mesa, e o pedido para rodar em segundo plano aparece até ser liberado, com o passo extra de cada marca de celular.
-
-## v1.2.3 — Barra da call em uma linha no celular
-
-10 de outubro de 2026.
-
-### Correções
-- No celular, os botões da call quebravam em duas linhas e deixavam um espaço vazio antes do botão de desligar. Agora ficam numa linha só e se ajustam à largura da tela.
-
-## v1.2.2 — App para Android
-
-9 de outubro de 2026. O Resenhex agora tem app para Android, baixado direto da página do site. A call continua com a tela bloqueada, como no Discord.
-
-### Novo
-- App para Android: na página **Baixar**, quem abre pelo celular vê o botão **Baixar para Android**. O app fica na tela inicial e abre o Resenhex em tela cheia, já com a sua conta.
-- A call continua com a tela bloqueada: o app mostra a notificação **Na call**, com **Silenciar** e **Sair da call**, e pede para o Android não pausá-lo durante a chamada.
-- Notificações de mensagens e de quem está ligando no Android, com a pessoa de fora do app.
-- A página inicial mostra **Baixar para Android** para quem chega pelo celular.
-
-### Melhorias
-- O site pode ser instalado como app (ícone novo para a tela inicial), e o app instalado abre direto no Resenhex, sem passar pela página de apresentação.
 
 ## v1.2.1 — Teste de voz, menu de áudio e ajustes no chat da call
 

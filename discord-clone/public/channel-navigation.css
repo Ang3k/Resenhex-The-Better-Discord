@@ -45,4 +45,6 @@
 #header-title { min-width: 0; }
 #header-title .title-sub { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 @media (hover: none) { .group-action { width: 36px; height: 36px; } .channel-entry { min-height: 40px; } #channel-groups .grouped-channel.active .group-action { visibility: visible; } }
+/* No toque o menu do grupo abre com toque longo: o "⋯" invisível sai do caminho e o "+" fica na mesma coluna do "⋯" dos canais. */
+@media (hover: none) { #channel-groups .category > .group-action:last-child { display: none; } #channel-groups .channel-group .category { padding-right: 4px; } }
 @media (max-width: 640px) { .admin-toolbar { flex-wrap: wrap; } .admin-channel-groups .channel-group { padding-inline: 8px; } }

@@ -290,7 +290,7 @@ window.MobileStream = function ({ state, el, Icon, toast, member, voiceEntry, sy
   }
 
   // O botão Voltar do celular fecha a tela cheia em vez de sair da página.
-  addEventListener('popstate', () => { if (view.pushed) { view.pushed = false; close({ fromHistory: true }); } });
+  addEventListener('popstate', () => { if (view.pushed && !history.state?.resenhexStream) { view.pushed = false; close({ fromHistory: true }); } });
   const fullscreenExit = () => { if (view.fullscreen && !(document.fullscreenElement || document.webkitFullscreenElement)) { view.fullscreen = false; close(); } };
   document.addEventListener('fullscreenchange', fullscreenExit);
   document.addEventListener('webkitfullscreenchange', fullscreenExit);

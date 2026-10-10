@@ -58,18 +58,23 @@ button:disabled { cursor: not-allowed; }
 ul { list-style: none; margin: 0; padding: 0; }
 a { color: var(--link); }
 .hidden { display: none !important; }
+/* Textos e opções que só fazem sentido com mouse/teclado (ou só no toque). A classe vem do <head>. */
+html.touch .mouse-only, html:not(.touch) .touch-only { display: none !important; }
 .muted-text { color: var(--text-muted); font-size: 13px; }
 .ico { flex-shrink: 0; display: block; }
 .ico .slash { stroke: var(--red); }
 
-/* Barras de rolagem finas, como no Discord */
-* { scrollbar-width: thin; scrollbar-color: #1a1b1e transparent; }
-::-webkit-scrollbar { width: 8px; height: 8px; }
-::-webkit-scrollbar-thumb { background: #1a1b1e; border-radius: 4px; }
-::-webkit-scrollbar-track { background: transparent; }
-#messages::-webkit-scrollbar { width: 16px; }
-#messages::-webkit-scrollbar-thumb { border: 4px solid var(--bg-main); border-radius: 8px; }
-#messages::-webkit-scrollbar-track { background: #2b2d31; border: 4px solid var(--bg-main); border-radius: 8px; }
+/* Barras de rolagem finas, como no Discord. Só com mouse: no toque, estilizar a barra troca a barra nativa
+   (fina, que some sozinha) por uma fixa que ocupa espaço. */
+@media (hover: hover) and (pointer: fine) {
+  * { scrollbar-width: thin; scrollbar-color: #1a1b1e transparent; }
+  ::-webkit-scrollbar { width: 8px; height: 8px; }
+  ::-webkit-scrollbar-thumb { background: #1a1b1e; border-radius: 4px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  #messages::-webkit-scrollbar { width: 16px; }
+  #messages::-webkit-scrollbar-thumb { border: 4px solid var(--bg-main); border-radius: 8px; }
+  #messages::-webkit-scrollbar-track { background: #2b2d31; border: 4px solid var(--bg-main); border-radius: 8px; }
+}
 
 /* ---------- Dicas flutuantes ---------- */
 #tooltip {

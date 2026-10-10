@@ -2,4 +2,9 @@
 <resources>
     <color name="background">#1E1F22</color>
     <color name="brand">#6B38E8</color>
+    <!-- Diálogos nativos: painel do site, texto claro e o roxo em tom legível sobre fundo escuro. -->
+    <color name="dialog">#2B2D31</color>
+    <color name="dialog_text">#F2F3F5</color>
+    <color name="dialog_text_muted">#B5BAC1</color>
+    <color name="brand_light">#A78BFA</color>
 </resources>

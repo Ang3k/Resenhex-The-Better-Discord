@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Fundo dos diálogos nativos: cantos arredondados e a cor dos painéis do site. -->
+<inset xmlns:android="http://schemas.android.com/apk/res/android"
+    android:insetLeft="24dp" android:insetRight="24dp" android:insetTop="16dp" android:insetBottom="16dp">
+    <shape android:shape="rectangle">
+        <corners android:radius="20dp" />
+        <solid android:color="@color/dialog" />
+    </shape>
+</inset>

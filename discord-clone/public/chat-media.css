@@ -5,8 +5,8 @@
 .embed {
   --embed-color: color-mix(in srgb, var(--text) 22%, transparent);
   position: relative; display: flex; gap: 14px; max-width: min(440px, 100%); padding: 10px 14px 12px 14px;
-  border-radius: 6px; border-left: 4px solid var(--embed-color);
-  background: color-mix(in srgb, var(--bg-panel) 72%, var(--bg-main)); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--text) 5%, transparent);
+  border-radius: 6px; border: 1px solid var(--divider); border-left: 4px solid var(--embed-color);
+  background: color-mix(in srgb, var(--bg-panel) 72%, var(--bg-main));
   animation: embed-in .22s var(--ease-out, ease-out);
 }
 @keyframes embed-in { from { opacity: 0; transform: translateY(4px); } }
@@ -28,6 +28,9 @@
 .embed-thumb { width: 80px; height: 80px; flex-shrink: 0; align-self: flex-start; }
 .embed-thumb img { width: 100%; height: 100%; object-fit: cover; }
 a.embed-media { cursor: pointer; }
+/* Vídeo: caixa 16:9 preenchida (a miniatura do YouTube vem 4:3 com faixas pretas, que o corte esconde). */
+.embed.kind-video .embed-media { width: 100%; aspect-ratio: 16 / 9; }
+.embed.kind-video .embed-media img { width: 100%; height: 100%; max-height: none; object-fit: cover; }
 .embed-play {
   position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); display: grid; place-items: center;
   width: 56px; height: 56px; border-radius: 50%; background: rgba(0, 0, 0, .65); color: #fff; backdrop-filter: blur(4px);
