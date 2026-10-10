@@ -4323,7 +4323,9 @@
     gate.floor = level < gate.floor ? gate.floor * 0.7 + level * 0.3 : gate.floor + 0.02; // sobe devagar, desce rápido
     // No mínimo manual (-80 dB) o corte fica desligado: microfone sempre aberto.
     if (level > gateThreshold() || (!state.sensAuto && state.sensThreshold <= -80)) gate.lastLoud = now;
-    const open = now - gate.lastLoud < 400; // segura aberto um pouco depois da fala
+    // Com a página escondida (tela bloqueada, outro app ou aba) o navegador espaça este timer para
+    // 1 vez por segundo ou menos, e o corte fecharia entre as leituras: aí o microfone fica aberto.
+    const open = document.hidden || now - gate.lastLoud < 400; // segura aberto um pouco depois da fala
     if (open !== gate.open) {
       gate.open = open;
       applyAudio();

@@ -11,8 +11,8 @@ android {
         minSdk 24
         targetSdk 36
         // Aumente os dois a cada APK publicado (deploy/publicar-android.ps1 lê o versionName).
-        versionCode 3
-        versionName "1.2.0"
+        versionCode 4
+        versionName "1.3.0"
         buildConfigField "String", "SITE", "\"https://resenhex.duckdns.org/\""
         manifestPlaceholders = [cleartext: "false"]
     }

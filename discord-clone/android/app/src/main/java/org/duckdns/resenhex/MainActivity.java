@@ -64,7 +64,7 @@ public class MainActivity extends Activity {
     /** Atividade aberta, para o serviço da chamada repassar os botões da notificação ao site. */
     private static MainActivity current;
 
-    private WebView web;
+    private CallWebView web;
     private FrameLayout root;
     private PermissionRequest pendingMedia;
     private ValueCallback<Uri[]> pendingFiles;
@@ -85,7 +85,7 @@ public class MainActivity extends Activity {
 
         root = new FrameLayout(this);
         root.setBackgroundColor(Color.parseColor("#1E1F22"));
-        web = new WebView(this);
+        web = new CallWebView(this);
         root.addView(web, new FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
         setContentView(root);
         applyEdgeToEdge();
@@ -336,6 +336,7 @@ public class MainActivity extends Activity {
         if (active == inCall && title.equals(callTitle) && muted == callMuted) return;
         boolean starting = active && !inCall;
         inCall = active;
+        web.setKeepVisible(active); // a call não desacelera com a tela bloqueada
         callTitle = title;
         callMuted = muted;
         // Os botões de volume controlam o volume da call enquanto ela durar.
@@ -350,30 +351,69 @@ public class MainActivity extends Activity {
         Intent intent = new Intent(this, CallService.class).putExtra(CallService.EXTRA_TITLE, title).putExtra(CallService.EXTRA_MUTED, muted);
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) startForegroundService(intent);
         else startService(intent);
-        if (starting) askBatteryOnce();
+        if (starting) askBattery();
     }
 
     /**
-     * Na primeira call, explica e pede para o Android não pausar o Resenhex com a tela bloqueada.
-     * Sem isso, alguns celulares (Xiaomi, Samsung com economia de bateria) derrubam a call.
+     * Em toda call, enquanto o Android ainda pode pausar o Resenhex, explica e pede a liberação da
+     * bateria. Sem ela, com o celular bloqueado e parado (na mesa), o Android entra no modo de economia
+     * profunda e a call fica muda nos dois sentidos. Depois de liberado, em marcas que têm uma economia
+     * própria por cima do Android (Xiaomi, Samsung...), mostra uma vez o passo extra daquela marca.
      */
-    private void askBatteryOnce() {
+    private void askBattery() {
         PowerManager power = getSystemService(PowerManager.class);
-        if (power.isIgnoringBatteryOptimizations(getPackageName()) || prefs().getBoolean("askedBattery", false)) return;
-        prefs().edit().putBoolean("askedBattery", true).apply();
+        if (!power.isIgnoringBatteryOptimizations(getPackageName())) {
+            new AlertDialog.Builder(this)
+                    .setTitle("Manter a call com a tela bloqueada")
+                    .setMessage("Para a call não ficar muda quando você bloquear o celular, permita que o Resenhex rode em segundo plano. "
+                            + "Ele só fica ativo enquanto você está numa call.")
+                    .setPositiveButton("Permitir", (dialog, which) -> {
+                        try {
+                            startActivity(new Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS, Uri.parse("package:" + getPackageName())));
+                        } catch (ActivityNotFoundException e) {
+                            startActivity(new Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS));
+                        }
+                    })
+                    .setNegativeButton("Agora não", null)
+                    .show();
+            return;
+        }
+        String steps = brandSteps();
+        if (steps == null || prefs().getBoolean("brandTipShown", false)) return;
+        prefs().edit().putBoolean("brandTipShown", true).apply();
         new AlertDialog.Builder(this)
-                .setTitle("Manter a call com a tela bloqueada")
-                .setMessage("Para a call não cair quando você bloquear o celular, permita que o Resenhex rode em segundo plano. "
-                        + "Ele só fica ativo enquanto você está numa call.")
-                .setPositiveButton("Permitir", (dialog, which) -> {
-                    try {
-                        startActivity(new Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS, Uri.parse("package:" + getPackageName())));
-                    } catch (ActivityNotFoundException e) {
-                        startActivity(new Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS));
-                    }
-                })
-                .setNegativeButton("Agora não", null)
+                .setTitle("Um passo a mais neste celular")
+                .setMessage("Este celular tem uma economia de bateria própria que pode deixar a call muda com a tela bloqueada. " + steps)
+                .setPositiveButton("Abrir configurações", (dialog, which) -> openBrandSettings())
+                .setNegativeButton("Depois", null)
                 .show();
+    }
+
+    /** O que liberar nas marcas com economia de bateria própria; null nas que não precisam. */
+    private static String brandSteps() {
+        String brand = (Build.MANUFACTURER + " " + Build.BRAND).toLowerCase(java.util.Locale.ROOT);
+        if (brand.contains("xiaomi") || brand.contains("redmi") || brand.contains("poco"))
+            return "Nas configurações do Resenhex, ative “Início automático” e, em “Economia de bateria”, escolha “Sem restrições”.";
+        if (brand.contains("samsung"))
+            return "Nas configurações do Resenhex, toque em “Bateria”, escolha “Sem restrições” e confira se ele não está em “Apps em suspensão”.";
+        if (brand.contains("huawei") || brand.contains("honor"))
+            return "Em “Inicialização de apps”, deixe o Resenhex em “Gerenciar manualmente” com todas as opções ligadas.";
+        if (brand.contains("oppo") || brand.contains("realme") || brand.contains("oneplus") || brand.contains("vivo"))
+            return "Nas configurações do Resenhex, toque em “Uso da bateria” e permita a atividade em segundo plano.";
+        return null;
+    }
+
+    private void openBrandSettings() {
+        String brand = (Build.MANUFACTURER + " " + Build.BRAND).toLowerCase(java.util.Locale.ROOT);
+        if (brand.contains("xiaomi") || brand.contains("redmi") || brand.contains("poco")) {
+            try {
+                startActivity(new Intent().setComponent(new android.content.ComponentName("com.miui.securitycenter", "com.miui.permcenter.autostart.AutoStartManagementActivity")));
+                return;
+            } catch (Exception ignored) {
+                // MIUI/HyperOS sem essa tela: cai nas configurações do app.
+            }
+        }
+        startActivity(new Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.parse("package:" + getPackageName())));
     }
 
     /** Botões "Silenciar" e "Sair" da notificação da call. */
