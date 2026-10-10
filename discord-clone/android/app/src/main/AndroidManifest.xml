@@ -17,6 +17,10 @@
     <uses-permission android:name="android.permission.WAKE_LOCK" />
     <!-- Pedido (com explicação) para o Android não pausar o app durante a call. -->
     <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
+    <!-- O app baixa e instala as próprias atualizações (botão Atualizar). -->
+    <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
+    <!-- Android 13+: a partir da segunda atualização, instala sem pedir confirmação de novo. -->
+    <uses-permission android:name="android.permission.UPDATE_PACKAGES_WITHOUT_USER_ACTION" />
 
     <uses-feature android:name="android.hardware.camera" android:required="false" />
     <uses-feature android:name="android.hardware.microphone" android:required="false" />
@@ -49,6 +53,13 @@
                 <data android:scheme="https" android:host="resenhex.duckdns.org" />
             </intent-filter>
         </activity>
+
+        <receiver android:name=".UpdateReceiver" android:exported="false" />
+        <receiver android:name=".UpdateReceiver$Replaced" android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
+            </intent-filter>
+        </receiver>
 
         <service
             android:name=".CallService"

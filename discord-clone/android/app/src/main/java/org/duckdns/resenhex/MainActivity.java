@@ -53,6 +53,7 @@ public class MainActivity extends Activity {
 
     static final String CHANNEL_MESSAGES = "mensagens";
     static final String CHANNEL_RINGS = "chamadas";
+    static final String CHANNEL_UPDATES = "atualizacoes";
     static final String EXTRA_NOTIFICATION = "notificationId";
 
     private static final int REQUEST_MEDIA = 1;
@@ -74,6 +75,7 @@ public class MainActivity extends Activity {
     private boolean inCall;
     private String callTitle = "";
     private boolean callMuted;
+    private Updater updater;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -92,6 +94,26 @@ public class MainActivity extends Activity {
         Uri link = linkFrom(getIntent());
         web.loadUrl(link != null ? link.toString() : HOME);
         askNotificationsOnce();
+        updater = new Updater(this);
+        updater.checkSoon();
+    }
+
+    @Override
+    protected void onResume() {
+        super.onResume();
+        current = this;
+        if (updater != null) {
+            updater.resume();
+            updater.checkSoon();
+        }
+    }
+
+    static MainActivity current() {
+        return current;
+    }
+
+    boolean isInCall() {
+        return inCall;
     }
 
     // ---------------- WebView ----------------
@@ -255,6 +277,11 @@ public class MainActivity extends Activity {
         manager.createNotificationChannel(messages);
         manager.createNotificationChannel(rings);
         manager.createNotificationChannel(call);
+        // Aparece por cima da tela (sem som) quando o app termina de se atualizar.
+        NotificationChannel updates = new NotificationChannel(CHANNEL_UPDATES, "Atualizações do app", NotificationManager.IMPORTANCE_HIGH);
+        updates.setDescription("Avisa quando o app terminou de se atualizar.");
+        updates.setSound(null, null);
+        manager.createNotificationChannel(updates);
     }
 
     private boolean notificationsAllowed() {
@@ -315,6 +342,8 @@ public class MainActivity extends Activity {
         setVolumeControlStream(active ? AudioManager.STREAM_VOICE_CALL : AudioManager.USE_DEFAULT_STREAM_TYPE);
         if (!active) {
             stopService(new Intent(this, CallService.class));
+            updater.allowCheck(); // atualização que chegou durante a call é oferecida agora
+            updater.checkSoon();
             return;
         }
         if (checkSelfPermission(Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) return;
