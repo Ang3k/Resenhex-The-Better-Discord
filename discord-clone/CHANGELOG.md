@@ -3,6 +3,14 @@
 Histórico de versões. A mesma lista aparece dentro do app em **Novidades** (menu do servidor ou rodapé das Configurações).
 O Resenhex chegou à versão 1.0 em 4 de outubro de 2026.
 
+## v1.2.4 — Voz não some com a janela minimizada ou o celular bloqueado
+
+10 de outubro de 2026.
+
+### Correções
+- Com a janela do navegador minimizada, a aba em segundo plano ou o navegador atrás de um jogo em tela cheia, o corte de ruído deixava o microfone fechado e ninguém ouvia você. Agora a voz continua chegando.
+- App de Android 1.3.0: a call não fica mais muda com o celular bloqueado na mesa, e o pedido para rodar em segundo plano aparece até ser liberado, com o passo extra de cada marca de celular.
+
 ## v1.2.3 — Barra da call em uma linha no celular
 
 10 de outubro de 2026.

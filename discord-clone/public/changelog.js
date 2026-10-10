@@ -4,6 +4,16 @@
 // O título deve destacar as principais funcionalidades ou correções, com termos objetivos.
 window.CHANGELOG = [
   {
+    version: '1.2.4', date: '2026-10-10', name: 'Voz não some com a janela minimizada ou o celular bloqueado',
+    summary: 'Com o navegador minimizado, atrás de um jogo ou com o celular bloqueado, sua voz continua chegando para a galera na call.',
+    sections: [
+      { kind: 'fixed', items: [
+        'Com a janela do navegador minimizada, a aba em segundo plano ou o navegador atrás de um jogo em tela cheia, o corte de ruído deixava o microfone fechado e ninguém ouvia você. Agora a voz continua chegando.',
+        'App de Android 1.3.0: a call não fica mais muda com o celular bloqueado na mesa, e o pedido para rodar em segundo plano aparece até ser liberado, com o passo extra de cada marca de celular.',
+      ] },
+    ],
+  },
+  {
     version: '1.2.3', date: '2026-10-10', name: 'Barra da call em uma linha no celular',
     summary: 'No celular, os botões da call ficam numa linha só, sem o espaço vazio antes do botão de desligar.',
     sections: [
