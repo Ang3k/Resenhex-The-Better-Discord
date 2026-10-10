@@ -2517,6 +2517,7 @@
     const inVoice = !!state.voiceChannel;
     const forcedMute = me.serverMuted || timedOut(me) || !callPerm('SPEAK');
     const micOff = state.muted || state.deafened || forcedMute;
+    syncAndroidCall(micOff);
     const deaf = state.deafened || me.serverDeafened;
     $('#voice-panel').classList.toggle('hidden', !inVoice);
     $('#voice-room-name').textContent = inVoice ? `${callChannelName()} / ${callInfo()?.serverName || serverName()}` : '';
@@ -4520,6 +4521,20 @@
     render();
   }
 
+  // No app de Android, a chamada liga um serviço com notificação fixa que mantém a call viva com a
+  // tela bloqueada. Os botões da notificação silenciam o microfone ou saem da chamada.
+  function syncAndroidCall(micOff = state.muted || state.deafened) {
+    if (!window.AndroidApp?.available) return;
+    const channel = state.voiceChannel;
+    const title = !channel ? '' : isDm(channel) ? 'Chamada privada' : channelById(channel)?.name || 'Sala de voz';
+    window.AndroidApp.callState(!!channel, title, micOff);
+  }
+  window.AndroidApp?.onCallAction((action) => {
+    if (!state.voiceChannel) return;
+    if (action === 'mute') $('#btn-mute').click();
+    else if (action === 'leave') leaveVoice();
+  });
+
   function leaveVoice(notify = true, sound = true) {
     if (!state.voiceChannel) return;
     if (micTestScope === 'menu') stopMicTest(false);
@@ -4541,6 +4556,7 @@
     state.view = 'chat';
     if (sound) Sounds.play('leave');
     if (notify && socket.connected) socket.emit('voice:leave');
+    syncAndroidCall();
     render();
   }
 

@@ -1,0 +1,22 @@
+// Projeto do app de Android do Resenhex: um WebView que abre o site e um serviço que mantém a
+// chamada viva com a tela bloqueada. O app em si fica em app/.
+buildscript {
+    repositories {
+        google()
+        mavenCentral()
+    }
+    dependencies {
+        classpath 'com.android.tools.build:gradle:8.9.1'
+    }
+}
+
+allprojects {
+    repositories {
+        google()
+        mavenCentral()
+    }
+}
+
+tasks.register('clean', Delete) {
+    delete rootProject.layout.buildDirectory
+}

@@ -7,6 +7,8 @@
   <meta name="description" content="Conheça o Resenhex: chat, voz, vídeo e compartilhamento de tela para você e seus amigos. Baixe o app para Windows ou abra no navegador.">
   <title>Resenhex</title>
   <link rel="icon" type="image/png" href="/resenhax-logo.png">
+  <link rel="manifest" href="/manifest.webmanifest">
+  <link rel="apple-touch-icon" href="/icons/app-maskable-192.png">
   <link rel="stylesheet" href="style.css">
   <link rel="stylesheet" href="experience.css">
   <link rel="stylesheet" href="admin.css">
@@ -36,9 +38,10 @@
   <link rel="stylesheet" href="call-tools.css">
   <script>
     // Quem chega pela primeira vez vê a página inicial; quem já entrou neste navegador, veio por convite
-    // ou usa o app de desktop vai direto para o Resenhex. Decidido antes de pintar, para não piscar.
+    // ou usa um app (desktop ou Android) vai direto para o Resenhex. Decidido antes de pintar, para não piscar.
     try {
-      const firstVisit = !window.resenhexDesktop && !new URLSearchParams(location.search).has('invite') && !localStorage.getItem('token') && !localStorage.getItem('name');
+      const installedApp = window.resenhexDesktop || window.ResenhexAndroid || window.matchMedia?.('(display-mode: standalone)').matches;
+      const firstVisit = !installedApp &&!new URLSearchParams(location.search).has('invite') && !localStorage.getItem('token') && !localStorage.getItem('name');
       if (firstVisit) {
         document.documentElement.dataset.landing = 'on';
         if (!/^#(entrar|criar-conta)$/.test(location.hash)) document.documentElement.classList.add('show-landing');
@@ -210,7 +213,7 @@
 
       <section class="ld-final">
         <h2>Bora pra resenha?</h2>
-        <p>É de graça e não pede e-mail. Funciona no navegador, no celular e no app para Windows.</p>
+        <p>É de graça e não pede e-mail. Funciona no navegador e nos apps para Windows e Android.</p>
         <div class="ld-cta">
           <a class="ld-btn ld-btn-light ld-download hidden" href="/baixar"><span data-icon="download" data-size="20"></span>Baixar para Windows</a>
           <a class="ld-btn ld-btn-dark ld-open" href="#criar-conta">Abrir no navegador</a>
@@ -1064,6 +1067,7 @@
   <script src="confetti.js"></script>
   <script src="channel-navigation.js"></script>
   <script src="desktop.js"></script>
+  <script src="android.js"></script>
   <script src="music.js"></script>
   <script src="mudae.js"></script>
   <script src="mudae-salao.js"></script>

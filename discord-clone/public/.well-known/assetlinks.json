@@ -1,0 +1,10 @@
+[
+  {
+    "relation": ["delegate_permission/common.handle_all_urls"],
+    "target": {
+      "namespace": "android_app",
+      "package_name": "org.duckdns.resenhex",
+      "sha256_cert_fingerprints": ["DE:46:37:93:A1:8D:E7:22:9F:AB:80:42:E9:CD:C7:6B:31:90:89:CD:5F:10:53:64:2E:FE:F3:4F:FD:9F:FB:34"]
+    }
+  }
+]

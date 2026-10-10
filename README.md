@@ -5,7 +5,7 @@
 # Resenhex
 
 Plataforma própria de chat, voz, vídeo e compartilhamento de tela em tempo real, inspirada no Discord.<br>
-Roda no navegador e como app para Windows, publicado na Microsoft Store.
+Roda no navegador, como app para Windows (publicado na Microsoft Store) e como app para Android, baixado do próprio site.
 
 [![Microsoft Store](https://img.shields.io/badge/Microsoft%20Store-Baixar-0078D4?style=for-the-badge&logo=microsoft&logoColor=white)](https://apps.microsoft.com/detail/9NG3QRZSB1LX)
 ![Versão](https://img.shields.io/badge/versão-1.1.0-7C3AED?style=for-the-badge)

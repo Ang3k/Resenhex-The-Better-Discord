@@ -3,6 +3,19 @@
 Histórico de versões. A mesma lista aparece dentro do app em **Novidades** (menu do servidor ou rodapé das Configurações).
 O Resenhex chegou à versão 1.0 em 4 de outubro de 2026.
 
+## v1.2.2 — App para Android
+
+9 de outubro de 2026. O Resenhex agora tem app para Android, baixado direto da página do site. A call continua com a tela bloqueada, como no Discord.
+
+### Novo
+- App para Android: na página **Baixar**, quem abre pelo celular vê o botão **Baixar para Android**. O app fica na tela inicial e abre o Resenhex em tela cheia, já com a sua conta.
+- A call continua com a tela bloqueada: o app mostra a notificação **Na call**, com **Silenciar** e **Sair da call**, e pede para o Android não pausá-lo durante a chamada.
+- Notificações de mensagens e de quem está ligando no Android, com a pessoa de fora do app.
+- A página inicial mostra **Baixar para Android** para quem chega pelo celular.
+
+### Melhorias
+- O site pode ser instalado como app (ícone novo para a tela inicial), e o app instalado abre direto no Resenhex, sem passar pela página de apresentação.
+
 ## v1.2.1 — Teste de voz, menu de áudio e ajustes no chat da call
 
 9 de outubro de 2026. Ouça os efeitos na sua própria voz direto na call, com um menu de áudio mais organizado e o campo de mensagem sem cortes.

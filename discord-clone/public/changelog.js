@@ -4,6 +4,21 @@
 // O título deve destacar as principais funcionalidades ou correções, com termos objetivos.
 window.CHANGELOG = [
   {
+    version: '1.2.2', date: '2026-10-09', name: 'App para Android',
+    summary: 'O Resenhex agora tem app para Android, baixado direto da página do site. A call continua com a tela bloqueada, como no Discord, e as mensagens chegam como notificação do celular.',
+    sections: [
+      { kind: 'new', items: [
+        'App para Android: na página Baixar, quem abre pelo celular vê o botão “Baixar para Android”. O app fica na tela inicial e abre o Resenhex em tela cheia, já com a sua conta.',
+        'A call continua com a tela bloqueada: o app mostra a notificação “Na call”, com os botões Silenciar e Sair da call, e pede para o Android não pausá-lo durante a chamada.',
+        'Notificações de mensagens e de quem está ligando no Android, com a pessoa de fora do app.',
+        'A página inicial mostra “Baixar para Android” para quem chega pelo celular.',
+      ] },
+      { kind: 'improved', items: [
+        'O site pode ser instalado como app (ícone novo para a tela inicial), e o app instalado abre direto no Resenhex, sem passar pela página de apresentação.',
+      ] },
+    ],
+  },
+  {
     version: '1.2.1', date: '2026-10-09', name: 'Teste de voz, menu de áudio e ajustes no chat da call',
     summary: 'Ouça os efeitos na sua própria voz direto na call. O menu de áudio ficou mais organizado, o aviso de efeito ficou discreto e o campo de mensagem do chat da sala agora mostra o texto inteiro.',
     sections: [

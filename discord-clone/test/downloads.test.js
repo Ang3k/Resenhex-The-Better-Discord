@@ -127,3 +127,32 @@ test('com o ID da Microsoft Store, a página recebe o instalador oficial e o .ex
   const invalid = await serve(t, dir, { storeId: 'javascript:alert(1)' });
   assert.equal((await (await invalid('/download/info')).json()).store, null);
 });
+
+test('publica o APK do Android pelo android.json, com link fixo para o mais novo', async (t) => {
+  const dir = releaseDir(t);
+  const get = await serve(t, dir);
+  const before = await get('/download/Resenhex.apk');
+  assert.equal(before.headers.get('location'), '/baixar');
+
+  fs.writeFileSync(path.join(dir, 'Resenhex-1.0.0.apk'), 'apk!');
+  fs.writeFileSync(path.join(dir, 'android.json'), JSON.stringify({ version: '1.0.0', file: 'Resenhex-1.0.0.apk' }));
+  const info = await (await get('/download/info')).json();
+  assert.equal(info.available, false);
+  assert.deepEqual(info.android, { version: '1.0.0', file: 'Resenhex-1.0.0.apk', size: 4, url: '/download/Resenhex-1.0.0.apk' });
+
+  const latest = await get('/download/Resenhex.apk');
+  assert.equal(latest.status, 302);
+  assert.equal(latest.headers.get('cache-control'), 'no-store');
+  assert.equal(latest.headers.get('location'), '/download/Resenhex-1.0.0.apk');
+  const apk = await get('/download/Resenhex-1.0.0.apk');
+  assert.equal(apk.headers.get('content-type'), 'application/vnd.android.package-archive');
+  assert.equal(await apk.text(), 'apk!');
+  assert.equal((await get('/download/android.json')).headers.get('cache-control'), 'no-cache');
+});
+
+test('ignora um android.json que aponta para fora do padrão', async (t) => {
+  const dir = releaseDir(t);
+  fs.writeFileSync(path.join(dir, 'android.json'), JSON.stringify({ version: '1.0.0', file: '../data.json' }));
+  const get = await serve(t, dir);
+  assert.equal((await get('/download/Resenhex.apk')).headers.get('location'), '/baixar');
+});

@@ -91,6 +91,27 @@ body.dl-page { overflow-y: auto; overflow-x: hidden; min-height: 100%; height: a
 }
 .dl-ss-button::after { animation-delay: .9s; }
 
+/* Miniatura do aviso do Android: o botão Configurações e a chave "Permitir desta fonte". */
+.dl-android-dialog {
+  display: grid; gap: 10px; margin-top: auto; padding: 14px 16px; border-radius: 18px;
+  background: #2b2930; color: #e6e1e5; font-size: 12px; line-height: 1.45; box-shadow: 0 6px 20px rgba(0, 0, 0, .25);
+}
+.dl-ad-actions { display: flex; justify-content: flex-end; gap: 18px; color: #d0bcff; font-weight: 600; }
+.dl-ad-toggle {
+  display: flex; align-items: center; justify-content: space-between; gap: 12px; padding-top: 10px;
+  border-top: 1px solid rgba(255, 255, 255, .12); font-size: 13px; font-weight: 600;
+}
+.dl-ad-switch { position: relative; flex-shrink: 0; width: 34px; height: 20px; border-radius: 999px; background: #d0bcff; }
+.dl-ad-switch::before { content: ''; position: absolute; top: 3px; right: 3px; width: 14px; height: 14px; border-radius: 50%; background: #381e72; }
+.dl-ad-settings, .dl-ad-switch { position: relative; }
+.dl-ad-settings::after, .dl-ad-switch::after {
+  content: ''; position: absolute; inset: -5px -7px; border: 2px solid #ffd54a; border-radius: 999px; animation: dl-pulse 1.8s ease-in-out infinite;
+}
+.dl-ad-switch::after { animation-delay: .9s; }
+
+/* Windows ou Android: o script do <head> marca o sistema antes de pintar. */
+:root:not([data-os=android]) .dl-page .only-android, :root[data-os=android] .dl-page .only-windows { display: none !important; }
+
 /* ---------- Recursos ---------- */
 .dl-features { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 16px; }
 .dl-features article { display: flex; flex-direction: column; gap: 8px; padding: 20px; border-radius: 16px; transition: background .2s; }

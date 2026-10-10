@@ -1,11 +1,13 @@
-// Downloads do app de desktop (Windows). O script deploy/publicar-app.ps1 coloca aqui o instalador
-// e o latest.yml gerados pelo electron-builder; o app instalado consulta o latest.yml para se atualizar.
+// Downloads dos apps. O script deploy/publicar-app.ps1 coloca aqui o instalador de Windows e o
+// latest.yml gerados pelo electron-builder; o app instalado consulta o latest.yml para se atualizar.
+// O deploy/publicar-android.ps1 coloca o APK do Android e o android.json que aponta para ele.
 const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
 const express = require('express');
 
 const INSTALLER = /^[A-Za-z0-9._-]+\.exe$/;
+const APK = /^Resenhex-[0-9.]+\.apk$/;
 const STORE_ID = /^[0-9A-Z]{12}$/; // ID da Microsoft Store, ex.: 9NBLGGH4R32N
 
 // Com o app aprovado na Microsoft Store, a página /baixar entrega o instalador da própria
@@ -35,6 +37,16 @@ function readRelease(dir) {
   let size;
   try { size = fs.statSync(path.join(dir, file)).size; } catch { return null; }
   return { version, file, size, releaseDate: field('releaseDate') || null };
+}
+
+// O app Android só abre o site, então quase nunca muda: o android.json diz qual APK é o atual.
+function readAndroid(dir) {
+  let info;
+  try { info = JSON.parse(fs.readFileSync(path.join(dir, 'android.json'), 'utf8')); } catch { return null; }
+  if (!info || typeof info.version !== 'string' || !APK.test(info.file)) return null;
+  let size;
+  try { size = fs.statSync(path.join(dir, info.file)).size; } catch { return null; }
+  return { version: info.version, file: info.file, size, url: '/download/' + encodeURIComponent(info.file) };
 }
 
 // A atualização do app baixa só os trechos do instalador que mudaram, pedindo várias faixas
@@ -86,8 +98,10 @@ function downloadRoutes(dir, { storeId } = {}) {
   router.get('/download/info', (_req, res) => {
     res.set('Cache-Control', 'no-cache');
     const release = readRelease(dir);
-    if (!release) return res.status(store ? 200 : 404).json({ available: false, store });
-    res.json({ available: true, ...release, url: '/download/' + encodeURIComponent(release.file), store });
+    const android = readAndroid(dir);
+    const extra = android ? { android } : {};
+    if (!release) return res.status(store || android ? 200 : 404).json({ available: false, store, ...extra });
+    res.json({ available: true, ...release, url: '/download/' + encodeURIComponent(release.file), store, ...extra });
   });
   // Link fixo para mandar aos amigos: sempre aponta para a versão mais nova.
   router.get('/download/Resenhex-Setup.exe', (_req, res) => {
@@ -96,17 +110,23 @@ function downloadRoutes(dir, { storeId } = {}) {
     if (!release) return res.redirect(302, '/baixar');
     res.redirect(302, '/download/' + encodeURIComponent(release.file));
   });
+  router.get('/download/Resenhex.apk', (_req, res) => {
+    res.set('Cache-Control', 'no-store');
+    const android = readAndroid(dir);
+    res.redirect(302, android ? android.url : '/baixar');
+  });
   router.get('/download/:file', multipleRanges(dir));
   router.use('/download', express.static(dir, {
     index: false, redirect: false,
     setHeaders(res, file) {
       // O latest.yml muda a cada versão; instaladores têm a versão no nome e nunca mudam.
-      if (file.endsWith('.yml')) res.set('Cache-Control', 'no-cache');
+      if (file.endsWith('.yml') || file.endsWith('.json')) res.set('Cache-Control', 'no-cache');
       else res.set('Cache-Control', 'public, max-age=31536000, immutable');
       if (file.endsWith('.exe')) res.set('Content-Type', 'application/vnd.microsoft.portable-executable');
+      if (file.endsWith('.apk')) res.set('Content-Type', 'application/vnd.android.package-archive');
     },
   }));
   return router;
 }
 
-module.exports = { downloadRoutes, readRelease };
+module.exports = { downloadRoutes, readRelease, readAndroid };

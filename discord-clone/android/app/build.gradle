@@ -1,0 +1,44 @@
+plugins {
+    id 'com.android.application'
+}
+
+android {
+    namespace 'org.duckdns.resenhex'
+    compileSdk 36
+
+    defaultConfig {
+        applicationId 'org.duckdns.resenhex'
+        minSdk 24
+        targetSdk 36
+        // Aumente os dois a cada APK publicado (deploy/publicar-android.ps1 lê o versionName).
+        versionCode 2
+        versionName "1.1.0"
+        buildConfigField "String", "SITE", "\"https://resenhex.duckdns.org/\""
+        manifestPlaceholders = [cleartext: "false"]
+    }
+
+    buildTypes {
+        release {
+            minifyEnabled false
+        }
+        // Versão de teste: instala ao lado da oficial e abre o servidor local (adb reverse tcp:3124 tcp:3124).
+        debug {
+            applicationIdSuffix ".debug"
+            buildConfigField "String", "SITE", "\"http://localhost:3124/\""
+            manifestPlaceholders = [cleartext: "true"]
+        }
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+
+    buildFeatures {
+        buildConfig true
+    }
+
+    lint {
+        checkReleaseBuilds false
+    }
+}

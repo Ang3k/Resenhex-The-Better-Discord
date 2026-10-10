@@ -51,6 +51,28 @@ Mande para os amigos o link **`https://seu-dominio/baixar`**. Lá tem o botão d
 - O que o app faz a mais que o navegador: push-to-talk com o app em segundo plano (inclusive em jogos), escolha de aplicativo ou tela com miniaturas e som do computador sem eco, selo de menções na barra de tarefas, bandeja com **Iniciar com o Windows** e **Fechar para a bandeja**, corretor em português e tela de reconexão automática.
 - **Versão da Microsoft Store (sem o aviso do Windows):** `npm run dist:store`, na pasta `desktop/`, gera `desktop/dist/Resenhex-<versão>.appx` para enviar no Partner Center. Textos, capturas e respostas para a loja estão em [`desktop/store/LOJA.md`](desktop/store/LOJA.md). Na versão da loja, quem atualiza a casca é a Microsoft Store; o site continua chegando pelo deploy normal. Depois que a loja aprovar, coloque `MS_STORE_ID=<ID da loja>` em `/etc/resenhex.env` e reinicie o serviço: o botão da página `/baixar` passa a baixar o instalador oficial da Microsoft, e o `.exe` fica como opção.
 - A política de privacidade fica em **`https://seu-dominio/privacidade`** (a loja pede esse link).
+
+### App para Android
+
+O app de Android (pasta `android/`, em Java, sem bibliotecas) é um WebView que abre o site, então **toda mudança no site chega nele com o deploy normal**. O APK fica na própria página `/baixar` (quem abre pelo Android vê o botão **Baixar para Android**) e em `https://seu-dominio/download/Resenhex.apk`, que sempre aponta para a versão mais nova.
+
+- **Call com a tela bloqueada:** ao entrar numa call, o app liga um serviço em primeiro plano (a notificação fixa "Na call", com **Silenciar** e **Sair da call**), segura o processador e o Wi-Fi acordados e mantém o site rodando. Na primeira call, ele explica e pede para o Android não pausar o app (otimização de bateria).
+- **Permissões:** notificações na primeira abertura (Android 13+); microfone e câmera só quando o site pede (entrar na call, ligar a câmera).
+- **Notificações:** o site usa `new Notification()` normalmente; `public/android.js` troca essa API pela notificação do Android. Elas chegam enquanto o app está aberto ou em segundo plano; com o app fechado de vez, não (isso exigiria push pelo Firebase).
+- A ponte entre o site e o app é `window.ResenhexAndroid` (Java, em `MainActivity`) e `window.AndroidApp` (site, em `public/android.js`).
+- `/.well-known/assetlinks.json` faz os links do Resenhex (convites) abrirem direto no app.
+- Para testar no emulador, a versão de depuração (`gradlew assembleDebug`) instala ao lado da oficial e abre `http://localhost:3124/` (use `adb reverse tcp:3124 tcp:3124`), com o DevTools do Chrome liberado.
+- A chave fica em `%USERPROFILE%\.resenhex-android\` (`resenhex.keystore` e `senha.txt`), fora do repositório. **Faça backup dessas duas**: sem elas não dá para publicar uma atualização que instale por cima da versão dos amigos.
+- O JDK 17 e o SDK do Android ficam em `%USERPROFILE%\.bubblewrap\`.
+- Só é preciso publicar o APK de novo quando algo na pasta `android/` mudar. Aumente `versionCode` e `versionName` em `android/app/build.gradle` e rode, na pasta do projeto:
+
+  ```powershell
+  powershell -ExecutionPolicy Bypass -File discord-clone\deploy\publicar-android.ps1
+  ```
+
+  O script gera e assina o APK, confere a assinatura com o `assetlinks.json`, envia para o servidor e confere a versão publicada.
+- Os ícones do app (`public/icons/`) saem do `public/resenhax-logo.png` com `node tools/icones-app.js`.
+- O Android pede para permitir instalar apps desta fonte na primeira vez, porque o APK não vem da Play Store. Compartilhar a tela não funciona no celular; assistir às transmissões funciona.
 - Para rodar a casca no seu PC durante o desenvolvimento: `cd discord-clone/desktop`, `npm install` e `npm start` (use `RESENHEX_URL=http://localhost:3000/` para apontar para o servidor local). Os problemas de atualização ficam registrados em `%APPDATA%\Resenhex\resenhex.log`.
 
 ## Servidores e convites

@@ -4,8 +4,8 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="theme-color" content="#141417">
-  <meta name="description" content="Baixe o Resenhex para Windows: o mesmo chat e voz do site, com push-to-talk em segundo plano, bandeja e atualização automática.">
-  <title>Baixar o Resenhex para Windows</title>
+  <meta name="description" content="Baixe o Resenhex para Windows ou Android: o mesmo chat e voz do site, com push-to-talk em segundo plano no PC e o app na tela inicial do celular.">
+  <title>Baixar o Resenhex</title>
   <link rel="icon" type="image/png" href="/resenhax-logo.png">
   <link rel="stylesheet" href="style.css">
   <link rel="stylesheet" href="experience.css">
@@ -15,6 +15,8 @@
   <script>
     // Mesmo tema escolhido no app (Escuro, Meia-noite ou Alto contraste).
     try { const theme = JSON.parse(localStorage.getItem('appearance'))?.theme; if (['midnight', 'contrast'].includes(theme)) document.documentElement.dataset.theme = theme; } catch {}
+    // No celular Android a página oferece o app de Android. Decidido antes de pintar, para não piscar.
+    if (/Android/i.test(navigator.userAgent)) document.documentElement.dataset.os = 'android';
   </script>
 </head>
 <body class="dl-page">
@@ -26,40 +28,67 @@
   <main class="dl-main">
     <section class="dl-hero">
       <div class="dl-glow" aria-hidden="true"></div>
-      <span class="dl-eyebrow"><span data-icon="sparkles" data-size="14"></span> App para Windows</span>
-      <h1>O Resenhex, agora na sua área de trabalho</h1>
-      <p class="dl-lead">É o mesmo Resenhex do site, com sua conta, seus servidores e suas chamadas. O app fica na bandeja, mostra as menções na barra de tarefas e mantém o push-to-talk funcionando mesmo com um jogo aberto.</p>
-      <div class="dl-cta">
+      <span class="dl-eyebrow only-windows"><span data-icon="sparkles" data-size="14"></span> App para Windows</span>
+      <span class="dl-eyebrow only-android"><span data-icon="sparkles" data-size="14"></span> App para Android</span>
+      <h1 class="only-windows">O Resenhex, agora na sua área de trabalho</h1>
+      <h1 class="only-android">O Resenhex, agora no seu celular</h1>
+      <p class="dl-lead only-windows">É o mesmo Resenhex do site, com sua conta, seus servidores e suas chamadas. O app fica na bandeja, mostra as menções na barra de tarefas e mantém o push-to-talk funcionando mesmo com um jogo aberto.</p>
+      <p class="dl-lead only-android">É o mesmo Resenhex do site, com sua conta, seus servidores e suas chamadas. A call continua com a tela bloqueada e as mensagens chegam como notificação do celular.</p>
+      <div class="dl-cta only-windows">
         <a class="dl-button" id="dl-button" href="/download/Resenhex-Setup.exe" download>
           <span class="dl-button-icon" data-icon="download" data-size="20"></span>
           <span>Baixar para Windows</span>
         </a>
         <p class="dl-meta" id="dl-meta">Windows 10 e 11 (64 bits)</p>
         <a class="dl-alt hidden" id="dl-direct" href="/download/Resenhex-Setup.exe" download>Prefere o instalador direto (.exe)?</a>
+        <a class="dl-alt hidden" id="dl-android-link" href="/download/Resenhex.apk" download>Tem Android? Baixe o app para celular</a>
       </div>
-      <p class="dl-note hidden" id="dl-other-os"><span data-icon="info" data-size="16"></span> O app é para computadores com Windows. No celular ou no Mac, continue usando o Resenhex pelo navegador.</p>
-      <p class="dl-note hidden" id="dl-soon"><span data-icon="info" data-size="16"></span> O instalador ainda não foi publicado. Enquanto isso, use o Resenhex pelo navegador.</p>
+      <div class="dl-cta only-android">
+        <a class="dl-button" id="dl-android" href="/download/Resenhex.apk" download>
+          <span class="dl-button-icon" data-icon="download" data-size="20"></span>
+          <span>Baixar para Android</span>
+        </a>
+        <p class="dl-meta" id="dl-android-meta">Android 7 ou mais novo</p>
+      </div>
+      <p class="dl-note hidden" id="dl-other-os"><span data-icon="info" data-size="16"></span> Os apps são para Windows e Android. No iPhone ou no Mac, continue usando o Resenhex pelo navegador.</p>
+      <p class="dl-note hidden only-windows" id="dl-soon"><span data-icon="info" data-size="16"></span> O instalador ainda não foi publicado. Enquanto isso, use o Resenhex pelo navegador.</p>
+      <p class="dl-note hidden" id="dl-android-soon"><span data-icon="info" data-size="16"></span> O app para Android ainda não foi publicado. Enquanto isso, use o Resenhex pelo navegador.</p>
     </section>
 
     <section class="dl-steps" aria-labelledby="dl-steps-title">
       <h2 id="dl-steps-title">Instalar leva menos de um minuto</h2>
       <ol>
-        <li data-mode="store" hidden>
+        <li class="only-android">
+          <span class="dl-step-num">1</span>
+          <h3>Abra o arquivo</h3>
+          <p>Quando o download terminar, toque em <strong>Abrir</strong> no aviso do navegador. Se ele sumir, o arquivo <strong>Resenhex</strong> fica na pasta Downloads.</p>
+        </li>
+        <li class="dl-step-warning only-android">
+          <span class="dl-step-num">2</span>
+          <h3>Se o Android avisar</h3>
+          <p>O app vem do site, não da Play Store, então o Android pede licença uma vez. Toque em <strong>Configurações</strong>, ative <strong>Permitir desta fonte</strong> e volte. Se o Play Protect perguntar, escolha <strong>Instalar mesmo assim</strong>.</p>
+          <div class="dl-android-dialog" aria-hidden="true">
+            <span class="dl-ad-text">Por segurança, seu smartphone não tem permissão para instalar apps desconhecidos desta fonte.</span>
+            <span class="dl-ad-actions"><span>Cancelar</span><span class="dl-ad-settings">Configurações</span></span>
+            <span class="dl-ad-toggle"><span>Permitir desta fonte</span><span class="dl-ad-switch"></span></span>
+          </div>
+        </li>
+        <li class="only-windows" data-mode="store" hidden>
           <span class="dl-step-num">1</span>
           <h3>Abra o instalador</h3>
           <p>Abra o arquivo que foi baixado. É o instalador oficial da <strong>Microsoft Store</strong>: ele instala o Resenhex e já abre o app.</p>
         </li>
-        <li data-mode="store" hidden>
+        <li class="only-windows" data-mode="store" hidden>
           <span class="dl-step-num">2</span>
           <h3>Sem avisos do Windows</h3>
           <p>O Resenhex é verificado e distribuído pela Microsoft Store. Por isso, o Windows instala direto, sem tela de alerta, e o app se atualiza sozinho pela loja.</p>
         </li>
-        <li data-mode="direct">
+        <li class="only-windows" data-mode="direct">
           <span class="dl-step-num">1</span>
           <h3>Abra o instalador</h3>
           <p>Abra o arquivo <strong>Resenhex-Setup</strong> que foi baixado. A instalação termina em poucos segundos e o app já abre sozinho.</p>
         </li>
-        <li class="dl-step-warning" data-mode="direct">
+        <li class="dl-step-warning only-windows" data-mode="direct">
           <span class="dl-step-num">2</span>
           <h3>Se o Windows avisar</h3>
           <p>A tela <strong>“O Windows protegeu o computador”</strong> aparece porque o app é novo e não tem assinatura paga. Clique em <strong>Mais informações</strong> e depois em <strong>Executar assim mesmo</strong>.</p>
@@ -77,11 +106,17 @@
       </ol>
     </section>
 
-    <section class="dl-features" aria-label="O que o app faz">
+    <section class="dl-features only-windows" aria-label="O que o app faz">
       <article><span class="dl-feature-icon" data-icon="mic" data-size="20"></span><h3>Push-to-talk em qualquer lugar</h3><p>A tecla de falar funciona com o Resenhex em segundo plano, inclusive durante jogos.</p></article>
       <article><span class="dl-feature-icon" data-icon="at" data-size="20"></span><h3>Menções na barra de tarefas</h3><p>O ícone mostra quantas menções chegaram e pisca quando alguém chama você.</p></article>
       <article><span class="dl-feature-icon" data-icon="screenShare" data-size="20"></span><h3>Escolha o que transmitir</h3><p>Transmita a tela inteira ou uma janela específica, com o som do computador junto.</p></article>
       <article><span class="dl-feature-icon" data-icon="refresh" data-size="20"></span><h3>Sempre atualizado</h3><p>As novidades do site chegam na hora. As do app são baixadas sozinhas e entram quando você reinicia.</p></article>
+    </section>
+    <section class="dl-features only-android" aria-label="O que o app faz no celular">
+      <article><span class="dl-feature-icon" data-icon="at" data-size="20"></span><h3>Notificações</h3><p>Mensagens e ligações chegam como notificação do celular, mesmo com você em outro app.</p></article>
+      <article><span class="dl-feature-icon" data-icon="mic" data-size="20"></span><h3>Call com a tela bloqueada</h3><p>Bloqueie o celular e continue na call. A notificação “Na call” silencia o microfone ou sai da sala.</p></article>
+      <article><span class="dl-feature-icon" data-icon="screenShare" data-size="20"></span><h3>Assista às transmissões</h3><p>Veja a tela que os amigos estão transmitindo, com zoom e tela cheia.</p></article>
+      <article><span class="dl-feature-icon" data-icon="refresh" data-size="20"></span><h3>Sempre atualizado</h3><p>As novidades do site chegam na hora, sem baixar o app de novo.</p></article>
     </section>
   </main>
 
