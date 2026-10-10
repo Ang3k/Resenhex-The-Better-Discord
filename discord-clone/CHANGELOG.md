@@ -3,6 +3,13 @@
 Histórico de versões. A mesma lista aparece dentro do app em **Novidades** (menu do servidor ou rodapé das Configurações).
 O Resenhex chegou à versão 1.0 em 4 de outubro de 2026.
 
+## v1.2.3 — Barra da call em uma linha no celular
+
+10 de outubro de 2026.
+
+### Correções
+- No celular, os botões da call quebravam em duas linhas e deixavam um espaço vazio antes do botão de desligar. Agora ficam numa linha só e se ajustam à largura da tela.
+
 ## v1.2.2 — App para Android
 
 9 de outubro de 2026. O Resenhex agora tem app para Android, baixado direto da página do site. A call continua com a tela bloqueada, como no Discord.

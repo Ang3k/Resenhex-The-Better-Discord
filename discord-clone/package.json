@@ -1,6 +1,6 @@
 {
   "name": "resenhex",
-  "version": "1.2.2",
+  "version": "1.2.3",
   "description": "Resenhex: chat de texto, voz, câmera e compartilhamento de tela para você e seus amigos (inspirado no Discord)",
   "main": "server.js",
   "scripts": {

@@ -4,6 +4,15 @@
 // O título deve destacar as principais funcionalidades ou correções, com termos objetivos.
 window.CHANGELOG = [
   {
+    version: '1.2.3', date: '2026-10-10', name: 'Barra da call em uma linha no celular',
+    summary: 'No celular, os botões da call ficam numa linha só, sem o espaço vazio antes do botão de desligar.',
+    sections: [
+      { kind: 'fixed', items: [
+        'No celular, os botões da call quebravam em duas linhas e deixavam um espaço vazio antes do botão de desligar. Agora ficam numa linha só e se ajustam à largura da tela.',
+      ] },
+    ],
+  },
+  {
     version: '1.2.2', date: '2026-10-09', name: 'App para Android',
     summary: 'O Resenhex agora tem app para Android, baixado direto da página do site. A call continua com a tela bloqueada, como no Discord, e as mensagens chegam como notificação do celular.',
     sections: [
