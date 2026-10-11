@@ -1237,10 +1237,11 @@ io.on('connection', (socket) => {
       }
     }
     const token = payload.token || createSession(acc.id);
+    socket.data.token = token;
     const serverId = communities.choose(acc.id, payload.serverId || acc.lastServerId);
     online.set(socket.id, { accountId: acc.id, serverId, voice: null, voiceServerId: null, muted: false, deafened: false, sharing: false, camera: false });
     save();
-    ack({ token, accountId: acc.id, serverId, sid: socket.id, presence: acc.presence || 'online', statusText: acc.statusText || '', iceServers: iceServers(), permNames: PERMS, maxUploadMb: MAX_UPLOAD_MB, version: APP_VERSION, gifKey: process.env.KLIPY_KEY || null });
+    ack({ token, accountId: acc.id, name: acc.name, since: acc.createdAt || null, serverId, sid: socket.id, presence: acc.presence || 'online', statusText: acc.statusText || '', iceServers: iceServers(), permNames: PERMS, maxUploadMb: MAX_UPLOAD_MB, version: APP_VERSION, gifKey: process.env.KLIPY_KEY || null });
     // Páginas de antes da 0.99.3 não mandam a versão nem sabem mostrar o aviso de atualização.
     if (!payload.version) socket.emit('notice', 'Saiu uma versão nova do Resenhex. Aperte F5 para atualizar.');
     socket.emit('social', socialFor(acc));
@@ -1252,6 +1253,34 @@ io.on('connection', (socket) => {
   on('logout', (acc, { token }) => {
     if (db.sessions[token] === acc.id) delete db.sessions[token];
     save();
+  });
+
+  // O nome de usuário é fixo; só a senha muda. Trocar a senha encerra as outras sessões
+  // (outros aparelhos e abas) e mantém só esta.
+  on('account:password', async (acc, { current, next, confirm }) => {
+    current = String(current || '');
+    next = String(next || '');
+    if (next.length < 4) fail('A nova senha precisa ter pelo menos 4 caracteres.');
+    if (next.length > 128) fail('A nova senha deve ter até 128 caracteres.');
+    if (confirm !== next) fail('As senhas novas não coincidem.');
+    if (next === current) fail('A nova senha precisa ser diferente da atual.');
+    if (!allow('password:' + acc.id, 5, 10 * 60 * 1000)) fail('Muitas tentativas. Aguarde alguns minutos.');
+    if (!(await checkPassword(acc, current))) {
+      await new Promise((r) => setTimeout(r, 800)); // atrasa tentativas de adivinhar senha
+      fail('A senha atual está incorreta.');
+    }
+    Object.assign(acc, await hashPassword(next));
+    const keep = socket.data.token;
+    for (const [token, id] of Object.entries(db.sessions)) if (id === acc.id && token !== keep) delete db.sessions[token];
+    save();
+    for (const [sid, s] of online) {
+      if (s.accountId !== acc.id || sid === socket.id) continue;
+      const other = io.sockets.sockets.get(sid);
+      if (other?.data.token === keep) continue; // outra aba com a mesma sessão continua valendo
+      other?.emit('session:ended', 'Sua senha foi trocada. Entre de novo com a senha nova.');
+      other?.disconnect(true);
+    }
+    return { ok: true };
   });
 
   on('profile', (acc, { color, avatar }) => {

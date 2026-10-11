@@ -406,7 +406,7 @@ window.MusicDJ = function ({ state, el, Icon, toast, call, callInfo, callPerm, c
         el('section', { class: 'dj-queue' }, el('div', { class: 'dj-section-title', textContent: m.queue.length ? `A SEGUIR · ${m.queue.length}` : 'A SEGUIR' }),
           m.queue.length ? el('ul', { class: 'dj-list' }, m.queue.map((t, i) => trackRow(t, { index: i + 1, removable: canUse() })))
             : el('p', { class: 'dj-status', textContent: 'A fila está vazia. A próxima música que alguém pedir entra aqui.' })),
-        m.last ? el('p', { class: 'dj-last' }, Icon('info', 14), m.last.text) : null);
+        ...(m.last ? [el('p', { class: 'dj-last' }, Icon('info', 14), m.last.text)] : []));
     }
   }
 

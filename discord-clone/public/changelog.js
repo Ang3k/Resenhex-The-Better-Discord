@@ -4,6 +4,23 @@
 // O título deve destacar as principais funcionalidades ou correções, com termos objetivos.
 window.CHANGELOG = [
   {
+    version: '1.3.5', date: '2026-10-11', name: 'Minha conta: troca de senha nas Configurações',
+    summary: 'As Configurações ganharam a aba Minha conta, onde dá para trocar a senha. Quem não é dono do servidor também deixa de ver um “null” perdido no menu das configurações do servidor.',
+    sections: [
+      { kind: 'new', items: [
+        'Aba Minha conta nas Configurações: mostra seu nome de usuário e quando a conta foi criada, e deixa trocar a senha (pede a senha atual).',
+        'Ao trocar a senha, os outros aparelhos conectados na sua conta saem e precisam entrar com a senha nova. O aparelho em que você trocou continua conectado.',
+      ] },
+      { kind: 'improved', items: [
+        'Entrar numa call com voz por IA não espera mais o personagem carregar. A voz por IA começa desligada e você liga pelo menu de áudio, já dentro da call.',
+      ] },
+      { kind: 'fixed', items: [
+        'Quem não é dono do servidor via um “null” no menu das configurações do servidor, embaixo de Banimentos.',
+        'A sala do DJ mostrava um “null” embaixo da fila quando não havia aviso da última música.',
+      ] },
+    ],
+  },
+  {
     version: '1.3.0', date: '2026-10-10', name: 'Voz de personagem por IA na call',
     summary: 'No app de Windows, sua voz pode virar a de um personagem na call: Braum, Kled, Tristana, Veigar, Naruto, Akali, Sett, Reyna e Draven, quase todos com a dublagem brasileira. Cada um já começa no tom certo, e a atualização do app ficou bem mais leve.',
     sections: [

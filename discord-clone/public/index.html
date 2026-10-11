@@ -530,6 +530,9 @@
 <button id="tab-profile" data-section="profile" data-keywords="conta avatar cor" role="tab" aria-controls="page-profile">
 <span data-icon="userCog">
 </span>Meu perfil</button>
+<button id="tab-account" data-section="account" data-keywords="conta senha usuário login segurança" role="tab" aria-controls="page-account">
+<span data-icon="lock">
+</span>Minha conta</button>
 <button id="tab-voice" data-section="voice" data-keywords="microfone câmera áudio ruído sensibilidade" role="tab" aria-controls="page-voice">
 <span data-icon="mic">
 </span>Voz e vídeo</button>
@@ -671,6 +674,49 @@
 </div>
 <p class="hint profile-preview-note"><span class="mouse-only">Clique</span><span class="touch-only">Toque</span> em qualquer parte da prévia para trocar. Nada muda até você salvar.</p>
 </aside>
+</div>
+</section>
+<section id="page-account" data-settings-page="account" role="tabpanel" aria-labelledby="tab-account">
+<div class="eyebrow">ACESSO E SEGURANÇA</div>
+<h1>Minha conta</h1>
+<p class="section-description">Como você entra no Resenhex.</p>
+<div class="setting-group account-info">
+<h3>Dados da conta</h3>
+<div class="account-field">
+<span class="account-label">NOME DE USUÁRIO</span>
+<strong id="account-username"></strong>
+<span class="hint">É com ele que você entra. O nome de usuário não pode ser trocado, mas dá para usar outro nome em cada servidor em Meu perfil.</span>
+</div>
+<div class="account-field">
+<span class="account-label">CONTA CRIADA EM</span>
+<span id="account-since"></span>
+</div>
+</div>
+<form id="account-password-form" class="setting-group" autocomplete="on" novalidate>
+<h3>Trocar senha</h3>
+<input type="text" id="account-password-user" autocomplete="username" hidden>
+<label>SENHA ATUAL
+<input id="account-password-current" type="password" required maxlength="128" autocomplete="current-password">
+</label>
+<label>NOVA SENHA
+<input id="account-password-next" type="password" required minlength="4" maxlength="128" autocomplete="new-password">
+<span class="hint">Pelo menos 4 caracteres.</span>
+</label>
+<label>CONFIRMAR NOVA SENHA
+<input id="account-password-confirm" type="password" required minlength="4" maxlength="128" autocomplete="new-password">
+</label>
+<p id="account-password-status" class="hint" role="status" aria-live="polite"></p>
+<div class="account-actions">
+<button id="account-password-save" type="submit" class="btn-primary">Trocar senha</button>
+</div>
+</form>
+<div class="settings-callout">
+<span data-icon="lock">
+</span>
+<div>
+<strong>As outras sessões são encerradas</strong>
+<p>Ao trocar a senha, todos os outros aparelhos conectados na sua conta saem e precisam entrar com a senha nova. Este aparelho continua conectado.</p>
+</div>
 </div>
 </section>
 <section id="page-voice" data-settings-page="voice" role="tabpanel" aria-labelledby="tab-voice">

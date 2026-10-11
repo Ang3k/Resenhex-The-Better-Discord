@@ -3,6 +3,23 @@
 Histórico de versões. A mesma lista aparece dentro do app em **Novidades** (menu do servidor ou rodapé das Configurações).
 O Resenhex chegou à versão 1.0 em 4 de outubro de 2026.
 
+## v1.3.5 — Minha conta: troca de senha nas Configurações
+
+11 de outubro de 2026.
+
+As Configurações ganharam a aba Minha conta, onde dá para trocar a senha. Quem não é dono do servidor também deixa de ver um “null” perdido no menu das configurações do servidor.
+
+### Novidades
+- Aba Minha conta nas Configurações: mostra seu nome de usuário e quando a conta foi criada, e deixa trocar a senha (pede a senha atual).
+- Ao trocar a senha, os outros aparelhos conectados na sua conta saem e precisam entrar com a senha nova. O aparelho em que você trocou continua conectado.
+
+### Melhorias
+- Entrar numa call com voz por IA não espera mais o personagem carregar. A voz por IA começa desligada e você liga pelo menu de áudio, já dentro da call.
+
+### Correções
+- Quem não é dono do servidor via um “null” no menu das configurações do servidor, embaixo de Banimentos.
+- A sala do DJ mostrava um “null” embaixo da fila quando não havia aviso da última música.
+
 ## v1.3.0 — Voz de personagem por IA na call
 
 10 de outubro de 2026.

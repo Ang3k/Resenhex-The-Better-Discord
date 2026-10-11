@@ -507,7 +507,7 @@
       }
       localStorage.setItem('token', res.token);
       if (payload.name) localStorage.setItem('name', payload.name);
-      state.me = { accountId: res.accountId, sid: res.sid };
+      state.me = { accountId: res.accountId, sid: res.sid, name: res.name, since: res.since };
       state.presence = res.presence || 'online';
       state.statusText = res.statusText || '';
       state.permNames = res.permNames;
@@ -594,6 +594,13 @@
   });
 
   socket.on('notice', (text) => toast(text, 'info'));
+  // A senha foi trocada em outro aparelho: esta sessão não vale mais.
+  socket.on('session:ended', (reason) => {
+    state.removed = true;
+    localStorage.removeItem('token');
+    toast(reason, 'info');
+    setTimeout(() => location.reload(), 2500);
+  });
   socket.on('server:removed', ({ reason }) => toast(reason, 'info'));
 
   // ---------------- estado do servidor ----------------
@@ -3704,8 +3711,8 @@
       el('div', { class: 'admin-nav-title' }, el('span', { textContent: serverName().toUpperCase() })),
       el('div', { class: 'settings-nav-label', textContent: 'CONFIGURAÇÕES DO SERVIDOR' }),
       el('nav', { ariaLabel: 'Seções do servidor' }, items),
-      isOwner(state.me.accountId) ? el('div', { class: 'settings-nav-bottom' },
-        navButton('Excluir servidor', 'trash', false, deleteCurrentServer, 'danger')) : null);
+      ...(isOwner(state.me.accountId) ? [el('div', { class: 'settings-nav-bottom' },
+        navButton('Excluir servidor', 'trash', false, deleteCurrentServer, 'danger'))] : []));
   }
 
   function renderSavebar() {
@@ -5826,6 +5833,7 @@
   }
   const preferences = SettingsPanel({ read: readPreferences, apply: applyPreferences, preview: previewAppearance,
     onOpen: async () => {
+      fillAccountPage();
       $('#profile-preview-name').textContent = meMember().username || meMember().name;
       $('#profile-preview-chat-name').textContent = meMember().name;
       $('#profile-preview-chat-time').textContent = formatStamp(Date.now()); // mesmo formato do chat ("Hoje às 06:43")
@@ -5899,6 +5907,48 @@
   };
   $('#settings-server-link').onclick = () => { if (preferences.close()) openServerSettings(); };
   $('#btn-logout').onclick = async () => { if (!preferences.close()) return; const result = await call('logout', { token: localStorage.getItem('token') }); if (result) { localStorage.removeItem('token'); location.reload(); } };
+  function fillAccountPage() {
+    const username = state.me?.name || meMember()?.username || meMember()?.name || '';
+    $('#account-username').textContent = username;
+    $('#account-password-user').value = username;
+    const since = state.me?.since;
+    $('#account-since').textContent = since ? new Date(since).toLocaleDateString('pt-BR', { day: 'numeric', month: 'long', year: 'numeric' }) : '—';
+    $('#account-password-form').reset();
+    $('#account-password-user').value = username;
+    accountPasswordStatus('');
+  }
+  function accountPasswordStatus(text, kind = '') {
+    const node = $('#account-password-status');
+    node.textContent = text;
+    node.className = 'hint' + (kind ? ' ' + kind : '');
+  }
+  $('#account-password-form').onsubmit = async (event) => {
+    event.preventDefault();
+    const current = $('#account-password-current').value;
+    const next = $('#account-password-next').value;
+    const confirm = $('#account-password-confirm').value;
+    if (!current) { accountPasswordStatus('Digite sua senha atual.', 'error'); return $('#account-password-current').focus(); }
+    if (next.length < 4) { accountPasswordStatus('A nova senha precisa ter pelo menos 4 caracteres.', 'error'); return $('#account-password-next').focus(); }
+    if (next !== confirm) { accountPasswordStatus('As senhas novas não coincidem.', 'error'); return $('#account-password-confirm').focus(); }
+    if (next === current) { accountPasswordStatus('A nova senha precisa ser diferente da atual.', 'error'); return $('#account-password-next').focus(); }
+    const button = $('#account-password-save');
+    button.disabled = true;
+    accountPasswordStatus('Trocando a senha…');
+    const result = await new Promise((resolve) => {
+      if (!socket.connected) return resolve({ error: 'Você está desconectado. Tente de novo quando a conexão voltar.' });
+      socket.timeout(15000).emit('account:password', { current, next, confirm }, (error, res) => resolve(error ? { error: 'A operação demorou demais. Tente de novo.' } : res));
+    });
+    button.disabled = false;
+    if (result?.error) {
+      accountPasswordStatus(result.error, 'error');
+      if (/atual/.test(result.error)) { $('#account-password-current').value = ''; $('#account-password-current').focus(); }
+      return;
+    }
+    $('#account-password-form').reset();
+    $('#account-password-user').value = state.me?.name || '';
+    accountPasswordStatus('Senha trocada. As outras sessões foram encerradas.', 'ok');
+    toast('Senha trocada.', 'info');
+  };
   $('#notification-permission').onclick = async () => { if ('Notification' in window) { await Notification.requestPermission(); notificationHelp(); } };
   $('#camera-test').onclick = async () => {
     if (cameraPreview) return stopCameraPreview();
