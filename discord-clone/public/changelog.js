@@ -4,6 +4,21 @@
 // O título deve destacar as principais funcionalidades ou correções, com termos objetivos.
 window.CHANGELOG = [
   {
+    version: '1.3.8', date: '2026-10-12', name: 'Overlay de voz nos jogos (app de Windows)',
+    summary: 'No app de Windows, a lista da call aparece por cima do jogo: quem está na sala, quem está falando e quem está mutado. Ele aparece sozinho quando você abre um jogo durante uma call, e você escolhe onde ele fica na tela.',
+    sections: [
+      { kind: 'new', items: [
+        'Overlay em jogos: com o app de Windows, a lista da call aparece por cima do jogo, com o anel verde em quem está falando e os ícones de mutado e ensurdecido.',
+        'Aparece sozinho quando você está numa call e abre um jogo, e some quando você sai do jogo. Reconhece mais de 10 mil jogos.',
+        'Nova aba Overlay em jogos nas Configurações: ligue o overlay e arraste a lista para onde ela deve ficar na tela. Ela encaixa nos cantos, nas bordas e no centro, e o botão Testar mostra como fica.',
+        'O overlay vem desligado e, quando ligado, começa no meio da tela, à esquerda. O clique passa direto para o jogo.',
+      ] },
+      { kind: 'improved', items: [
+        'O ícone do app na barra de tarefas do Windows ficou nítido em todos os tamanhos.',
+      ] },
+    ],
+  },
+  {
     version: '1.3.5', date: '2026-10-11', name: 'Minha conta: troca de senha nas Configurações',
     summary: 'As Configurações ganharam a aba Minha conta, onde dá para trocar a senha. Quem não é dono do servidor também deixa de ver um “null” perdido no menu das configurações do servidor.',
     sections: [

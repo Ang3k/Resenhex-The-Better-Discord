@@ -3,6 +3,21 @@
 Histórico de versões. A mesma lista aparece dentro do app em **Novidades** (menu do servidor ou rodapé das Configurações).
 O Resenhex chegou à versão 1.0 em 4 de outubro de 2026.
 
+## v1.3.8 — Overlay de voz nos jogos (app de Windows)
+
+12 de outubro de 2026.
+
+No app de Windows, a lista da call aparece por cima do jogo: quem está na sala, quem está falando e quem está mutado. Ele aparece sozinho quando você abre um jogo durante uma call, e você escolhe onde ele fica na tela.
+
+### Novidades
+- Overlay em jogos: com o app de Windows, a lista da call aparece por cima do jogo, com o anel verde em quem está falando e os ícones de mutado e ensurdecido.
+- Aparece sozinho quando você está numa call e abre um jogo, e some quando você sai do jogo. Reconhece mais de 10 mil jogos.
+- Nova aba Overlay em jogos nas Configurações: ligue o overlay e arraste a lista para onde ela deve ficar na tela. Ela encaixa nos cantos, nas bordas e no centro, e o botão Testar mostra como fica.
+- O overlay vem desligado e, quando ligado, começa no meio da tela, à esquerda. O clique passa direto para o jogo.
+
+### Melhorias
+- O ícone do app na barra de tarefas do Windows ficou nítido em todos os tamanhos.
+
 ## v1.3.5 — Minha conta: troca de senha nas Configurações
 
 11 de outubro de 2026.
