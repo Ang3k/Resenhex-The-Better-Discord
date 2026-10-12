@@ -69,3 +69,29 @@ a.download-app { text-decoration: none; }
 :root[data-reduce-motion=true] :is(.share-overlay, .share-source, .download-app .ico) { animation: none !important; }
 :root[data-reduce-motion=true] :is(.share-source, .share-close) { transition: none; }
 .share-picker .confirm-actions .btn-primary:disabled { opacity: .45; box-shadow: none; cursor: not-allowed; }
+
+/* ---------- Overlay em jogos: escolha do canto ---------- */
+.overlay-corners { display: grid; grid-template-columns: repeat(4, minmax(0, 112px)); gap: 12px; }
+#settings .settings-content .overlay-corners button {
+  position: relative; aspect-ratio: 16 / 10; padding: 0; border: 1px solid var(--divider); border-radius: 8px; box-shadow: none;
+  background: linear-gradient(160deg, var(--bg-panel), var(--bg-rail)); transition: border-color .15s, box-shadow .15s, transform .15s;
+}
+#settings .settings-content .overlay-corners button:hover:not(:disabled) { background: linear-gradient(160deg, color-mix(in srgb, var(--text) 6%, var(--bg-panel)), var(--bg-rail)); border-color: var(--text-muted); transform: translateY(-1px); }
+#settings .settings-content .overlay-corners button[aria-checked="true"] { border-color: var(--brand); box-shadow: 0 0 0 1px var(--brand), 0 4px 14px color-mix(in srgb, var(--brand) 25%, transparent); }
+/* A listinha da chamada desenhada no canto: três linhas com bolinha (avatar) e etiqueta (nome). */
+.overlay-corners i {
+  --dot: var(--text-muted); --bar: var(--hover-strong);
+  position: absolute; width: 34px; height: 25px; display: block; opacity: .85; transition: opacity .15s;
+  background:
+    radial-gradient(circle, var(--dot) 2.5px, transparent 3px) 0 0 / 6px 9px repeat-y,
+    linear-gradient(var(--bar) 0 4px, transparent 4px) 9px 1px / 22px 9px repeat-y;
+}
+.overlay-corners [data-corner^="top"] i { top: 9px; }
+.overlay-corners [data-corner^="bottom"] i { bottom: 9px; }
+.overlay-corners [data-corner$="left"] i { left: 10px; }
+.overlay-corners [data-corner$="right"] i { right: 10px; }
+.overlay-corners button[aria-checked="true"] i { --dot: var(--green); --bar: var(--text-muted); opacity: 1; }
+#overlay-test { align-self: flex-start; }
+#page-overlay .setting-group > .hint { margin: -8px 0 0; }
+#page-overlay .setting-group > p.hint:first-of-type:not(#overlay-unavailable) { margin: 0; }
+@media (max-width: 640px) { .overlay-corners { grid-template-columns: repeat(2, minmax(0, 1fr)); } }

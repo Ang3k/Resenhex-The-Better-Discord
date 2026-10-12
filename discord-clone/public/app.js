@@ -77,6 +77,9 @@
     localVolume: savedJson('localVolume', {}), // accountId -> 0..1
     localMuted: new Set(savedJson('localMuted', [])),
     speaking: new Set(), // sids
+    // Overlay de voz em jogos (só no app de desktop): desligado por padrão, canto superior esquerdo.
+    overlayEnabled: savedJson('overlay', {}).enabled === true,
+    overlayCorner: ['top-left', 'top-right', 'bottom-left', 'bottom-right'].includes(savedJson('overlay', {}).corner) ? savedJson('overlay', {}).corner : 'top-left',
     editing: null, // id da mensagem sendo editada
     replyTo: null, // mensagem sendo respondida
     pending: [], // anexos do rascunho
@@ -673,6 +676,7 @@
 
   function render() {
     if (!state.server || !state.me || !meMember()) return;
+    syncOverlay();
     const me = member(state.me.accountId);
     $('#me-name').textContent = me.name;
     $('#me-name').style.color = nameColor(me);
@@ -4523,8 +4527,38 @@
     if (changed) {
       document.querySelectorAll('.avatar[data-sid]').forEach((node) => node.classList.toggle('speaking', state.speaking.has(node.dataset.sid)));
       document.querySelectorAll('#stage .tile[data-key^="user-"]').forEach((node) => node.classList.toggle('speaking', state.speaking.has(node.dataset.key.slice(5))));
+      syncOverlay();
     }
   }, 100);
+
+  // ---------------- overlay de voz em jogos (app de desktop) ----------------
+  // O app mostra a lista da chamada por cima do jogo (desktop/lib/overlay.js). Daqui vai só o resumo,
+  // e só quando muda: quem está na sala, quem fala e quem está mutado ou ensurdecido.
+  const desktopOverlay = window.resenhexDesktop?.overlay;
+  let overlaySent = '';
+  function overlaySnapshot() {
+    if (!state.voiceChannel || !state.me || !state.server) return null;
+    const users = voiceEntries(state.voiceChannel).flatMap((v) => {
+      const m = member(v.accountId);
+      if (!m) return [];
+      return [{
+        id: v.sid, name: m.name, color: m.color || '#5865f2', avatarUrl: m.avatarUrl || '', avatarCrop: m.avatarCrop || null,
+        speaking: state.speaking.has(v.sid), muted: !!v.muted, deafened: !!v.deafened,
+        serverMuted: !!m.serverMuted || timedOut(m), serverDeafened: !!m.serverDeafened,
+      }];
+    });
+    return users.length ? { users } : null;
+  }
+  function syncOverlay() {
+    if (!desktopOverlay) return;
+    const snapshot = overlaySnapshot();
+    const key = JSON.stringify(snapshot);
+    if (key === overlaySent) return;
+    overlaySent = key;
+    desktopOverlay.setState(snapshot);
+  }
+  const syncOverlayConfig = () => desktopOverlay?.configure({ enabled: state.overlayEnabled, corner: state.overlayCorner });
+  syncOverlayConfig();
 
   // ---------------- voz (WebRTC) ----------------
   let joining = false;
@@ -5689,12 +5723,37 @@
     'share-preset': 'sharePreset', 'share-audio': 'shareAudio', 'stream-stats': 'showStreamStats', 'camera-preview-toggle': 'cameraPreview',
     'sounds-toggle': 'sounds', 'notify-toggle': 'notify', 'sb-toggle': 'soundboard', 'sb-volume': 'sbVolume',
     'output-volume': 'outputVolume', 'theme-select': 'theme', 'density-select': 'density',
-    'font-size': 'fontSize', 'reduce-motion': 'reduceMotion',
+    'font-size': 'fontSize', 'reduce-motion': 'reduceMotion', 'overlay-toggle': 'overlayEnabled', 'overlay-corner': 'overlayCorner',
   };
   for (const [id, key] of Object.entries(settingFields)) {
     const field = document.getElementById(id);
     field.dataset.setting = key;
     if (field.type === 'range' || key === 'uploadMbps') field.dataset.number = '';
+  }
+  // A seção do overlay só existe no app de desktop (versões com o overlay).
+  if (!desktopOverlay) { $('#tab-overlay').remove(); $('#page-overlay').remove(); }
+  else {
+    desktopOverlay.available().then((ok) => {
+      if (ok) return;
+      $('#overlay-toggle').disabled = true;
+      $('#overlay-unavailable').classList.remove('hidden');
+    }).catch(() => {});
+    for (const button of document.querySelectorAll('.overlay-corners [data-corner]')) {
+      button.onclick = () => {
+        $('#overlay-corner').value = button.dataset.corner;
+        $('#overlay-corner').dispatchEvent(new Event('input', { bubbles: true }));
+      };
+    }
+    // Teste com a chamada de verdade; fora dela, comigo falando e dois exemplos.
+    $('#overlay-test').onclick = () => {
+      const me = meMember();
+      const sample = overlaySnapshot() || { users: [
+        { id: 'me', name: me.name, color: me.color || '#5865f2', avatarUrl: me.avatarUrl || '', avatarCrop: me.avatarCrop || null, speaking: true },
+        { id: 'a', name: 'Amigo mutado', color: '#3ba55c', muted: true },
+        { id: 'b', name: 'Amigo ensurdecido', color: '#eb459e', muted: true, deafened: true },
+      ] };
+      desktopOverlay.preview($('#overlay-corner').value, sample);
+    };
   }
   $('#noise-mode').replaceChildren(...Object.entries(NOISE_MODES).map(([value, label]) => new Option(label, value)));
   $('#share-preset').replaceChildren(...Object.entries(SHARE_PRESETS).map(([value, p]) => new Option(p.label, value)));
@@ -5734,6 +5793,9 @@
       $('#page-profile').style.setProperty('--pc-color', color);
     }
     for (const draft of profileImages) draft.preview(values);
+    if (values.overlayCorner !== undefined) {
+      for (const button of document.querySelectorAll('.overlay-corners [data-corner]')) button.setAttribute('aria-checked', String(button.dataset.corner === values.overlayCorner));
+    }
   }
   previewAppearance(state);
 
@@ -5818,6 +5880,11 @@
     state.keybinds = Keybinds.normalize(JSON.parse(values.keybinds || 'null'));
     localStorage.setItem('keybinds', JSON.stringify(state.keybinds));
     syncDesktopKeybinds();
+    if (desktopOverlay) {
+      state.overlayEnabled = values.overlayEnabled; state.overlayCorner = values.overlayCorner;
+      localStorage.setItem('overlay', JSON.stringify({ enabled: state.overlayEnabled, corner: state.overlayCorner }));
+      syncOverlayConfig();
+    }
     state.sbMuted = !values.soundboard; state.sbVolume = values.sbVolume / 100;
     localStorage.setItem('sbMuted', state.sbMuted); localStorage.setItem('sbVolume', state.sbVolume);
     Sounds.enabled = values.sounds;

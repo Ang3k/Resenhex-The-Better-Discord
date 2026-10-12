@@ -18,6 +18,7 @@ const { createMudae, CLAIM_WINDOW_MS, revealDelay, PRIORITY_MS } = require('./mu
 const { youtubeSearch } = require('./youtube');
 const { createDmCalls } = require('./dm-calls');
 const { cleanGif } = require('./gifs');
+const { createGameList } = require('./games');
 const { version: APP_VERSION } = require('./package.json');
 
 const PORT = process.env.PORT || 3000;
@@ -394,6 +395,9 @@ app.get('/vendor/stretch.mjs', (_req, res) => res.sendFile(path.join(path.dirnam
 const threeDir = path.join(path.dirname(require.resolve('three')), '..');
 app.use('/vendor/three/build', express.static(path.join(threeDir, 'build'), { maxAge: '7d' }));
 app.use('/vendor/three/addons', express.static(path.join(threeDir, 'examples', 'jsm'), { maxAge: '7d' }));
+// Jogos que o overlay do app de desktop reconhece (lista enxuta da lista pública do Discord).
+const gameList = createGameList({ file: path.join(path.dirname(DATA_FILE), 'jogos-detectaveis.json') });
+app.get('/api/games/detectable', gameList.route);
 app.get('/config', (_req, res) => {
   res.json({ passwordRequired: false, hasOwner: Object.keys(db.accounts).length > 0, maxUploadMb: MAX_UPLOAD_MB });
 });

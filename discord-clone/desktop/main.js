@@ -7,7 +7,7 @@
 // operação assíncrona de arquivo. Aqui só o atualizador usa esse pool, e uma thread dá conta.
 // Precisa vir antes de qualquer uso do pool.
 process.env.UV_THREADPOOL_SIZE ||= '1';
-const { app, BrowserWindow, WebContentsView, Menu, Tray, nativeImage, session, shell, ipcMain, desktopCapturer, net, Notification } = require('electron');
+const { app, BrowserWindow, WebContentsView, Menu, Tray, nativeImage, session, shell, ipcMain, desktopCapturer, net, Notification, screen } = require('electron');
 const path = require('node:path');
 const { createStore } = require('./lib/store');
 const { parseTitle, badgeName } = require('./lib/title-badge');
@@ -16,6 +16,7 @@ const { globalBindings, matchBinding } = require('./lib/keybinds');
 const { createLog } = require('./lib/log');
 const { systemAudioDevice } = require('./lib/system-audio');
 const { VoiceEngine } = require('./lib/voice-engine');
+const { createOverlay } = require('./lib/overlay');
 if (!app.isPackaged && process.env.RESENHEX_USER_DATA_DIR) app.setPath('userData', path.resolve(process.env.RESENHEX_USER_DATA_DIR));
 
 const APP_URL = new URL(process.env.RESENHEX_URL || 'https://resenhex.duckdns.org/');
@@ -66,6 +67,7 @@ let unread = { mentions: 0, unread: false };
 let update = null; // { version } quando uma atualização já foi baixada
 let offline = false;
 let retryTimer = null;
+let overlay = null; // criado quando o app fica pronto (o módulo screen só existe depois disso)
 
 const isAppUrl = (url) => { try { return new URL(url).origin === ORIGIN; } catch { return false; } };
 const fromSite = (event) => isAppUrl(event.senderFrame?.url || '');
@@ -212,8 +214,8 @@ function wireSite(contents) {
   contents.on('did-fail-load', (_event, code, _description, url, isMainFrame) => {
     if (isMainFrame && code !== -3 && isAppUrl(url)) showOffline(); // -3: navegação cancelada
   });
-  contents.on('render-process-gone', (_event, details) => { voiceEngine.destroy(); if (details.reason !== 'clean-exit') loadSite(); });
-  contents.on('did-start-navigation', (_event, _url, _inPlace, mainFrame) => { if (mainFrame) voiceEngine.destroy(); });
+  contents.on('render-process-gone', (_event, details) => { voiceEngine.destroy(); overlay?.setState(null); if (details.reason !== 'clean-exit') loadSite(); });
+  contents.on('did-start-navigation', (_event, _url, inPlace, mainFrame) => { if (!mainFrame) return; voiceEngine.destroy(); if (!inPlace) overlay?.setState(null); });
   contents.on('page-title-updated', (_event, title) => {
     if (offline) return;
     win?.setTitle(title);
@@ -452,6 +454,17 @@ ipcMain.on('desktop:set-theme', (event, colors) => {
   sendTitlebar();
 });
 ipcMain.on('desktop:focus', (event) => { if (fromSite(event)) showWindow(); });
+
+// ---------------- overlay de voz em jogos ----------------
+// Só a página principal do site configura o overlay e manda o resumo da chamada.
+ipcMain.handle('desktop:overlay:available', (event) => fromVoiceSite(event) && !!overlay?.available());
+ipcMain.on('desktop:overlay:config', (event, config) => { if (fromVoiceSite(event)) overlay?.setConfig(config); });
+ipcMain.on('desktop:overlay:state', (event, state) => { if (fromVoiceSite(event)) overlay?.setState(state); });
+ipcMain.on('desktop:overlay:preview', (event, value) => {
+  if (!fromVoiceSite(event) || !win) return;
+  overlay?.preview({ corner: value?.corner, state: value?.state, display: screen.getDisplayMatching(win.getBounds()) });
+});
+ipcMain.on('overlay:resize', (event, value) => { if (overlay?.owns(event.sender)) overlay.resize(value); });
 ipcMain.on('offline:retry', () => { if (offline) loadSite(); });
 ipcMain.on('titlebar:ready', sendTitlebar);
 ipcMain.on('titlebar:install-update', installUpdate);
@@ -509,6 +522,7 @@ app.on('second-instance', () => { if (!quitting) showWindow(); });
 app.on('before-quit', () => { quitting = true; saveBounds(); });
 app.on('will-quit', () => {
   voiceEngine.destroy();
+  overlay?.destroy();
   log.info('Encerrando');
   try { hook?.stop(); } catch { /* já parado */ }
 });
@@ -517,6 +531,10 @@ app.on('window-all-closed', () => { if (quitting) app.quit(); });
 app.whenReady().then(() => {
   Menu.setApplicationMenu(null);
   setupSession();
+  overlay = createOverlay({
+    BrowserWindow, screen, origin: ORIGIN, preload: path.join(__dirname, 'overlay-preload.js'),
+    cacheFile: path.join(app.getPath('userData'), 'jogos.json'), fetch: (url) => net.fetch(url, { cache: 'no-store' }), log,
+  });
   createTray();
   createWindow(process.argv.includes('--startup'));
   setupUpdates();

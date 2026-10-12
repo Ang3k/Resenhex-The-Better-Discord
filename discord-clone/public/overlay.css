@@ -1,0 +1,55 @@
+/* Overlay de voz em jogos: janela transparente por cima do jogo, sem interação.
+   Fica legível em cima de qualquer cena: etiquetas escuras e translúcidas, como no overlay do Discord. */
+@font-face { font-family: "Figtree"; font-style: normal; font-weight: 300 900; font-display: block; src: url(fonts/figtree-latin-wght-normal.woff2) format("woff2");
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD; }
+@font-face { font-family: "Figtree"; font-style: normal; font-weight: 300 900; font-display: block; src: url(fonts/figtree-latin-ext-wght-normal.woff2) format("woff2");
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF; }
+
+:root {
+  --ov-label: rgba(17, 18, 20, .72);
+  --ov-label-speaking: rgba(17, 18, 20, .86);
+  --ov-text: #dbdee1;
+  --ov-text-strong: #ffffff;
+  --ov-muted: #b5bac1;
+  --ov-green: #23a55a;
+  --ov-red: #f23f43;
+  --ov-font: "Figtree", "Segoe UI Variable Text", "Segoe UI", system-ui, sans-serif;
+}
+
+* { box-sizing: border-box; }
+html, body { margin: 0; background: transparent; overflow: hidden; }
+body { font-family: var(--ov-font); color: var(--ov-text); -webkit-font-smoothing: antialiased; user-select: none; cursor: default; }
+/* Fundo de jogo falso só na demonstração no navegador. */
+html.demo body { min-height: 100vh; padding: 24px; background: linear-gradient(135deg, #2d4a3e, #5a6b48 40%, #8a7a55 70%, #3a3f52); }
+
+#overlay-list { list-style: none; margin: 0; padding: 4px; display: flex; flex-direction: column; gap: 6px; width: max-content; max-width: 240px; }
+
+.ov-user { display: flex; align-items: center; gap: 8px; min-width: 0; animation: ov-in .16s ease-out; }
+@keyframes ov-in { from { opacity: 0; transform: translateX(-6px); } }
+
+.ov-avatar {
+  position: relative; width: 32px; height: 32px; flex-shrink: 0; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center; overflow: hidden;
+  color: #fff; font-size: 12px; font-weight: 700;
+  box-shadow: 0 0 0 2px rgba(17, 18, 20, .55), 0 2px 6px rgba(0, 0, 0, .4);
+  transition: box-shadow .12s;
+}
+.ov-avatar img { display: block; width: 100%; height: 100%; object-fit: cover; }
+.ov-user.speaking .ov-avatar { box-shadow: 0 0 0 2px rgba(17, 18, 20, .9), 0 0 0 4px var(--ov-green), 0 0 12px rgba(35, 165, 90, .55); }
+
+.ov-label {
+  display: flex; align-items: center; gap: 4px; min-width: 0; height: 24px; padding: 0 8px;
+  border-radius: 6px; background: var(--ov-label);
+  font-size: 13px; font-weight: 600; line-height: 1; text-shadow: 0 1px 1px rgba(0, 0, 0, .6);
+  transition: background .12s, color .12s;
+}
+.ov-user.speaking .ov-label { background: var(--ov-label-speaking); color: var(--ov-text-strong); }
+.ov-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ov-flags { display: flex; gap: 2px; color: var(--ov-muted); margin-left: 2px; }
+.ov-flags .ico { width: 14px; height: 14px; }
+.ov-flags .server { color: var(--ov-red); }
+.ov-user.silent .ov-avatar { filter: saturate(.75) brightness(.9); }
+
+.ov-more { padding: 2px 8px; align-self: flex-start; border-radius: 6px; background: var(--ov-label); font-size: 12px; font-weight: 600; color: var(--ov-muted); }
+
+@media (prefers-reduced-motion: reduce) { .ov-user { animation: none; } }

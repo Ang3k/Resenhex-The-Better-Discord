@@ -47,5 +47,12 @@ if (location.protocol === 'file:') {
     onKeybind: (listener) => { keybindListener = typeof listener === 'function' ? listener : null; },
     setTheme: (colors) => ipcRenderer.send('desktop:set-theme', { background: String(colors?.background || ''), foreground: String(colors?.foreground || '') }),
     focus: () => ipcRenderer.send('desktop:focus'),
+    // Overlay de voz em jogos. state: { channel, users: [...] } ou null fora da chamada.
+    overlay: {
+      available: () => ipcRenderer.invoke('desktop:overlay:available'),
+      configure: (config) => ipcRenderer.send('desktop:overlay:config', { enabled: !!config?.enabled, corner: String(config?.corner || '') }),
+      setState: (state) => ipcRenderer.send('desktop:overlay:state', state ?? null),
+      preview: (corner, state) => ipcRenderer.send('desktop:overlay:preview', { corner: String(corner || ''), state }),
+    },
   });
 }

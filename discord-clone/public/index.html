@@ -539,6 +539,9 @@
 <button id="tab-stream" data-section="stream" data-keywords="tela qualidade upload fps" role="tab" aria-controls="page-stream">
 <span data-icon="screen">
 </span>Transmissão</button>
+<button id="tab-overlay" data-section="overlay" data-keywords="jogo game overlay tela cheia quem fala" role="tab" aria-controls="page-overlay">
+<span data-icon="gamepad">
+</span>Overlay em jogos</button>
 <button id="tab-appearance" data-section="appearance" data-keywords="tema fonte compacto contraste" role="tab" aria-controls="page-appearance">
 <span data-icon="eye">
 </span>Aparência</button>
@@ -845,6 +848,36 @@
 </span>
 <input id="stream-stats" type="checkbox">
 </label>
+</div>
+</section>
+<section id="page-overlay" data-settings-page="overlay" role="tabpanel" aria-labelledby="tab-overlay">
+<div class="eyebrow">SEM SAIR DO JOGO</div>
+<h1>Overlay em jogos</h1>
+<p class="section-description">Veja quem está na chamada e quem está falando por cima do jogo.</p>
+<div class="setting-group">
+<label class="setting-switch">
+<span>Mostrar o overlay nos jogos<small>Aparece sozinho quando você está numa chamada e abre um jogo conhecido.</small>
+</span>
+<input id="overlay-toggle" type="checkbox">
+</label>
+<p id="overlay-unavailable" class="hint hidden">O overlay não está disponível neste computador.</p>
+</div>
+<div class="setting-group">
+<h3>Posição</h3>
+<input id="overlay-corner" type="hidden">
+<div class="overlay-corners" role="radiogroup" aria-label="Canto da tela">
+<button type="button" role="radio" data-corner="top-left" aria-label="Canto superior esquerdo"><i></i></button>
+<button type="button" role="radio" data-corner="top-right" aria-label="Canto superior direito"><i></i></button>
+<button type="button" role="radio" data-corner="bottom-left" aria-label="Canto inferior esquerdo"><i></i></button>
+<button type="button" role="radio" data-corner="bottom-right" aria-label="Canto inferior direito"><i></i></button>
+</div>
+<button type="button" id="overlay-test" class="secondary">Testar overlay</button>
+<span class="hint">Mostra o overlay por alguns segundos nesta tela, no canto escolhido.</span>
+</div>
+<div class="setting-group">
+<h3>Bom saber</h3>
+<p class="hint">Reconhece mais de 10 mil jogos, os mesmos que o Discord reconhece. Funciona com o jogo em janela ou em tela cheia sem borda; em tela cheia exclusiva o jogo fica por cima de tudo e o overlay não aparece.</p>
+<p class="hint">Em alguns computadores, uma janela por cima do jogo desliga o G-Sync/FreeSync enquanto ela estiver visível.</p>
 </div>
 </section>
 <section id="page-appearance" data-settings-page="appearance" role="tabpanel" aria-labelledby="tab-appearance">
