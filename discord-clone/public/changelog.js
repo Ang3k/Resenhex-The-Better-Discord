@@ -13,6 +13,7 @@ window.CHANGELOG = [
         'Reconhece qualquer jogo instalado pela Steam, Epic Games, Xbox/Game Pass, Riot, EA, Ubisoft, GOG e Amazon, inclusive os que acabaram de sair, além de mais de 10 mil jogos conhecidos. Launchers e ferramentas ficam de fora.',
         'Nova aba Overlay em jogos nas Configurações: ligue o overlay e arraste a lista para onde ela deve ficar na tela. Ela encaixa nos cantos, nas bordas e no centro, e o botão Testar mostra como fica.',
         'O overlay vem desligado e, quando ligado, começa no meio da tela, à esquerda. O clique passa direto para o jogo.',
+        'Personalize o overlay na mesma aba: escolha quem aparece (todos, sem os mutados ou só quem está falando), esconda os nomes para ficar só com as fotos, deixe as fotos em GIF paradas e ajuste a opacidade. Quem está falando aparece sempre por inteiro.',
       ] },
       { kind: 'improved', items: [
         'O ícone do app na barra de tarefas do Windows ficou nítido em todos os tamanhos.',
