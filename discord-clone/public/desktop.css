@@ -70,6 +70,17 @@ a.download-app { text-decoration: none; }
 :root[data-reduce-motion=true] :is(.share-source, .share-close) { transition: none; }
 .share-picker .confirm-actions .btn-primary:disabled { opacity: .45; box-shadow: none; cursor: not-allowed; }
 
+/* ---------- Overlay em jogos: aparência e posição lado a lado (em tela estreita, uma embaixo da outra) ---------- */
+#page-overlay { container-type: inline-size; }
+.overlay-split { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 18px; align-items: start; }
+@container (max-width: 640px) { .overlay-split { grid-template-columns: minmax(0, 1fr); } }
+.overlay-split .setting-group { padding: 20px; gap: 16px; }
+.overlay-split .overlay-look-row { flex-wrap: wrap; gap: 10px 16px; }
+.overlay-split .overlay-opacity { flex: 1 1 200px; }
+.overlay-split .overlay-segmented { flex: 1 1 auto; }
+#settings .settings-content .overlay-split .overlay-segmented button { padding: 0 8px; font-size: 12.5px; }
+.overlay-split .overlay-position-head { flex-wrap: wrap; gap: 10px; }
+
 /* ---------- Overlay em jogos: aparência ---------- */
 .overlay-look-group #overlay-outdated { margin: -8px 0 0; }
 .overlay-look-row { display: flex; align-items: center; justify-content: space-between; gap: 22px; }
