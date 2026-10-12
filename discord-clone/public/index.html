@@ -862,6 +862,36 @@
 </label>
 <p id="overlay-unavailable" class="hint hidden">O overlay não está disponível neste computador.</p>
 </div>
+<div id="overlay-look" class="setting-group overlay-look-group" role="group" aria-labelledby="overlay-look-title">
+<h3 id="overlay-look-title">Aparência</h3>
+<p id="overlay-outdated" class="hint hidden">Atualize o app do Resenhex para usar estas opções.</p>
+<div class="overlay-look-row">
+<span class="overlay-look-text"><span id="overlay-show-title">Quem aparece</span><small id="overlay-show-hint">Todo mundo que está na chamada.</small></span>
+<input id="overlay-show" type="hidden">
+<div class="overlay-segmented" role="radiogroup" aria-labelledby="overlay-show-title" aria-describedby="overlay-show-hint">
+<button type="button" role="radio" data-overlay-show="all">Todos</button>
+<button type="button" role="radio" data-overlay-show="unmuted">Sem mutados</button>
+<button type="button" role="radio" data-overlay-show="speaking">Só quem fala</button>
+</div>
+</div>
+<label class="setting-switch">
+<span>Mostrar os nomes<small>Sem eles, ficam só as fotos, e mutado ou ensurdecido vira um selo na foto.</small>
+</span>
+<input id="overlay-names" type="checkbox">
+</label>
+<label class="setting-switch">
+<span>Fotos de perfil animadas<small>Desligado, quem tem GIF na foto aparece com ela parada.</small>
+</span>
+<input id="overlay-animated" type="checkbox">
+</label>
+<div class="overlay-look-row">
+<label class="overlay-look-text" for="overlay-opacity"><span>Opacidade</span><small>Quem está falando aparece sempre por inteiro.</small></label>
+<div class="overlay-opacity">
+<input id="overlay-opacity" type="range" min="20" max="100" step="5">
+<output data-output="overlay-opacity" data-suffix="%" for="overlay-opacity"></output>
+</div>
+</div>
+</div>
 <div class="setting-group overlay-position-group">
 <div class="overlay-position-head">
 <div>

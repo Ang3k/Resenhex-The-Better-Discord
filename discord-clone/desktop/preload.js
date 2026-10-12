@@ -50,6 +50,7 @@ if (location.protocol === 'file:') {
     // Overlay de voz em jogos. state: { channel, users: [...] } ou null fora da chamada.
     overlay: {
       available: () => ipcRenderer.invoke('desktop:overlay:available'),
+      customizable: true, // repassa a aparência (opacidade, nomes, quem aparece, fotos animadas); desde o app 1.1.4
       // Posição em frações da tela (x, y de 0 a 1): 0 = esquerda/topo, 1 = direita/embaixo.
       configure: (config) => ipcRenderer.send('desktop:overlay:config', { enabled: !!config?.enabled, x: Number(config?.x), y: Number(config?.y) }),
       setState: (state) => ipcRenderer.send('desktop:overlay:state', state ?? null),

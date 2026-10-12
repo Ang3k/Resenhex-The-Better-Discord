@@ -24,9 +24,12 @@ html.demo body { min-height: 100vh; padding: 24px; background: linear-gradient(1
 
 #overlay-list { list-style: none; margin: 0; padding: 4px; display: flex; flex-direction: column; gap: 6px; width: max-content; max-width: 240px; }
 
-.ov-user { display: flex; align-items: center; gap: 8px; min-width: 0; animation: ov-in .16s ease-out; }
+/* Opacidade escolhida nas configurações; quem fala aparece sempre por inteiro. */
+.ov-user { display: flex; align-items: center; gap: 8px; min-width: 0; opacity: var(--ov-opacity, 1); transition: opacity .2s; animation: ov-in .16s ease-out; }
+.ov-user.speaking { opacity: 1; transition-duration: .08s; }
 @keyframes ov-in { from { opacity: 0; transform: translateX(-6px); } }
 
+.ov-face { position: relative; flex-shrink: 0; display: flex; }
 .ov-avatar {
   position: relative; width: 32px; height: 32px; flex-shrink: 0; border-radius: 50%;
   display: flex; align-items: center; justify-content: center; overflow: hidden;
@@ -50,6 +53,19 @@ html.demo body { min-height: 100vh; padding: 24px; background: linear-gradient(1
 .ov-flags .server { color: var(--ov-red); }
 .ov-user.silent .ov-avatar { filter: saturate(.75) brightness(.9); }
 
+/* Sem os nomes: só as fotos, e mutado/ensurdecido vira um selo no canto da foto. */
+.ov-badge {
+  position: absolute; right: -4px; bottom: -4px; width: 18px; height: 18px; border-radius: 50%;
+  display: none; align-items: center; justify-content: center;
+  background: rgba(17, 18, 20, .92); color: var(--ov-muted); box-shadow: 0 0 0 2px rgba(17, 18, 20, .55);
+}
+.ov-badge .ico { width: 12px; height: 12px; }
+.ov-badge .server { color: var(--ov-red); }
+#overlay-list.names-off { padding: 6px; gap: 8px; }
+#overlay-list.names-off .ov-label { display: none; }
+#overlay-list.names-off .ov-badge.on { display: flex; }
+#overlay-list.names-off .ov-more { align-self: center; padding: 2px 6px; }
+
 .ov-more { padding: 2px 8px; align-self: flex-start; border-radius: 6px; background: var(--ov-label); font-size: 12px; font-weight: 600; color: var(--ov-muted); }
 
-@media (prefers-reduced-motion: reduce) { .ov-user { animation: none; } }
+@media (prefers-reduced-motion: reduce) { .ov-user { animation: none; transition: none; } }

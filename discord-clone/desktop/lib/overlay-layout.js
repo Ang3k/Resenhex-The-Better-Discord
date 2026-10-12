@@ -37,6 +37,18 @@ function overlayBounds(area, position, size) {
 const text = (value, max) => typeof value === 'string' ? value.slice(0, max) : '';
 const unit = (value, min, max) => Number.isFinite(value) ? Math.min(max, Math.max(min, value)) : null;
 
+// Aparência escolhida nas configurações: opacidade (0,2 a 1), nomes, quem aparece e fotos animadas.
+const SHOW = ['all', 'unmuted', 'speaking'];
+function overlayStyle(value) {
+  const opacity = unit(value?.opacity, 0.2, 1);
+  return {
+    opacity: opacity === null ? 1 : Math.round(opacity * 100) / 100,
+    names: value?.names !== false,
+    show: SHOW.includes(value?.show) ? value.show : 'all',
+    animated: value?.animated !== false,
+  };
+}
+
 // O resumo da chamada vem do site; aqui só passa o que o overlay sabe desenhar.
 // Imagens só do próprio site (caminho que começa com uma barra), nunca de outro endereço.
 function overlayState(value) {
@@ -55,7 +67,7 @@ function overlayState(value) {
       serverMuted: user.serverMuted === true, serverDeafened: user.serverDeafened === true,
     }];
   });
-  return { channel: text(value.channel, 100), users, more: Math.max(0, value.users.length - users.length) };
+  return { channel: text(value.channel, 100), users, more: Math.max(0, value.users.length - users.length), style: overlayStyle(value.style) };
 }
 
-module.exports = { WIDTH, MAX_HEIGHT, overlayConfig, overlayPosition, overlayBounds, overlayState };
+module.exports = { WIDTH, MAX_HEIGHT, overlayConfig, overlayPosition, overlayBounds, overlayState, overlayStyle };

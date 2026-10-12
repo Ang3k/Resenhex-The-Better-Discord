@@ -1,7 +1,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const { createGameMatcher } = require('../lib/game-detect');
-const { overlayConfig, overlayPosition, overlayBounds, overlayState } = require('../lib/overlay-layout');
+const { overlayConfig, overlayPosition, overlayBounds, overlayState, overlayStyle } = require('../lib/overlay-layout');
 
 const GAMES = [
   ['VALORANT', ['win64/valorant-win64-shipping.exe']],
@@ -113,6 +113,16 @@ test('o resumo da chamada só passa o que o overlay desenha', () => {
   assert.equal(state.users[2].avatarCrop, null);
   assert.equal(overlayState(null), null);
   assert.equal(overlayState({ users: 'x' }), null);
+});
+
+test('a aparência do overlay passa validada, com o padrão quando falta', () => {
+  const standard = { opacity: 1, names: true, show: 'all', animated: true };
+  assert.deepEqual(overlayState({ users: [] }).style, standard, 'site antigo, sem aparência');
+  assert.deepEqual(overlayStyle({ opacity: 0.456, names: false, show: 'speaking', animated: false }), { opacity: 0.46, names: false, show: 'speaking', animated: false });
+  assert.deepEqual(overlayStyle({ opacity: 0, show: 'ninguém', names: 0 }), { ...standard, opacity: 0.2 }, 'nunca some de vez; só false desliga');
+  assert.equal(overlayStyle({ opacity: 7 }).opacity, 1);
+  assert.equal(overlayStyle({ opacity: 'x' }).opacity, 1);
+  assert.equal(overlayState({ users: [], style: { show: 'unmuted' } }).style.show, 'unmuted');
 });
 
 test('chamada grande mostra 25 e conta o resto', () => {

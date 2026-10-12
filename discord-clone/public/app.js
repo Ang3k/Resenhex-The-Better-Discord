@@ -24,6 +24,18 @@
     const corner = { 'top-left': [0, 0], 'top-right': [1, 0], 'bottom-left': [0, 1], 'bottom-right': [1, 1] }[saved.corner] || [0, 0.5];
     return { overlayX: corner[0], overlayY: corner[1] };
   }
+  // Aparência do overlay: opacidade em % (20 a 100), nomes, quem aparece (todos, sem mutados, só quem fala) e fotos animadas.
+  function overlayLook(saved) {
+    const opacity = Number(saved.opacity);
+    return {
+      overlayOpacity: Number.isFinite(opacity) ? Math.min(100, Math.max(20, Math.round(opacity * 100))) : 100,
+      overlayNames: saved.names !== false,
+      overlayShow: ['all', 'unmuted', 'speaking'].includes(saved.show) ? saved.show : 'all',
+      overlayAnimated: saved.animated !== false,
+    };
+  }
+  // O que vai para o overlay (a mesma forma que desktop/lib/overlay-layout.js valida).
+  const overlayStyle = (values) => ({ opacity: values.overlayOpacity / 100, names: values.overlayNames, show: values.overlayShow, animated: values.overlayAnimated });
   function savedJson(key, fallback) {
     try { const value = JSON.parse(localStorage.getItem(key)); return value ?? fallback; } catch { return fallback; }
   }
@@ -87,6 +99,7 @@
     // Overlay de voz em jogos (só no app de desktop): desligado por padrão, no meio da tela à esquerda.
     overlayEnabled: savedJson('overlay', {}).enabled === true,
     ...overlayPosition(savedJson('overlay', {})),
+    ...overlayLook(savedJson('overlay', {})),
     editing: null, // id da mensagem sendo editada
     replyTo: null, // mensagem sendo respondida
     pending: [], // anexos do rascunho
@@ -4554,7 +4567,7 @@
         serverMuted: !!m.serverMuted || timedOut(m), serverDeafened: !!m.serverDeafened,
       }];
     });
-    return users.length ? { users } : null;
+    return users.length ? { users, style: overlayStyle(state) } : null;
   }
   function syncOverlay() {
     if (!desktopOverlay) return;
@@ -5731,6 +5744,7 @@
     'sounds-toggle': 'sounds', 'notify-toggle': 'notify', 'sb-toggle': 'soundboard', 'sb-volume': 'sbVolume',
     'output-volume': 'outputVolume', 'theme-select': 'theme', 'density-select': 'density',
     'font-size': 'fontSize', 'reduce-motion': 'reduceMotion', 'overlay-toggle': 'overlayEnabled', 'overlay-x': 'overlayX', 'overlay-y': 'overlayY',
+    'overlay-show': 'overlayShow', 'overlay-names': 'overlayNames', 'overlay-animated': 'overlayAnimated', 'overlay-opacity': 'overlayOpacity',
   };
   for (const [id, key] of Object.entries(settingFields)) {
     const field = document.getElementById(id);
@@ -5746,18 +5760,50 @@
       $('#overlay-toggle').disabled = true;
       $('#overlay-unavailable').classList.remove('hidden');
     }).catch(() => {});
-    // Teste com a chamada de verdade; fora dela, comigo falando e dois exemplos.
+    // O app anterior ao 1.1.4 não repassa a aparência ao overlay: as opções ficam travadas, com o aviso.
+    if (!desktopOverlay.customizable) {
+      $('#overlay-outdated').classList.remove('hidden');
+      $('#overlay-look').querySelectorAll('input, button').forEach((field) => { field.disabled = true; });
+    }
+    // Teste com a chamada de verdade; fora dela, comigo falando e três exemplos. Sempre com a aparência do rascunho.
     const draftPosition = () => ({ x: Number($('#overlay-x').value), y: Number($('#overlay-y').value) });
+    const draftStyle = () => overlayStyle({ overlayOpacity: Number($('#overlay-opacity').value), overlayNames: $('#overlay-names').checked,
+      overlayShow: $('#overlay-show').value, overlayAnimated: $('#overlay-animated').checked });
     const testOverlay = () => {
       const me = meMember();
       const sample = overlaySnapshot() || { users: [
         { id: 'me', name: me.name, color: me.color || '#5865f2', avatarUrl: me.avatarUrl || '', avatarCrop: me.avatarCrop || null, speaking: true },
-        { id: 'a', name: 'Amigo mutado', color: '#3ba55c', muted: true },
-        { id: 'b', name: 'Amigo ensurdecido', color: '#eb459e', muted: true, deafened: true },
+        { id: 'a', name: 'Amigo', color: '#faa61a' },
+        { id: 'b', name: 'Amigo mutado', color: '#3ba55c', muted: true },
+        { id: 'c', name: 'Amigo ensurdecido', color: '#eb459e', muted: true, deafened: true },
       ] };
-      desktopOverlay.preview(draftPosition(), sample);
+      desktopOverlay.preview(draftPosition(), { ...sample, style: draftStyle() });
     };
     $('#overlay-test').onclick = testOverlay;
+    // As opções da aparência mostram o overlay de verdade um instante, como ao soltar a lista na posição nova.
+    let lookTest = 0;
+    const testSoon = () => { clearTimeout(lookTest); lookTest = setTimeout(testOverlay, 400); };
+    for (const id of ['overlay-names', 'overlay-animated']) $('#' + id).addEventListener('change', testSoon);
+    $('#overlay-opacity').addEventListener('change', testSoon);
+
+    // Quem aparece: três botões que valem por um campo (setas trocam a opção, como em botões de rádio).
+    const showButtons = [...document.querySelectorAll('[data-overlay-show]')];
+    const setShow = (value) => {
+      $('#overlay-show').value = value;
+      $('#overlay-show').dispatchEvent(new Event('input', { bubbles: true }));
+      testSoon();
+    };
+    for (const button of showButtons) {
+      button.onclick = () => setShow(button.dataset.overlayShow);
+      button.onkeydown = (event) => {
+        const step = { ArrowRight: 1, ArrowDown: 1, ArrowLeft: -1, ArrowUp: -1 }[event.key];
+        if (!step) return;
+        event.preventDefault();
+        const next = showButtons[(showButtons.indexOf(button) + step + showButtons.length) % showButtons.length];
+        next.focus();
+        setShow(next.dataset.overlayShow);
+      };
+    }
 
     // Posição: a listinha é arrastada numa miniatura da tela e encaixa nos cantos, nos meios das bordas e no centro.
     const stage = $('#overlay-stage'), puck = $('#overlay-puck');
@@ -5771,25 +5817,37 @@
     const free = () => ({ w: Math.max(1, stage.clientWidth - 2 * STAGE_MARGIN - puck.offsetWidth), h: Math.max(1, stage.clientHeight - 2 * STAGE_MARGIN - puck.offsetHeight) });
     const clamp01 = (value) => Math.min(1, Math.max(0, value));
     const snap = (value) => [0, 0.5, 1].find((point) => Math.abs(value - point) < SNAP) ?? Math.round(value * 100) / 100;
-    // A lista em miniatura imita o overlay de verdade: eu falando, um amigo mutado e uma amiga ensurdecida.
-    let puckKey = null;
-    function fillPuck() {
+    // A lista em miniatura imita o overlay de verdade, com a aparência do rascunho: eu falando, um amigo calado,
+    // um mutado e uma ensurdecida.
+    let puckKey = null, puckStyle = overlayStyle(state);
+    function fillPuck(style) {
       const me = state.me ? meMember() : null; // antes do login ainda não existe membro
-      const key = me ? [me.name, me.color, me.avatarUrl, JSON.stringify(me.avatarCrop)].join('|') : '';
+      const key = (me ? [me.name, me.color, me.avatarUrl, JSON.stringify(me.avatarCrop)].join('|') : '') + JSON.stringify([style.show, style.animated]);
+      puck.classList.toggle('names-off', !style.names);
+      puck.style.setProperty('--mini-opacity', String(style.opacity));
       if (key === puckKey) return;
       puckKey = key;
       const row = (name, color, speaking, icons, self) => {
-        const face = el('span', { class: 'mini-avatar', style: { background: color } });
-        setAvatarContents(face, self ? me?.avatarUrl : '', name, self ? me?.avatarCrop : null);
-        return el('span', { class: 'mini-row' + (speaking ? ' speaking' : '') }, face, el('span', { class: 'mini-label' }, name, ...icons.map((icon) => Icon(icon, 10))));
+        const avatar = el('span', { class: 'mini-avatar', style: { background: color } });
+        setAvatarContents(avatar, self ? me?.avatarUrl : '', name, self ? me?.avatarCrop : null);
+        if (!style.animated) avatar.querySelectorAll('img').forEach(freezeImage);
+        const badge = el('span', { class: 'mini-badge' }, ...icons.slice(-1).map((icon) => Icon(icon, 8)));
+        return el('span', { class: 'mini-row' + (speaking ? ' speaking' : '') }, el('span', { class: 'mini-face' }, avatar, ...(icons.length ? [badge] : [])),
+          el('span', { class: 'mini-label' }, name, ...icons.map((icon) => Icon(icon, 10))));
       };
-      puck.replaceChildren(
-        row(me?.name || 'Você', me?.color || '#5865f2', true, [], true),
-        row('Amigo', '#3ba55c', false, ['micOff']),
-        row('Amiga', '#eb459e', false, ['micOff', 'headphonesOff']));
+      const rows = [
+        [row(me?.name || 'Você', me?.color || '#5865f2', true, [], true), 'speaking'],
+        [row('Amigo', '#faa61a', false, []), 'unmuted'],
+        [row('Mutado', '#3ba55c', false, ['micOff']), 'all'],
+        [row('Ensurdecida', '#eb459e', false, ['micOff', 'headphonesOff']), 'all'],
+      ];
+      // Cada exemplo aparece a partir do filtro mais aberto que o mostra.
+      const level = { all: 0, unmuted: 1, speaking: 2 };
+      puck.replaceChildren(...rows.filter(([, upTo]) => level[style.show] <= level[upTo]).map(([node]) => node));
     }
-    placeOverlayPuck = (x, y) => {
-      fillPuck();
+    placeOverlayPuck = (x, y, style = puckStyle) => {
+      puckStyle = style;
+      fillPuck(style);
       const room = free();
       puck.style.left = STAGE_MARGIN + x * room.w + 'px';
       puck.style.top = STAGE_MARGIN + y * room.h + 'px';
@@ -5886,10 +5944,35 @@
       $('#page-profile').style.setProperty('--pc-color', color);
     }
     for (const draft of profileImages) draft.preview(values);
-    if (values.overlayX !== undefined) placeOverlayPuck(values.overlayX, values.overlayY);
+    if (values.overlayX !== undefined) placeOverlayPuck(values.overlayX, values.overlayY, overlayStyle(values));
+    if (values.overlayShow !== undefined) {
+      document.querySelectorAll('[data-overlay-show]').forEach((button, index) => {
+        const on = button.dataset.overlayShow === values.overlayShow;
+        button.setAttribute('aria-checked', String(on));
+        button.tabIndex = on ? 0 : -1;
+        if (on) button.parentElement.style.setProperty('--seg-index', String(index));
+      });
+      const hints = { all: 'Todo mundo que está na chamada.', unmuted: 'Esconde quem está mutado ou ensurdecido.', speaking: 'Só quem está falando, e some logo depois que para.' };
+      const hint = $('#overlay-show-hint');
+      if (hint) hint.textContent = hints[values.overlayShow] || hints.all;
+    }
     if (values.overlayEnabled !== undefined) $('#overlay-stage')?.classList.toggle('is-off', !values.overlayEnabled);
   }
   previewAppearance(state);
+
+  // Foto parada: troca a imagem pelo primeiro quadro (as fotos são do próprio site, então o canvas pode ler).
+  function freezeImage(image) {
+    const still = () => {
+      if (image.dataset.still || !image.naturalWidth) return;
+      try {
+        const canvas = el('canvas', { width: image.naturalWidth, height: image.naturalHeight });
+        canvas.getContext('2d').drawImage(image, 0, 0);
+        image.dataset.still = '1';
+        image.src = canvas.toDataURL('image/png');
+      } catch { /* fica como veio */ }
+    };
+    if (image.complete) still(); else image.addEventListener('load', still, { once: true });
+  }
 
   async function fillDevices() {
     const devices = await navigator.mediaDevices?.enumerateDevices().catch(() => []) || [];
@@ -5973,9 +6056,10 @@
     localStorage.setItem('keybinds', JSON.stringify(state.keybinds));
     syncDesktopKeybinds();
     if (desktopOverlay) {
-      state.overlayEnabled = values.overlayEnabled; state.overlayX = values.overlayX; state.overlayY = values.overlayY;
-      localStorage.setItem('overlay', JSON.stringify({ enabled: state.overlayEnabled, x: state.overlayX, y: state.overlayY }));
+      for (const key of ['overlayEnabled', 'overlayX', 'overlayY', 'overlayShow', 'overlayNames', 'overlayAnimated', 'overlayOpacity']) state[key] = values[key];
+      localStorage.setItem('overlay', JSON.stringify({ enabled: state.overlayEnabled, x: state.overlayX, y: state.overlayY, ...overlayStyle(state) }));
       syncOverlayConfig();
+      syncOverlay(); // a aparência vai junto com a chamada
     }
     state.sbMuted = !values.soundboard; state.sbVolume = values.sbVolume / 100;
     localStorage.setItem('sbMuted', state.sbMuted); localStorage.setItem('sbVolume', state.sbVolume);
