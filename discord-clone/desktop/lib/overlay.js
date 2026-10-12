@@ -4,7 +4,7 @@
 // O site manda o resumo da chamada; aqui só se decide quando e onde mostrar.
 const fs = require('node:fs');
 const { createGameMatcher } = require('./game-detect');
-const { WIDTH, MAX_HEIGHT, overlayConfig, overlayBounds, overlayState } = require('./overlay-layout');
+const { WIDTH, MAX_HEIGHT, overlayConfig, overlayPosition, overlayBounds, overlayState } = require('./overlay-layout');
 
 const POLL_MS = 1500;
 const PREVIEW_MS = 6000;
@@ -13,7 +13,7 @@ const LIST_MAX_AGE = 24 * 60 * 60 * 1000;
 function createOverlay({ BrowserWindow, screen, origin, preload, cacheFile, fetch, log }) {
   let config = overlayConfig(null);
   let call = null; // resumo da chamada, ou null fora dela
-  let preview = null; // { area, corner, timer } enquanto o teste das configurações está na tela
+  let preview = null; // { area, position, state, timer } enquanto o teste das configurações está na tela
   let size = { width: WIDTH, height: 60 };
   let win = null;
   let ready = false;
@@ -80,13 +80,13 @@ function createOverlay({ BrowserWindow, screen, origin, preload, cacheFile, fetc
     win.webContents.send('overlay:state', preview ? preview.state : call);
   }
 
-  // Mostra no canto da área (jogo ou, no teste, a tela do app) ou esconde.
+  // Mostra na posição escolhida da área (jogo ou, no teste, a tela do app) ou esconde.
   function place() {
     const area = preview?.area || gameArea;
     const users = (preview ? preview.state : call)?.users.length;
     if (!area || !users) { if (win && !win.isDestroyed() && win.isVisible()) win.hide(); return; }
     const overlay = ensureWindow();
-    overlay.setBounds(overlayBounds(area, preview?.corner || config.corner, size));
+    overlay.setBounds(overlayBounds(area, preview?.position || config, size));
     if (!overlay.isVisible()) {
       overlay.showInactive();
       overlay.setAlwaysOnTop(true, 'screen-saver'); // reafirma o topo: alguns jogos sobem a própria janela
@@ -135,12 +135,12 @@ function createOverlay({ BrowserWindow, screen, origin, preload, cacheFile, fetc
       size = { width: Math.min(width, WIDTH), height: Math.min(height, MAX_HEIGHT) };
       if (win && !win.isDestroyed() && win.isVisible()) place();
     },
-    // Teste das configurações: mostra por alguns segundos no canto escolhido da tela do app (fora da barra de tarefas).
-    preview({ corner, state, display }) {
+    // Teste das configurações: mostra por alguns segundos na posição escolhida da tela do app (fora da barra de tarefas).
+    preview({ position, state, display }) {
       const shown = overlayState(state);
       if (!shown?.users.length) return;
       clearTimeout(preview?.timer);
-      preview = { area: display.workArea, corner: overlayConfig({ corner }).corner, state: shown, timer: setTimeout(() => { preview = null; send(); place(); }, PREVIEW_MS) };
+      preview = { area: display.workArea, position: overlayPosition(position), state: shown, timer: setTimeout(() => { preview = null; send(); place(); }, PREVIEW_MS) };
       ensureWindow();
       send();
       place();

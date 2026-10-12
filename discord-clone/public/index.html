@@ -864,15 +864,19 @@
 </div>
 <div class="setting-group">
 <h3>Posição</h3>
-<input id="overlay-corner" type="hidden">
-<div class="overlay-corners" role="radiogroup" aria-label="Canto da tela">
-<button type="button" role="radio" data-corner="top-left" aria-label="Canto superior esquerdo"><i></i></button>
-<button type="button" role="radio" data-corner="top-right" aria-label="Canto superior direito"><i></i></button>
-<button type="button" role="radio" data-corner="bottom-left" aria-label="Canto inferior esquerdo"><i></i></button>
-<button type="button" role="radio" data-corner="bottom-right" aria-label="Canto inferior direito"><i></i></button>
+<p class="hint">Arraste a lista para onde ela deve ficar no jogo. Perto dos cantos, das bordas e do centro ela encaixa sozinha.</p>
+<input id="overlay-x" type="hidden">
+<input id="overlay-y" type="hidden">
+<div id="overlay-stage" class="overlay-stage">
+<i class="overlay-guide vertical" aria-hidden="true"></i>
+<i class="overlay-guide horizontal" aria-hidden="true"></i>
+<div id="overlay-puck" class="overlay-puck" role="slider" tabindex="0" aria-label="Posição do overlay na tela" aria-describedby="overlay-position-label"><i></i><i></i><i></i></div>
 </div>
+<div class="overlay-position-bar">
+<span id="overlay-position-label" class="overlay-position-label">Meio da tela, à esquerda</span>
+<button type="button" id="overlay-reset" class="secondary">Voltar ao padrão</button>
 <button type="button" id="overlay-test" class="secondary">Testar overlay</button>
-<span class="hint">Mostra o overlay por alguns segundos nesta tela, no canto escolhido.</span>
+</div>
 </div>
 <div class="setting-group">
 <h3>Bom saber</h3>

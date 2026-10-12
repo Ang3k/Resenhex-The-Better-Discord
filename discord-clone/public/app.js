@@ -17,6 +17,13 @@
     off: 'Desligada',
   };
 
+  // Posição do overlay em frações da tela (0 = esquerda/topo, 1 = direita/embaixo). Antes era um dos quatro cantos.
+  function overlayPosition(saved) {
+    const unit = (value) => typeof value === 'number' && Number.isFinite(value) ? Math.min(1, Math.max(0, value)) : null;
+    if (unit(saved.x) !== null && unit(saved.y) !== null) return { overlayX: unit(saved.x), overlayY: unit(saved.y) };
+    const corner = { 'top-left': [0, 0], 'top-right': [1, 0], 'bottom-left': [0, 1], 'bottom-right': [1, 1] }[saved.corner] || [0, 0.5];
+    return { overlayX: corner[0], overlayY: corner[1] };
+  }
   function savedJson(key, fallback) {
     try { const value = JSON.parse(localStorage.getItem(key)); return value ?? fallback; } catch { return fallback; }
   }
@@ -77,9 +84,9 @@
     localVolume: savedJson('localVolume', {}), // accountId -> 0..1
     localMuted: new Set(savedJson('localMuted', [])),
     speaking: new Set(), // sids
-    // Overlay de voz em jogos (só no app de desktop): desligado por padrão, canto superior esquerdo.
+    // Overlay de voz em jogos (só no app de desktop): desligado por padrão, no meio da tela à esquerda.
     overlayEnabled: savedJson('overlay', {}).enabled === true,
-    overlayCorner: ['top-left', 'top-right', 'bottom-left', 'bottom-right'].includes(savedJson('overlay', {}).corner) ? savedJson('overlay', {}).corner : 'top-left',
+    ...overlayPosition(savedJson('overlay', {})),
     editing: null, // id da mensagem sendo editada
     replyTo: null, // mensagem sendo respondida
     pending: [], // anexos do rascunho
@@ -4557,7 +4564,7 @@
     overlaySent = key;
     desktopOverlay.setState(snapshot);
   }
-  const syncOverlayConfig = () => desktopOverlay?.configure({ enabled: state.overlayEnabled, corner: state.overlayCorner });
+  const syncOverlayConfig = () => desktopOverlay?.configure({ enabled: state.overlayEnabled, x: state.overlayX, y: state.overlayY });
   syncOverlayConfig();
 
   // ---------------- voz (WebRTC) ----------------
@@ -5723,14 +5730,15 @@
     'share-preset': 'sharePreset', 'share-audio': 'shareAudio', 'stream-stats': 'showStreamStats', 'camera-preview-toggle': 'cameraPreview',
     'sounds-toggle': 'sounds', 'notify-toggle': 'notify', 'sb-toggle': 'soundboard', 'sb-volume': 'sbVolume',
     'output-volume': 'outputVolume', 'theme-select': 'theme', 'density-select': 'density',
-    'font-size': 'fontSize', 'reduce-motion': 'reduceMotion', 'overlay-toggle': 'overlayEnabled', 'overlay-corner': 'overlayCorner',
+    'font-size': 'fontSize', 'reduce-motion': 'reduceMotion', 'overlay-toggle': 'overlayEnabled', 'overlay-x': 'overlayX', 'overlay-y': 'overlayY',
   };
   for (const [id, key] of Object.entries(settingFields)) {
     const field = document.getElementById(id);
     field.dataset.setting = key;
-    if (field.type === 'range' || key === 'uploadMbps') field.dataset.number = '';
+    if (field.type === 'range' || ['uploadMbps', 'overlayX', 'overlayY'].includes(key)) field.dataset.number = '';
   }
   // A seção do overlay só existe no app de desktop (versões com o overlay).
+  let placeOverlayPuck = () => {};
   if (!desktopOverlay) { $('#tab-overlay').remove(); $('#page-overlay').remove(); }
   else {
     desktopOverlay.available().then((ok) => {
@@ -5738,22 +5746,89 @@
       $('#overlay-toggle').disabled = true;
       $('#overlay-unavailable').classList.remove('hidden');
     }).catch(() => {});
-    for (const button of document.querySelectorAll('.overlay-corners [data-corner]')) {
-      button.onclick = () => {
-        $('#overlay-corner').value = button.dataset.corner;
-        $('#overlay-corner').dispatchEvent(new Event('input', { bubbles: true }));
-      };
-    }
     // Teste com a chamada de verdade; fora dela, comigo falando e dois exemplos.
-    $('#overlay-test').onclick = () => {
+    const draftPosition = () => ({ x: Number($('#overlay-x').value), y: Number($('#overlay-y').value) });
+    const testOverlay = () => {
       const me = meMember();
       const sample = overlaySnapshot() || { users: [
         { id: 'me', name: me.name, color: me.color || '#5865f2', avatarUrl: me.avatarUrl || '', avatarCrop: me.avatarCrop || null, speaking: true },
         { id: 'a', name: 'Amigo mutado', color: '#3ba55c', muted: true },
         { id: 'b', name: 'Amigo ensurdecido', color: '#eb459e', muted: true, deafened: true },
       ] };
-      desktopOverlay.preview($('#overlay-corner').value, sample);
+      desktopOverlay.preview(draftPosition(), sample);
     };
+    $('#overlay-test').onclick = testOverlay;
+
+    // Posição: a listinha é arrastada numa miniatura da tela e encaixa nos cantos, nos meios das bordas e no centro.
+    const stage = $('#overlay-stage'), puck = $('#overlay-puck');
+    const STAGE_MARGIN = 8, SNAP = 0.06;
+    const POSITION_NAMES = {
+      '0,0': 'Canto superior esquerdo', '0.5,0': 'Topo da tela, no centro', '1,0': 'Canto superior direito',
+      '0,0.5': 'Meio da tela, à esquerda', '0.5,0.5': 'Centro da tela', '1,0.5': 'Meio da tela, à direita',
+      '0,1': 'Canto inferior esquerdo', '0.5,1': 'Embaixo, no centro', '1,1': 'Canto inferior direito',
+    };
+    const positionName = (x, y) => POSITION_NAMES[`${x},${y}`] || `Personalizada: ${Math.round(x * 100)}% da esquerda, ${Math.round(y * 100)}% do topo`;
+    const free = () => ({ w: Math.max(1, stage.clientWidth - 2 * STAGE_MARGIN - puck.offsetWidth), h: Math.max(1, stage.clientHeight - 2 * STAGE_MARGIN - puck.offsetHeight) });
+    const clamp01 = (value) => Math.min(1, Math.max(0, value));
+    const snap = (value) => [0, 0.5, 1].find((point) => Math.abs(value - point) < SNAP) ?? Math.round(value * 100) / 100;
+    placeOverlayPuck = (x, y) => {
+      const room = free();
+      puck.style.left = STAGE_MARGIN + x * room.w + 'px';
+      puck.style.top = STAGE_MARGIN + y * room.h + 'px';
+      $('#overlay-position-label').textContent = positionName(x, y);
+      puck.setAttribute('aria-valuetext', positionName(x, y));
+      // Guias tracejadas quando a lista encaixa no centro de um dos eixos.
+      stage.querySelector('.overlay-guide.vertical').classList.toggle('show', x === 0.5);
+      stage.querySelector('.overlay-guide.horizontal').classList.toggle('show', y === 0.5);
+    };
+    // A miniatura só tem tamanho com a seção aberta: reposiciona quando ela aparece ou muda de tamanho.
+    new ResizeObserver(() => placeOverlayPuck(draftPosition().x, draftPosition().y)).observe(stage);
+    const setPosition = (x, y) => {
+      $('#overlay-x').value = String(x);
+      $('#overlay-y').value = String(y);
+      $('#overlay-x').dispatchEvent(new Event('input', { bubbles: true })); // o painel atualiza e chama placeOverlayPuck
+    };
+    let grab = null;
+    stage.addEventListener('pointerdown', (event) => {
+      if (event.button !== 0 || $('#overlay-x').disabled) return;
+      const box = puck.getBoundingClientRect();
+      const onPuck = !!event.target.closest('.overlay-puck');
+      // Clicar fora da lista leva o centro dela até o clique.
+      grab = { id: event.pointerId, dx: onPuck ? event.clientX - box.left : box.width / 2, dy: onPuck ? event.clientY - box.top : box.height / 2 };
+      stage.setPointerCapture(event.pointerId);
+      stage.classList.add('dragging');
+      puck.focus({ preventScroll: true });
+      event.preventDefault();
+      drag(event);
+    });
+    function drag(event) {
+      if (!grab || event.pointerId !== grab.id) return;
+      const area = stage.getBoundingClientRect(), room = free();
+      setPosition(snap(clamp01((event.clientX - area.left - grab.dx - STAGE_MARGIN) / room.w)), snap(clamp01((event.clientY - area.top - grab.dy - STAGE_MARGIN) / room.h)));
+    }
+    const drop = (event, test) => {
+      if (!grab || event.pointerId !== grab.id) return;
+      grab = null;
+      stage.classList.remove('dragging');
+      if (test) testOverlay(); // ao soltar, o overlay de verdade aparece um instante na posição nova
+    };
+    stage.addEventListener('pointermove', drag);
+    stage.addEventListener('pointerup', (event) => drop(event, true));
+    stage.addEventListener('pointercancel', (event) => drop(event, false));
+    // Teclado: setas andam 5% (com Shift, 25%); Home volta ao padrão.
+    let keyTest = 0;
+    puck.addEventListener('keydown', (event) => {
+      const step = event.shiftKey ? 0.25 : 0.05;
+      const moves = { ArrowLeft: [-step, 0], ArrowRight: [step, 0], ArrowUp: [0, -step], ArrowDown: [0, step] };
+      const { x, y } = draftPosition();
+      if (event.key === 'Home') setPosition(0, 0.5);
+      else if (moves[event.key]) setPosition(Math.round(clamp01(x + moves[event.key][0]) * 100) / 100, Math.round(clamp01(y + moves[event.key][1]) * 100) / 100);
+      else return;
+      event.preventDefault();
+      clearTimeout(keyTest);
+      keyTest = setTimeout(testOverlay, 500);
+    });
+    $('#overlay-reset').onclick = () => { setPosition(0, 0.5); testOverlay(); };
   }
   $('#noise-mode').replaceChildren(...Object.entries(NOISE_MODES).map(([value, label]) => new Option(label, value)));
   $('#share-preset').replaceChildren(...Object.entries(SHARE_PRESETS).map(([value, p]) => new Option(p.label, value)));
@@ -5793,9 +5868,7 @@
       $('#page-profile').style.setProperty('--pc-color', color);
     }
     for (const draft of profileImages) draft.preview(values);
-    if (values.overlayCorner !== undefined) {
-      for (const button of document.querySelectorAll('.overlay-corners [data-corner]')) button.setAttribute('aria-checked', String(button.dataset.corner === values.overlayCorner));
-    }
+    if (values.overlayX !== undefined) placeOverlayPuck(values.overlayX, values.overlayY);
   }
   previewAppearance(state);
 
@@ -5881,8 +5954,8 @@
     localStorage.setItem('keybinds', JSON.stringify(state.keybinds));
     syncDesktopKeybinds();
     if (desktopOverlay) {
-      state.overlayEnabled = values.overlayEnabled; state.overlayCorner = values.overlayCorner;
-      localStorage.setItem('overlay', JSON.stringify({ enabled: state.overlayEnabled, corner: state.overlayCorner }));
+      state.overlayEnabled = values.overlayEnabled; state.overlayX = values.overlayX; state.overlayY = values.overlayY;
+      localStorage.setItem('overlay', JSON.stringify({ enabled: state.overlayEnabled, x: state.overlayX, y: state.overlayY }));
       syncOverlayConfig();
     }
     state.sbMuted = !values.soundboard; state.sbVolume = values.sbVolume / 100;

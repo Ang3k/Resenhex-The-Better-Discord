@@ -70,28 +70,36 @@ a.download-app { text-decoration: none; }
 :root[data-reduce-motion=true] :is(.share-source, .share-close) { transition: none; }
 .share-picker .confirm-actions .btn-primary:disabled { opacity: .45; box-shadow: none; cursor: not-allowed; }
 
-/* ---------- Overlay em jogos: escolha do canto ---------- */
-.overlay-corners { display: grid; grid-template-columns: repeat(4, minmax(0, 112px)); gap: 12px; }
-#settings .settings-content .overlay-corners button {
-  position: relative; aspect-ratio: 16 / 10; padding: 0; border: 1px solid var(--divider); border-radius: 8px; box-shadow: none;
-  background: linear-gradient(160deg, var(--bg-panel), var(--bg-rail)); transition: border-color .15s, box-shadow .15s, transform .15s;
-}
-#settings .settings-content .overlay-corners button:hover:not(:disabled) { background: linear-gradient(160deg, color-mix(in srgb, var(--text) 6%, var(--bg-panel)), var(--bg-rail)); border-color: var(--text-muted); transform: translateY(-1px); }
-#settings .settings-content .overlay-corners button[aria-checked="true"] { border-color: var(--brand); box-shadow: 0 0 0 1px var(--brand), 0 4px 14px color-mix(in srgb, var(--brand) 25%, transparent); }
-/* A listinha da chamada desenhada no canto: três linhas com bolinha (avatar) e etiqueta (nome). */
-.overlay-corners i {
-  --dot: var(--text-muted); --bar: var(--hover-strong);
-  position: absolute; width: 34px; height: 25px; display: block; opacity: .85; transition: opacity .15s;
+/* ---------- Overlay em jogos: posição arrastável numa miniatura da tela ---------- */
+/* --m é a margem do overlay de verdade (16 px numa tela de 1920) na escala da miniatura. */
+.overlay-stage {
+  --m: 2.5%; position: relative; width: 100%; max-width: 520px; aspect-ratio: 16 / 9; overflow: hidden; touch-action: none;
+  border: 1px solid var(--divider); border-radius: 10px; cursor: crosshair;
   background:
-    radial-gradient(circle, var(--dot) 2.5px, transparent 3px) 0 0 / 6px 9px repeat-y,
-    linear-gradient(var(--bar) 0 4px, transparent 4px) 9px 1px / 22px 9px repeat-y;
+    radial-gradient(120% 90% at 70% 20%, color-mix(in srgb, var(--brand) 22%, transparent), transparent 60%),
+    radial-gradient(90% 80% at 20% 100%, color-mix(in srgb, var(--green) 14%, transparent), transparent 65%),
+    linear-gradient(160deg, var(--bg-panel), var(--bg-rail));
 }
-.overlay-corners [data-corner^="top"] i { top: 9px; }
-.overlay-corners [data-corner^="bottom"] i { bottom: 9px; }
-.overlay-corners [data-corner$="left"] i { left: 10px; }
-.overlay-corners [data-corner$="right"] i { right: 10px; }
-.overlay-corners button[aria-checked="true"] i { --dot: var(--green); --bar: var(--text-muted); opacity: 1; }
-#overlay-test { align-self: flex-start; }
-#page-overlay .setting-group > .hint { margin: -8px 0 0; }
-#page-overlay .setting-group > p.hint:first-of-type:not(#overlay-unavailable) { margin: 0; }
-@media (max-width: 640px) { .overlay-corners { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+.overlay-guide { position: absolute; display: none; pointer-events: none; }
+.overlay-guide.vertical { top: 0; bottom: 0; width: 0; border-left: 1px dashed color-mix(in srgb, var(--brand) 70%, transparent); }
+.overlay-guide.horizontal { left: 0; right: 0; height: 0; border-top: 1px dashed color-mix(in srgb, var(--brand) 70%, transparent); }
+.overlay-stage.dragging .overlay-guide.show { display: block; }
+/* A listinha: três linhas de bolinha (avatar) e etiqueta (nome), como o overlay. */
+.overlay-puck {
+  position: absolute; display: grid; gap: 5px; padding: 7px 8px; border-radius: 8px; cursor: grab; outline: none;
+  background: color-mix(in srgb, var(--bg-floating) 55%, transparent); box-shadow: 0 0 0 1px var(--divider), 0 4px 12px rgba(0, 0, 0, .35);
+  transition: box-shadow .15s, transform .15s;
+}
+.overlay-puck i { display: flex; align-items: center; gap: 5px; }
+.overlay-puck i::before { content: ''; width: 9px; height: 9px; border-radius: 50%; background: var(--text-muted); }
+.overlay-puck i::after { content: ''; width: 34px; height: 6px; border-radius: 3px; background: var(--hover-strong); }
+.overlay-puck i:first-child::before { background: var(--green); box-shadow: 0 0 0 2px color-mix(in srgb, var(--green) 35%, transparent); }
+.overlay-puck i:first-child::after { background: var(--text-muted); }
+.overlay-puck:hover, .overlay-puck:focus-visible { box-shadow: 0 0 0 1px var(--brand), 0 4px 14px color-mix(in srgb, var(--brand) 30%, transparent); }
+.overlay-stage.dragging { cursor: grabbing; }
+.overlay-stage.dragging .overlay-puck { cursor: grabbing; transform: scale(1.04); box-shadow: 0 0 0 2px var(--brand), 0 8px 22px rgba(0, 0, 0, .45); transition: box-shadow .15s, transform .15s; }
+.overlay-position-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
+.overlay-position-label { flex: 1; min-width: 160px; color: var(--text); font-size: 13px; font-weight: 600; }
+#page-overlay .setting-group > p.hint { margin: -8px 0 0; }
+#page-overlay .setting-group > p#overlay-unavailable { margin: 0; }
+@media (prefers-reduced-motion: reduce) { .overlay-puck, .overlay-stage.dragging .overlay-puck { transition: none; transform: none; } }

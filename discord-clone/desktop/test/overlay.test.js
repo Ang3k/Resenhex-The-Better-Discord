@@ -1,7 +1,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const { createGameMatcher } = require('../lib/game-detect');
-const { overlayConfig, overlayBounds, overlayState } = require('../lib/overlay-layout');
+const { overlayConfig, overlayPosition, overlayBounds, overlayState } = require('../lib/overlay-layout');
 
 const GAMES = [
   ['VALORANT', ['win64/valorant-win64-shipping.exe']],
@@ -32,20 +32,24 @@ test('ignora entradas quebradas da lista', () => {
   assert.equal(createGameMatcher(null).size, 0);
 });
 
-test('configuração do overlay começa desligada e no canto superior esquerdo', () => {
-  assert.deepEqual(overlayConfig(null), { enabled: false, corner: 'top-left' });
-  assert.deepEqual(overlayConfig({ enabled: true, corner: 'bottom-right' }), { enabled: true, corner: 'bottom-right' });
-  assert.deepEqual(overlayConfig({ enabled: 'sim', corner: 'meio' }), { enabled: false, corner: 'top-left' });
+test('configuração do overlay começa desligada e no meio da tela, à esquerda', () => {
+  assert.deepEqual(overlayConfig(null), { enabled: false, x: 0, y: 0.5 });
+  assert.deepEqual(overlayConfig({ enabled: true, x: 0.25, y: 1 }), { enabled: true, x: 0.25, y: 1 });
+  assert.deepEqual(overlayConfig({ enabled: 'sim', x: 'a', y: 2 }), { enabled: false, x: 0, y: 0.5 });
+  assert.deepEqual(overlayConfig({ x: -1, y: 7 }), { enabled: false, x: 0, y: 1 }, 'fora da tela vira a borda');
+  assert.deepEqual(overlayPosition({ corner: 'bottom-right' }), { x: 1, y: 1 }, 'canto das versões anteriores');
 });
 
-test('posiciona no canto da área do jogo, com margem e sem passar da borda', () => {
+test('posiciona na área do jogo, com margem e sem passar da borda', () => {
   const area = { x: 1920, y: 0, width: 1920, height: 1080 };
   const size = { width: 240, height: 200 };
-  assert.deepEqual(overlayBounds(area, 'top-left', size), { x: 1936, y: 16, width: 240, height: 200 });
-  assert.deepEqual(overlayBounds(area, 'top-right', size), { x: 3584, y: 16, width: 240, height: 200 });
-  assert.deepEqual(overlayBounds(area, 'bottom-left', size), { x: 1936, y: 864, width: 240, height: 200 });
-  assert.deepEqual(overlayBounds(area, 'bottom-right', size), { x: 3584, y: 864, width: 240, height: 200 });
-  assert.deepEqual(overlayBounds({ x: 0, y: 0, width: 200, height: 100 }, 'top-left', size), { x: 16, y: 16, width: 168, height: 68 });
+  assert.deepEqual(overlayBounds(area, { x: 0, y: 0 }, size), { x: 1936, y: 16, width: 240, height: 200 });
+  assert.deepEqual(overlayBounds(area, { x: 1, y: 0 }, size), { x: 3584, y: 16, width: 240, height: 200 });
+  assert.deepEqual(overlayBounds(area, { x: 0, y: 1 }, size), { x: 1936, y: 864, width: 240, height: 200 });
+  assert.deepEqual(overlayBounds(area, { x: 1, y: 1 }, size), { x: 3584, y: 864, width: 240, height: 200 });
+  assert.deepEqual(overlayBounds(area, { x: 0, y: 0.5 }, size), { x: 1936, y: 440, width: 240, height: 200 }, 'meio da esquerda centraliza a lista');
+  assert.deepEqual(overlayBounds(area, { x: 0.5, y: 0.5 }, size), { x: 2760, y: 440, width: 240, height: 200 });
+  assert.deepEqual(overlayBounds({ x: 0, y: 0, width: 200, height: 100 }, { x: 1, y: 1 }, size), { x: 16, y: 16, width: 168, height: 68 });
 });
 
 test('o resumo da chamada só passa o que o overlay desenha', () => {

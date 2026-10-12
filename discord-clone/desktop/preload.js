@@ -50,9 +50,10 @@ if (location.protocol === 'file:') {
     // Overlay de voz em jogos. state: { channel, users: [...] } ou null fora da chamada.
     overlay: {
       available: () => ipcRenderer.invoke('desktop:overlay:available'),
-      configure: (config) => ipcRenderer.send('desktop:overlay:config', { enabled: !!config?.enabled, corner: String(config?.corner || '') }),
+      // Posição em frações da tela (x, y de 0 a 1): 0 = esquerda/topo, 1 = direita/embaixo.
+      configure: (config) => ipcRenderer.send('desktop:overlay:config', { enabled: !!config?.enabled, x: Number(config?.x), y: Number(config?.y) }),
       setState: (state) => ipcRenderer.send('desktop:overlay:state', state ?? null),
-      preview: (corner, state) => ipcRenderer.send('desktop:overlay:preview', { corner: String(corner || ''), state }),
+      preview: (position, state) => ipcRenderer.send('desktop:overlay:preview', { position: { x: Number(position?.x), y: Number(position?.y) }, state }),
     },
   });
 }

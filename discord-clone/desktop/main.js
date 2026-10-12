@@ -462,7 +462,7 @@ ipcMain.on('desktop:overlay:config', (event, config) => { if (fromVoiceSite(even
 ipcMain.on('desktop:overlay:state', (event, state) => { if (fromVoiceSite(event)) overlay?.setState(state); });
 ipcMain.on('desktop:overlay:preview', (event, value) => {
   if (!fromVoiceSite(event) || !win) return;
-  overlay?.preview({ corner: value?.corner, state: value?.state, display: screen.getDisplayMatching(win.getBounds()) });
+  overlay?.preview({ position: value?.position, state: value?.state, display: screen.getDisplayMatching(win.getBounds()) });
 });
 ipcMain.on('overlay:resize', (event, value) => { if (overlay?.owns(event.sender)) overlay.resize(value); });
 ipcMain.on('offline:retry', () => { if (offline) loadSite(); });

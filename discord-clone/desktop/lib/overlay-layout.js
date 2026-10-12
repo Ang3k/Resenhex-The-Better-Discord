@@ -1,23 +1,35 @@
 // Regras do overlay que não dependem do Electron (testadas em test/lib.test.js).
 
-const CORNERS = ['top-left', 'top-right', 'bottom-left', 'bottom-right'];
 const MARGIN = 16;
 const WIDTH = 240;
 const MAX_HEIGHT = 600;
 const MAX_USERS = 25;
+// Padrão: meio da tela, à esquerda.
+const DEFAULT_POSITION = { x: 0, y: 0.5 };
+// Versões anteriores do site mandavam um dos quatro cantos.
+const CORNERS = { 'top-left': { x: 0, y: 0 }, 'top-right': { x: 1, y: 0 }, 'bottom-left': { x: 0, y: 1 }, 'bottom-right': { x: 1, y: 1 } };
 
-function overlayConfig(value) {
-  return { enabled: value?.enabled === true, corner: CORNERS.includes(value?.corner) ? value.corner : 'top-left' };
+const fraction = (value) => Number.isFinite(value) ? Math.min(1, Math.max(0, value)) : null;
+
+// Posição em frações (0 a 1) do espaço livre na área do jogo: 0 encosta à esquerda/no topo, 1 à
+// direita/embaixo, 0,5 centraliza. Assim vale para qualquer resolução e tamanho de janela.
+function overlayPosition(value) {
+  const x = fraction(value?.x), y = fraction(value?.y);
+  if (x !== null && y !== null) return { x, y };
+  return { ...(CORNERS[value?.corner] || DEFAULT_POSITION) };
 }
 
-// Posição da janela no canto escolhido da área do jogo (em DIP), sem passar da borda.
-function overlayBounds(area, corner, size) {
+function overlayConfig(value) {
+  return { enabled: value?.enabled === true, ...overlayPosition(value) };
+}
+
+// Janela do overlay dentro da área do jogo (em DIP), com margem e sem passar da borda.
+function overlayBounds(area, position, size) {
   const width = Math.min(size.width, Math.max(0, area.width - 2 * MARGIN));
   const height = Math.min(size.height, Math.max(0, area.height - 2 * MARGIN));
-  const right = corner.endsWith('right'), bottom = corner.startsWith('bottom');
   return {
-    x: Math.round(right ? area.x + area.width - MARGIN - width : area.x + MARGIN),
-    y: Math.round(bottom ? area.y + area.height - MARGIN - height : area.y + MARGIN),
+    x: Math.round(area.x + MARGIN + position.x * (area.width - 2 * MARGIN - width)),
+    y: Math.round(area.y + MARGIN + position.y * (area.height - 2 * MARGIN - height)),
     width: Math.round(width), height: Math.round(height),
   };
 }
@@ -46,4 +58,4 @@ function overlayState(value) {
   return { channel: text(value.channel, 100), users, more: Math.max(0, value.users.length - users.length) };
 }
 
-module.exports = { CORNERS, WIDTH, MAX_HEIGHT, overlayConfig, overlayBounds, overlayState };
+module.exports = { WIDTH, MAX_HEIGHT, overlayConfig, overlayPosition, overlayBounds, overlayState };
