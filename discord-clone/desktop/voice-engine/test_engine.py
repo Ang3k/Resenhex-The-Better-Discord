@@ -29,7 +29,7 @@ class EngineTests(unittest.TestCase):
 
     def test_invalid_configuration_does_not_load_or_replace_a_model(self):
         self.worker.voice = "previous"
-        for meta in [{"backend": "unknown"}, {"contextMs": 10}]:
+        for meta in [{"backend": "unknown"}, {"contextMs": 10}, {"protect": -1}, {"protect": 0.6}, {"protect": float("nan")}]:
             with self.assertRaises(ValueError): self.worker.load(meta)
             self.assertEqual(self.worker.voice, "previous")
 
@@ -93,6 +93,51 @@ class EngineTests(unittest.TestCase):
             audio = np.random.default_rng(9).normal(size=7681).astype(np.float32)
             window = ours.astype(np.float32)
             np.testing.assert_allclose(engine.resample_poly(audio, up, down, window=window), scipy_resample(audio, up, down, window=window), atol=2e-6)
+
+    def test_protection_restores_unvoiced_features_without_changing_voiced_frames(self):
+        np = self.worker.np
+        for dtype in (np.float32, np.float16):
+            original = np.arange(12, dtype=dtype).reshape(1, 4, 3)
+            retrieved = original + 10
+            before = original.copy(), retrieved.copy()
+            pitchf = np.array([120, 0, 0, 240], np.float32)
+            actual = self.worker.protect_unvoiced(original, retrieved, pitchf)
+            self.assertEqual(actual.dtype, dtype)
+            np.testing.assert_array_equal(actual[:, [0, 3]], retrieved[:, [0, 3]])
+            np.testing.assert_allclose(actual[:, [1, 2]], original[:, [1, 2]] + 3.3, atol=0.02)
+            np.testing.assert_array_equal(original, before[0])
+            np.testing.assert_array_equal(retrieved, before[1])
+            self.worker.protect = 0
+            np.testing.assert_array_equal(self.worker.protect_unvoiced(original, retrieved, pitchf)[:, [1, 2]], original[:, [1, 2]])
+            self.worker.protect = 0.5
+            self.assertIs(self.worker.protect_unvoiced(original, retrieved, pitchf), retrieved)
+            self.worker.protect = engine.DEFAULT_PROTECT
+
+    def test_conversion_aligns_protection_to_pitch_frames_after_upsampling(self):
+        np = self.worker.np
+        self.worker.voice = SimpleNamespace(run=lambda _, feed: captured.append(feed) or [np.zeros(8000, np.float32)])
+        self.worker.context_ms, self.worker.block_ms = 320, 80
+        self.worker.channels, self.worker.model_rate = 768, 48000
+        self.worker.schema, self.worker.voice_dtype = "vcclient", np.float32
+        self.worker.streaming_decoder = False
+        self.worker.pitch_shift = 0
+        self.worker.parallel_inference = False
+        self.worker.encoder_inputs = [SimpleNamespace(name="source", shape=[1, None], type="tensor(float)")]
+        original = np.repeat(np.arange(22, dtype=np.float32)[None, :, None], 768, axis=2)
+        pitchf = np.tile(np.array([100, 0], np.float32), 22)
+        self.worker.encoder = SimpleNamespace(run=lambda *_: [original])
+        self.worker.pitch = SimpleNamespace(run=lambda *_: [pitchf])
+        captured = []
+        with patch.object(self.worker, "retrieve", side_effect=lambda feats: feats + 10), patch.object(self.worker, "resample_window", return_value=np.zeros(4800, np.float32)):
+            self.worker.convert({"generation": 0, "stream": "mic", "epoch": 1}, np.ones(3840, np.float32).tobytes())
+        expected = np.repeat(original, 2, axis=1)
+        expected[:, ::2] += 10
+        expected[:, 1::2] += 3.3
+        np.testing.assert_allclose(captured[0]["feats"], expected, atol=2e-6)
+        # No retrieval means no feature copy or protection work at all.
+        with patch.object(self.worker, "protect_unvoiced") as protect, patch.object(self.worker, "resample_window", return_value=np.zeros(4800, np.float32)):
+            self.worker.convert({"generation": 0, "stream": "mic", "epoch": 2}, np.ones(3840, np.float32).tobytes())
+        protect.assert_not_called()
 
     def test_parallel_inference_drains_pitch_on_encoder_failure_before_next_rpc(self):
         import threading

@@ -23,12 +23,17 @@ const APP_URL = new URL(process.env.RESENHEX_URL || 'https://resenhex.duckdns.or
 const ORIGIN = APP_URL.origin;
 const TITLEBAR = 30;
 const ASSETS = path.join(__dirname, 'assets');
+const APP_ICON = process.platform === 'win32'
+  ? path.join(app.isPackaged ? process.resourcesPath : path.join(__dirname, 'build'), 'icon.ico')
+  : path.join(ASSETS, 'icon.png');
 const DEFAULT_THEME = { background: '#141417', foreground: '#b3b5bc' }; // tema escuro padrão do site (--bg-rail, --interactive)
 // Instalado pela Microsoft Store: a loja atualiza o app e o Windows controla a inicialização.
 const STORE = process.windowsStore === true;
 
 // Na versão da loja o Windows já dá ao app a identidade do pacote (barra de tarefas e notificações).
-if (!STORE) app.setAppUserModelId('com.resenhex.desktop');
+// Em dev (electron.exe) usa outra identidade: um atalho do Electron com a mesma ID
+// faz o Windows mostrar o ícone do Electron na barra de tarefas do app instalado.
+if (!STORE) app.setAppUserModelId(app.isPackaged ? 'com.resenhex.desktop' : 'com.resenhex.desktop.dev');
 const log = createLog(path.join(app.getPath('userData'), 'resenhex.log'));
 log.info(`Iniciando a versão ${app.getVersion()}`, process.argv.slice(1).join(' '));
 if (!acquireLock()) {
@@ -106,11 +111,19 @@ function createWindow(hidden) {
   win = new BrowserWindow({
     ...(bounds || { width: 1280, height: 800 }),
     minWidth: 940, minHeight: 560, show: false, title: 'Resenhex',
-    icon: path.join(ASSETS, 'icon.png'), backgroundColor: theme.background,
+    icon: APP_ICON, backgroundColor: theme.background,
     titleBarStyle: 'hidden',
     titleBarOverlay: { color: theme.background, symbolColor: theme.foreground, height: TITLEBAR },
     webPreferences: { preload: path.join(__dirname, 'titlebar-preload.js'), sandbox: true, contextIsolation: true },
   });
+  // A barra de tarefas pode usar o ícone associado à identidade do app em vez do
+  // ícone da janela. O ICO fica fora do ASAR para o Windows ler os tamanhos nativos.
+  if (process.platform === 'win32' && app.isPackaged && !STORE) {
+    win.setAppDetails({
+      appId: 'com.resenhex.desktop', appIconPath: APP_ICON,
+      relaunchCommand: `"${process.execPath}"`, relaunchDisplayName: 'Resenhex',
+    });
+  }
   win.loadFile(path.join(__dirname, 'titlebar.html'));
 
   site = new WebContentsView({

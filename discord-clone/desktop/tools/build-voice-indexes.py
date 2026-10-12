@@ -3,7 +3,9 @@
 The community .index files are Faiss IVF indexes holding every ContentVec frame of the training
 set (tens of thousands of 768-d vectors, 12-140 MB). The app only needs representative frames for
 nearest-neighbour blending, so large sets are reduced with k-means to INDEX_SIZE centroids (the
-same reduction RVC applies to big datasets) and stored as fp16: ~15 MB per voice, no Faiss at runtime.
+same kind of reduction RVC applies to big datasets) and stored as fp16: ~15 MB per voice, no Faiss at runtime.
+Use --max-vectors 0 with a separate --output folder to compare all original frames without changing
+the production catalog or its pinned hashes. The default keeps the existing 10,000-vector assets.
 
 Requires faiss-cpu and numpy on the build computer only. Writes <id>.index.npy next to the models
 and prints the size and SHA-256 to pin in lib/voice-catalog.json.
@@ -25,7 +27,10 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--output", type=Path)
     parser.add_argument("--voice", action="append")
+    parser.add_argument("--max-vectors", type=int, default=INDEX_SIZE, help="Maximum centroids; 0 preserves every original vector")
     args = parser.parse_args()
+    if args.max_vectors < 0:
+        parser.error("--max-vectors must be nonnegative")
     root = Path(__file__).resolve().parents[1]
     catalog = json.loads((root / "lib/voice-catalog.json").read_text(encoding="utf-8"))
     cache = root / "voice-engine/.build-cache/voices"
@@ -49,8 +54,8 @@ def main():
         ivf = faiss.extract_index_ivf(index)
         ivf.make_direct_map()
         vectors = ivf.reconstruct_n(0, index.ntotal).astype(np.float32)
-        if len(vectors) > INDEX_SIZE:
-            kmeans = faiss.Kmeans(768, INDEX_SIZE, niter=20, seed=SEED, verbose=False)
+        if args.max_vectors and len(vectors) > args.max_vectors:
+            kmeans = faiss.Kmeans(768, args.max_vectors, niter=20, seed=SEED, verbose=False)
             kmeans.train(vectors)
             vectors = kmeans.centroids
         destination = output / spec["file"]

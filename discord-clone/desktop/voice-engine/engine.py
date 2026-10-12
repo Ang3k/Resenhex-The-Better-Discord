@@ -12,6 +12,7 @@ import time
 
 MAX_PACKET = 262144
 RATE = 48000
+DEFAULT_PROTECT = 0.33
 
 
 def read_exact(stream, size):
@@ -104,6 +105,7 @@ class RvcEngine:
         import onnxruntime as ort
         self.np, self.ort, self.resample_poly = np, ort, resample_poly
         self.index, self.index_path, self.index_rate = None, None, 0.0
+        self.protect = DEFAULT_PROTECT
         self.firwin, self.resample_filters = firwin, {}
         # Independent sessions can run together, including DirectML. Only one
         # pitch task exists at a time; RPC and voice synthesis remain sequential.
@@ -156,6 +158,9 @@ class RvcEngine:
         block_ms = int(meta.get("blockMs", 120))
         if block_ms not in (80, 120, 160):
             raise ValueError("Bloco inválido")
+        protect = float(meta.get("protect", DEFAULT_PROTECT))
+        if not math.isfinite(protect) or not 0 <= protect <= 0.5:
+            raise ValueError("Proteção inválida")
         # Load fully before swapping the current model. A failed switch preserves it.
         encoder_key, pitch_key = (meta["encoder"], backend), (meta["pitch"], backend)
         encoder = self.encoder if encoder_key == getattr(self, "encoder_key", None) else self.session(meta["encoder"], backend)
@@ -200,6 +205,7 @@ class RvcEngine:
         # em threads diferentes; na GPU, ContentVec e RMVPE rodam um depois do outro.
         self.parallel_inference = self.backend == "cpu" and (os.cpu_count() or 2) >= 4
         self.pitch_shift = max(-12, min(12, float(meta.get("pitchShift", 0))))
+        self.protect = protect
         self.load_index(meta.get("index"), meta.get("indexRate", 0))
         self.context_ms = context_ms
         self.block_ms = block_ms
@@ -243,6 +249,19 @@ class RvcEngine:
         weight /= weight.sum(axis=1, keepdims=True)
         blended = np.einsum("tk,tkc->tc", weight, self.index[nearest])
         return (blended * self.index_rate + frames * (1 - self.index_rate))[None].astype(feats.dtype, copy=False)
+
+    def protect_unvoiced(self, original, retrieved, pitchf):
+        """Preserve source features in unvoiced 10 ms frames, following RVC's protect mix.
+
+        0.33 keeps 67% of the original features in consonants/breaths; voiced
+        frames keep the character retrieval unchanged. 0.5 disables protection.
+        This mixes features, never the original microphone audio into the output.
+        """
+        np = self.np
+        if self.protect >= 0.5 or not np.any(pitchf < 1):
+            return retrieved
+        mask = np.where(pitchf < 1, self.protect, 1)[None, :, None].astype(retrieved.dtype)
+        return (retrieved * mask + original * (1 - mask)).astype(retrieved.dtype, copy=False)
 
     def resample(self, audio, source, target):
         if source == target:
@@ -330,13 +349,18 @@ class RvcEngine:
         feats = next((item for item in features if item.ndim == 3 and item.shape[-1] == self.channels), None)
         if feats is None:
             raise ValueError("ContentVec não retornou as características do modelo")
+        original_feats = feats
         feats = self.retrieve(feats)
+        protect_active = feats is not original_feats and self.protect < 0.5
         feats = np.repeat(feats, 2, axis=1)
         frames = min(feats.shape[1], len(audio) // 160)
         feats = feats[:, :frames]
         if len(pitchf) < frames:
             pitchf = np.pad(pitchf, (0, frames - len(pitchf)))
         pitchf = pitchf[:frames] * (2 ** (self.pitch_shift / 12))
+        if protect_active:
+            original_feats = np.repeat(original_feats, 2, axis=1)[:, :frames]
+            feats = self.protect_unvoiced(original_feats, feats, pitchf)
         mel = 1127 * np.log1p(pitchf / 700)
         low, high = 1127 * np.log1p(50 / 700), 1127 * np.log1p(1100 / 700)
         coarse = np.rint(np.clip(np.where(mel > 0, (mel - low) * 254 / (high - low) + 1, 1), 1, 255)).astype(np.int64)
@@ -348,6 +372,7 @@ class RvcEngine:
             feed["decoder_start"] = np.array([decoder_start], np.int64)
         if self.schema == "rvc":
             feed = {"phone": feed["feats"], "phone_lengths": feed["p_len"], "pitch": feed["pitch"], "pitchf": feed["pitchf"], "ds": feed["sid"], "rnd": (self.rng.standard_normal((1, 192, frames)) * .66666).astype(np.float32)}
+        featured = time.perf_counter()
         converted = self.voice.run(None, feed)[0].reshape(-1)
         synthesized = time.perf_counter()
         offset = (self.context_ms - decoder_start * 10) * 48
@@ -384,7 +409,8 @@ class RvcEngine:
         result = {"inferenceMs": elapsed, "rtf": elapsed / (len(samples) / 48), "backend": self.backend, "generation": self.generation}
         if meta.get("profile"):
             result["stagesMs"] = {"prepare": (prepared - started) * 1000, "encoderPitch": (pitched - prepared) * 1000,
-                                  "synthesis": (synthesized - pitched) * 1000,
+                                  "retrievalProtect": (featured - pitched) * 1000,
+                                  "synthesis": (synthesized - featured) * 1000,
                                   "output": elapsed - (synthesized - started) * 1000}
         return result, output.tobytes()
 

@@ -4,15 +4,16 @@ const { app, BrowserWindow } = require('electron');
 const fs = require('node:fs');
 const path = require('node:path');
 
-const LOGO = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32"><defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#6d5dfc"/><stop offset="1" stop-color="#c64cf0"/></linearGradient></defs><rect width="32" height="32" rx="9" fill="url(#g)"/><path fill="white" d="M16 6c-5.5 0-10 4-10 8.9 0 2.7 1.3 5 3.4 6.7l-.9 3.6a.6.6 0 0 0 .9.7l4.1-2.1c.8.2 1.6.2 2.5.2 5.5 0 10-4 10-8.9S21.5 6 16 6z"/><path stroke="#8a55f5" stroke-width="2.2" stroke-linecap="round" d="M12.5 11.5l7 6M19.5 11.5l-7 6"/></svg>`;
+// Base em alta gerada por node tools/icones-app.js (na pasta do projeto) a partir do logo do bigode.
+const LOGO = 'data:image/png;base64,' + fs.readFileSync(path.join(__dirname, '..', 'build', 'logo-1024.png')).toString('base64');
 
 // Roda dentro da página: desenha cada imagem num canvas e devolve PNGs em base64.
 async function draw(logo) {
   const img = new Image();
-  img.src = 'data:image/svg+xml,' + encodeURIComponent(logo);
+  img.src = logo;
   await img.decode();
   const out = {};
-  const canvas = (size) => { const c = document.createElement('canvas'); c.width = c.height = size; return [c, c.getContext('2d')]; };
+  const canvas = (size) => { const c = document.createElement('canvas'); c.width = c.height = size; const ctx = c.getContext('2d'); ctx.imageSmoothingQuality = 'high'; return [c, ctx]; };
   const png = (c) => c.toDataURL('image/png').split(',')[1];
   const dot = (ctx, x, y, r, ring) => {
     ctx.beginPath(); ctx.arc(x, y, r + ring, 0, Math.PI * 2); ctx.fillStyle = '#1e1f22'; ctx.fill();
@@ -51,7 +52,7 @@ async function draw(logo) {
   const tile = (width, height, logoSize) => {
     const c = document.createElement('canvas');
     c.width = width; c.height = height;
-    c.getContext('2d').drawImage(img, (width - logoSize) / 2, (height - logoSize) / 2, logoSize, logoSize);
+    const ctx = c.getContext('2d'); ctx.imageSmoothingQuality = 'high'; ctx.drawImage(img, (width - logoSize) / 2, (height - logoSize) / 2, logoSize, logoSize);
     return png(c);
   };
   for (const scale of [100, 200, 400]) {
