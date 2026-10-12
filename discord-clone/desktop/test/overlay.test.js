@@ -10,10 +10,12 @@ const GAMES = [
   ['Jogo específico', ['meujogo/bin/game.exe']],
 ];
 
+const name = (found) => found && found.name;
+
 test('reconhece o jogo pelo final do caminho do executável', () => {
   const { match } = createGameMatcher(GAMES);
-  assert.equal(match('C:\\Riot Games\\VALORANT\\live\\ShooterGame\\Binaries\\Win64\\VALORANT-Win64-Shipping.exe'), 'VALORANT');
-  assert.equal(match('D:\\Steam\\steamapps\\common\\Among Us\\Among Us.exe'), 'Among Us');
+  assert.deepEqual(match('C:\\Riot Games\\VALORANT\\live\\ShooterGame\\Binaries\\Win64\\VALORANT-Win64-Shipping.exe'), { name: 'VALORANT', exact: true });
+  assert.equal(name(match('D:\\Steam\\steamapps\\common\\Among Us\\Among Us.exe')), 'Among Us');
   assert.equal(match('C:\\Outro\\NotWin64\\valorant-win64-shipping.exe'), null, 'a pasta precisa ser inteira');
   assert.equal(match('C:\\Windows\\explorer.exe'), null);
   assert.equal(match(''), null);
@@ -21,15 +23,53 @@ test('reconhece o jogo pelo final do caminho do executável', () => {
 
 test('com dois candidatos, vale o executável mais específico', () => {
   const { match } = createGameMatcher(GAMES);
-  assert.equal(match('C:\\Jogos\\MeuJogo\\bin\\game.exe'), 'Jogo específico');
-  assert.equal(match('C:\\Jogos\\Outro\\game.exe'), 'Jogo genérico');
+  assert.equal(name(match('C:\\Jogos\\MeuJogo\\bin\\game.exe')), 'Jogo específico');
+  assert.equal(name(match('C:\\Jogos\\Outro\\game.exe')), 'Jogo genérico');
 });
 
 test('ignora entradas quebradas da lista', () => {
   const { match, size } = createGameMatcher([null, ['Sem exe'], [3, ['x.exe']], ['Ok', ['ok.exe', '', 5]]]);
   assert.equal(size, 1);
-  assert.equal(match('C:\\ok.exe'), 'Ok');
+  assert.equal(name(match('C:\\ok.exe')), 'Ok');
   assert.equal(createGameMatcher(null).size, 0);
+});
+
+const RULES = {
+  games: GAMES,
+  folders: ['steamapps/common/', 'epic games/', 'xboxgames/'],
+  ignore: ['launcher', 'crash', 'redist', 'steamwebhelper'],
+  ignorePaths: ['steamapps/common/wallpaper_engine/', 'epic games/launcher/', '/_commonredist/', 'steamapps/common/lossless scaling/'],
+  minScreenShare: 0.4,
+};
+
+test('reconhece pela pasta da loja qualquer jogo que não está na lista', () => {
+  const { match, minScreenShare, folders } = createGameMatcher(RULES);
+  assert.equal(folders, 3);
+  assert.equal(minScreenShare, 0.4);
+  assert.deepEqual(match('C:\\Program Files (x86)\\Steam\\steamapps\\common\\AION2\\Aion2\\Binaries\\Win64\\AION2.exe'), { name: 'aion2', exact: false });
+  assert.deepEqual(match('E:\\SteamLibrary\\steamapps\\common\\Jogo Novo\\JogoNovo.exe'), { name: 'jogo novo', exact: false });
+  assert.deepEqual(match('C:\\Program Files\\Epic Games\\Fortnite\\FortniteGame\\Binaries\\Win64\\FortniteClient-Win64-Shipping.exe'), { name: 'fortnite', exact: false });
+  assert.deepEqual(match('C:\\XboxGames\\Forza Horizon 5\\Content\\ForzaHorizon5.exe'), { name: 'forza horizon 5', exact: false });
+  assert.deepEqual(match('D:\\Steam\\steamapps\\common\\Among Us\\Among Us.exe'), { name: 'Among Us', exact: true }, 'a lista vale antes da pasta');
+});
+
+test('pela pasta, ignora launchers, ferramentas e instaladores', () => {
+  const { match } = createGameMatcher(RULES);
+  assert.equal(match('C:\\Program Files (x86)\\Steam\\steamapps\\common\\wallpaper_engine\\wallpaper64.exe'), null);
+  assert.equal(createGameMatcher({ ...RULES, games: [['Lossless Scaling', ['losslessscaling.exe']]] }).match('C:\\Steam\\steamapps\\common\\Lossless Scaling\\LosslessScaling.exe'), null, 'ferramenta da lista do Discord numa pasta ignorada');
+  assert.equal(match('C:\\Program Files (x86)\\Epic Games\\Launcher\\Portal\\Binaries\\Win64\\EpicGamesLauncher.exe'), null);
+  assert.equal(match('C:\\Program Files (x86)\\Steam\\steamapps\\common\\Jogo\\Engine\\CrashReportClient.exe'), null);
+  assert.equal(match('C:\\Program Files (x86)\\Steam\\steamapps\\common\\Jogo\\_CommonRedist\\vcredist\\x.exe'), null);
+  assert.equal(match('C:\\Program Files (x86)\\Steam\\steamapps\\common\\Jogo\\JogoLauncher.exe'), null);
+  assert.equal(match('C:\\Program Files (x86)\\Steam\\steamapps\\common\\solto.exe'), null, 'precisa estar dentro da pasta de um jogo');
+  assert.equal(match('C:\\Program Files (x86)\\Steam\\steamwebhelper.exe'), null);
+  assert.equal(match('C:\\Users\\eu\\AppData\\Local\\Programs\\Opera GX\\opera.exe'), null);
+});
+
+test('sem regras de pastas (servidor antigo), só a lista vale', () => {
+  const { match, minScreenShare } = createGameMatcher({ games: GAMES });
+  assert.equal(match('C:\\Steam\\steamapps\\common\\AION2\\AION2.exe'), null);
+  assert.equal(minScreenShare, 1 / 3);
 });
 
 test('configuração do overlay começa desligada e no meio da tela, à esquerda', () => {

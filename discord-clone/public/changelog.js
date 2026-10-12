@@ -9,7 +9,8 @@ window.CHANGELOG = [
     sections: [
       { kind: 'new', items: [
         'Overlay em jogos: com o app de Windows, a lista da call aparece por cima do jogo, com o anel verde em quem está falando e os ícones de mutado e ensurdecido.',
-        'Aparece sozinho quando você está numa call e abre um jogo, e some quando você sai do jogo. Reconhece mais de 10 mil jogos.',
+        'Aparece sozinho quando você está numa call e abre um jogo, e some quando você sai do jogo.',
+        'Reconhece qualquer jogo instalado pela Steam, Epic Games, Xbox/Game Pass, Riot, EA, Ubisoft, GOG e Amazon, inclusive os que acabaram de sair, além de mais de 10 mil jogos conhecidos. Launchers e ferramentas ficam de fora.',
         'Nova aba Overlay em jogos nas Configurações: ligue o overlay e arraste a lista para onde ela deve ficar na tela. Ela encaixa nos cantos, nas bordas e no centro, e o botão Testar mostra como fica.',
         'O overlay vem desligado e, quando ligado, começa no meio da tela, à esquerda. O clique passa direto para o jogo.',
       ] },
