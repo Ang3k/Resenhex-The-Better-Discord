@@ -4,6 +4,22 @@
 // O título deve destacar as principais funcionalidades ou correções, com termos objetivos.
 window.CHANGELOG = [
   {
+    version: '1.4.0', date: '2026-10-12', name: 'Novos efeitos de voz para a resenha',
+    summary: 'Os efeitos de voz da call foram refeitos e ganharam novas opções: Bêbado, Autotune, Voz em acordes, Coral e mais. Escolha na setinha do microfone ou em Configurações > Voz e vídeo e teste com Ouvir minha voz.',
+    sections: [
+      { kind: 'new', items: [
+        'Telefone, Megafone e Banheiro, cada um com seu próprio som.',
+        'Bêbado: a fala alterna entre arrastar e atropelar, com o tom e a articulação balançando.',
+        'Autotune, Voz em acordes e Coral: transforme a fala em notas, acordes ou um grupo de cantores.',
+      ] },
+      { kind: 'improved', items: [
+        'Robô, Caverna, Alien e Fantasma foram refeitos. Esquilo, Gigante e Rádio continuam com o som conhecido.',
+        'Troca de efeitos com transição suave e proteção de picos. O mudo limpa os sons pendentes; se um efeito falhar, a voz volta ao normal.',
+        'As vozes de personagens por IA foram retiradas do app, junto dos controles e downloads de modelos. Os efeitos padrão continuam disponíveis no navegador e no app.',
+      ] },
+    ],
+  },
+  {
     version: '1.3.8', date: '2026-10-12', name: 'Overlay de voz nos jogos (app de Windows)',
     summary: 'No app de Windows, a lista da call aparece por cima do jogo: quem está na sala, quem está falando e quem está mutado. Ele aparece sozinho quando você abre um jogo durante uma call, e você escolhe onde ele fica na tela.',
     sections: [

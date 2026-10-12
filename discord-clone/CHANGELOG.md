@@ -3,6 +3,24 @@
 Histórico de versões. A mesma lista aparece dentro do app em **Novidades** (menu do servidor ou rodapé das Configurações).
 O Resenhex chegou à versão 1.0 em 4 de outubro de 2026.
 
+## v1.4.0 — Novos efeitos de voz para a resenha
+
+12 de outubro de 2026.
+
+Os efeitos de voz da call foram refeitos e ganharam novas opções. Escolha na setinha do microfone ou em Configurações > Voz e vídeo e teste com Ouvir minha voz.
+
+### Novidades
+- Telefone, Megafone e Banheiro, cada um com seu próprio som.
+- Bêbado: a fala alterna entre arrastar e atropelar, com o tom e a articulação balançando.
+- Autotune, Voz em acordes e Coral: transforme a fala em notas, acordes ou um grupo de cantores.
+
+### Melhorias
+- Robô, Caverna, Alien e Fantasma foram refeitos. Esquilo, Gigante e Rádio continuam com o som conhecido.
+- Troca de efeitos com transição suave e proteção de picos. O mudo limpa os sons pendentes; se um efeito falhar, a voz volta ao normal.
+
+### Removidos
+- As vozes de personagens por IA foram retiradas do app, junto dos controles e downloads de modelos. Os efeitos padrão continuam disponíveis no navegador e no app.
+
 ## v1.3.8 — Overlay de voz nos jogos (app de Windows)
 
 12 de outubro de 2026.
