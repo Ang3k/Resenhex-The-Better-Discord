@@ -5771,7 +5771,25 @@
     const free = () => ({ w: Math.max(1, stage.clientWidth - 2 * STAGE_MARGIN - puck.offsetWidth), h: Math.max(1, stage.clientHeight - 2 * STAGE_MARGIN - puck.offsetHeight) });
     const clamp01 = (value) => Math.min(1, Math.max(0, value));
     const snap = (value) => [0, 0.5, 1].find((point) => Math.abs(value - point) < SNAP) ?? Math.round(value * 100) / 100;
+    // A lista em miniatura imita o overlay de verdade: eu falando, um amigo mutado e uma amiga ensurdecida.
+    let puckKey = null;
+    function fillPuck() {
+      const me = state.me ? meMember() : null; // antes do login ainda não existe membro
+      const key = me ? [me.name, me.color, me.avatarUrl, JSON.stringify(me.avatarCrop)].join('|') : '';
+      if (key === puckKey) return;
+      puckKey = key;
+      const row = (name, color, speaking, icons, self) => {
+        const face = el('span', { class: 'mini-avatar', style: { background: color } });
+        setAvatarContents(face, self ? me?.avatarUrl : '', name, self ? me?.avatarCrop : null);
+        return el('span', { class: 'mini-row' + (speaking ? ' speaking' : '') }, face, el('span', { class: 'mini-label' }, name, ...icons.map((icon) => Icon(icon, 10))));
+      };
+      puck.replaceChildren(
+        row(me?.name || 'Você', me?.color || '#5865f2', true, [], true),
+        row('Amigo', '#3ba55c', false, ['micOff']),
+        row('Amiga', '#eb459e', false, ['micOff', 'headphonesOff']));
+    }
     placeOverlayPuck = (x, y) => {
+      fillPuck();
       const room = free();
       puck.style.left = STAGE_MARGIN + x * room.w + 'px';
       puck.style.top = STAGE_MARGIN + y * room.h + 'px';
@@ -5869,6 +5887,7 @@
     }
     for (const draft of profileImages) draft.preview(values);
     if (values.overlayX !== undefined) placeOverlayPuck(values.overlayX, values.overlayY);
+    if (values.overlayEnabled !== undefined) $('#overlay-stage')?.classList.toggle('is-off', !values.overlayEnabled);
   }
   previewAppearance(state);
 

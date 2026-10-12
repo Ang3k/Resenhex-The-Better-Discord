@@ -853,36 +853,38 @@
 <section id="page-overlay" data-settings-page="overlay" role="tabpanel" aria-labelledby="tab-overlay">
 <div class="eyebrow">SEM SAIR DO JOGO</div>
 <h1>Overlay em jogos</h1>
-<p class="section-description">Veja quem está na chamada e quem está falando por cima do jogo.</p>
+<p class="section-description">Quem está na chamada e quem está falando, por cima do jogo.</p>
 <div class="setting-group">
 <label class="setting-switch">
-<span>Mostrar o overlay nos jogos<small>Aparece sozinho quando você está numa chamada e abre um jogo conhecido.</small>
+<span>Mostrar o overlay nos jogos<small>Aparece sozinho quando você está numa chamada e abre um jogo.</small>
 </span>
 <input id="overlay-toggle" type="checkbox">
 </label>
 <p id="overlay-unavailable" class="hint hidden">O overlay não está disponível neste computador.</p>
 </div>
-<div class="setting-group">
-<h3>Posição</h3>
-<p class="hint">Arraste a lista para onde ela deve ficar no jogo. Perto dos cantos, das bordas e do centro ela encaixa sozinha.</p>
+<div class="setting-group overlay-position-group">
+<div class="overlay-position-head">
+<div>
+<h3>Posição na tela</h3>
+<p class="hint">Arraste a lista. Ela encaixa nos cantos, nas bordas e no centro.</p>
+</div>
+<div class="overlay-position-actions">
+<button type="button" id="overlay-reset" class="secondary overlay-action" title="Meio da tela, à esquerda"><span data-icon="refresh" data-size="16"></span>Padrão</button>
+<button type="button" id="overlay-test" class="secondary overlay-action" title="Mostra o overlay por alguns segundos nesta tela"><span data-icon="eye" data-size="16"></span>Testar</button>
+</div>
+</div>
 <input id="overlay-x" type="hidden">
 <input id="overlay-y" type="hidden">
 <div id="overlay-stage" class="overlay-stage">
+<i class="overlay-scene" aria-hidden="true"></i>
 <i class="overlay-guide vertical" aria-hidden="true"></i>
 <i class="overlay-guide horizontal" aria-hidden="true"></i>
-<div id="overlay-puck" class="overlay-puck" role="slider" tabindex="0" aria-label="Posição do overlay na tela" aria-describedby="overlay-position-label"><i></i><i></i><i></i></div>
+<span class="overlay-off-badge" aria-hidden="true">Desligado</span>
+<div id="overlay-puck" class="overlay-puck" role="slider" tabindex="0" aria-label="Posição do overlay na tela" aria-describedby="overlay-position-label"></div>
 </div>
-<div class="overlay-position-bar">
-<span id="overlay-position-label" class="overlay-position-label">Meio da tela, à esquerda</span>
-<button type="button" id="overlay-reset" class="secondary">Voltar ao padrão</button>
-<button type="button" id="overlay-test" class="secondary">Testar overlay</button>
+<p class="overlay-position-caption"><span data-icon="pin" data-size="14"></span><span id="overlay-position-label" aria-live="polite">Meio da tela, à esquerda</span></p>
 </div>
-</div>
-<div class="setting-group">
-<h3>Bom saber</h3>
-<p class="hint">Reconhece mais de 10 mil jogos, os mesmos que o Discord reconhece. Funciona com o jogo em janela ou em tela cheia sem borda; em tela cheia exclusiva o jogo fica por cima de tudo e o overlay não aparece.</p>
-<p class="hint">Em alguns computadores, uma janela por cima do jogo desliga o G-Sync/FreeSync enquanto ela estiver visível.</p>
-</div>
+<p class="overlay-note"><span data-icon="info" data-size="16"></span><span>Funciona com o jogo em janela ou em tela cheia sem borda. Em alguns monitores, o G-Sync/FreeSync pausa enquanto o overlay está na tela.</span></p>
 </section>
 <section id="page-appearance" data-settings-page="appearance" role="tabpanel" aria-labelledby="tab-appearance">
 <div class="eyebrow">CONFORTO EM CADA DETALHE</div>
