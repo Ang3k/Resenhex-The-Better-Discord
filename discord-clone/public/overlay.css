@@ -49,6 +49,8 @@ html.demo body { min-height: 100vh; padding: 24px; background: linear-gradient(1
 .ov-user.speaking .ov-label { background: var(--ov-label-speaking); color: var(--ov-text-strong); }
 .ov-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .ov-flags { display: flex; gap: 2px; color: var(--ov-muted); margin-left: 2px; }
+/* Sem ícones, a caixa vazia não deixa sobra de fundo depois do nome. */
+.ov-flags:empty { display: none; }
 .ov-flags .ico { width: 14px; height: 14px; }
 .ov-flags .server { color: var(--ov-red); }
 .ov-user.silent .ov-avatar { filter: saturate(.75) brightness(.9); }
