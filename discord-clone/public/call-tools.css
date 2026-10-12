@@ -40,12 +40,14 @@
 .device-effects-label > .ico { color: var(--brand); }
 .device-effect-current { display: flex; align-items: center; gap: 4px; padding: 3px 6px; border-radius: 6px; color: var(--text-muted); font-size: 11px; }
 .device-effect-current[data-active="true"] { background: color-mix(in srgb, var(--brand) 16%, transparent); color: var(--text-strong); }
-.device-effect-emoji { display: inline-flex; align-items: center; justify-content: center; font-family: "Segoe UI Emoji", "Apple Color Emoji", "Noto Color Emoji", sans-serif; font-size: 14px; line-height: 1; }
+.voice-art { display: inline-flex; align-items: center; justify-content: center; flex: 0 0 auto; }
+.voice-art img { display: block; width: 100%; height: 100%; object-fit: contain; }
+.device-effect-art { width: 22px; height: 22px; }
 .device-effects-toggle > .ico { color: var(--text-muted); transition: transform .15s; }
 .device-effects-toggle[aria-expanded="true"] > .ico { transform: rotate(180deg); }
 .device-effect-options { padding: 0 10px 10px; }
 .audio-device-menu .vfx-chips { grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; padding: 6px 0 0; }
-.audio-device-menu .vfx-chip { min-height: 54px; font-size: 11px; }
+.audio-device-menu .vfx-chip { min-height: 66px; font-size: 11px; }
 .audio-device-menu .vfx-preview { width: 100%; margin: 10px 0 0; }
 .audio-device-menu .vfx-preview-note { margin: 8px 2px 0; font-size: 11px; }
 .device-footer { margin-top: 12px; padding-top: 8px; border-top: 1px solid var(--divider); }
@@ -138,11 +140,13 @@
   color: var(--text-muted); font-size: 9px; font-weight: 600; line-height: 1; letter-spacing: .04em;
 }
 .tile-fx .voice-fx-indicator {
-  height: 16px; padding: 0 4px; border-radius: 3px; background: rgba(0, 0, 0, .35); color: #c1c3c8; pointer-events: auto;
+  width: 30px; height: 30px; padding: 3px; border: 1px solid rgba(255, 255, 255, .12); border-radius: 8px; background: rgba(0, 0, 0, .35); pointer-events: auto;
 }
-#stage-strip > .tile .voice-fx-indicator { height: 14px; font-size: 8px; }
+.voice-fx-art { width: 24px; height: 24px; }
+#stage-strip > .tile .voice-fx-indicator { width: 26px; height: 26px; padding: 2px; }
+#stage-strip > .tile .voice-fx-art { width: 22px; height: 22px; }
 #stage-strip > .tile .tile-fx { top: 6px; right: 6px; }
-#stage-strip > .tile.voice-fx-active .tile-controls { right: 32px; }
+#stage-strip > .tile.voice-fx-active .tile-controls { right: 40px; }
 
 /* Botões de efeito no menu de dispositivos da chamada. */
 .vfx-chips { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 4px; padding: 2px 4px 6px; }
@@ -151,7 +155,7 @@
   background: color-mix(in srgb, var(--text) 5%, transparent); color: var(--interactive); font: inherit; font-size: 12px; font-weight: 600; cursor: pointer;
   transition: background .15s, border-color .15s, color .15s;
 }
-.vfx-chip span:first-child { font-size: 18px; line-height: 1.1; }
+.vfx-chip-art { width: 30px; height: 30px; }
 .vfx-chip span:last-child { max-width: 100%; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
 .vfx-chip:hover { background: var(--hover-strong); color: var(--text-strong); }
 .vfx-chip.selected { border-color: var(--brand); background: color-mix(in srgb, var(--brand) 16%, transparent); color: var(--text-strong); }
@@ -177,7 +181,7 @@
 .vfx-card:hover { border-color: color-mix(in srgb, var(--brand) 55%, var(--divider)); transform: translateY(-1px); }
 .vfx-card:focus-visible { outline: 2px solid var(--brand); outline-offset: 2px; }
 .vfx-card.selected { border-color: var(--brand); background: color-mix(in srgb, var(--brand) 14%, var(--bg-panel)); box-shadow: inset 0 0 0 1px var(--brand); }
-.vfx-emoji { font-size: 24px; line-height: 1.2; margin-bottom: 4px; }
+.vfx-art { width: 56px; height: 56px; margin-bottom: 6px; }
 .vfx-card strong { font-size: 14px; color: var(--text-strong); }
 .vfx-card small { font-size: 12px; color: var(--text-muted); line-height: 1.3; }
 .vfx-test { display: flex; align-items: center; flex-wrap: wrap; gap: 12px; }

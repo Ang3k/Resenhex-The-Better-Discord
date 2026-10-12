@@ -21,8 +21,12 @@ for (const id of ids) {
   card.className = "card";
   card.id = id;
   const heading = document.createElement("h2");
-  heading.textContent =
-    VoiceFx.PRESETS[id].emoji + " " + VoiceFx.PRESETS[id].label;
+  const art = document.createElement('img');
+  art.src = VoiceFx.PRESETS[id].icon;
+  art.alt = '';
+  art.width = art.height = 56;
+  art.decoding = 'async';
+  heading.append(art, document.createTextNode(VoiceFx.PRESETS[id].label));
   card.append(heading);
   for (const [label, url] of [
     ["Escolhido · referência", "/reference/" + id + ".wav"],

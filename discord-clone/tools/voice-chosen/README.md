@@ -1,5 +1,7 @@
 # Reproduzir e verificar os efeitos escolhidos
 
+As ilustrações próprias ficam em `public/assets/voice-effects/`; os prompts finais estão em `art-prompts.json`. A coleção de quinze imagens pode ser vista em `/arte/` no servidor de comparação. `art-check.cjs RESULTADOS` verifica carregamento e layout. Para preparar novas gerações integradas, `import-art.cjs FONTES_JSON ARQUIVO_ORIGINAIS` exporta WebP pequenos; `CWEBP_BINARY` aponta para o encoder. A geração das imagens é feita com o `image_gen` integrado, antes dessa preparação.
+
 O app executa as receitas locais com Web Audio, AudioWorklet e Autotalent WASM. Os WAVs de favoritos e a frase usada para comparar ficam em artefatos locais, fora do pacote público. O documento `docs/PLANO-EFEITOS-ESCOLHIDOS-2026-10-12.md` é o contrato da seleção; o relatório em `docs/relatorios/` registra as medições e exceções.
 
 ## Verificação essencial

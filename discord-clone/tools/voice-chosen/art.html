@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Resenhex · imagens dos efeitos</title>
+  <style>
+    :root { color-scheme: dark; font-family: system-ui, sans-serif; color: #eceef5; background: #101218; }
+    * { box-sizing: border-box; }
+    body { margin: 0; }
+    main { max-width: 1200px; margin: auto; padding: 36px 24px 48px; }
+    a { color: #c5b8f7; }
+    h1 { font-size: clamp(1.8rem, 4vw, 2.7rem); letter-spacing: -.04em; margin: 18px 0 12px; }
+    .intro { color: #bfc3d1; line-height: 1.6; max-width: 720px; margin-bottom: 28px; }
+    .grid { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 14px; }
+    article { min-width: 0; padding: 18px 14px; text-align: center; border: 1px solid #343c4e; border-radius: 15px; background: linear-gradient(150deg, #212633, #181c26); }
+    article img { display: block; width: 128px; height: 128px; object-fit: contain; margin: 0 auto 10px; }
+    article h2 { font-size: .95rem; margin: 0 0 7px; }
+    article p { font-size: .75rem; line-height: 1.45; color: #aeb5c9; margin: 0; min-height: 2.9em; }
+    @media(max-width: 900px) { .grid { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+    @media(max-width: 520px) { main { padding: 24px 16px; } .grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; } article { padding: 14px 10px; } article img { width: 112px; height: 112px; } }
+  </style>
+</head>
+<body>
+  <main>
+    <a href="/">Ouvir os efeitos</a>
+    <h1>Uma cara própria para cada voz.</h1>
+    <p class="intro">Criaturas, ambientes e objetos em uma mesma coleção. Agora são essas imagens que representam os efeitos no Resenhex.</p>
+    <div class="grid" id="collection"></div>
+  </main>
+  <script src="/voice-fx.js"></script>
+  <script>
+    for (const [id, preset] of VoiceFx.options()) {
+      const card = document.createElement('article');
+      card.dataset.effect = id;
+      const image = document.createElement('img');
+      image.src = preset.icon;
+      image.alt = '';
+      image.width = image.height = 128;
+      image.decoding = 'async';
+      const title = document.createElement('h2');
+      title.textContent = id === 'none' ? 'Voz normal' : preset.label;
+      const description = document.createElement('p');
+      description.textContent = preset.desc;
+      card.append(image, title, description);
+      document.getElementById('collection').append(card);
+    }
+  </script>
+</body>
+</html>
