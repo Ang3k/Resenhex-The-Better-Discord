@@ -8,6 +8,8 @@ Na medição de 12/10, o Robô favorito apresentou cerca de +5,7 dB em relação
 
 ## Objetivo
 
+**Atualização de escopo em 12/10/2026:** o dono pediu a retirada definitiva das vozes de personagens por IA da versão ativa, incluindo interface e carregamento. O motor não acompanha o próximo instalador e os downloads de modelos são bloqueados; as fontes anteriores permanecem recuperáveis no Git. Continuam apenas os efeitos padrão abaixo e Rádio.
+
 Implementar no modificador de voz do Resenhex (call ao vivo, `public/voice-fx.js` e o que mais for preciso) **exatamente** os efeitos aprovados abaixo. Os áudios de referência são o contrato: o resultado na call deve soar como eles.
 
 - **Página de referência:** `artifacts/voice-source-live/prova-bebado-magic-2026-10-12/favoritos/index.html`. Para ouvir, servir com `node artifacts/voice-results-build-2026-10-12/serve-results.cjs` e abrir `http://127.0.0.1:38155/prova-bebado-magic-2026-10-12/favoritos/`.

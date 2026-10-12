@@ -18,7 +18,6 @@ window.VoiceFx = (() => {
     autotune: { label: 'Autotune', emoji: '🎵', desc: 'Afinação que pula entre notas' },
     acordes: { label: 'Voz em acordes', emoji: '🎹', desc: 'Sua fala sobre acordes musicais' },
     coral: { label: 'Coral', emoji: '👯', desc: 'Dez vozes acompanhando sua entonação' },
-    ai: { label: 'Voz por IA', emoji: '✨', desc: 'Timbres do catálogo local' },
   };
 
   let stretchLib = null;
@@ -97,7 +96,6 @@ window.VoiceFx = (() => {
 
   // Cria o efeito num AudioContext: input → (tom) → efeito → limitador → output.
   async function legacyCreate(ctx, id) {
-    if (id === 'ai') return window.VoiceAI.create(ctx);
     const input = ctx.createGain(), output = ctx.createGain();
     // Limitador no fim: eco e distorção não estouram o volume.
     const limiter = ctx.createDynamicsCompressor();
@@ -107,7 +105,7 @@ window.VoiceFx = (() => {
 
     async function set(next) {
       const preset = PRESETS[next];
-      if (!preset || next === 'none' || next === 'ai') throw new Error('Efeito de voz inválido.');
+      if (!preset || next === 'none') throw new Error('Efeito de voz inválido.');
       if (preset.pitch && !stretch) {
         const createStretch = await loadStretch();
         stretch = await createStretch(ctx, { numberOfInputs: 1, numberOfOutputs: 1, outputChannelCount: [1] });
@@ -146,7 +144,6 @@ window.VoiceFx = (() => {
   // their original Stretch parameters, filters and compressor unchanged.
   const chosenIds = new Set(['telefone', 'megafone', 'banheiro', 'caverna', 'alien', 'robo', 'fantasma', 'bebado', 'autotune', 'acordes', 'coral']);
   async function create(ctx, id) {
-    if (id === 'ai') return window.VoiceAI.create(ctx);
     const input = ctx.createGain(), output = ctx.createGain(), live = new Set();
     let current = null, blocked = false, destroyed = false, generation = 0, degraded = false, blockedAt = 0;
     function dryGraph() { const inlet = ctx.createGain(), outlet = ctx.createGain(); inlet.connect(outlet); return { input: inlet, output: outlet, id: 'none', latency: 0, tailSeconds: 0, destroy() { inlet.disconnect(); outlet.disconnect(); } }; }
@@ -158,7 +155,7 @@ window.VoiceFx = (() => {
       window.dispatchEvent(new CustomEvent('voicefx:error', { detail: { error, id } }));
     }
     async function set(next) {
-      if (destroyed || !PRESETS[next] || ['none', 'ai'].includes(next)) throw new Error('Efeito de voz inválido.');
+      if (destroyed || !PRESETS[next] || next === 'none') throw new Error('Efeito de voz inválido.');
       const revision = ++generation;
       const graph = chosenIds.has(next) ? await import('/voice-fx-chosen.mjs').then(module => module.createChosen(ctx, next)) : await legacyCreate(ctx, next);
       if (destroyed || revision !== generation) { graph.destroy(); return; }
@@ -186,17 +183,8 @@ window.VoiceFx = (() => {
     return { input, output, set, setBlocked, destroy, get id() { return current.graph.id; }, get latency() { return current.graph.latency; }, get tailSeconds() { return current.graph.tailSeconds || 0; }, get degraded() { return degraded; }, get processors() { return current.graph.processors || []; } };
   }
 
-  function options() {
-    const voices = window.VoiceAI?.state?.voices || [];
-    return [...Object.entries(PRESETS).filter(([id]) => id !== 'ai' || !voices.length),
-      ...voices.map((voice) => ['ai:' + voice.id, { label: voice.character || voice.name.split(' · ')[0],
-        desc: voice.installed ? 'IA · ' + (voice.game || 'Voz comunitária') : 'IA · Baixar para usar',
-        emoji: voice.emoji || '✨', icon: voice.icon, model: voice.id, installed: voice.installed }])];
-  }
-  function selection(id) {
-    const model = window.VoiceAI?.state?.preferences.model;
-    return id === 'ai' && model && window.VoiceAI.state?.voices.some((voice) => voice.id === model) ? 'ai:' + model : id;
-  }
+  function options() { return Object.entries(PRESETS); }
+  function selection(id) { return Object.hasOwn(PRESETS, id) ? id : 'none'; }
   function choice(id) { return options().find(([key]) => key === selection(id))?.[1] || PRESETS[id]; }
   return { PRESETS, create, options, selection, choice, valid: (id) => Object.hasOwn(PRESETS, id) };
 })();

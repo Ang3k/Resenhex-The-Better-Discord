@@ -12,12 +12,9 @@
     "postinstall": "node tools/patch-uiohook.js",
     "icons": "electron tools/render-icons.js && electron tools/render-windows-icon.js",
     "icons:win": "electron tools/render-windows-icon.js",
-    "voice:runtime": "node tools/build-voice-runtime.js",
-    "voice:models": "node tools/build-character-voices.js",
-    "voice:indexes": "python tools/build-voice-indexes.py",
-    "predist": "node tools/patch-uiohook.js --build && npm run voice:runtime && npm run voice:models",
+    "predist": "node tools/patch-uiohook.js --build",
     "dist": "electron-builder --win --publish never",
-    "predist:store": "node tools/patch-uiohook.js --build && npm run voice:runtime && npm run voice:models",
+    "predist:store": "node tools/patch-uiohook.js --build",
     "dist:store": "electron-builder --win appx --x64 --publish never -c.toolsets.winCodeSign=1.1.0",
     "test": "node --test"
   },
@@ -49,6 +46,7 @@
       "offline.html",
       "offline.js",
       "lib/**",
+      "!lib/voice-*",
       "assets/**",
       "!**/node_modules/**/*.{map,d.ts}",
       "!**/node_modules/js-yaml/{bin,dist}{,/**}",
@@ -69,8 +67,10 @@
       "es-419"
     ],
     "extraResources": [
-      { "from": "build/icon.ico", "to": "icon.ico" },
-      { "from": "voice-engine", "to": "voice-engine", "filter": ["engine.py", "windows-runtime.lock.json", "THIRD-PARTY-NOTICES.md", "licenses/**", "runtime/**"] }
+      {
+        "from": "build/icon.ico",
+        "to": "icon.ico"
+      }
     ],
     "win": {
       "target": [

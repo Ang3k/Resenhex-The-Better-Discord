@@ -116,6 +116,16 @@ function downloadRoutes(dir, { storeId } = {}) {
     res.redirect(302, android ? android.url : '/baixar');
   });
   router.get('/download/:file', multipleRanges(dir));
+  // Downloads are app releases only. Old character models/runtimes must not
+  // remain downloadable merely because a previous release left them on disk.
+  router.use('/download', (req, res, next) => {
+    let file;
+    try { file = decodeURIComponent(req.path).slice(1); } catch { return res.sendStatus(404); }
+    const release = INSTALLER.test(file) || APK.test(file) || /^[A-Za-z0-9._-]+\.exe\.blockmap$/.test(file)
+      || file === 'latest.yml' || file === 'android.json';
+    if (!release) return res.sendStatus(404);
+    next();
+  });
   router.use('/download', express.static(dir, {
     index: false, redirect: false,
     setHeaders(res, file) {

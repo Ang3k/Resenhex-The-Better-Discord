@@ -169,16 +169,16 @@ test('moderation affects only that membership and preserves global sessions and 
   assert.equal(friend.last.call, null);
 });
 
-test('chosen voice effects and AI are accepted in calls; rejected duplicates and arbitrary names are not', async (t) => {
+test('chosen voice effects are accepted in calls; removed AI voices, duplicates and arbitrary names are not', async (t) => {
   const { connect } = await fixture(t);
   const owner = await connect('Dono'), friend = await connect('Amigo');
   const room = owner.last.channels.find((c) => c.type === 'voice').id;
   await owner.call('voice:join', { channel: room }); await friend.call('voice:join', { channel: room });
-  for (const voiceFx of ['ai', 'esquilo', 'gigante', 'radio', 'telefone', 'megafone', 'banheiro', 'caverna', 'alien', 'robo', 'fantasma', 'bebado', 'autotune', 'acordes', 'coral']) {
+  for (const voiceFx of ['esquilo', 'gigante', 'radio', 'telefone', 'megafone', 'banheiro', 'caverna', 'alien', 'robo', 'fantasma', 'bebado', 'autotune', 'acordes', 'coral']) {
     await owner.call('voice:state', { voiceFx });
     await eventually(() => assert.equal(friend.last.voice.find((v) => v.accountId === owner.auth.accountId).voiceFx, voiceFx));
   }
-  for (const voiceFx of ['../../model', 'monstro', 'walkie-talkie', 'robo-musical']) {
+  for (const voiceFx of ['ai', 'ai:naruto-br', '../../model', 'monstro', 'walkie-talkie', 'robo-musical']) {
     await owner.call('voice:state', { voiceFx });
     await eventually(() => assert.equal(friend.last.voice.find((v) => v.accountId === owner.auth.accountId).voiceFx, null));
   }

@@ -1046,7 +1046,7 @@ for (const id of Object.keys(communities.root.servers)) communities.run(id, () =
 
 const CHAT_TYPES = ['text', 'voice'];
 // Efeitos do modificador de voz (public/voice-fx.js); o servidor só repassa qual está ligado.
-const VOICE_FX = ['esquilo', 'gigante', 'robo', 'radio', 'caverna', 'alien', 'telefone', 'megafone', 'banheiro', 'fantasma', 'bebado', 'autotune', 'acordes', 'coral', 'ai'];
+const VOICE_FX = ['esquilo', 'gigante', 'robo', 'radio', 'caverna', 'alien', 'telefone', 'megafone', 'banheiro', 'fantasma', 'bebado', 'autotune', 'acordes', 'coral'];
 function emitToViewers(channel, event, payload) {
   for (const [sid, s] of online) {
     if (s.serverId === communities.currentId() && canView(db.accounts[s.accountId], channel)) io.to(sid).emit(event, payload);

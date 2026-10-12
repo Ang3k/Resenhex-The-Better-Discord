@@ -40,6 +40,9 @@
     try { const value = JSON.parse(localStorage.getItem(key)); return value ?? fallback; } catch { return fallback; }
   }
   const appearance = savedJson('appearance', {});
+  const savedVoiceFx = localStorage.getItem('voiceFx');
+  const initialVoiceFx = VoiceFx.valid(savedVoiceFx) ? savedVoiceFx : 'none';
+  if (savedVoiceFx && savedVoiceFx !== initialVoiceFx) localStorage.setItem('voiceFx', initialVoiceFx);
   const state = {
     me: null, // { accountId, sid }
     presence: 'online', // o status que eu escolhi: online | idle | dnd | invisible
@@ -63,7 +66,7 @@
     sharePaused: false,
     uploadMbps: Math.min(100, Math.max(3, Number(localStorage.getItem('uploadMbps')) || 10)),
     cameraDeviceId: localStorage.getItem('cameraDeviceId') || '',
-    voiceFx: VoiceFx.valid(localStorage.getItem('voiceFx')) ? localStorage.getItem('voiceFx') : 'none', // modificador de voz (voice-fx.js)
+    voiceFx: initialVoiceFx, // modificador de voz (voice-fx.js)
     voiceChatOpen: localStorage.getItem('voiceChatOpen') === '1', // chat da sala aberto ao lado da chamada
     lastTextChannel: null, // para onde o chat volta ao fechar o chat da sala
     outputVolume: Math.min(100, Math.max(0, Number(localStorage.getItem('outputVolume') ?? 100))),
@@ -4177,7 +4180,7 @@
   // Se uma etapa falhar, as outras seguem; sem nenhuma, volta o microfone direto.
   async function processMic(raw, options) {
     const mode = options.noiseMode, ai = mode === 'ai' || mode === 'ai-lite';
-    const fxId = VoiceFx.valid(options.voiceFx) && options.voiceFx !== 'none' && (options.voiceFx !== 'ai' || window.VoiceAI?.supported) ? options.voiceFx : null;
+    const fxId = VoiceFx.valid(options.voiceFx) && options.voiceFx !== 'none' ? options.voiceFx : null;
     // Os modelos trabalham a 48 kHz (a taxa do Opus), então o contexto é criado nessa taxa.
     noise.ctx ||= new AudioContext({ sampleRate: 48000, latencyHint: 'interactive' });
     if (noise.ctx.state === 'suspended') noise.ctx.resume();
@@ -4281,22 +4284,14 @@
   // Troca o efeito do modificador de voz. Entre dois efeitos a troca é na hora; ligar ou
   // desligar refaz o microfone (sem efeito, a voz não passa pelo processamento nem ganha atraso).
   async function setVoiceFx(id) {
-    if (id === 'ai' && !window.VoiceAI?.supported) { toast('Abra o aplicativo Windows para usar Voz por IA.', 'info'); return; }
-    if (!VoiceFx.valid(id)) return;
-    if (id === state.voiceFx) {
-      if (id === 'ai' && state.voiceChannel) {
-        const fx = noise.pipes.get(state.micStream)?.fx;
-        if (fx) await fx.set('ai'); else await restartMic();
-      }
-      return;
-    }
+    if (!VoiceFx.valid(id) || id === state.voiceFx) return;
     const previous = state.voiceFx;
     state.voiceFx = id;
     localStorage.setItem('voiceFx', id);
     if (state.voiceChannel) {
       const pipe = noise.pipes.get(state.micStream);
       try {
-        if (pipe?.fx && id !== 'none' && (previous === 'ai') === (id === 'ai')) await pipe.fx.set(id);
+        if (pipe?.fx && id !== 'none') await pipe.fx.set(id);
         else await restartMic();
       } catch {
         state.voiceFx = previous;
@@ -4637,13 +4632,6 @@
     joining = true;
     try {
       if (state.voiceChannel) leaveVoice(true, false);
-      // A voz por IA sempre começa desligada ao entrar numa call: o personagem leva alguns
-      // segundos para carregar, então quem quiser liga no menu de áudio já dentro da call.
-      if (state.voiceFx === 'ai') {
-        state.voiceFx = 'none';
-        localStorage.setItem('voiceFx', 'none');
-        if ($('#voice-fx')) $('#voice-fx').value = 'none';
-      }
       state.micStream = await getMicStream();
       // opts.serverId: sala de outro servidor (reconectar ou ser movido enquanto olha outro servidor).
       const res = await call('voice:join', isDm(channel) ? { dm: channel, silent: !!opts.silent, mediaVersion: 1 } : { channel, serverId: opts.serverId ?? state.server.serverId, mediaVersion: 1 });
@@ -5267,55 +5255,23 @@
       // Modificador de voz: troca na hora, com o menu aberto para experimentar outros.
       const chips = VoiceFx.options().map(([id, p]) => el('button', {
         type: 'button', class: 'vfx-chip' + (id === VoiceFx.selection(state.voiceFx) ? ' selected' : ''), role: 'menuitemradio', ariaChecked: String(id === VoiceFx.selection(state.voiceFx)), tip: p.desc,
-        disabled: voicePresetUnavailable(id),
         onclick: async () => {
           chips.forEach((chip) => { chip.disabled = true; });
           try {
-            await setVoiceFx(await prepareVoicePreset(id));
+            await setVoiceFx(id);
             if (micTestScope === 'menu') await updateMicTestFx(state.voiceFx);
             for (const chip of chips) {
               chip.classList.toggle('selected', chip.dataset.fx === VoiceFx.selection(state.voiceFx));
               chip.setAttribute('aria-checked', String(chip.dataset.fx === VoiceFx.selection(state.voiceFx)));
             }
             updateCurrentFx();
-            updatePitch();
           } catch (error) { toast(error.message, 'error'); } finally {
-            chips.forEach((chip) => { chip.disabled = micTestStarting || voicePresetUnavailable(chip.dataset.fx); });
+            chips.forEach((chip) => { chip.disabled = micTestStarting; });
           }
         },
         data: { fx: id },
       }, voicePresetIcon(p, 'vfx-chip-icon'), el('span', { textContent: p.label })));
-      // Tom da voz por IA ao alcance da chamada: cada personagem começa no tom dele e o ajuste vale na hora.
-      const pitchLabel = (n) => (n > 0 ? '+' + n : String(n));
-      const pitchValue = el('span');
-      const showPitch = () => { pitchValue.textContent = pitchLabel(Number(pitch.value)); pitch.style.setProperty('--fill', ((Number(pitch.value) + 12) / 24 * 100) + '%'); };
-      const pitch = el('input', { type: 'range', min: '-12', max: '12', step: '1', ariaLabel: 'Tom da voz por IA',
-        oninput: showPitch,
-        onchange: () => VoiceAI.command('configure', { pitchShift: Number(pitch.value) }).catch((error) => { toast(error.message, 'error'); updatePitch(); }) });
-      const pitchRow = el('div', { class: 'menu-range vfx-pitch' }, el('div', { class: 'menu-range-head' }, el('span', { textContent: 'Tom da voz' }), pitchValue), pitch);
-      // Semelhança: quanto o índice do personagem puxa a fala para o jeito dele (0% = sem índice).
-      const likenessValue = el('span');
-      const showLikeness = () => { likenessValue.textContent = likeness.value + '%'; likeness.style.setProperty('--fill', likeness.value + '%'); };
-      const likeness = el('input', { type: 'range', min: '0', max: '100', step: '5', ariaLabel: 'Semelhança com o personagem',
-        oninput: showLikeness,
-        onchange: () => VoiceAI.command('configure', { indexRate: Number(likeness.value) / 100 }).catch((error) => { toast(error.message, 'error'); updatePitch(); }) });
-      const likenessRow = el('div', { class: 'menu-range vfx-pitch' }, el('div', { class: 'menu-range-head' }, el('span', { textContent: 'Semelhança com o personagem' }), likenessValue), likeness);
-      function updatePitch() {
-        const ai = VoiceFx.selection(state.voiceFx).startsWith('ai:') && window.VoiceAI?.state;
-        const voice = ai && VoiceAI.state.voices?.find((v) => v.id === VoiceAI.state.preferences.model);
-        pitchRow.classList.toggle('hidden', !ai);
-        likenessRow.classList.toggle('hidden', !voice?.hasIndex);
-        if (voice?.hasIndex) {
-          likeness.value = String(Math.round((VoiceAI.state.preferences.indexRate ?? 0.6) * 100));
-          showLikeness();
-        }
-        if (!ai) return;
-        pitch.value = String(VoiceAI.state.preferences.pitchShift || 0);
-        showPitch();
-        markPitchHome(pitch, voicePitchHome());
-      }
-      updatePitch();
-      const fxOptions = el('div', { id: 'voice-fx-options', class: 'device-effect-options hidden' }, el('div', { class: 'vfx-chips' }, chips), pitchRow, likenessRow);
+      const fxOptions = el('div', { id: 'voice-fx-options', class: 'device-effect-options hidden' }, el('div', { class: 'vfx-chips' }, chips));
       const fxToggle = el('button', {
         type: 'button', id: 'voice-fx-toggle', class: 'device-effects-toggle', ariaExpanded: 'false', ariaControls: 'voice-fx-options',
         onclick: () => {
@@ -6102,7 +6058,6 @@
       $('#settings-server-link').classList.toggle('hidden', !canAdmin());
       notificationHelp();
       renderDiagnostics();
-      window.VoiceAI?.refresh().catch((error) => toast(error.message, 'error'));
       drawMeter(-100, false);
       navigator.mediaDevices?.addEventListener('devicechange', fillDevices);
       await fillDevices();
@@ -6424,29 +6379,12 @@
 
   // Modificador de voz nas configurações: cartões dos efeitos (o valor vai no campo escondido #voice-fx).
   function voicePresetIcon(preset, className) {
-    const icon = el('span', { class: className, ariaHidden: 'true' });
-    if (preset.icon) {
-      const image = el('img', { src: preset.icon, alt: '', width: 44, height: 44, decoding: 'async' });
-      image.onerror = () => { icon.replaceChildren(); icon.textContent = preset.emoji || '✨'; };
-      icon.append(image);
-    } else icon.textContent = preset.emoji;
-    return icon;
-  }
-  function voicePresetUnavailable(id) {
-    return (id === 'ai' || id.startsWith('ai:')) && (!window.VoiceAI?.supported || window.VoiceAI.state?.available === false || ['loading', 'downloading'].includes(window.VoiceAI.state?.state));
-  }
-  async function prepareVoicePreset(id) {
-    if (!id.startsWith('ai:')) return id;
-    const model = id.slice(3), voice = window.VoiceAI.state?.voices.find((item) => item.id === model);
-    if (!voice) throw new Error('Voz desconhecida.');
-    if (!voice.installed) await VoiceAI.command('install', model);
-    if (VoiceAI.state.preferences.model !== model) await VoiceAI.command('configure', { model });
-    return 'ai';
+    return el('span', { class: className, ariaHidden: 'true', textContent: preset.emoji });
   }
   function renderVoiceFxGrid(value = $('#voice-fx').value) {
     const grid = $('#voice-fx-grid');
     const options = VoiceFx.options(), key = JSON.stringify(options), selected = VoiceFx.selection(value);
-    const viewKey = JSON.stringify([key, selected, voicePresetUnavailable('ai')]);
+    const viewKey = JSON.stringify([key, selected]);
     if (grid.dataset.view === viewKey) return;
     grid.dataset.view = viewKey;
     if (grid.dataset.catalog !== key) {
@@ -6456,92 +6394,20 @@
     }
     for (const card of grid.children) {
       const on = card.dataset.fx === selected;
-      card.disabled = voicePresetUnavailable(card.dataset.fx);
+      card.disabled = false;
       card.classList.toggle('selected', on);
       card.setAttribute('aria-checked', String(on));
       card.tabIndex = on ? 0 : -1;
     }
   }
-  // Marca no controle de tom onde fica o tom original do personagem (o ponto ideal).
-  function markPitchHome(input, value) {
-    let track = input.parentElement?.classList.contains('pitch-track') ? input.parentElement : null;
-    if (!track) {
-      track = el('span', { class: 'pitch-track' });
-      input.replaceWith(track);
-      track.append(input, el('span', { class: 'pitch-home', ariaHidden: 'true' }));
-    }
-    const home = track.querySelector('.pitch-home');
-    home.hidden = value == null;
-    if (value == null) return;
-    home.style.setProperty('--home', String((Number(value) - Number(input.min)) / (Number(input.max) - Number(input.min))));
-    home.title = 'Tom original do personagem: ' + (value > 0 ? '+' + value : value);
-  }
-  const voicePitchHome = () => VoiceAI.state?.voices?.find((voice) => voice.id === VoiceAI.state.preferences.model)?.pitchShift ?? 0;
   async function pickVoiceFx(id) {
-    if (voicePresetUnavailable(id)) return;
-    try { id = await prepareVoicePreset(id); } catch (error) { toast(error.message, 'error'); return; }
+    if (!VoiceFx.valid(id)) return;
     $('#voice-fx').value = id;
     $('#voice-fx').dispatchEvent(new Event('input', { bubbles: true }));
     renderVoiceFxGrid(id);
     // Durante o teste, o efeito novo já toca.
     if (micTestScope === 'settings') updateMicTestFx(id);
   }
-  let voiceAiCatalogKey = '', voiceAiActive = false;
-  const voiceAiLabels = { idle: 'Escolha uma voz para começar.', downloading: 'Baixando a voz e os componentes necessários…', loading: 'Carregando a voz…', ready: 'Voz disponível neste computador.', error: 'Sua voz está normal.' };
-  window.VoiceAI?.subscribe((snapshot, metrics) => {
-    if (!snapshot) return;
-    renderVoiceFxGrid();
-    const busy = snapshot.state === 'downloading' || snapshot.state === 'loading';
-    $('#voice-ai-options').classList.remove('hidden');
-    $('#voice-ai-status').textContent = metrics?.error || snapshot.error || (!snapshot.available ? 'O motor de voz não está incluído nesta instalação do aplicativo.' : voiceAiLabels[snapshot.state] || '');
-    $('#voice-ai-backend').value = snapshot.preferences.backend;
-    $('#voice-ai-performance').value = snapshot.preferences.performance;
-    $('#voice-ai-pitch').value = snapshot.preferences.pitchShift;
-    markPitchHome($('#voice-ai-pitch'), snapshot.preferences.model ? voicePitchHome() : null);
-    $('#voice-ai-pitch-value').textContent = snapshot.preferences.pitchShift > 0 ? `+${snapshot.preferences.pitchShift}` : String(snapshot.preferences.pitchShift);
-    for (const id of ['voice-ai-backend', 'voice-ai-performance', 'voice-ai-pitch']) $('#' + id).disabled = busy;
-    const key = JSON.stringify([snapshot.voices, snapshot.preferences.model, busy, snapshot.available]);
-    if (key !== voiceAiCatalogKey) {
-      voiceAiCatalogKey = key;
-      $('#voice-ai-catalog').replaceChildren(...snapshot.voices.map((voice) => {
-        const chosen = voice.id === snapshot.preferences.model;
-        const action = el('button', { type: 'button', class: 'secondary', disabled: busy || !snapshot.available,
-          textContent: voice.installed ? chosen ? 'Usar esta voz' : 'Escolher voz' : `Baixar · ${Math.round(voice.bytes / 1048576)} MB`,
-          onclick: async () => {
-            try {
-              if (!voice.installed) await VoiceAI.command('install', voice.id);
-              await VoiceAI.command('configure', { model: voice.id });
-              pickVoiceFx('ai');
-            } catch (error) { toast(error.message, 'error'); }
-          } });
-        const actions = el('div', { class: 'voice-ai-actions' }, action);
-        if (voice.installed) actions.append(el('button', { type: 'button', class: 'secondary', textContent: 'Remover', disabled: busy, onclick: () => VoiceAI.command('remove', voice.id).catch((error) => toast(error.message, 'error')) }));
-        return el('article', { class: 'voice-ai-card' + (chosen ? ' selected' : '') },
-          el('strong', { textContent: voice.name }), el('p', { class: 'hint', textContent: voice.description }),
-          el('span', { class: 'hint', textContent: `Idioma: ${voice.language}` }),
-          el('details', {}, el('summary', { textContent: 'Origem e uso' }), el('p', { class: 'hint', textContent: `${voice.license}. ${voice.conditions}` }), el('a', { href: voice.source, target: '_blank', rel: 'noopener noreferrer', textContent: 'Ver origem do modelo' })), actions);
-      }));
-    }
-    $('#voice-ai-download').classList.toggle('hidden', !snapshot.progress);
-    if (snapshot.progress) {
-      $('#voice-ai-progress').value = snapshot.progress.received / snapshot.progress.total;
-      $('#voice-ai-download-label').textContent = `${Math.round(snapshot.progress.received / 1048576)} / ${Math.round(snapshot.progress.total / 1048576)} MB`;
-    }
-    $('#voice-ai-metrics').textContent = metrics?.active ? [metrics.backend === 'directml' ? 'GPU · DirectML' : metrics.backend === 'cuda' ? 'GPU · CUDA' : 'CPU',
-      Number.isFinite(metrics.latencyP95) ? `Atraso local p95: ${Math.round(metrics.latencyP95)} ms` : 'Medindo atraso…',
-      Number.isFinite(metrics.rtf) ? `Uso do tempo disponível: ${Math.round(metrics.rtf * 100)}%` : ''].filter(Boolean).join(' · ') : '';
-    $('#voice-ai-retry').classList.toggle('hidden', !metrics?.error);
-    $('#voice-ai-retry').disabled = busy;
-    if (!!metrics?.active !== voiceAiActive) {
-      voiceAiActive = !!metrics?.active;
-      if (state.voiceChannel) { sendVoiceState(); renderControls(); }
-    }
-  });
-  for (const [id, preference] of [['voice-ai-backend', 'backend'], ['voice-ai-performance', 'performance'], ['voice-ai-pitch', 'pitchShift']]) {
-    $('#' + id).onchange = () => VoiceAI.command('configure', { [preference]: preference === 'pitchShift' ? Number($('#' + id).value) : $('#' + id).value }).catch((error) => toast(error.message, 'error'));
-  }
-  $('#voice-ai-cancel').onclick = () => VoiceAI.command('cancel').catch((error) => toast(error.message, 'error'));
-  $('#voice-ai-retry').onclick = () => VoiceAI.retry().catch((error) => toast(error.message, 'error'));
   $('#voice-fx-grid').addEventListener('keydown', (e) => {
     const step = { ArrowRight: 1, ArrowDown: 1, ArrowLeft: -1, ArrowUp: -1 }[e.key];
     if (!step) return;
@@ -6570,7 +6436,7 @@
     preview.setAttribute('aria-pressed', String(active));
     preview.setAttribute('aria-busy', String(micTestStarting));
     preview.replaceChildren(Icon(active ? 'stop' : 'headphones', 16), el('span', { textContent: micTestStarting ? 'Preparando…' : active ? 'Parar de ouvir' : 'Ouvir minha voz' }));
-    $('#context-menu').querySelectorAll('.vfx-chip').forEach((chip) => { chip.disabled = micTestStarting || (chip.dataset.fx === 'ai' && !window.VoiceAI?.supported); });
+    $('#context-menu').querySelectorAll('.vfx-chip').forEach((chip) => { chip.disabled = micTestStarting; });
   }
   function stopMicTest(announce = true, nextScope = null) {
     micTestEpoch++;
@@ -6596,7 +6462,7 @@
     if (!scope) return;
     const session = micTest;
     const pipe = noise.pipes.get(session?.stream);
-    if (pipe?.fx && id !== 'none' && (session?.fxId === 'ai') === (id === 'ai')) {
+    if (pipe?.fx && id !== 'none') {
       try { await pipe.fx.set(id); }
       catch {
         if (micTest === session) { stopMicTest(false); toast('Não foi possível testar esse efeito de voz.', 'error'); }

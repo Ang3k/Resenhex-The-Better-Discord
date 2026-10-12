@@ -40,7 +40,7 @@ test("chosen catalog includes approved voices, keeps Radio and omits rejected du
     "radio",
   ])
     assert.ok(window.VoiceFx.valid(id), id);
-  for (const id of ["monstro", "walkie-talkie", "robo-musical"])
+  for (const id of ["ai", "ai:naruto-br", "monstro", "walkie-talkie", "robo-musical"])
     assert.equal(window.VoiceFx.valid(id), false, id);
   assert.equal(window.VoiceFx.PRESETS.esquilo.pitch, 8);
   assert.equal(window.VoiceFx.PRESETS.gigante.pitch, -7);

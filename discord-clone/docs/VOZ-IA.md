@@ -1,3 +1,9 @@
+# Documento histórico — recurso arquivado
+
+Em 12/10/2026, o dono do projeto pediu a retirada definitiva das vozes de personagens por IA da versão ativa. A interface, scripts públicos, retratos, ponte IPC e inicialização do motor foram removidos; o runtime e catálogo não entram mais no instalador. Os downloads públicos passam a aceitar apenas releases dos apps. O código e as provas anteriores continuam disponíveis no histórico do Git e em fontes de desenvolvimento excluídas do pacote. As instruções abaixo descrevem a implementação antiga.
+
+---
+
 # Voz por IA local
 
 O aplicativo Windows transforma o microfone com RVC/ONNX antes de entregar o áudio às chamadas existentes. O catálogo, o motor, as configurações e os controles estão implementados. A verificação realizada em Linux confirmou inferência real e áudio Electron → navegador, incluindo recuperação de conversão lenta. GPU DirectML e o instalador precisam de validação num Windows real; consulte o [relatório de validação](relatorios/VALIDACAO-VOZ-IA-2026-10-10.md).

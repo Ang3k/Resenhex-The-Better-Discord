@@ -40,6 +40,20 @@ test('sem versão publicada, o link fixo leva para a página de download', async
   assert.equal((await get('/download/latest.yml')).status, 404);
 });
 
+test('character models and runtimes cannot be served from old release files', async (t) => {
+  const dir = releaseDir(t);
+  fs.mkdirSync(path.join(dir, 'voices'));
+  fs.writeFileSync(path.join(dir, 'voices', 'naruto.onnx'), 'old model');
+  fs.writeFileSync(path.join(dir, 'voices', 'runtime.zip'), 'old runtime');
+  fs.writeFileSync(path.join(dir, 'naruto.onnx'), 'old top-level model');
+  fs.writeFileSync(path.join(dir, 'Resenhex-Setup-1.2.0.exe.blockmap'), 'blockmap');
+  const get = await serve(t, dir);
+  for (const url of ['/download/voices/naruto.onnx', '/download/%76oices/naruto.onnx', '/download/voices/runtime.zip', '/download/naruto.onnx']) {
+    assert.equal((await get(url)).status, 404, url);
+  }
+  assert.equal(await (await get('/download/Resenhex-Setup-1.2.0.exe.blockmap')).text(), 'blockmap');
+});
+
 test('publica a versão mais nova, o latest.yml e o instalador', async (t) => {
   const dir = releaseDir(t);
   fs.writeFileSync(path.join(dir, 'latest.yml'), LATEST);

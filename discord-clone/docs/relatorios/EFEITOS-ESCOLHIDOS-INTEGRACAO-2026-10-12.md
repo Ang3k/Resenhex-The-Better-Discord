@@ -1,6 +1,6 @@
 # Integração dos efeitos escolhidos — 12/10/2026
 
-Os treze efeitos do plano escolhido estão integrados ao menu e ao caminho de áudio da chamada. Rádio permanece como no site, totalizando quatorze opções padrão. Walkie-talkie, Robô musical e Monstro não foram incluídos. A conversão por IA existente foi preservada; estes efeitos novos não dependem de IA nem de serviços externos de conversão.
+Os treze efeitos do plano escolhido estão integrados ao menu e ao caminho de áudio da chamada. Rádio permanece como no site, totalizando quatorze opções padrão. Walkie-talkie, Robô musical e Monstro não foram incluídos. Estes efeitos novos não dependem de IA nem de serviços externos de conversão. Após a integração inicial, o dono pediu a retirada das vozes de personagens por IA; a [remoção e a verificação posterior](REMOCAO-VOZES-IA-2026-10-12.md) registram o estado atual. As medições e verificações abaixo documentam a entrega inicial dos efeitos.
 
 ## Base e entrega local
 

@@ -37,7 +37,7 @@ Plataforma própria de chat e voz para você e seus amigos, inspirada no Discord
 
 ## App para Windows
 
-O recurso local de **Voz por IA** inclui catálogo RVC, download de modelos, teste de microfone e integração às chamadas. Consulte [como usar e gerar o aplicativo](docs/VOZ-IA.md) e [os resultados e limites da validação](docs/relatorios/VALIDACAO-VOZ-IA-2026-10-10.md). Os personagens aparecem junto dos efeitos com retratos locais; consulte também o [relatório de desempenho](docs/relatorios/DESEMPENHO-VOZ-IA-2026-10-10.md) e a [segunda rodada de otimizações](docs/relatorios/DESEMPENHO-VOZ-IA-RODADA-2-2026-10-10.md). A validação de GPU e instalador Windows permanece pendente.
+O modificador de voz usa os **efeitos padrão escolhidos**: Esquilo, Gigante, Telefone, Megafone, Banheiro, Caverna, Alien, Robô, Fantasma, Bêbado, Autotune, Voz em acordes e Coral. Rádio foi preservado. As vozes de personagens por IA foram retiradas da interface, do carregamento e do pacote do aplicativo; os experimentos continuam recuperáveis no histórico do Git. Consulte a [integração e as medições](docs/relatorios/EFEITOS-ESCOLHIDOS-INTEGRACAO-2026-10-12.md).
 
 Mande para os amigos o link **`https://seu-dominio/baixar`**. Lá tem o botão de download e o passo a passo. No site, quem usa Windows também vê um botão verde de download na barra de servidores.
 

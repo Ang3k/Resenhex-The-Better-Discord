@@ -28,9 +28,6 @@ window.CHANGELOG = [
         'Aba Minha conta nas Configurações: mostra seu nome de usuário e quando a conta foi criada, e deixa trocar a senha (pede a senha atual).',
         'Ao trocar a senha, os outros aparelhos conectados na sua conta saem e precisam entrar com a senha nova. O aparelho em que você trocou continua conectado.',
       ] },
-      { kind: 'improved', items: [
-        'Entrar numa call com voz por IA não espera mais o personagem carregar. A voz por IA começa desligada e você liga pelo menu de áudio, já dentro da call.',
-      ] },
       { kind: 'fixed', items: [
         'Quem não é dono do servidor via um “null” no menu das configurações do servidor, embaixo de Banimentos.',
         'A sala do DJ mostrava um “null” embaixo da fila quando não havia aviso da última música.',
@@ -38,20 +35,9 @@ window.CHANGELOG = [
     ],
   },
   {
-    version: '1.3.0', date: '2026-10-10', name: 'Voz de personagem por IA na call',
-    summary: 'No app de Windows, sua voz pode virar a de um personagem na call: Braum, Kled, Tristana, Veigar, Naruto, Akali, Sett, Reyna e Draven, quase todos com a dublagem brasileira. Cada um já começa no tom certo, e a atualização do app ficou bem mais leve.',
+    version: '1.3.0', date: '2026-10-10', name: 'Personagens no catálogo do Mudae',
+    summary: 'A roleta do Mudae passou a usar personagens do catálogo de desenhos, jogos e quadrinhos.',
     sections: [
-      { kind: 'new', items: [
-        'Voz por IA no app de Windows: escolha um personagem em Efeitos de voz (no menu de áudio da call ou nas Configurações) e fale com a voz dele. A conversão roda no seu computador, de preferência na placa de vídeo, e quem ouve não precisa instalar nada.',
-        'Nove personagens: Braum, Kled, Tristana, Veigar, Sett, Akali e Draven (League of Legends), Reyna (Valorant) e Naruto. Quase todos com a dublagem brasileira.',
-        'Tom da voz direto no menu da call, com um anel pontilhado mostrando o tom original de cada personagem.',
-        '“Semelhança com o personagem”: puxa a fala para o jeito dele. Em 0% fica só o timbre.',
-      ] },
-      { kind: 'improved', items: [
-        'Cada personagem já começa no tom que combina com ele.',
-        'Os personagens são baixados só quando você escolhe um, então a atualização do app ficou muito menor.',
-        'O motor de voz ficou com menos da metade do tamanho, sem mudar o som.',
-      ] },
       { kind: 'fixed', items: [
         'A roleta do Mudae gira com personagens de verdade em desenhos, jogos e quadrinhos, em vez de versos com dado.',
       ] },
