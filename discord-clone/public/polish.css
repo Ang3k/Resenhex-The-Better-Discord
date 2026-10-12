@@ -85,12 +85,7 @@
 #tooltip.bottom::after { border-bottom-color: var(--bg-floating); }
 
 /* ---------- Faixa dos servidores ---------- */
-/* Faixa e canais na mesma cor, como no Discord; uma linha fina contorna a área do servidor (canto arredondado). */
-#servers { background: var(--bg-sidebar); padding-top: 12px; }
-#dock { background: var(--bg-sidebar); }
-.rail-badge { box-shadow: 0 0 0 4px var(--bg-sidebar); }
-.rail-call { box-shadow: 0 0 0 3px var(--bg-sidebar); }
-#sidebar { border-top: 1px solid var(--divider); border-left: 1px solid var(--divider); border-top-left-radius: 12px; }
+#servers { background: var(--bg-rail); padding-top: 12px; }
 .rail-sep { background: var(--divider); height: 2px; }
 
 /* ---------- Canais: mais compactos, seleção discreta ---------- */
