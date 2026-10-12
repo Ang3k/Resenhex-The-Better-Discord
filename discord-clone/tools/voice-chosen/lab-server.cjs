@@ -6,6 +6,7 @@ const app = express(),
   reference = path.resolve(process.argv[2] || ""),
   output = path.resolve(process.argv[3] || "");
 const rawInput = process.argv[4] && path.resolve(process.argv[4]);
+app.get('/arte/', (_, res) => res.redirect(302, '/'));
 if (!fs.existsSync(path.join(reference, "original.wav")))
   throw Error("Pass the selected favorites directory and output directory.");
 const files = {
