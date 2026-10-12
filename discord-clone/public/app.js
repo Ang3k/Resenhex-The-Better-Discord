@@ -28,7 +28,7 @@
   function overlayLook(saved) {
     const opacity = Number(saved.opacity);
     return {
-      overlayOpacity: Number.isFinite(opacity) ? Math.min(100, Math.max(20, Math.round(opacity * 100))) : 100,
+      overlayOpacity: Number.isFinite(opacity) ? Math.min(100, Math.max(20, Math.round(opacity * 100))) : 70,
       overlayNames: saved.names !== false,
       overlayShow: ['all', 'unmuted', 'speaking'].includes(saved.show) ? saved.show : 'all',
       overlayAnimated: saved.animated !== false,
@@ -96,8 +96,8 @@
     localVolume: savedJson('localVolume', {}), // accountId -> 0..1
     localMuted: new Set(savedJson('localMuted', [])),
     speaking: new Set(), // sids
-    // Overlay de voz em jogos (só no app de desktop): desligado por padrão, no meio da tela à esquerda.
-    overlayEnabled: savedJson('overlay', {}).enabled === true,
+    // Overlay de voz em jogos (só no app de desktop): ligado por padrão, no meio da tela à esquerda.
+    overlayEnabled: savedJson('overlay', {}).enabled !== false,
     ...overlayPosition(savedJson('overlay', {})),
     ...overlayLook(savedJson('overlay', {})),
     editing: null, // id da mensagem sendo editada
