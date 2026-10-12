@@ -1,0 +1,18 @@
+{
+  "effects": {
+    "acordes": {
+      "roomWetGain": 0.5008347919445876,
+      "dryGain": 0.79,
+      "musicGain": 1.2217910539370094,
+      "gain": 0.8507724571441728,
+      "leadDb": 0.75
+    },
+    "coral": {
+      "roomWetGain": 0.5405420222954094,
+      "dryGain": 0.725,
+      "musicGain": 1.3619464874911373,
+      "gain": 0.8490703630101167,
+      "leadDb": 0.25
+    }
+  }
+}

@@ -372,7 +372,7 @@ app.post('/api/media/webhook', express.text({ type: 'application/webhook+json', 
   try { await media.webhook(req.body, req.headers.authorization); res.sendStatus(204); }
   catch { res.sendStatus(401); }
 });
-app.get('/vendor/livekit-client.js', (_req, res) => res.sendFile(path.join(path.dirname(require.resolve('livekit-client')), 'livekit-client.umd.js')));
+app.get('/vendor/livekit-client.js', (_req, res) => res.sendFile('livekit-client.umd.js', { root: path.dirname(require.resolve('livekit-client')) }));
 app.use((req, _res, next) => {
   const account = communities.root.accounts[db.sessions[req.get('x-token')]];
   communities.run(req.get('x-server-id') || account?.lastServerId || communities.root.defaultServerId, next);
@@ -390,7 +390,7 @@ app.get('/privacidade', (_req, res) => res.sendFile(path.join(__dirname, 'public
 // Supressão de ruído por IA (RNNoise e GTCRN compilados para WebAssembly), usada no navegador.
 app.use('/vendor/noise', express.static(path.dirname(require.resolve('@sapphi-red/web-noise-suppressor')), { maxAge: '7d' }));
 // Mudança de tom do modificador de voz (Signalsmith Stretch, MIT, WebAssembly num AudioWorklet).
-app.get('/vendor/stretch.mjs', (_req, res) => res.sendFile(path.join(path.dirname(require.resolve('signalsmith-stretch')), 'SignalsmithStretch.mjs'), { maxAge: '7d' }));
+app.get('/vendor/stretch.mjs', (_req, res) => res.sendFile('SignalsmithStretch.mjs', { root: path.dirname(require.resolve('signalsmith-stretch')), maxAge: '7d' }));
 // Three.js da cena 3D do Salão do Mudae, servido daqui (sem CDN): só o build e os addons.
 const threeDir = path.join(path.dirname(require.resolve('three')), '..');
 app.use('/vendor/three/build', express.static(path.join(threeDir, 'build'), { maxAge: '7d' }));
@@ -1046,7 +1046,7 @@ for (const id of Object.keys(communities.root.servers)) communities.run(id, () =
 
 const CHAT_TYPES = ['text', 'voice'];
 // Efeitos do modificador de voz (public/voice-fx.js); o servidor só repassa qual está ligado.
-const VOICE_FX = ['esquilo', 'gigante', 'robo', 'radio', 'caverna', 'alien', 'ai'];
+const VOICE_FX = ['esquilo', 'gigante', 'robo', 'radio', 'caverna', 'alien', 'telefone', 'megafone', 'banheiro', 'fantasma', 'bebado', 'autotune', 'acordes', 'coral', 'ai'];
 function emitToViewers(channel, event, payload) {
   for (const [sid, s] of online) {
     if (s.serverId === communities.currentId() && canView(db.accounts[s.accountId], channel)) io.to(sid).emit(event, payload);

@@ -1,0 +1,109 @@
+{
+  "rate": 48000,
+  "assets": [
+    {
+      "file": "caverna.wav",
+      "recipe": {
+        "sox": "14.4.2",
+        "arguments": [
+          "reverb",
+          "80",
+          "echo",
+          "0.6",
+          "0.6",
+          "120",
+          "0.3"
+        ],
+        "impulseAmplitude": 0.01,
+        "seconds": 10,
+        "normalization": "none"
+      },
+      "frames": 485760,
+      "channels": 1,
+      "sha256": "759ffc3b3cf5c8eb402ee7af0af8a96d57b992f5519330e5b5abcc6f4bd47b30"
+    },
+    {
+      "file": "alien.wav",
+      "recipe": {
+        "sox": "14.4.2",
+        "arguments": [
+          "echo",
+          "0.8",
+          "0.6",
+          "80",
+          "0.5",
+          "reverb",
+          "40"
+        ],
+        "impulseAmplitude": 0.01,
+        "seconds": 10,
+        "normalization": "none"
+      },
+      "frames": 483840,
+      "channels": 1,
+      "sha256": "94659107812b75daa0bdef8049852d3afb3d2bc4f2cad6887777a34dd6ef3179"
+    },
+    {
+      "file": "fantasma.wav",
+      "recipe": {
+        "sox": "14.4.2",
+        "arguments": [
+          "echo",
+          "0.9",
+          "0.7",
+          "200",
+          "0.6",
+          "reverb",
+          "60",
+          "vol",
+          "0.7"
+        ],
+        "impulseAmplitude": 0.01,
+        "seconds": 10,
+        "normalization": "none"
+      },
+      "frames": 489600,
+      "channels": 1,
+      "sha256": "75616baa1fd427d5e0e6d1801976b20de9fc250931b9195546a726cbaf2d6e36"
+    },
+    {
+      "file": "banheiro.wav",
+      "recipe": {
+        "source": "The Impulse Factory / Tiled Bathroom Stereo",
+        "normalization": "mean-channel L2 energy",
+        "dry": 0.65,
+        "wet": 0.55,
+        "preDelayMs": 8
+      },
+      "frames": 133967,
+      "channels": 2,
+      "sha256": "4536e7b177ce9bb350468a4dcdb79f84cc571db63a70007ee7104c8d042c00d5"
+    },
+    {
+      "file": "acordes.wav",
+      "recipe": {
+        "seconds": 2.4,
+        "preDelayMs": 28,
+        "dampHz": 3200,
+        "seed": 7,
+        "source": "approved round 3 hall()"
+      },
+      "frames": 116544,
+      "channels": 2,
+      "sha256": "40e704de131156fb874012bc174b02c556673a6eef3a8810bf6a3636d9b985b1"
+    },
+    {
+      "file": "coral.wav",
+      "recipe": {
+        "seconds": 3.2,
+        "preDelayMs": 35,
+        "dampHz": 2600,
+        "seed": 11,
+        "source": "approved round 3 hall()"
+      },
+      "frames": 155280,
+      "channels": 2,
+      "sha256": "9f2fc9b661ba7c91c98476c5bc3db2cb3874c5de6f709ddec4e9c362867e1f02"
+    }
+  ]
+}

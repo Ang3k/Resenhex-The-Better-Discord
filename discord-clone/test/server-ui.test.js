@@ -163,6 +163,21 @@ async function enableAiInCall(app, id = 'ai:test') {
   app.d.dispatchEvent(new app.w.KeyboardEvent('keydown', { key: 'Escape', bubbles: true })); await settle();
 }
 
+test('chosen effects appear in the call menu and swap the musical voices without replacing capture', async (t) => {
+  const app = await voicePreviewApp(t), d = app.d;
+  d.querySelector('#sc-mic-devices').click(); await settle();
+  d.querySelector('#voice-fx-toggle').click();
+  for (const id of ['esquilo', 'gigante', 'radio', 'telefone', 'megafone', 'banheiro', 'caverna', 'alien', 'robo', 'fantasma', 'bebado', 'autotune', 'acordes', 'coral']) assert.ok(d.querySelector(`.vfx-chip[data-fx="${id}"]`), id);
+  for (const id of ['monstro', 'walkie-talkie', 'robo-musical']) assert.equal(d.querySelector(`.vfx-chip[data-fx="${id}"]`), null);
+  d.querySelector('.vfx-chip[data-fx="acordes"]').click(); await settle();
+  const captures = app.captures.length;
+  assert.equal(app.effects.at(-1).id, 'acordes');
+  d.querySelector('.vfx-chip[data-fx="coral"]').click(); await settle();
+  assert.equal(app.effects.at(-1).id, 'coral');
+  assert.equal(app.captures.length, captures);
+  assert.match(d.querySelector('.device-effect-current').textContent, /Coral/);
+});
+
 test('teste de voz no menu: ouve os efeitos, silencia a chamada e libera o microfone ao fechar', async (t) => {
   const app = await voicePreviewApp(t);
   const d = app.d;

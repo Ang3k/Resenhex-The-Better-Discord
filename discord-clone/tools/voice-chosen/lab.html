@@ -1,0 +1,138 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>Efeitos escolhidos · app ao vivo</title>
+    <style>
+      :root {
+        color-scheme: dark;
+        font-family: system-ui;
+        background: #101218;
+        color: #eceef5;
+      }
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+      }
+      main {
+        max-width: 1240px;
+        margin: auto;
+        padding: 35px 24px;
+      }
+      h1 {
+        font-size: 2.4rem;
+        letter-spacing: -0.04em;
+      }
+      p {
+        line-height: 1.6;
+        color: #bfc3d1;
+      }
+      .controls {
+        display: flex;
+        align-items: center;
+        gap: 15px;
+        flex-wrap: wrap;
+        background: #28213a;
+        padding: 15px;
+        border-radius: 10px;
+        margin: 25px 0;
+      }
+      button {
+        padding: 9px 15px;
+        background: #473762;
+        color: white;
+        border: 1px solid #a692cb;
+        border-radius: 7px;
+        cursor: pointer;
+      }
+      input {
+        accent-color: #c2a8fa;
+      }
+      audio {
+        width: 100%;
+        height: 40px;
+        margin: 8px 0 15px;
+      }
+      .cards {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 17px;
+      }
+      .card {
+        min-width: 0;
+        background: #191e29;
+        padding: 19px;
+        border: 1px solid #384050;
+        border-radius: 12px;
+      }
+      .card h2 {
+        font-size: 1.2rem;
+      }
+      .card label {
+        display: block;
+        font-size: 0.76rem;
+        color: #aeb5c9;
+      }
+      .card p {
+        font-size: 0.76rem;
+      }
+      .status {
+        font-size: 0.82rem;
+      }
+      a {
+        color: #c5b8f7;
+      }
+      @media (max-width: 900px) {
+        .cards {
+          grid-template-columns: repeat(2, minmax(0, 1fr));
+        }
+      }
+      @media (max-width: 600px) {
+        main {
+          padding: 20px 16px;
+        }
+        .cards {
+          grid-template-columns: minmax(0, 1fr);
+        }
+        h1 {
+          font-size: 2rem;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <a href="http://127.0.0.1:38155/prova-bebado-magic-2026-10-12/favoritos/"
+        >← Seleção aprovada</a
+      >
+      <h1>Os efeitos escolhidos, com o código do app.</h1>
+      <p>
+        À esquerda, o áudio que você escolheu. À direita, a mesma frase
+        processada pelo motor que será usado na chamada. Esquilo e Gigante
+        conservam o caminho publicado. Os outros usam as novas receitas.
+      </p>
+      <p>
+        O atraso fixo foi retirado apenas dos arquivos de comparação. O Bêbado
+        mantém seu ritmo variável. A adaptação de volume pode mudar um pouco os
+        ganhos durante a fala.
+      </p>
+      <div class="controls">
+        <button id="stop">Parar tudo</button
+        ><label
+          >Volume <output id="value">25%</output>
+          <input id="volume" type="range" min="0" max="100" value="25" /></label
+        ><span class="status" id="status">Carregando resultados…</span>
+      </div>
+      <div id="cards" class="cards"></div>
+      <p id="limits">
+        As medições estão nos arquivos de resultado. Android físico ainda
+        precisa de aparelho para medir o desempenho real.
+      </p>
+    </main>
+    <script src="/voice-fx.js"></script>
+    <script type="module" src="/lab.mjs"></script>
+  </body>
+</html>

@@ -4134,6 +4134,10 @@
   }
 
   // ---------------- áudio local ----------------
+  window.addEventListener('voicefx:error', () => {
+    toast('O efeito de voz falhou; sua voz voltou ao normal.');
+    if (state.voiceChannel) sendVoiceState();
+  });
   async function getMicStream(options = state, strict = false) {
     const ai = options.noiseMode === 'ai' || options.noiseMode === 'ai-lite';
     const constraints = {
@@ -4449,7 +4453,10 @@
     if (level > gateThreshold() || (!state.sensAuto && state.sensThreshold <= -80)) gate.lastLoud = now;
     // Com a página escondida (tela bloqueada, outro app ou aba) o navegador espaça este timer para
     // 1 vez por segundo ou menos, e o corte fecharia entre as leituras: aí o microfone fica aberto.
-    const open = document.hidden || now - gate.lastLoud < 400; // segura aberto um pouco depois da fala
+    // A queued Bêbado syllable must reach the receiver before the sensitivity
+    // gate closes. Hard mute/PTT still blocks immediately in applyAudio().
+    const fxTail = noise.pipes.get(state.micStream)?.fx?.tailSeconds || 0;
+    const open = document.hidden || now - gate.lastLoud < 400 + Math.min(4, fxTail) * 1000;
     if (open !== gate.open) {
       gate.open = open;
       applyAudio();

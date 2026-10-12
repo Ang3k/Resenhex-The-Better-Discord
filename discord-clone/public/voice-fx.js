@@ -9,7 +9,15 @@ window.VoiceFx = (() => {
     robo: { label: 'Robô', emoji: '🤖', desc: 'Metálica, de máquina' },
     radio: { label: 'Rádio', emoji: '📻', desc: 'Comunicador chiado' },
     caverna: { label: 'Caverna', emoji: '🦇', desc: 'Eco de lugar enorme' },
-    alien: { label: 'Alien', emoji: '👽', desc: 'Aguda e ondulada', pitch: 4 },
+    alien: { label: 'Alien', emoji: '👽', desc: 'Aguda, com eco espacial', pitch: 4 },
+    telefone: { label: 'Telefone', emoji: '☎️', desc: 'Voz de ligação telefônica' },
+    megafone: { label: 'Megafone', emoji: '📣', desc: 'Alto-falante saturado' },
+    banheiro: { label: 'Banheiro', emoji: '🚿', desc: 'Acústica de banheiro azulejado' },
+    fantasma: { label: 'Fantasma', emoji: '👻', desc: 'Sussurro aéreo com eco' },
+    bebado: { label: 'Bêbado', emoji: '🥴', desc: 'Arrasta e atropela a fala' },
+    autotune: { label: 'Autotune', emoji: '🎵', desc: 'Afinação que pula entre notas' },
+    acordes: { label: 'Voz em acordes', emoji: '🎹', desc: 'Sua fala sobre acordes musicais' },
+    coral: { label: 'Coral', emoji: '👯', desc: 'Dez vozes acompanhando sua entonação' },
     ai: { label: 'Voz por IA', emoji: '✨', desc: 'Timbres do catálogo local' },
   };
 
@@ -88,7 +96,7 @@ window.VoiceFx = (() => {
   }
 
   // Cria o efeito num AudioContext: input → (tom) → efeito → limitador → output.
-  async function create(ctx, id) {
+  async function legacyCreate(ctx, id) {
     if (id === 'ai') return window.VoiceAI.create(ctx);
     const input = ctx.createGain(), output = ctx.createGain();
     // Limitador no fim: eco e distorção não estouram o volume.
@@ -131,6 +139,51 @@ window.VoiceFx = (() => {
 
     await set(id);
     return { input, output, set, destroy, get id() { return current; }, get latency() { return PRESETS[current]?.pitch ? latency : 0; } };
+  }
+
+  // Stable endpoints let the call keep its MediaStream while an effect is
+  // loaded and crossfaded. The published Esquilo/Gigante/Rádio graphs retain
+  // their original Stretch parameters, filters and compressor unchanged.
+  const chosenIds = new Set(['telefone', 'megafone', 'banheiro', 'caverna', 'alien', 'robo', 'fantasma', 'bebado', 'autotune', 'acordes', 'coral']);
+  async function create(ctx, id) {
+    if (id === 'ai') return window.VoiceAI.create(ctx);
+    const input = ctx.createGain(), output = ctx.createGain(), live = new Set();
+    let current = null, blocked = false, destroyed = false, generation = 0, degraded = false, blockedAt = 0;
+    function dryGraph() { const inlet = ctx.createGain(), outlet = ctx.createGain(); inlet.connect(outlet); return { input: inlet, output: outlet, id: 'none', latency: 0, tailSeconds: 0, destroy() { inlet.disconnect(); outlet.disconnect(); } }; }
+    function attach(graph) { const mix = ctx.createGain(); graph.output.connect(mix).connect(output); input.connect(graph.input); const item = { graph, mix }; live.add(item); return item; }
+    function discard(item) { if (!live.delete(item)) return; input.disconnect(item.graph.input); item.graph.destroy(); item.mix.disconnect(); }
+    function fail(item, error) {
+      if (destroyed || current !== item || degraded) return;
+      degraded = true; const safe = attach(dryGraph()); safe.mix.gain.value = 1; current = safe; discard(item);
+      window.dispatchEvent(new CustomEvent('voicefx:error', { detail: { error, id } }));
+    }
+    async function set(next) {
+      if (destroyed || !PRESETS[next] || ['none', 'ai'].includes(next)) throw new Error('Efeito de voz inválido.');
+      const revision = ++generation;
+      const graph = chosenIds.has(next) ? await import('/voice-fx-chosen.mjs').then(module => module.createChosen(ctx, next)) : await legacyCreate(ctx, next);
+      if (destroyed || revision !== generation) { graph.destroy(); return; }
+      graph.setBlocked?.(blocked); const item = attach(graph), previous = current, now = ctx.currentTime;
+      degraded = false; current = item;
+      for (const processor of graph.processors || []) {
+        processor.addEventListener('processorerror', event => fail(item, event), { once: true });
+        processor.addEventListener('error', event => fail(item, event), { once: true });
+      }
+      if (previous) { item.mix.gain.setValueAtTime(0, now); item.mix.gain.linearRampToValueAtTime(1, now + .025); previous.mix.gain.cancelScheduledValues(now); previous.mix.gain.setValueAtTime(previous.mix.gain.value, now); previous.mix.gain.linearRampToValueAtTime(0, now + .025); setTimeout(() => discard(previous), 45); }
+    }
+    function setBlocked(value) {
+      if (destroyed || blocked === !!value) return; blocked = !!value;
+      if (blocked) blockedAt = ctx.currentTime;
+      input.gain.cancelScheduledValues(ctx.currentTime); input.gain.setValueAtTime(blocked ? 0 : 1, ctx.currentTime);
+      for (const item of live) item.graph.setBlocked?.(blocked);
+      output.gain.cancelScheduledValues(ctx.currentTime); output.gain.setValueAtTime(blocked ? 0 : 1, ctx.currentTime);
+      if (!blocked && current && !current.graph.setBlocked) {
+        const release = Math.max(ctx.currentTime, blockedAt + current.graph.latency + .01);
+        if (release > ctx.currentTime) { output.gain.setValueAtTime(0, ctx.currentTime); output.gain.setValueAtTime(1, release); }
+      }
+    }
+    function destroy() { if (destroyed) return; destroyed = true; generation++; for (const item of [...live]) discard(item); input.disconnect(); output.disconnect(); }
+    try { await set(id); } catch (error) { destroy(); throw error; }
+    return { input, output, set, setBlocked, destroy, get id() { return current.graph.id; }, get latency() { return current.graph.latency; }, get tailSeconds() { return current.graph.tailSeconds || 0; }, get degraded() { return degraded; }, get processors() { return current.graph.processors || []; } };
   }
 
   function options() {
