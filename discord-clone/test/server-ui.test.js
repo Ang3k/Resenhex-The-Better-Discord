@@ -160,14 +160,6 @@ test('chosen effects appear in the call menu and swap the musical voices without
   d.querySelector('#sc-mic-devices').click(); await settle();
   d.querySelector('#voice-fx-toggle').click();
   for (const id of ['esquilo', 'gigante', 'radio', 'telefone', 'megafone', 'banheiro', 'caverna', 'alien', 'robo', 'fantasma', 'bebado', 'autotune', 'acordes', 'coral']) assert.ok(d.querySelector(`.vfx-chip[data-fx="${id}"]`), id);
-  for (const id of ['none', 'esquilo', 'gigante', 'radio', 'telefone', 'megafone', 'banheiro', 'caverna', 'alien', 'robo', 'fantasma', 'bebado', 'autotune', 'acordes', 'coral']) {
-    const art = d.querySelector(`.vfx-chip[data-fx="${id}"] img`);
-    assert.equal(art.getAttribute('src'), `/assets/voice-effects/${id}.webp`);
-    assert.equal(art.getAttribute('alt'), '', 'the visible effect name remains the accessible label');
-  }
-  const brokenArt = d.querySelector('.vfx-chip[data-fx="esquilo"] img');
-  brokenArt.dispatchEvent(new app.w.Event('error'));
-  assert.ok(d.querySelector('.vfx-chip[data-fx="esquilo"] svg'), 'an image failure retains a neutral microphone icon');
   for (const id of ['monstro', 'walkie-talkie', 'robo-musical']) assert.equal(d.querySelector(`.vfx-chip[data-fx="${id}"]`), null);
   d.querySelector('.vfx-chip[data-fx="acordes"]').click(); await settle();
   const captures = app.captures.length;
@@ -400,7 +392,6 @@ test('transmissões simultâneas usam grade, alternam destaque e preservam os pl
   assert.equal(participant.querySelector('.label .voice-fx-indicator'), null, 'o nome fica livre do indicador');
   assert.equal(participant.querySelector('.tile-badges .voice-fx-indicator'), null, 'o efeito fica fora dos selos à esquerda');
   assert.equal(participant.querySelector('.tile-fx .voice-fx-indicator').dataset.tip, 'Efeito de voz: Robô');
-  assert.equal(participant.querySelector('.tile-fx .voice-fx-indicator img').getAttribute('src'), '/assets/voice-effects/robo.webp');
   assert.equal(app.d.querySelector('.voice-user .voice-fx-indicator'), null, 'a lista lateral não mostra o efeito');
   assert.equal(app.d.querySelector('#stage-summary').textContent, '2 transmissões');
   first.click();
@@ -421,7 +412,6 @@ test('transmissões simultâneas usam grade, alternam destaque e preservam os pl
   s.voice[1].voiceFx = 'caverna';
   app.setSnapshot(s); await settle();
   assert.equal(participant.querySelector('.tile-fx .voice-fx-indicator').dataset.tip, 'Efeito de voz: Caverna', 'o detalhe acompanha a troca do efeito');
-  assert.equal(participant.querySelector('.tile-fx .voice-fx-indicator img').getAttribute('src'), '/assets/voice-effects/caverna.webp');
   assert.equal(stage.querySelector('[data-key="screen-remote-1"]'), null);
   assert.equal(primary.firstElementChild, second, 'quando a tela destacada encerra, destaca a restante');
   app.d.querySelector('#stage-grid').click();

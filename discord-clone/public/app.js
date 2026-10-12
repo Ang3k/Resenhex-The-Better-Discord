@@ -2293,7 +2293,7 @@
     const preset = fxPreset(v);
     if (!preset) return null;
     const label = 'Efeito de voz: ' + preset.label;
-    return el('span', { class: 'voice-fx-indicator', tip: label, ariaLabel: label, role: 'img' }, voicePresetIcon(preset, 'voice-fx-art'));
+    return el('span', { class: 'voice-fx-indicator', tip: label, ariaLabel: label, role: 'img', textContent: 'FX' });
   }
 
   function renderStage() {
@@ -5249,7 +5249,7 @@
       const updateCurrentFx = () => {
         const preset = VoiceFx.choice(state.voiceFx);
         fxCurrent.dataset.active = String(state.voiceFx !== 'none');
-        fxCurrent.replaceChildren(voicePresetIcon(preset, 'device-effect-art'), el('span', { textContent: preset.label }));
+        fxCurrent.replaceChildren(voicePresetIcon(preset, 'device-effect-emoji'), el('span', { textContent: preset.label }));
       };
       updateCurrentFx();
       // Modificador de voz: troca na hora, com o menu aberto para experimentar outros.
@@ -5270,7 +5270,7 @@
           }
         },
         data: { fx: id },
-      }, voicePresetIcon(p, 'vfx-chip-art'), el('span', { textContent: p.label })));
+      }, voicePresetIcon(p, 'vfx-chip-icon'), el('span', { textContent: p.label })));
       const fxOptions = el('div', { id: 'voice-fx-options', class: 'device-effect-options hidden' }, el('div', { class: 'vfx-chips' }, chips));
       const fxToggle = el('button', {
         type: 'button', id: 'voice-fx-toggle', class: 'device-effects-toggle', ariaExpanded: 'false', ariaControls: 'voice-fx-options',
@@ -6379,11 +6379,7 @@
 
   // Modificador de voz nas configurações: cartões dos efeitos (o valor vai no campo escondido #voice-fx).
   function voicePresetIcon(preset, className) {
-    const frame = el('span', { class: 'voice-art ' + className, ariaHidden: 'true' });
-    const image = el('img', { src: preset.icon, alt: '', width: 48, height: 48, decoding: 'async', loading: 'lazy', draggable: 'false' });
-    image.onerror = () => frame.replaceChildren(Icon('mic', 20));
-    frame.append(image);
-    return frame;
+    return el('span', { class: className, ariaHidden: 'true', textContent: preset.emoji });
   }
   function renderVoiceFxGrid(value = $('#voice-fx').value) {
     const grid = $('#voice-fx-grid');
@@ -6394,7 +6390,7 @@
     if (grid.dataset.catalog !== key) {
       grid.dataset.catalog = key;
       grid.replaceChildren(...options.map(([id, p]) => el('button', { type: 'button', class: 'vfx-card', role: 'radio', data: { fx: id }, onclick: () => pickVoiceFx(id) },
-        voicePresetIcon(p, 'vfx-art'), el('strong', { textContent: p.label }), el('small', { textContent: p.desc }))));
+        voicePresetIcon(p, 'vfx-emoji'), el('strong', { textContent: p.label }), el('small', { textContent: p.desc }))));
     }
     for (const card of grid.children) {
       const on = card.dataset.fx === selected;

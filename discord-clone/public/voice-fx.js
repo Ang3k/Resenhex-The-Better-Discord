@@ -3,21 +3,21 @@
 // servido em /vendor/stretch.mjs); robô, rádio e caverna usam só nós nativos do Web Audio (sem atraso).
 window.VoiceFx = (() => {
   const PRESETS = {
-    none: { label: 'Desligado', icon: '/assets/voice-effects/none.webp', desc: 'Sua voz de sempre' },
-    esquilo: { label: 'Esquilo', icon: '/assets/voice-effects/esquilo.webp', desc: 'Fininha e elétrica', pitch: 8 },
-    gigante: { label: 'Gigante', icon: '/assets/voice-effects/gigante.webp', desc: 'Grave e pesada', pitch: -7 },
-    robo: { label: 'Robô', icon: '/assets/voice-effects/robo.webp', desc: 'Metálica, de máquina' },
-    radio: { label: 'Rádio', icon: '/assets/voice-effects/radio.webp', desc: 'Comunicador chiado' },
-    caverna: { label: 'Caverna', icon: '/assets/voice-effects/caverna.webp', desc: 'Eco de lugar enorme' },
-    alien: { label: 'Alien', icon: '/assets/voice-effects/alien.webp', desc: 'Aguda, com eco espacial', pitch: 4 },
-    telefone: { label: 'Telefone', icon: '/assets/voice-effects/telefone.webp', desc: 'Voz de ligação telefônica' },
-    megafone: { label: 'Megafone', icon: '/assets/voice-effects/megafone.webp', desc: 'Alto-falante saturado' },
-    banheiro: { label: 'Banheiro', icon: '/assets/voice-effects/banheiro.webp', desc: 'Acústica de banheiro azulejado' },
-    fantasma: { label: 'Fantasma', icon: '/assets/voice-effects/fantasma.webp', desc: 'Sussurro aéreo com eco' },
-    bebado: { label: 'Bêbado', icon: '/assets/voice-effects/bebado.webp', desc: 'Arrasta e atropela a fala' },
-    autotune: { label: 'Autotune', icon: '/assets/voice-effects/autotune.webp', desc: 'Afinação que pula entre notas' },
-    acordes: { label: 'Voz em acordes', icon: '/assets/voice-effects/acordes.webp', desc: 'Sua fala sobre acordes musicais' },
-    coral: { label: 'Coral', icon: '/assets/voice-effects/coral.webp', desc: 'Dez vozes acompanhando sua entonação' },
+    none: { label: 'Desligado', emoji: '🎙️', desc: 'Sua voz de sempre' },
+    esquilo: { label: 'Esquilo', emoji: '🐿️', desc: 'Fininha e elétrica', pitch: 8 },
+    gigante: { label: 'Gigante', emoji: '👹', desc: 'Grave e pesada', pitch: -7 },
+    robo: { label: 'Robô', emoji: '🤖', desc: 'Metálica, de máquina' },
+    radio: { label: 'Rádio', emoji: '📻', desc: 'Comunicador chiado' },
+    caverna: { label: 'Caverna', emoji: '🦇', desc: 'Eco de lugar enorme' },
+    alien: { label: 'Alien', emoji: '👽', desc: 'Aguda, com eco espacial', pitch: 4 },
+    telefone: { label: 'Telefone', emoji: '☎️', desc: 'Voz de ligação telefônica' },
+    megafone: { label: 'Megafone', emoji: '📣', desc: 'Alto-falante saturado' },
+    banheiro: { label: 'Banheiro', emoji: '🚿', desc: 'Acústica de banheiro azulejado' },
+    fantasma: { label: 'Fantasma', emoji: '👻', desc: 'Sussurro aéreo com eco' },
+    bebado: { label: 'Bêbado', emoji: '🥴', desc: 'Arrasta e atropela a fala' },
+    autotune: { label: 'Autotune', emoji: '🎵', desc: 'Afinação que pula entre notas' },
+    acordes: { label: 'Voz em acordes', emoji: '🎹', desc: 'Sua fala sobre acordes musicais' },
+    coral: { label: 'Coral', emoji: '👯', desc: 'Dez vozes acompanhando sua entonação' },
   };
 
   let stretchLib = null;
