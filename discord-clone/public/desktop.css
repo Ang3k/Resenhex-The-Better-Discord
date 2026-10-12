@@ -70,7 +70,7 @@ a.download-app { text-decoration: none; }
 :root[data-reduce-motion=true] :is(.share-source, .share-close) { transition: none; }
 .share-picker .confirm-actions .btn-primary:disabled { opacity: .45; box-shadow: none; cursor: not-allowed; }
 
-/* ---------- Overlay em jogos: posição arrastável numa cena de jogo em miniatura ---------- */
+/* ---------- Overlay em jogos: posição arrastável numa miniatura da tela ---------- */
 .overlay-position-group { gap: 14px; }
 .overlay-position-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; }
 .overlay-position-head .hint { margin: 4px 0 0; }
@@ -79,21 +79,15 @@ a.download-app { text-decoration: none; }
 #settings .settings-content .overlay-action .ico { transition: transform .3s; }
 #settings .settings-content #overlay-reset:hover:not(:disabled) .ico { transform: rotate(-120deg); }
 
+/* Uma tela neutra com grade de pontos discreta: só a lista chama atenção. */
 .overlay-stage {
   position: relative; width: 100%; aspect-ratio: 16 / 9; overflow: hidden; touch-action: none; cursor: crosshair;
-  border-radius: 10px; box-shadow: 0 0 0 1px var(--divider), 0 10px 30px rgba(0, 0, 0, .28);
-  background: var(--bg-floating);
-}
-/* Cena de jogo de enfeite: céu ao entardecer, sol e dois morros. */
-.overlay-scene {
-  position: absolute; inset: 0; pointer-events: none; transition: filter .25s;
+  border-radius: 10px; box-shadow: inset 0 0 0 1px var(--divider);
   background:
-    radial-gradient(ellipse 75% 42% at 22% 104%, color-mix(in srgb, var(--green) 42%, var(--bg-floating)) 99%, transparent 100%),
-    radial-gradient(ellipse 70% 50% at 88% 108%, color-mix(in srgb, var(--green) 26%, var(--bg-rail)) 99%, transparent 100%),
-    radial-gradient(circle at 74% 40%, color-mix(in srgb, var(--yellow) 80%, #fff) 0 3.6%, color-mix(in srgb, var(--yellow) 18%, transparent) 4% 11%, transparent 24%),
-    linear-gradient(180deg, color-mix(in srgb, var(--brand) 38%, var(--bg-floating)) 0%, color-mix(in srgb, var(--brand) 22%, var(--bg-panel)) 45%, color-mix(in srgb, var(--yellow) 26%, var(--bg-panel)) 80%);
+    radial-gradient(circle, color-mix(in srgb, var(--text) 13%, transparent) 1px, transparent 1.5px) center / 18px 18px,
+    linear-gradient(180deg, var(--bg-panel), var(--bg-floating));
+  transition: opacity .2s;
 }
-.overlay-stage::after { content: ''; position: absolute; inset: 0; pointer-events: none; border-radius: inherit; box-shadow: inset 0 0 60px rgba(0, 0, 0, .35); }
 .overlay-guide { position: absolute; display: none; pointer-events: none; z-index: 1; }
 .overlay-guide.vertical { top: 0; bottom: 0; left: 50%; border-left: 1px dashed color-mix(in srgb, var(--text-strong) 55%, transparent); }
 .overlay-guide.horizontal { left: 0; right: 0; top: 50%; border-top: 1px dashed color-mix(in srgb, var(--text-strong) 55%, transparent); }
@@ -127,7 +121,6 @@ a.download-app { text-decoration: none; }
   background: color-mix(in srgb, var(--bg-floating) 80%, transparent); color: var(--text-muted); font-size: 11px; font-weight: 700; letter-spacing: .02em;
 }
 .overlay-stage.is-off .overlay-off-badge { display: block; }
-.overlay-stage.is-off .overlay-scene { filter: grayscale(.85) brightness(.55); }
 .overlay-stage.is-off .overlay-puck:not(:hover):not(:focus-visible) { opacity: .55; }
 
 .overlay-position-caption { display: flex; align-items: center; gap: 6px; margin: 0; color: var(--text-muted); font-size: 12px; font-weight: 500; }
@@ -136,4 +129,4 @@ a.download-app { text-decoration: none; }
 .overlay-note .ico { flex-shrink: 0; margin-top: 2px; }
 #page-overlay p#overlay-unavailable { margin: 0; }
 @media (max-width: 640px) { .overlay-position-head { flex-direction: column; } }
-@media (prefers-reduced-motion: reduce) { .overlay-puck, .overlay-stage.dragging .overlay-puck, .overlay-scene, #settings .settings-content .overlay-action .ico { transition: none; transform: none; } }
+@media (prefers-reduced-motion: reduce) { .overlay-puck, .overlay-stage.dragging .overlay-puck, #settings .settings-content .overlay-action .ico { transition: none; transform: none; } }
