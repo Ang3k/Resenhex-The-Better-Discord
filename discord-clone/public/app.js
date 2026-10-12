@@ -5753,6 +5753,7 @@
   }
   // A seção do overlay só existe no app de desktop (versões com o overlay).
   let placeOverlayPuck = () => {};
+  let stopOverlayTest = () => {};
   if (!desktopOverlay) { $('#tab-overlay').remove(); $('#page-overlay').remove(); }
   else {
     desktopOverlay.available().then((ok) => {
@@ -5780,8 +5781,12 @@
       desktopOverlay.preview(draftPosition(), { ...sample, style: draftStyle() });
     };
     $('#overlay-test').onclick = testOverlay;
+    // O teste some assim que a pessoa sai da aba do overlay (outra seção ou configurações fechadas).
+    stopOverlayTest = () => { clearTimeout(lookTest); clearTimeout(keyTest); desktopOverlay.preview(null, null); };
+    new MutationObserver(() => { if ($('#page-overlay').classList.contains('hidden')) stopOverlayTest(); })
+      .observe($('#page-overlay'), { attributes: true, attributeFilter: ['class'] });
     // As opções da aparência mostram o overlay de verdade um instante, como ao soltar a lista na posição nova.
-    let lookTest = 0;
+    let lookTest = 0, keyTest = 0;
     const testSoon = () => { clearTimeout(lookTest); lookTest = setTimeout(testOverlay, 400); };
     for (const id of ['overlay-names', 'overlay-animated']) $('#' + id).addEventListener('change', testSoon);
     $('#overlay-opacity').addEventListener('change', testSoon);
@@ -5892,7 +5897,6 @@
     stage.addEventListener('pointerup', (event) => drop(event, true));
     stage.addEventListener('pointercancel', (event) => drop(event, false));
     // Teclado: setas andam 5% (com Shift, 25%); Home volta ao padrão.
-    let keyTest = 0;
     puck.addEventListener('keydown', (event) => {
       const step = event.shiftKey ? 0.25 : 0.05;
       const moves = { ArrowLeft: [-step, 0], ArrowRight: [step, 0], ArrowUp: [0, -step], ArrowDown: [0, step] };
@@ -6096,6 +6100,7 @@
       navigator.mediaDevices?.addEventListener('devicechange', fillDevices);
       await fillDevices();
     }, onClose: () => {
+      stopOverlayTest();
       stopSettingsTests();
       for (const draft of profileImages) draft.discard();
       setPendingAvatar(null); avatarSource = null;

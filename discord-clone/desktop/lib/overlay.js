@@ -153,9 +153,13 @@ function createOverlay({ BrowserWindow, screen, origin, preload, cacheFile, fetc
       if (win && !win.isDestroyed() && win.isVisible()) place();
     },
     // Teste das configurações: mostra por alguns segundos na posição escolhida da tela do app (fora da barra de tarefas).
+    // Sem ninguém (o site manda null ao sair da aba do overlay), o teste acaba na hora.
     preview({ position, state, display }) {
       const shown = overlayState(state);
-      if (!shown?.users.length) return;
+      if (!shown?.users.length) {
+        if (preview) { clearTimeout(preview.timer); preview = null; send(); place(); }
+        return;
+      }
       clearTimeout(preview?.timer);
       preview = { area: display.workArea, position: overlayPosition(position), state: shown, timer: setTimeout(() => { preview = null; send(); place(); }, PREVIEW_MS) };
       ensureWindow();
