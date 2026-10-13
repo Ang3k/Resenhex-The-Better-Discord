@@ -4,6 +4,24 @@
 // O título deve destacar as principais funcionalidades ou correções, com termos objetivos.
 window.CHANGELOG = [
   {
+    version: '1.4.3', date: '2026-10-13', name: 'Compartilhamento mais rápido e som de vários aplicativos',
+    summary: 'O app de Windows prepara as prévias antes de abrir a janela de transmitir e mostra os ícones enquanto as imagens carregam. No Windows 11, dá para combinar o som dos aplicativos que você escolher.',
+    sections: [
+      { kind: 'new', items: [
+        'Windows 11: em Som da transmissão > Escolher aplicativos, marque até 8 aplicativos para transmitir apenas o som deles juntos.',
+      ] },
+      { kind: 'improved', items: [
+        'A janela de transmitir abre de imediato, e a lista não precisa esperar todas as miniaturas.',
+        'Prévias preparadas ao entrar na chamada e ao aproximar o mouse ou foco do botão de compartilhar. Os ícones dos aplicativos aparecem enquanto as imagens carregam.',
+        'Prévias recentes são reaproveitadas e atualizadas sem perder a seleção de tela, qualidade ou som.',
+      ] },
+      { kind: 'fixed', items: [
+        'Fechar ou cancelar a escolha de tela não mostra mais o aviso de compartilhamento não autorizado.',
+        'A seleção automática do som da janela aguarda a identificação do aplicativo.',
+      ] },
+    ],
+  },
+  {
     version: '1.4.2', date: '2026-10-13', name: 'Janela de transmitir com a qualidade redesenhada',
     summary: 'No app de Windows, a escolha de qualidade da transmissão ganhou um seletor no estilo das abas, com ícones e a resolução de cada opção. O overlay em jogos voltou a funcionar no app 1.4.2.',
     sections: [

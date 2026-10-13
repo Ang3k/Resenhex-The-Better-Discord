@@ -3,6 +3,24 @@
 Histórico de versões. A mesma lista aparece dentro do app em **Novidades** (menu do servidor ou rodapé das Configurações).
 O Resenhex chegou à versão 1.0 em 4 de outubro de 2026.
 
+## v1.4.3 — Compartilhamento mais rápido e som de vários aplicativos
+
+13 de outubro de 2026.
+
+O app de Windows prepara as prévias antes de abrir a janela de transmitir e mostra os ícones enquanto as imagens carregam. No Windows 11, dá para combinar o som dos aplicativos que você escolher.
+
+### Novidades
+- Windows 11: em **Som da transmissão > Escolher aplicativos**, marque até 8 aplicativos para transmitir apenas o som deles juntos.
+
+### Melhorias
+- A janela de transmitir abre de imediato, e a lista não precisa esperar todas as miniaturas.
+- Prévias preparadas ao entrar na chamada e ao aproximar o mouse ou foco do botão de compartilhar. Os ícones dos aplicativos aparecem enquanto as imagens carregam.
+- Prévias recentes são reaproveitadas e atualizadas sem perder a seleção de tela, qualidade ou som.
+
+### Correções
+- Fechar ou cancelar a escolha de tela não mostra mais o aviso de compartilhamento não autorizado.
+- A seleção automática do som da janela aguarda a identificação do aplicativo.
+
 ## v1.4.2 — Janela de transmitir com a qualidade redesenhada
 
 13 de outubro de 2026.
