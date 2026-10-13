@@ -252,9 +252,11 @@ test('o seletor abre enquanto carrega e recebe fontes e áudio sem perder as esc
   b.calls.update(sources, { loading: false });
   assert.equal(doc.querySelector('.share-grid').getAttribute('aria-busy'), 'false');
   doc.querySelector('.share-source').click();
+  assert.equal(doc.querySelector('.btn-primary').disabled, true, 'aguarda o som automático da janela');
   const select = doc.querySelector('.share-audio-select');
   select.value = 'none';
   select.dispatchEvent(new w.Event('change'));
+  assert.equal(doc.querySelector('.btn-primary').disabled, false, 'sem som não espera a descoberta de áudio');
   select.focus();
   const mapped = sources.map((source) => ({ ...source, app: source.kind === 'window' ? 20 : null }));
   b.calls.update(mapped, { apps: [{ pid: 20, name: 'Jogo' }], appsLoading: false });
@@ -273,10 +275,35 @@ test('o áudio do app pode chegar depois da seleção da janela', async () => {
   const w = load({ bridge: b });
   const choice = b.calls.picker(sources, { audio: true, appsLoading: true });
   w.document.querySelector('.share-source').click();
+  assert.equal(w.document.querySelector('.btn-primary').disabled, true);
+  w.document.querySelector('.share-source').dispatchEvent(new w.MouseEvent('dblclick'));
+  assert.ok(w.document.querySelector('.share-overlay:not(.closing)'), 'duplo clique também aguarda o som automático');
   b.calls.update(sources.map((source) => ({ ...source, app: 20 })), { appsLoading: false, apps: [{ pid: 20, name: 'Jogo' }] });
   assert.equal(w.document.querySelector('.share-audio-select').value, '20');
+  assert.equal(w.document.querySelector('.btn-primary').disabled, false);
   w.document.querySelector('.btn-primary').click();
   assert.equal((await choice).app, 20);
+  w.close();
+});
+
+test('a tela inteira e o som escolhido manualmente não esperam a descoberta de apps', async () => {
+  const b = bridge();
+  const w = load({ bridge: b });
+  let choice = b.calls.picker(sources, { audio: true, appsLoading: true });
+  const current = () => w.document.querySelector('.share-overlay:not(.closing)');
+  current().querySelectorAll('.share-tabs button')[1].click();
+  current().querySelector('.share-source').click();
+  assert.equal(current().querySelector('.btn-primary').disabled, false);
+  current().querySelector('.btn-primary').click();
+  assert.equal((await choice).id, 'screen:0:0');
+
+  choice = b.calls.picker(sources, { audio: true, appsLoading: true });
+  current().querySelector('.share-source').click();
+  const select = current().querySelector('.share-audio-select');
+  select.value = 'system'; select.dispatchEvent(new w.Event('change'));
+  assert.equal(current().querySelector('.btn-primary').disabled, false);
+  current().querySelector('.btn-primary').click();
+  assert.equal((await choice).audio, true);
   w.close();
 });
 

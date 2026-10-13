@@ -158,8 +158,7 @@ window.DesktopApp = (() => {
         resolve(choice);
       };
       const go = () => {
-        if (!selected) return;
-        if (audioSource === 'apps' && !audioPids.size) return;
+        if (!selected || start.disabled) return;
         if (quality && preset !== quality.current()) quality.set(preset);
         if (audioSource === 'apps') return finish({ id: selected.id, audio: true, apps: [...audioPids] });
         if (!apps.length) return finish({ id: selected.id, audio });
@@ -181,7 +180,6 @@ window.DesktopApp = (() => {
       }
       function select(source, card) {
         selected = source;
-        start.disabled = false;
         // Como no Discord: a janela de um app leva o som daquele app, até a pessoa escolher outro.
         if (apps.length && !audioTouched) setAudioSource(apps.some((item) => item.pid === source.app) ? source.app : 'system');
         updateAudioApps();
@@ -234,7 +232,9 @@ window.DesktopApp = (() => {
           input.checked = audioPids.has(Number(input.value));
           input.disabled = !input.checked && audioPids.size >= maxAudioApps;
         }
-        start.disabled = !selected || audioSource === 'apps' && !audioPids.size;
+        // A lista de janelas pode chegar antes do som: preserve a seleção automática do app.
+        start.disabled = !selected || audioSource === 'apps' && !audioPids.size ||
+          appsLoading && options.audio && selected.kind === 'window' && !audioTouched;
       }
       function setAudioSource(value) {
         const pid = Number(value);

@@ -333,7 +333,37 @@ function setupSession() {
 const pendingPicks = new Map();
 const progressivePickers = new WeakSet();
 const appAudioPlans = new AppAudioPlans();
+const sourcePreviews = new Map();
+const PREVIEW_MAX_AGE = 10000;
+let sourcePreviewTask = null;
 let pickSeq = 0;
+
+function cachedPreview(source) {
+  const cached = sourcePreviews.get(source.id);
+  return cached && cached.source.name === source.name && Date.now() - cached.updated < PREVIEW_MAX_AGE ? cached.source : null;
+}
+
+function sourcesWithPreviews(items) {
+  return items.map((source) => {
+    const cached = cachedPreview(source);
+    return cached ? { ...source, thumbnail: cached.thumbnail, appIcon: cached.appIcon } : source;
+  });
+}
+
+function loadSourcePreviews(items) {
+  if (items.every(cachedPreview)) return Promise.resolve(sourcesWithPreviews(items));
+  // Reabrir durante a captura das miniaturas reaproveita o mesmo trabalho.
+  if (!sourcePreviewTask) {
+    sourcePreviewTask = Promise.resolve().then(() => desktopCapturer.getSources({ types: ['screen', 'window'], thumbnailSize: { width: 384, height: 216 }, fetchWindowIcons: true }))
+      .then((previews) => {
+        sourcePreviews.clear();
+        const updated = Date.now();
+        for (const source of previews) sourcePreviews.set(source.id, { source, updated });
+      }).finally(() => { sourcePreviewTask = null; });
+  }
+  // Só atualiza fontes enumeradas neste pedido; não ressuscita janelas fechadas.
+  return sourcePreviewTask.then(() => sourcesWithPreviews(items));
+}
 
 ipcMain.handle('desktop:app-audio:prepare', (event, token, pid) => {
   if (!fromVoiceSite(event)) throw new Error('Origem não autorizada.');
@@ -438,25 +468,36 @@ async function pickDisplayMedia(request, callback) {
   // A janela abre antes de enumerar as fontes, consultar o Windows ou ler ícones.
   // Sites antigos continuam recebendo uma única lista completa.
   if (progressive) send('desktop:pick-source');
-  const audioApps = Promise.resolve().then(() => request.audioRequested ? listAudioApps() : []).catch(() => []);
-  const sourceList = Promise.resolve().then(() => desktopCapturer.getSources({ types: ['screen', 'window'], thumbnailSize: { width: 384, height: 216 }, fetchWindowIcons: true }));
-  const loadApps = audioApps.then((items) => {
+  const sourceList = Promise.resolve().then(() => desktopCapturer.getSources({ types: ['screen', 'window'],
+    thumbnailSize: progressive ? { width: 0, height: 0 } : { width: 384, height: 216 }, fetchWindowIcons: !progressive }));
+  const loadApps = async () => {
+    // Iniciar o PowerShell pode bloquear o processo principal: primeiro entregue a lista de fontes.
+    const items = await Promise.resolve().then(() => request.audioRequested ? listAudioApps() : []).catch(() => []);
     if (!alive()) return;
     apps = items;
     appsLoading = false;
     if (progressive) send('desktop:pick-source:update');
-  });
+  };
+  const legacyApps = progressive ? null : loadApps();
   try {
     const items = await sourceList;
     if (!alive()) return;
     const own = win?.getMediaSourceId();
-    // Janelas sem imagem são janelas invisíveis de outros programas.
-    sources = items.filter((source) => source.id !== own && source.name && (source.id.startsWith('screen:') || !source.thumbnail.isEmpty()));
+    // Enumerar sem miniaturas é rápido; uma prévia vazia ainda não impede escolher a janela.
+    const available = items.filter((source) => source.id !== own && source.name &&
+      (progressive || source.id.startsWith('screen:') || !source.thumbnail.isEmpty()));
+    sources = progressive ? sourcesWithPreviews(available) : available;
     pick.sources = sources;
     if (!sources.length) return finish(null);
     loading = false;
     if (progressive) send('desktop:pick-source:update');
-    await loadApps;
+    if (progressive && sources.some((source) => !cachedPreview(source))) loadSourcePreviews(sources).then((items) => {
+      if (!alive()) return;
+      sources = items;
+      pick.sources = sources;
+      send('desktop:pick-source:update');
+    }).catch((error) => log.warn('Prévias para a transmissão:', error.message));
+    await (legacyApps || loadApps());
     if (!alive()) return;
     if (!progressive) send('desktop:pick-source');
     // Os ícones são decorativos; nenhuma escolha precisa esperar a leitura deles.
