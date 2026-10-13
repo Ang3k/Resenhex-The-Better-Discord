@@ -3,6 +3,7 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
 const vm = require('node:vm');
+const { AppAudioPlans, selectedAudioApps, MAX_AUDIO_APPS } = require('../lib/app-audio');
 
 const main = fs.readFileSync(path.join(__dirname, '../main.js'), 'utf8');
 const pickerCode = main.slice(main.indexOf('const pendingPicks ='), main.indexOf('// ---------------- push-to-talk'));
@@ -21,7 +22,8 @@ function harness(progressive = true) {
   const video = deferred(), audio = deferred(), icons = deferred();
   const contents = { send: (...args) => messages.push(args), isDestroyed: () => false };
   const context = { site: { webContents: contents }, win: { getMediaSourceId: () => 'window:99:0' },
-    ipcMain: { on: (name, handler) => handlers.set(name, handler) }, fromSite: () => true, isAppUrl: () => true,
+    ipcMain: { on: (name, handler) => handlers.set(name, handler), handle: (name, handler) => handlers.set(name, handler) }, fromSite: () => true, isAppUrl: () => true, fromVoiceSite: () => true,
+    AppAudioPlans, selectedAudioApps, MAX_AUDIO_APPS,
     desktopCapturer: { getSources: () => video.promise }, setTimeout, clearTimeout,
     systemAudioDevice: () => 'loopbackWithoutChrome', appAudioDevice: (pid) => `applicationLoopback:${pid}`,
     windowHandle: (id) => /^window:(\d+):/.exec(id)?.[1] || null,

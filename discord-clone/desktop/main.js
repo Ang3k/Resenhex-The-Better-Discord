@@ -16,6 +16,7 @@ const { globalBindings, matchBinding } = require('./lib/keybinds');
 const { createLog } = require('./lib/log');
 const { execFile } = require('node:child_process');
 const { systemAudioDevice, appAudioSupported, appAudioDevice, AUDIO_APPS_SCRIPT, encodeScript, parseAudioApps, windowHandle } = require('./lib/system-audio');
+const { AppAudioPlans, selectedAudioApps, MAX_AUDIO_APPS } = require('./lib/app-audio');
 const { createOverlay } = require('./lib/overlay');
 if (!app.isPackaged && process.env.RESENHEX_USER_DATA_DIR) app.setPath('userData', path.resolve(process.env.RESENHEX_USER_DATA_DIR));
 
@@ -202,6 +203,8 @@ async function serverOnline() {
 }
 
 function wireSite(contents) {
+  contents.on('destroyed', () => appAudioPlans.clear(contents));
+  contents.on('did-navigate', () => appAudioPlans.clear(contents));
   contents.on('did-fail-load', (_event, code, _description, url, isMainFrame) => {
     if (isMainFrame && code !== -3 && isAppUrl(url)) showOffline(); // -3: navegação cancelada
   });
@@ -329,7 +332,17 @@ function setupSession() {
 // O site mostra a própria janela de escolha (com o visual do tema) e devolve a fonte escolhida.
 const pendingPicks = new Map();
 const progressivePickers = new WeakSet();
+const appAudioPlans = new AppAudioPlans();
 let pickSeq = 0;
+
+ipcMain.handle('desktop:app-audio:prepare', (event, token, pid) => {
+  if (!fromVoiceSite(event)) throw new Error('Origem não autorizada.');
+  appAudioPlans.prepare(event.sender, event.senderFrame, token, pid);
+});
+ipcMain.handle('desktop:app-audio:release', (event, token) => {
+  if (!fromVoiceSite(event)) throw new Error('Origem não autorizada.');
+  appAudioPlans.release(event.sender, event.senderFrame, token);
+});
 
 ipcMain.on('desktop:pick-source:ready', (event, progressive) => {
   if (!fromSite(event)) return;
@@ -369,6 +382,15 @@ async function appIcon(item, sources) {
 async function pickDisplayMedia(request, callback) {
   if (!site || !isAppUrl(request.securityOrigin) || !request.videoRequested) return deny(callback);
   const contents = site.webContents;
+  try {
+    const extra = appAudioPlans.consume(contents, request.frame);
+    if (extra) {
+      if (!request.audioRequested) return deny(callback);
+      callback({ video: extra.source, audio: appAudioDevice(extra.pid) });
+      return;
+    }
+  } catch { return deny(callback); }
+  appAudioPlans.clear(contents);
   const progressive = progressivePickers.has(contents);
   let sources = [], apps = [], appIcons = [];
   let loading = true, appsLoading = !!request.audioRequested;
@@ -384,9 +406,13 @@ async function pickDisplayMedia(request, callback) {
     }
     const streams = { video: { id: source.id, name: source.name } };
     const audio = systemAudioDevice(process.platform, process.getSystemVersion());
-    const chosenApp = choice.app && apps.find((item) => item.pid === choice.app);
-    if (request.audioRequested && choice.audio && chosenApp) streams.audio = appAudioDevice(chosenApp.pid);
+    let pids;
+    try { pids = request.audioRequested && choice.audio ? selectedAudioApps(choice, apps) : []; }
+    catch { return deny(callback); }
+    if (pids.length) streams.audio = appAudioDevice(pids[0]);
     else if (request.audioRequested && choice.audio && audio) streams.audio = audio;
+    const token = appAudioPlans.create(contents, request.frame, streams.video, pids);
+    contents.send('desktop:app-audio:plan', { token, pids: pids.slice(1), mode: pids.length ? 'app' : streams.audio === 'loopbackWithoutChrome' ? 'native' : null });
     try { callback(streams); } catch (error) { log.warn('Captura de tela:', error.message); }
   };
   const timer = setTimeout(() => finish(null), 120000);
@@ -406,6 +432,7 @@ async function pickDisplayMedia(request, callback) {
       icon: source.appIcon && !source.appIcon.isEmpty() ? source.appIcon.resize({ width: 32 }).toDataURL() : null,
       app: appOfWindow.get(windowHandle(source.id)) || null,
     })), { audio: request.audioRequested, loading, appsLoading,
+      maxAudioApps: MAX_AUDIO_APPS,
       apps: apps.map((item, index) => ({ pid: item.pid, name: item.name, icon: appIcons[index] || null })) });
   };
   // A janela abre antes de enumerar as fontes, consultar o Windows ou ler ícones.
@@ -452,7 +479,7 @@ ipcMain.on('desktop:pick-source:result', (event, id, choice) => {
     const screen = pick.sources.find((source) => source.id.startsWith('screen:'));
     return pick.finish(screen ? { id: screen.id, audio: true } : null);
   }
-  pick.finish(choice && typeof choice.id === 'string' ? { id: choice.id, audio: !!choice.audio, app: Number.isInteger(choice.app) ? choice.app : null } : null);
+  pick.finish(choice && typeof choice.id === 'string' ? { id: choice.id, audio: !!choice.audio, app: choice.app ?? null, apps: Array.isArray(choice.apps) ? choice.apps : undefined } : null);
 });
 
 // ---------------- push-to-talk e atalhos globais ----------------

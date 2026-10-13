@@ -138,6 +138,97 @@ test('a qualidade fica na janela de escolha, como no Go Live', async () => {
   assert.deepEqual(set, ['p1080_60'], 'cancelar não muda a qualidade');
 });
 
+test('marca vários aplicativos e mantém a escolha durante atualizações', async () => {
+  const b = bridge();
+  b.appAudio = { supported: true };
+  const w = load({ bridge: b });
+  const apps = [{ pid: 20, name: 'Jogo' }, { pid: 30, name: 'Spotify' }, { pid: 40, name: 'WhatsApp' }];
+  const choice = b.calls.picker(sources, { audio: true, apps });
+  const select = w.document.querySelector('.share-audio-select');
+  select.value = 'apps';
+  select.dispatchEvent(new w.Event('change'));
+  const checkboxes = [...w.document.querySelectorAll('.share-audio-app input')];
+  checkboxes.forEach(input => input.click());
+  checkboxes[1].focus();
+  b.calls.update(sources, { apps });
+  assert.ok([...w.document.querySelectorAll('.share-audio-app input')].every(input => input.checked));
+  assert.equal(w.document.activeElement.value, '30', 'uma atualização conserva o foco no app');
+  assert.equal(select.options[select.selectedIndex].textContent, '3 aplicativos selecionados');
+  w.document.querySelector('.share-source').click();
+  w.document.querySelector('.btn-primary').click();
+  const result = await choice;
+  assert.equal(result.id, 'window:7:0');
+  assert.deepEqual([...result.apps], [20, 30, 40]);
+  assert.equal(result.audio, true);
+  w.close();
+});
+
+test('um grupo vazio não transmite e a seleção de apps respeita seu limite', async () => {
+  const b = bridge();
+  b.appAudio = { supported: true };
+  const w = load({ bridge: b });
+  const choice = b.calls.picker(sources, { audio: true, maxAudioApps: 2, apps: [{ pid: 20, name: 'A' }, { pid: 30, name: 'B' }, { pid: 40, name: 'C' }] });
+  w.document.querySelector('.share-source').click();
+  const select = w.document.querySelector('.share-audio-select');
+  select.value = 'apps'; select.dispatchEvent(new w.Event('change'));
+  assert.equal(w.document.querySelector('.btn-primary').disabled, true);
+  const inputs = [...w.document.querySelectorAll('.share-audio-app input')];
+  inputs[0].click(); inputs[1].click();
+  assert.equal(inputs[2].disabled, true);
+  w.document.querySelector('.share-close').click();
+  assert.equal(await choice, null);
+  w.close();
+});
+
+test('a mistura libera todas as capturas e seu contexto, inclusive quando um app falha', async () => {
+  const b = bridge();
+  const releases = [];
+  b.appAudio = { supported: true, reset() {}, takePlan: () => ({ token: 'confirmed', mode: 'app', pids: [30, 40] }), prepare: async () => {}, release: async token => releases.push(token) };
+  const w = load({ bridge: b });
+  const track = kind => ({ kind, stopped: false, stop() { this.stopped = true; }, addEventListener() {}, removeEventListener() {} });
+  class Stream {
+    constructor(tracks) { this.tracks = [...tracks]; }
+    getTracks() { return [...this.tracks]; }
+    getAudioTracks() { return this.tracks.filter(track => track.kind === 'audio'); }
+    getVideoTracks() { return this.tracks.filter(track => track.kind === 'video'); }
+    removeTrack(track) { this.tracks = this.tracks.filter(item => item !== track); }
+    addTrack(track) { this.tracks.push(track); }
+  }
+  let context;
+  w.MediaStream = Stream;
+  w.AudioContext = class {
+    constructor() { context = this; this.closed = false; }
+    createMediaStreamDestination() { return { stream: new Stream([track('audio')]) }; }
+    createDynamicsCompressor() { return { threshold: {}, knee: {}, ratio: {}, attack: {}, release: {}, connect() {} }; }
+    createMediaStreamSource() { return { connect() {} }; }
+    async resume() {}
+    async close() { this.closed = true; }
+  };
+  const originalAudio = track('audio');
+  const original = new Stream([track('video'), originalAudio]);
+  const extras = [new Stream([track('audio'), track('video')]), new Stream([track('audio'), track('video')])];
+  let at = 0;
+  Object.defineProperty(w.navigator, 'mediaDevices', { value: { getDisplayMedia: async () => extras[at++] } });
+  const mixed = await w.DesktopApp.captureScreen(async () => original);
+  assert.equal(mixed.getAudioTracks().length, 1);
+  assert.equal(mixed.desktopAudioMode, 'app');
+  assert.ok(extras.every(stream => stream.getVideoTracks()[0].stopped), 'extra videos stop immediately');
+  mixed.desktopAudioCleanup(); mixed.desktopAudioCleanup();
+  assert.equal(context.closed, true);
+  assert.equal(originalAudio.stopped, true);
+  assert.ok(extras.every(stream => stream.getAudioTracks()[0].stopped));
+  assert.deepEqual(releases, ['confirmed']);
+  const failed = new Stream([track('audio'), track('video')]);
+  const one = new Stream([track('audio'), track('video')]);
+  at = 0;
+  w.navigator.mediaDevices.getDisplayMedia = async () => { if (at++ === 0) return one; throw new Error('app capture failed'); };
+  await assert.rejects(w.DesktopApp.captureScreen(async () => failed), /app capture failed/);
+  assert.ok(failed.getTracks().every(track => track.stopped));
+  assert.ok(one.getTracks().every(track => track.stopped));
+  assert.deepEqual(releases, ['confirmed', 'confirmed']);
+  w.close();
+});
+
 test('Esc cancela e uma nova escolha substitui a anterior', async () => {
   const b = bridge();
   const w = load({ userAgent: 'Mozilla/5.0 (Windows NT 10.0) Electron/44', bridge: b });

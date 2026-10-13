@@ -93,10 +93,11 @@ test('o som do computador na transmissão deixa de fora o próprio app a partir 
   assert.equal(systemAudioDevice('darwin', '15.0.0'), null);
 });
 
-test('o som de um app só: Windows 10 2004 ou mais novo, pelo ID do processo', () => {
+test('captura por aplicativo exige Windows build 20348 ou mais novo e usa o ID do processo', () => {
   const { appAudioSupported, appAudioDevice, parseAudioApps, windowHandle, AUDIO_APPS_SCRIPT, encodeScript } = require('../lib/system-audio');
   assert.equal(appAudioSupported('win32', '10.0.26100'), true);
-  assert.equal(appAudioSupported('win32', '10.0.19041'), true);
+  assert.equal(appAudioSupported('win32', '10.0.19041'), false);
+  assert.equal(appAudioSupported('win32', '10.0.20348'), true);
   assert.equal(appAudioSupported('win32', '10.0.18363'), false);
   assert.equal(appAudioSupported('darwin', '15.0.0'), false);
   assert.equal(appAudioDevice(4321), 'applicationLoopback:4321');

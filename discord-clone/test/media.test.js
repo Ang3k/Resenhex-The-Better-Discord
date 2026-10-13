@@ -348,6 +348,31 @@ test('closing the desktop picker is quiet on start and source switch; real denia
   assert.ok(h.notices.some((message) => message.includes('não autorizado')));
 });
 
+test('desktop app mixes are not filtered as call audio and dispose on stop and stale capture', async () => {
+  const h = mediaHarness();
+  h.media.stopVideo('screen');
+  let cleaned = 0;
+  const makeCapture = () => {
+    const s = h.stream([h.track('video'), h.track('audio')]);
+    s.desktopAudioMode = 'app';
+    s.desktopAudioCleanup = () => { cleaned++; };
+    return s;
+  };
+  h.context.navigator.mediaDevices.getDisplayMedia = async () => makeCapture();
+  await h.media.startVideo('screen');
+  assert.equal(h.state.shareAudioMode, 'app');
+  assert.equal(h.ownAudio.cleaned.length, 0, 'chosen app audio bypasses call echo filtering');
+  h.media.stopVideo('screen');
+  assert.equal(cleaned, 1);
+  let finish;
+  h.context.navigator.mediaDevices.getDisplayMedia = () => new Promise(resolve => { finish = resolve; });
+  const pending = h.media.startVideo('screen');
+  h.state.voiceChannel = null;
+  finish(makeCapture());
+  await pending;
+  assert.equal(cleaned, 2, 'a capture that finishes after leaving releases its mixer');
+});
+
 test('capture completing after leaving a room releases its tracks', async () => {
   const h = mediaHarness();
   h.media.stopVideo('screen');

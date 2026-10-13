@@ -13,10 +13,10 @@ function systemAudioDevice(platform, systemVersion) {
 // Som de um app só (e dos processos que ele abriu): quem transmite o jogo deixa de fora o
 // Discord, a música ou qualquer outra coisa tocando no PC. O Chromium captura o som de um
 // processo pelo ID ("applicationLoopback:<pid>") com a captura por processo do Windows, que
-// existe desde o Windows 10 2004 (build 19041).
+// exige build 20348 ou mais recente (inclui o Windows 11).
 function appAudioSupported(platform, systemVersion) {
   if (platform !== 'win32') return false;
-  return (Number(String(systemVersion).split('.')[2]) || 0) >= 19041;
+  return (Number(String(systemVersion).split('.')[2]) || 0) >= 20348;
 }
 
 function appAudioDevice(pid) {

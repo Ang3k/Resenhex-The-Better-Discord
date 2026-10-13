@@ -11,6 +11,7 @@ if (location.protocol === 'file:') {
   let pickSource = null;
   let updateSource = null;
   let activePick = null;
+  let audioPlan = null;
   let pttListener = null;
   let keybindListener = null;
 
@@ -26,12 +27,20 @@ if (location.protocol === 'file:') {
   ipcRenderer.on('desktop:pick-source:update', (_event, id, sources, options) => {
     if (activePick === id) updateSource?.(sources, options);
   });
+  ipcRenderer.on('desktop:app-audio:plan', (_event, plan) => { audioPlan = plan; });
   ipcRenderer.on('desktop:ptt', (_event, pressed) => pttListener?.(!!pressed));
   ipcRenderer.on('desktop:keybind', (_event, id) => keybindListener?.(String(id)));
 
   contextBridge.exposeInMainWorld('resenhexDesktop', {
     platform: process.platform,
     mediaCapabilities: () => ipcRenderer.invoke('desktop:media-capabilities'),
+    appAudio: {
+      supported: true,
+      reset: () => { audioPlan = null; },
+      takePlan: () => { const plan = audioPlan; audioPlan = null; return plan; },
+      prepare: (token, pid) => ipcRenderer.invoke('desktop:app-audio:prepare', String(token), pid),
+      release: (token) => ipcRenderer.invoke('desktop:app-audio:release', String(token)),
+    },
     // handler(sources, { audio, apps }) → Promise<{ id, audio, app? } | null>; app é o ID do processo cujo som vai na transmissão.
     onPickSource: (handler, updater) => {
       pickSource = typeof handler === 'function' ? handler : null;

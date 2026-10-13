@@ -56,12 +56,66 @@ window.DesktopApp = (() => {
 
   let open = null;
   let captureAttempt = null;
+  async function captureAppAudio(stream) {
+    const plan = desktop.appAudio?.takePlan();
+    if (!plan) return stream;
+    if (plan.mode) stream.desktopAudioMode = plan.mode;
+    if (!plan.pids?.length) return stream;
+    const inputs = [new MediaStream(stream.getAudioTracks())];
+    let context, output;
+    let released = false;
+    const video = stream.getVideoTracks()[0];
+    const release = () => {
+      if (released) return;
+      released = true;
+      inputs.forEach(input => input.getTracks().forEach(track => track.stop()));
+      output?.stream.getTracks().forEach(track => track.stop());
+      video?.removeEventListener('ended', release);
+      context?.close().catch(() => {});
+    };
+    try {
+      if (!inputs[0].getAudioTracks().length) throw new Error('O aplicativo escolhido não forneceu áudio.');
+      for (const pid of plan.pids) {
+        await desktop.appAudio.prepare(plan.token, pid);
+        const extra = await navigator.mediaDevices.getDisplayMedia({
+          video: { frameRate: { ideal: 1, max: 1 } },
+          audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false, channelCount: { ideal: 2 } },
+        });
+        // A captura extra usa a mesma fonte visual já autorizada; só seu áudio é mantido.
+        extra.getVideoTracks().forEach(track => track.stop());
+        inputs.push(new MediaStream(extra.getAudioTracks()));
+        if (!extra.getAudioTracks().length) throw new Error('Um dos aplicativos escolhidos não forneceu áudio.');
+      }
+      context = new AudioContext({ latencyHint: 'interactive', sampleRate: 48000 });
+      output = context.createMediaStreamDestination();
+      const limiter = context.createDynamicsCompressor();
+      limiter.threshold.value = -3;
+      limiter.knee.value = 0;
+      limiter.ratio.value = 20;
+      limiter.attack.value = .003;
+      limiter.release.value = .12;
+      limiter.connect(output);
+      for (const input of inputs) context.createMediaStreamSource(input).connect(limiter);
+      await context.resume();
+      stream.getAudioTracks().forEach(track => stream.removeTrack(track));
+      output.stream.getAudioTracks().forEach(track => stream.addTrack(track));
+      stream.desktopAudioCleanup = release;
+      video?.addEventListener('ended', release, { once: true });
+      return stream;
+    } catch (error) { release(); throw error; }
+    finally { if (plan.token) await desktop.appAudio.release(plan.token).catch(() => {}); }
+  }
+
   // Vincula o cancelamento à captura que abriu o seletor, sem esconder erros de permissão.
   async function captureScreen(capture) {
     const attempt = { cancelled: false };
     captureAttempt = attempt;
-    try { return await capture(); }
+    desktop.appAudio?.reset();
+    let stream;
+    try { stream = await capture(); return await captureAppAudio(stream); }
     catch (error) {
+      stream?.desktopAudioCleanup?.();
+      stream?.getTracks().forEach(track => track.stop());
       if (!attempt.cancelled) throw error;
       const cancelled = new Error('Seleção de tela cancelada.');
       cancelled.name = 'ShareCancelledError';
@@ -89,6 +143,9 @@ window.DesktopApp = (() => {
       let apps = validApps(options.apps);
       let audioSource = 'system';
       let audioTouched = false;
+      const multiAudio = desktop.appAudio?.supported === true;
+      const maxAudioApps = options.maxAudioApps || 8;
+      const audioPids = new Set();
 
       const finish = (choice, userCancelled = true) => {
         if (closed) return;
@@ -102,13 +159,15 @@ window.DesktopApp = (() => {
       };
       const go = () => {
         if (!selected) return;
+        if (audioSource === 'apps' && !audioPids.size) return;
         if (quality && preset !== quality.current()) quality.set(preset);
+        if (audioSource === 'apps') return finish({ id: selected.id, audio: true, apps: [...audioPids] });
         if (!apps.length) return finish({ id: selected.id, audio });
         finish({ id: selected.id, audio: audioSource !== 'none', app: typeof audioSource === 'number' ? audioSource : null });
       };
       const onKey = (event) => {
         if (event.key === 'Escape') { event.preventDefault(); event.stopPropagation(); finish(null); }
-        else if (event.key === 'Enter' && selected && !event.target.closest?.('.share-tabs, .share-quality, select')) { event.preventDefault(); event.stopPropagation(); go(); }
+        else if (event.key === 'Enter' && selected && !event.target.closest?.('.share-tabs, .share-quality, .share-audio-apps, select')) { event.preventDefault(); event.stopPropagation(); go(); }
       };
 
       const grid = el('div', { class: 'share-grid', role: 'listbox', ariaLabel: 'Fontes disponíveis' });
@@ -125,6 +184,7 @@ window.DesktopApp = (() => {
         start.disabled = false;
         // Como no Discord: a janela de um app leva o som daquele app, até a pessoa escolher outro.
         if (apps.length && !audioTouched) setAudioSource(apps.some((item) => item.pid === source.app) ? source.app : 'system');
+        updateAudioApps();
         for (const node of grid.children) {
           node.classList.toggle('selected', node === card);
           node.setAttribute('aria-selected', String(node === card));
@@ -164,14 +224,29 @@ window.DesktopApp = (() => {
         el('option', { value: 'none', textContent: 'Sem som' }));
       const audioIcon = el('span', { class: 'share-audio-icon' });
       const audioHint = el('small');
+      const audioApps = el('div', { class: 'share-audio-apps' });
+      function updateAudioApps() {
+        const chosen = apps.filter(app => audioPids.has(app.pid));
+        const option = [...audioSelect.options].find(item => item.value === 'apps');
+        if (option) option.textContent = chosen.length ? `${chosen.length} ${chosen.length === 1 ? 'aplicativo selecionado' : 'aplicativos selecionados'}` : 'Escolher aplicativos…';
+        if (audioSource === 'apps') audioHint.textContent = chosen.length ? `Som de ${chosen.map(app => app.name).join(', ')}.` : 'Marque os aplicativos que quer transmitir.';
+        for (const input of audioApps.querySelectorAll('input')) {
+          input.checked = audioPids.has(Number(input.value));
+          input.disabled = !input.checked && audioPids.size >= maxAudioApps;
+        }
+        start.disabled = !selected || audioSource === 'apps' && !audioPids.size;
+      }
       function setAudioSource(value) {
         const pid = Number(value);
         const item = Number.isInteger(pid) && apps.find((app) => app.pid === pid);
-        audioSource = item ? item.pid : value === 'none' ? 'none' : 'system';
+        if (value === 'apps' && multiAudio && !audioPids.size && typeof audioSource === 'number') audioPids.add(audioSource);
+        audioSource = value === 'apps' && multiAudio ? 'apps' : item ? item.pid : value === 'none' ? 'none' : 'system';
         audio = audioSource !== 'none';
         audioSelect.value = String(audioSource);
         audioIcon.replaceChildren(item?.icon ? el('img', { src: item.icon, alt: '' }) : Icon(audioSource === 'none' ? 'volumeX' : 'volume', 18));
         audioHint.textContent = item ? `Só o som de ${item.name}. O resto do PC, como o Discord ou uma música, fica de fora.` : audioHints[audioSource];
+        audioApps.hidden = audioSource !== 'apps';
+        updateAudioApps();
       }
       if (apps.length) setAudioSource('system');
 
@@ -221,12 +296,23 @@ window.DesktopApp = (() => {
         if (!audioSetting) return;
         audioSelect.replaceChildren(...[
           el('option', { value: 'system', textContent: 'Som do computador inteiro' }),
+          multiAudio && apps.length ? el('option', { value: 'apps', textContent: 'Escolher aplicativos…' }) : null,
           apps.length ? el('optgroup', { label: 'Só o som de um app' }, ...apps.map((item) => el('option', { value: String(item.pid), textContent: item.name }))) : null,
           el('option', { value: 'none', textContent: 'Sem som' })].filter(Boolean));
+        for (const pid of audioPids) if (!apps.some(app => app.pid === pid)) audioPids.delete(pid);
+        audioApps.replaceChildren(el('div', { class: 'share-audio-app-head' }, el('strong', { textContent: 'Aplicativos' }), el('small', { textContent: `Até ${maxAudioApps}` })),
+          el('div', { class: 'share-audio-app-list', role: 'group', ariaLabel: 'Aplicativos para transmitir o som' }, ...apps.map(app =>
+            el('label', { class: 'share-audio-app' },
+              el('input', { type: 'checkbox', value: String(app.pid), checked: audioPids.has(app.pid), onchange: event => {
+                audioTouched = true;
+                if (event.target.checked) audioPids.add(app.pid); else audioPids.delete(app.pid);
+                updateAudioApps();
+              } }),
+              app.icon ? el('img', { src: app.icon, alt: '' }) : Icon('pip', 16), el('span', { textContent: app.name })))));
         if (selected && !audioTouched) setAudioSource(apps.some((item) => item.pid === selected.app) ? selected.app : 'system');
         else setAudioSource(audioSource);
         audioSetting.replaceChildren(el('span', { class: 'share-setting-title', textContent: 'Som da transmissão' }),
-          ...(apps.length || appsLoading ? [el('div', { class: 'share-audio-row' }, audioIcon, audioSelect), audioHint,
+          ...(apps.length || appsLoading ? [el('div', { class: 'share-audio-row' }, audioIcon, audioSelect), multiAudio ? audioApps : null, audioHint,
             appsLoading ? el('small', { role: 'status', textContent: 'Buscando opções de som dos aplicativos…' }) : null].filter(Boolean)
             : [el('label', { class: 'share-audio switch-row' },
               el('input', { type: 'checkbox', class: 'ds-switch', checked: audio, onchange: (event) => { audioTouched = true; setAudioSource(event.target.checked ? 'system' : 'none'); } }),
@@ -264,6 +350,7 @@ window.DesktopApp = (() => {
           const focusedSource = document.activeElement?.closest('.share-source')?.dataset.sourceId;
           const focusedTab = [...tabs.children].indexOf(document.activeElement);
           const focusedAudio = document.activeElement === audioSelect;
+          const focusedApp = document.activeElement?.closest('.share-audio-apps') ? document.activeElement.value : null;
           const scroll = grid.scrollTop;
           start.disabled = !selected;
           render();
@@ -272,6 +359,7 @@ window.DesktopApp = (() => {
           if (focusedSource) [...grid.children].find((node) => node.dataset.sourceId === focusedSource)?.focus();
           else if (focusedTab >= 0) tabs.children[focusedTab]?.focus();
           else if (focusedAudio) audioSelect.focus();
+          else if (focusedApp) [...audioApps.querySelectorAll('input')].find(input => input.value === focusedApp)?.focus();
         },
       };
       open = picker;

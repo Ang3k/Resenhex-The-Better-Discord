@@ -262,6 +262,11 @@ window.MediaSession = function ({ state, socket, call, el, toast, voiceEntry, me
     if (state.view === 'voice') renderStage();
   }
 
+  function releaseCapture(stream) {
+    stream?.desktopAudioCleanup?.();
+    stream?.getTracks().forEach(track => { track.onended = track.onmute = track.onunmute = null; track.stop(); });
+  }
+
   async function captureScreen() {
     const preset = presets[state.sharePreset];
     if (!navigator.mediaDevices?.getDisplayMedia) throw new Error('Seu navegador não oferece captura de tela.');
@@ -273,13 +278,15 @@ window.MediaSession = function ({ state, socket, call, el, toast, voiceEntry, me
     });
     const stream = await (window.DesktopApp?.captureScreen ? window.DesktopApp.captureScreen(capture) : capture());
     // A qualidade pode ter sido trocada na janela de escolha do app, depois de pedir a captura.
-    const chosen = presets[state.sharePreset];
-    if (chosen !== preset) {
-      try { await stream.getVideoTracks()[0]?.applyConstraints({ width: { ideal: chosen.width }, height: { ideal: chosen.height }, frameRate: { ideal: chosen.fps, max: chosen.fps } }); }
-      catch { /* o perfil completo é aplicado de novo quando a transmissão começa */ }
-    }
-    stream.audioMode = await audioMode(stream);
-    return stream;
+    try {
+      const chosen = presets[state.sharePreset];
+      if (chosen !== preset) {
+        try { await stream.getVideoTracks()[0]?.applyConstraints({ width: { ideal: chosen.width }, height: { ideal: chosen.height }, frameRate: { ideal: chosen.fps, max: chosen.fps } }); }
+        catch { /* o perfil completo é aplicado de novo quando a transmissão começa */ }
+      }
+      stream.audioMode = await audioMode(stream);
+      return stream;
+    } catch (error) { releaseCapture(stream); throw error; }
   }
   // O som do computador leva junto o que o próprio Resenhex toca (as vozes da chamada), a menos que
   // o navegador (restrictOwnAudio, no Windows 11) ou o app de Windows o deixem de fora ('native');
@@ -289,6 +296,7 @@ window.MediaSession = function ({ state, socket, call, el, toast, voiceEntry, me
   async function audioMode(stream) {
     const audio = stream.getAudioTracks?.()[0];
     if (!audio) return null;
+    if (['app', 'native'].includes(stream.desktopAudioMode)) return stream.desktopAudioMode;
     const settings = audio.getSettings?.() || {};
     if (stream.getVideoTracks()[0]?.getSettings?.().displaySurface === 'browser') return 'tab';
     if (String(settings.deviceId || '').startsWith('applicationLoopback:')) return 'app';
@@ -320,16 +328,16 @@ window.MediaSession = function ({ state, socket, call, el, toast, voiceEntry, me
 
   // "captured" é uma câmera já aberta pela prévia: vira a câmera da chamada sem pedir de novo.
   async function startVideo(kind, captured = null) {
-    if (state.captureBusy || state.local[kind] || !state.voiceChannel) { captured?.getTracks().forEach((t) => t.stop()); return; }
+    if (state.captureBusy || state.local[kind] || !state.voiceChannel) { releaseCapture(captured); return; }
     const channel = state.voiceChannel, epoch = epochs[kind];
     state.captureBusy = true;
     let stream;
     try {
       stream = kind === 'screen' ? await captureScreen() : captured || await navigator.mediaDevices.getUserMedia({ video: { deviceId: state.cameraDeviceId ? { exact: state.cameraDeviceId } : undefined, width: { ideal: 1280 }, height: { ideal: 720 }, frameRate: { ideal: 30 } } });
-      if (state.voiceChannel !== channel || epoch !== epochs[kind]) { stream.getTracks().forEach((track) => track.stop()); return; }
+      if (state.voiceChannel !== channel || epoch !== epochs[kind]) { releaseCapture(stream); return; }
       state.local[kind] = stream;
       if (sfu?.active()) await sfu.publish(kind, stream);
-      if (state.voiceChannel !== channel || epoch !== epochs[kind]) { stream.getTracks().forEach((t) => t.stop()); return; }
+      if (state.voiceChannel !== channel || epoch !== epochs[kind]) { releaseCapture(stream); return; }
       const track = stream.getVideoTracks()[0];
       if (kind === 'screen') {
         state.sharePaused = false;
@@ -347,7 +355,7 @@ window.MediaSession = function ({ state, socket, call, el, toast, voiceEntry, me
       state.view = 'voice';
       render();
       tuneSenders();
-    } catch (error) { if (stream) { if (state.local[kind] === stream) stopVideo(kind); else stream.getTracks().forEach((track) => track.stop()); } captureError(error); }
+    } catch (error) { if (stream) { if (state.local[kind] === stream) stopVideo(kind); else releaseCapture(stream); } captureError(error); }
     finally {
       state.captureBusy = false;
       if (kind === 'screen') ownAudio?.sync(state.local.screen);
@@ -363,7 +371,7 @@ window.MediaSession = function ({ state, socket, call, el, toast, voiceEntry, me
     const changed = [];
     try {
       next = await captureScreen();
-      if (state.local.screen !== current || epoch !== epochs.screen) { next.getTracks().forEach((t) => t.stop()); return; }
+      if (state.local.screen !== current || epoch !== epochs.screen) { releaseCapture(next); return; }
       if (sfu?.active()) await sfu.publish('screen', next);
       for (const peer of state.peers.values()) {
         if (sfu?.active()) continue;
@@ -378,8 +386,11 @@ window.MediaSession = function ({ state, socket, call, el, toast, voiceEntry, me
         });
       }
       if (state.local.screen !== current || epoch !== epochs.screen) throw new Error('Capture ended');
+      current.desktopAudioCleanup?.();
       current.getTracks().forEach((track) => { track.onended = track.onmute = track.onunmute = null; current.removeTrack(track); track.stop(); });
       next.getTracks().forEach((track) => current.addTrack(track));
+      current.desktopAudioCleanup = next.desktopAudioCleanup;
+      current.desktopAudioMode = next.desktopAudioMode;
       watchScreenTrack(current.getVideoTracks()[0]);
       state.sharePaused = false;
       await applySharePreset();
@@ -397,7 +408,7 @@ window.MediaSession = function ({ state, socket, call, el, toast, voiceEntry, me
           else await sender.replaceTrack(state.local.screen === current && viewers().includes(peer.sid) ? old : null);
         }).catch(() => { peer.screenKey = null; });
       }
-      next?.getTracks().forEach((track) => track.stop());
+      releaseCapture(next);
       if (state.local.screen === current) mediaNotice('Não foi possível trocar a fonte. A transmissão anterior foi mantida; tente novamente.');
       syncScreenSubscriptions();
     } finally {
@@ -412,7 +423,7 @@ window.MediaSession = function ({ state, socket, call, el, toast, voiceEntry, me
     state.local[kind] = null;
     if (sfu?.active()) sfu.stop(kind).catch(() => {});
     if (!stream) return;
-    stream.getTracks().forEach((track) => { track.onended = track.onmute = track.onunmute = null; track.stop(); });
+    releaseCapture(stream);
     if (kind === 'screen') { state.sharePaused = false; state.shareAudioMode = null; ownAudio?.sync(null); syncScreenSubscriptions(); }
     else for (const peer of state.peers.values()) {
       for (const sender of peer.senders.camera) { if (active(peer)) peer.pc.removeTrack(sender); }
@@ -441,7 +452,7 @@ window.MediaSession = function ({ state, socket, call, el, toast, voiceEntry, me
     const root = $('#diagnostics-peers');
     if (!root) return;
     $('#media-health').textContent = state.mediaHealth;
-    const sound = { native: 'som sem as vozes da chamada', filter: 'vozes da chamada tiradas pelo filtro do Resenhex', mixed: 'som com as vozes da chamada', tab: 'som da aba', app: 'som de um app' }[state.local.screen && state.shareAudioMode];
+    const sound = { native: 'som sem as vozes da chamada', filter: 'vozes da chamada tiradas pelo filtro do Resenhex', mixed: 'som com as vozes da chamada', tab: 'som da aba', app: 'som dos aplicativos selecionados' }[state.local.screen && state.shareAudioMode];
     $('#diagnostics-summary').textContent = !state.voiceChannel ? 'Entre em uma chamada para ver as conexões.' : [sfu?.active() ? 'SFU · Uma conexão com o servidor de mídia' : `${state.peers.size} conexões`, `${viewers().length} espectadores da sua tela`, sound, state.videoEncoder, state.gpuCapabilities?.videoEncode ? `GPU no app: ${state.gpuCapabilities.videoEncode}` : ''].filter(Boolean).join(' · ');
     const states = { connected: 'Conectado', connecting: 'Conectando', new: 'Preparando', disconnected: 'Reconectando', failed: 'Falha na conexão', closed: 'Encerrado' };
     root.replaceChildren(...[...state.peers].map(([sid, peer]) => {
