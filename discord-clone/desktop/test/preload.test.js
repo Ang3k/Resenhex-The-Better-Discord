@@ -22,6 +22,8 @@ test('desktop bridge keeps call controls without exposing character voice conver
   assert.equal(sent[0][0], 'desktop:set-ptt');
   assert.equal(sent[0][1].enabled, true);
   assert.equal(sent[0][1].code, 'Backquote');
+  exposed.resenhexDesktop.prepareShare();
+  assert.equal(sent.at(-1)[0], 'desktop:pick-source:prepare');
 });
 
 test('picker updates stay with the active request and close sends its result', async () => {

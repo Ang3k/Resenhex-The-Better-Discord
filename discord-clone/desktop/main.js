@@ -335,25 +335,29 @@ const progressivePickers = new WeakSet();
 const appAudioPlans = new AppAudioPlans();
 const sourcePreviews = new Map();
 const PREVIEW_MAX_AGE = 10000;
+const PREVIEW_DISPLAY_MAX_AGE = 60000;
 let sourcePreviewTask = null;
+let lastPreviewAttempt = 0;
 let pickSeq = 0;
 
-function cachedPreview(source) {
+function cachedPreview(source, maxAge = PREVIEW_DISPLAY_MAX_AGE) {
   const cached = sourcePreviews.get(source.id);
-  return cached && cached.source.name === source.name && Date.now() - cached.updated < PREVIEW_MAX_AGE ? cached.source : null;
+  return cached && cached.source.name === source.name && Date.now() - cached.updated < maxAge ? cached.source : null;
 }
 
 function sourcesWithPreviews(items) {
   return items.map((source) => {
     const cached = cachedPreview(source);
-    return cached ? { ...source, thumbnail: cached.thumbnail, appIcon: cached.appIcon } : source;
+    return cached ? { ...source, thumbnail: cached.thumbnail,
+      appIcon: source.appIcon && !source.appIcon.isEmpty() ? source.appIcon : cached.appIcon } : source;
   });
 }
 
-function loadSourcePreviews(items) {
-  if (items.every(cachedPreview)) return Promise.resolve(sourcesWithPreviews(items));
+function loadSourcePreviews(items = null) {
+  if (items && items.every((source) => cachedPreview(source, PREVIEW_MAX_AGE))) return Promise.resolve(sourcesWithPreviews(items));
   // Reabrir durante a captura das miniaturas reaproveita o mesmo trabalho.
   if (!sourcePreviewTask) {
+    lastPreviewAttempt = Date.now();
     sourcePreviewTask = Promise.resolve().then(() => desktopCapturer.getSources({ types: ['screen', 'window'], thumbnailSize: { width: 384, height: 216 }, fetchWindowIcons: true }))
       .then((previews) => {
         sourcePreviews.clear();
@@ -362,8 +366,14 @@ function loadSourcePreviews(items) {
       }).finally(() => { sourcePreviewTask = null; });
   }
   // Só atualiza fontes enumeradas neste pedido; não ressuscita janelas fechadas.
-  return sourcePreviewTask.then(() => sourcesWithPreviews(items));
+  return sourcePreviewTask.then(() => items ? sourcesWithPreviews(items) : null);
 }
+
+ipcMain.on('desktop:pick-source:prepare', (event) => {
+  if (!fromVoiceSite(event) || !progressivePickers.has(event.sender) || pendingPicks.size ||
+    sourcePreviewTask || Date.now() - lastPreviewAttempt < PREVIEW_MAX_AGE) return;
+  loadSourcePreviews().catch((error) => log.warn('Preparar prévias da transmissão:', error.message));
+});
 
 ipcMain.handle('desktop:app-audio:prepare', (event, token, pid) => {
   if (!fromVoiceSite(event)) throw new Error('Origem não autorizada.');
@@ -459,7 +469,7 @@ async function pickDisplayMedia(request, callback) {
     contents.send(channel, id, sources.map((source) => ({
       id: source.id, name: source.name, kind: source.id.startsWith('screen:') ? 'screen' : 'window',
       thumbnail: source.thumbnail.isEmpty() ? null : source.thumbnail.toDataURL(),
-      icon: source.appIcon && !source.appIcon.isEmpty() ? source.appIcon.resize({ width: 32 }).toDataURL() : null,
+      icon: source.appIcon && !source.appIcon.isEmpty() ? source.appIcon.resize({ width: 64 }).toDataURL() : null,
       app: appOfWindow.get(windowHandle(source.id)) || null,
     })), { audio: request.audioRequested, loading, appsLoading,
       maxAudioApps: MAX_AUDIO_APPS,
@@ -469,7 +479,7 @@ async function pickDisplayMedia(request, callback) {
   // Sites antigos continuam recebendo uma única lista completa.
   if (progressive) send('desktop:pick-source');
   const sourceList = Promise.resolve().then(() => desktopCapturer.getSources({ types: ['screen', 'window'],
-    thumbnailSize: progressive ? { width: 0, height: 0 } : { width: 384, height: 216 }, fetchWindowIcons: !progressive }));
+    thumbnailSize: progressive ? { width: 0, height: 0 } : { width: 384, height: 216 }, fetchWindowIcons: true }));
   const loadApps = async () => {
     // Iniciar o PowerShell pode bloquear o processo principal: primeiro entregue a lista de fontes.
     const items = await Promise.resolve().then(() => request.audioRequested ? listAudioApps() : []).catch(() => []);
@@ -491,7 +501,7 @@ async function pickDisplayMedia(request, callback) {
     if (!sources.length) return finish(null);
     loading = false;
     if (progressive) send('desktop:pick-source:update');
-    if (progressive && sources.some((source) => !cachedPreview(source))) loadSourcePreviews(sources).then((items) => {
+    if (progressive && sources.some((source) => !cachedPreview(source, PREVIEW_MAX_AGE))) loadSourcePreviews(sources).then((items) => {
       if (!alive()) return;
       sources = items;
       pick.sources = sources;

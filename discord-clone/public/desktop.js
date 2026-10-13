@@ -56,6 +56,28 @@ window.DesktopApp = (() => {
 
   let open = null;
   let captureAttempt = null;
+  // Prepare uma vez ao entrar na chamada e renove quando a pessoa se aproxima do botão.
+  // Nenhuma captura de áudio ou transmissão é iniciada aqui.
+  if (desktop.prepareShare) {
+    const voicePanel = $('#voice-panel');
+    let wasInVoice = false, prepareTimer;
+    const inVoice = () => voicePanel && !voicePanel.classList.contains('hidden');
+    const prepare = () => { if (!open && inVoice() && !$('#btn-share')?.disabled) desktop.prepareShare(); };
+    const syncVoice = () => {
+      const active = !!inVoice();
+      if (active && !wasInVoice) prepareTimer = setTimeout(prepare, 350);
+      if (!active) clearTimeout(prepareTimer);
+      wasInVoice = active;
+    };
+    if (voicePanel) {
+      new MutationObserver(syncVoice).observe(voicePanel, { attributes: true, attributeFilter: ['class'] });
+      syncVoice();
+    }
+    for (const event of ['pointerover', 'focusin']) document.addEventListener(event, (event) => {
+      const button = event.target.closest?.('#btn-share, #sc-screen');
+      if (button && !button.disabled && !button.contains(event.relatedTarget)) prepare();
+    });
+  }
   async function captureAppAudio(stream) {
     const plan = desktop.appAudio?.takePlan();
     if (!plan) return stream;
@@ -204,7 +226,11 @@ window.DesktopApp = (() => {
             onclick: () => select(source, card),
             ondblclick: () => { select(source, card); go(); },
           },
-          el('span', { class: 'share-thumb' }, source.thumbnail ? el('img', { src: source.thumbnail, alt: '', draggable: false }) : Icon(source.kind === 'screen' ? 'screen' : 'pip', 28)),
+          el('span', { class: 'share-thumb' }, source.thumbnail
+            ? el('img', { class: 'share-preview', src: source.thumbnail, alt: '', draggable: false })
+            : el('span', { class: 'share-placeholder', ariaHidden: 'true' }, source.icon
+              ? el('img', { class: 'share-placeholder-icon', src: source.icon, alt: '', draggable: false })
+              : Icon(source.kind === 'screen' ? 'screen' : 'pip', 40))),
           el('span', { class: 'share-name' },
             source.icon ? el('img', { class: 'share-app-icon', src: source.icon, alt: '' }) : Icon(source.kind === 'screen' ? 'screen' : 'pip', 16),
             el('span', { textContent: sourceLabel(source, screens) })));

@@ -8,8 +8,8 @@ const { JSDOM, ResourceLoader } = require('jsdom');
 const publicDir = path.join(__dirname, '..', 'public');
 const html = '<body><a id="btn-download-app" class="hidden" href="/baixar"></a></body>';
 
-function load({ userAgent, bridge } = {}) {
-  const dom = new JSDOM(html, { url: 'https://resenhex.test/', runScripts: 'outside-only', pretendToBeVisual: true, resources: new ResourceLoader({ userAgent }) });
+function load({ userAgent, bridge, body = html } = {}) {
+  const dom = new JSDOM(body, { url: 'https://resenhex.test/', runScripts: 'outside-only', pretendToBeVisual: true, resources: new ResourceLoader({ userAgent }) });
   const w = dom.window;
   if (bridge) w.resenhexDesktop = bridge;
   w.eval(fs.readFileSync(path.join(publicDir, 'icons.js'), 'utf8'));
@@ -25,6 +25,43 @@ const bridge = () => {
   const calls = { theme: [], picker: null };
   return { calls, onPickSource: (fn, update) => { calls.picker = fn; calls.update = update; }, setTheme: (colors) => calls.theme.push(colors), setPushToTalk() {}, onPushToTalk() {}, focus() {} };
 };
+
+test('mostra o ícone do aplicativo enquanto recebe a prévia e preserva a seleção', async () => {
+  const b = bridge();
+  const w = load({ bridge: b });
+  const list = sources.map(source => ({ ...source, icon: source.kind === 'window' ? 'data:image/png;base64,AA==' : null }));
+  const choice = b.calls.picker(list, { audio: false });
+  const card = w.document.querySelector('.share-source');
+  assert.ok(card.querySelector('.share-placeholder-icon'));
+  assert.equal(card.querySelector('.share-preview'), null);
+  card.click(); card.focus();
+  b.calls.update(list.map(source => ({ ...source, thumbnail: 'data:image/png;base64,AQ==' })), {});
+  assert.ok(w.document.querySelector('.share-source.selected .share-preview'));
+  assert.equal(w.document.activeElement.dataset.sourceId, 'window:7:0');
+  w.document.querySelector('.btn-primary').click();
+  assert.equal((await choice).id, 'window:7:0');
+  w.close();
+});
+
+test('antecipa as prévias ao entrar na chamada e ao aproximar o foco ou mouse do botão', async () => {
+  const b = bridge();
+  let preparations = 0;
+  b.prepareShare = () => preparations++;
+  const w = load({ bridge: b, body: '<body><div id="voice-panel" class="hidden"><button id="btn-share"></button></div></body>' });
+  const button = w.document.querySelector('#btn-share');
+  button.dispatchEvent(new w.Event('pointerover', { bubbles: true }));
+  assert.equal(preparations, 0, 'fora da chamada não busca imagens');
+  w.document.querySelector('#voice-panel').classList.remove('hidden');
+  await new Promise(resolve => setTimeout(resolve, 400));
+  assert.equal(preparations, 1);
+  button.dispatchEvent(new w.Event('pointerover', { bubbles: true }));
+  button.focus();
+  assert.equal(preparations, 3);
+  button.disabled = true;
+  button.dispatchEvent(new w.Event('pointerover', { bubbles: true }));
+  assert.equal(preparations, 3, 'não prepara um botão indisponível');
+  w.close();
+});
 
 test('no navegador, oferece o app só para quem usa Windows', () => {
   const windows = load({ userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/140.0' });

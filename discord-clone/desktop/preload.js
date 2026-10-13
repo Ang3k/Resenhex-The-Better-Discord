@@ -47,6 +47,7 @@ if (location.protocol === 'file:') {
       updateSource = typeof updater === 'function' ? updater : null;
       ipcRenderer.send('desktop:pick-source:ready', !!pickSource && !!updateSource);
     },
+    prepareShare: () => ipcRenderer.send('desktop:pick-source:prepare'),
     setPushToTalk: (config) => ipcRenderer.send('desktop:set-ptt', { enabled: !!config?.enabled, code: String(config?.code || '') }),
     onPushToTalk: (listener) => { pttListener = typeof listener === 'function' ? listener : null; },
     // list: [{ id, combo }] dos atalhos que valem com o app em segundo plano.

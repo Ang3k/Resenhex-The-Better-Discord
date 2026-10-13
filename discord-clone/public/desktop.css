@@ -54,6 +54,12 @@ a.download-app { text-decoration: none; }
   background: var(--bg-rail); color: var(--text-muted);
 }
 .share-thumb img { width: 100%; height: 100%; object-fit: contain; }
+.share-placeholder {
+  display: grid; place-items: center; width: 76px; height: 76px; border-radius: 20px;
+  background: var(--bg-input); color: var(--interactive);
+  box-shadow: 0 4px 18px rgba(0, 0, 0, .12), inset 0 0 0 1px var(--divider);
+}
+.share-thumb .share-placeholder-icon { width: 48px; height: 48px; }
 .share-name { display: flex; align-items: center; gap: 8px; min-width: 0; padding: 0 2px 2px; font-size: 13.5px; font-weight: 600; color: var(--text-strong); }
 .share-name > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .share-name .ico { flex-shrink: 0; color: var(--interactive); }

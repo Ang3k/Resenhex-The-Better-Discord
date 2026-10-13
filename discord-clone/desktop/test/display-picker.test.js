@@ -14,20 +14,21 @@ const deferred = () => {
 };
 const tick = () => new Promise(setImmediate);
 const thumb = { isEmpty: () => false, toDataURL: () => 'data:image/png;base64,AA==' };
+const icon = { isEmpty: () => false, resize: () => thumb };
 const emptyThumb = { isEmpty: () => true };
-const sources = [{ id: 'screen:1:0', name: 'Screen', thumbnail: thumb }, { id: 'window:7:0', name: 'Jogo', thumbnail: thumb }];
+const sources = [{ id: 'screen:1:0', name: 'Screen', thumbnail: thumb }, { id: 'window:7:0', name: 'Jogo', thumbnail: thumb, appIcon: icon }];
 const metadata = sources.map(source => ({ ...source, thumbnail: emptyThumb }));
 const apps = [{ pid: 20, name: 'Jogo', windows: ['7'], path: null }];
 
-function harness(progressive = true) {
+function harness(progressive = true, autoStart = true) {
   const messages = [], callbacks = [], handlers = new Map();
   const video = deferred(), previews = deferred(), audio = deferred(), icons = deferred();
   const requests = [];
-  let audioCalls = 0;
+  let audioCalls = 0, elapsed = 0;
   const contents = { send: (...args) => messages.push(args), isDestroyed: () => false };
   const context = { site: { webContents: contents }, win: { getMediaSourceId: () => 'window:99:0' },
     ipcMain: { on: (name, handler) => handlers.set(name, handler), handle: (name, handler) => handlers.set(name, handler) }, fromSite: () => true, isAppUrl: () => true, fromVoiceSite: () => true,
-    AppAudioPlans, selectedAudioApps, MAX_AUDIO_APPS,
+    AppAudioPlans, selectedAudioApps, MAX_AUDIO_APPS, Date: { now: () => Date.now() + elapsed },
     desktopCapturer: { getSources: (options) => {
       requests.push(options);
       return options.thumbnailSize.width === 0 || !progressive ? video.promise : previews.promise;
@@ -41,12 +42,15 @@ function harness(progressive = true) {
   context.appIcon = () => icons.promise;
   handlers.get('desktop:pick-source:ready')({ sender: contents }, progressive);
   const request = { securityOrigin: 'https://resenhex.test', videoRequested: true, audioRequested: true };
-  const pending = context.pickDisplayMedia(request, (streams) => callbacks.push(streams));
+  const start = () => context.pickDisplayMedia(request, (streams) => callbacks.push(streams));
+  const pending = autoStart ? start() : Promise.resolve();
   const id = messages[0]?.[1] || 1;
   const choose = (choice) => handlers.get('desktop:pick-source:result')({ sender: contents }, id, choice);
-  const reopen = () => context.pickDisplayMedia(request, (streams) => callbacks.push(streams));
+  const reopen = start;
   const chooseLatest = choice => handlers.get('desktop:pick-source:result')({ sender: contents }, messages.findLast(message => message[0] === 'desktop:pick-source')[1], choice);
-  return { messages, callbacks, video, previews, audio, icons, pending, choose, chooseLatest, reopen, requests, audioCalls: () => audioCalls };
+  const prepare = () => handlers.get('desktop:pick-source:prepare')({ sender: contents });
+  return { messages, callbacks, video, previews, audio, icons, pending, choose, chooseLatest, reopen, requests,
+    audioCalls: () => audioCalls, prepare, advance: ms => { elapsed += ms; } };
 }
 
 test('picker opens before sources and audio; video selection never waits for audio discovery', async () => {
@@ -65,7 +69,8 @@ test('picker opens before sources and audio; video selection never waits for aud
   assert.equal(update[3].appsLoading, true);
   assert.equal(update[2][1].thumbnail, null, 'a janela é selecionável antes da miniatura');
   assert.equal(h.requests[0].thumbnailSize.width, 0);
-  assert.equal(h.requests[0].fetchWindowIcons, false);
+  assert.equal(h.requests[0].fetchWindowIcons, true);
+  assert.equal(update[2][1].icon, thumb.toDataURL(), 'o ícone já acompanha o nome da janela');
   assert.equal(h.audioCalls(), 1);
   h.choose({ id: 'window:7:0', audio: true });
   assert.equal(h.callbacks[0].video.id, 'window:7:0');
@@ -78,6 +83,33 @@ test('picker opens before sources and audio; video selection never waits for aud
   h.previews.resolve(sources);
   await tick();
   assert.equal(h.messages.length, count, 'a miniatura tardia não reabre o picker');
+});
+
+test('preparing before opening supplies images in the first source list and throttles repeated hints', async () => {
+  const h = harness(true, false);
+  h.prepare(); h.prepare();
+  await tick();
+  assert.equal(h.requests.length, 1);
+  assert.equal(h.requests[0].thumbnailSize.width, 384);
+  assert.equal(h.callbacks.length, 0, 'preparar não inicia uma transmissão');
+  assert.equal(h.messages.length, 0, 'preparar não abre o seletor');
+  h.previews.resolve(sources);
+  await tick();
+  h.prepare();
+  await tick();
+  assert.equal(h.requests.length, 1, 'não repete a captura recente');
+  h.video.resolve(metadata); h.audio.resolve(apps); h.icons.resolve(null);
+  await h.reopen();
+  const firstList = h.messages.find(message => message[2]?.length);
+  assert.equal(firstList[2][1].thumbnail, thumb.toDataURL());
+  assert.equal(h.requests.length, 2, 'a lista atual é conferida sem recapturar miniaturas');
+  h.chooseLatest(null);
+
+  h.advance(11000);
+  await h.reopen();
+  assert.equal(h.messages.findLast(message => message[2]?.length)[2][1].thumbnail, thumb.toDataURL(), 'a imagem anterior aparece enquanto é renovada');
+  assert.equal(h.requests.filter(options => options.thumbnailSize.width > 0).length, 2);
+  h.chooseLatest(null);
 });
 
 test('preview failure leaves the enumerated windows selectable', async () => {
