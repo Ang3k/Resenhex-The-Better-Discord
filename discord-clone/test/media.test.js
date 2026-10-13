@@ -330,6 +330,24 @@ test('source-switch failure keeps previous tracks alive and reports failure', as
   assert.ok(h.notices.some((msg) => msg.includes('anterior foi mantida')));
 });
 
+test('closing the desktop picker is quiet on start and source switch; real denial is reported', async () => {
+  const h = mediaHarness();
+  const cancelled = Object.assign(new Error('closed'), { name: 'ShareCancelledError' });
+  h.context.navigator.mediaDevices.getDisplayMedia = async () => { throw cancelled; };
+  await h.media.switchScreen();
+  assert.equal(h.state.local.screen, h.screen);
+  assert.equal(h.screen.getVideoTracks()[0].readyState, 'live');
+  assert.equal(h.state.captureBusy, false);
+  h.media.stopVideo('screen');
+  await h.media.startVideo('screen');
+  assert.equal(h.state.local.screen, null);
+  assert.equal(h.state.captureBusy, false);
+  assert.deepEqual(h.notices, []);
+  h.context.navigator.mediaDevices.getDisplayMedia = async () => { throw Object.assign(new Error('denied'), { name: 'NotAllowedError' }); };
+  await h.media.startVideo('screen');
+  assert.ok(h.notices.some((message) => message.includes('não autorizado')));
+});
+
 test('capture completing after leaving a room releases its tracks', async () => {
   const h = mediaHarness();
   h.media.stopVideo('screen');

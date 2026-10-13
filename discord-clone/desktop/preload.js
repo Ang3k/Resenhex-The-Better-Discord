@@ -9,15 +9,22 @@ if (location.protocol === 'file:') {
   contextBridge.exposeInMainWorld('resenhexOffline', { retry: () => ipcRenderer.send('offline:retry') });
 } else if (location.origin === ORIGIN) {
   let pickSource = null;
+  let updateSource = null;
+  let activePick = null;
   let pttListener = null;
   let keybindListener = null;
 
   ipcRenderer.on('desktop:pick-source', async (_event, id, sources, options) => {
+    activePick = id;
     let choice = { unhandled: true };
     if (pickSource) {
       try { choice = (await pickSource(sources, options)) || null; } catch { choice = null; }
     }
     ipcRenderer.send('desktop:pick-source:result', id, choice);
+    if (activePick === id) activePick = null;
+  });
+  ipcRenderer.on('desktop:pick-source:update', (_event, id, sources, options) => {
+    if (activePick === id) updateSource?.(sources, options);
   });
   ipcRenderer.on('desktop:ptt', (_event, pressed) => pttListener?.(!!pressed));
   ipcRenderer.on('desktop:keybind', (_event, id) => keybindListener?.(String(id)));
@@ -26,7 +33,11 @@ if (location.protocol === 'file:') {
     platform: process.platform,
     mediaCapabilities: () => ipcRenderer.invoke('desktop:media-capabilities'),
     // handler(sources, { audio, apps }) → Promise<{ id, audio, app? } | null>; app é o ID do processo cujo som vai na transmissão.
-    onPickSource: (handler) => { pickSource = typeof handler === 'function' ? handler : null; },
+    onPickSource: (handler, updater) => {
+      pickSource = typeof handler === 'function' ? handler : null;
+      updateSource = typeof updater === 'function' ? updater : null;
+      ipcRenderer.send('desktop:pick-source:ready', !!pickSource && !!updateSource);
+    },
     setPushToTalk: (config) => ipcRenderer.send('desktop:set-ptt', { enabled: !!config?.enabled, code: String(config?.code || '') }),
     onPushToTalk: (listener) => { pttListener = typeof listener === 'function' ? listener : null; },
     // list: [{ id, combo }] dos atalhos que valem com o app em segundo plano.

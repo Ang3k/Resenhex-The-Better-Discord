@@ -328,7 +328,14 @@ function setupSession() {
 
 // O site mostra a própria janela de escolha (com o visual do tema) e devolve a fonte escolhida.
 const pendingPicks = new Map();
+const progressivePickers = new WeakSet();
 let pickSeq = 0;
+
+ipcMain.on('desktop:pick-source:ready', (event, progressive) => {
+  if (!fromSite(event)) return;
+  if (progressive === true) progressivePickers.add(event.sender);
+  else progressivePickers.delete(event.sender);
+});
 
 // Sem fonte de vídeo, o Electron recusa o pedido (o site recebe o erro normal de captura
 // cancelada) e ainda lança um TypeError aqui, que não precisa ir adiante.
@@ -361,27 +368,20 @@ async function appIcon(item, sources) {
 
 async function pickDisplayMedia(request, callback) {
   if (!site || !isAppUrl(request.securityOrigin) || !request.videoRequested) return deny(callback);
-  let sources, apps;
-  try {
-    [sources, apps] = await Promise.all([
-      desktopCapturer.getSources({ types: ['screen', 'window'], thumbnailSize: { width: 384, height: 216 }, fetchWindowIcons: true }),
-      request.audioRequested ? listAudioApps() : [],
-    ]);
-  } catch { return deny(callback); }
-  const own = win?.getMediaSourceId();
-  // Janelas sem imagem são janelas invisíveis de outros programas.
-  sources = sources.filter((source) => source.id !== own && source.name && (source.id.startsWith('screen:') || !source.thumbnail.isEmpty()));
-  if (!sources.length) return deny(callback);
-  const appOfWindow = new Map(apps.flatMap((item) => item.windows.map((window) => [window, item.pid])));
-  const appIcons = await Promise.all(apps.map((item) => appIcon(item, sources)));
-
+  const contents = site.webContents;
+  const progressive = progressivePickers.has(contents);
+  let sources = [], apps = [], appIcons = [];
+  let loading = true, appsLoading = !!request.audioRequested;
   const id = ++pickSeq;
   const finish = (choice) => {
     if (!pendingPicks.has(id)) return;
     pendingPicks.delete(id);
     clearTimeout(timer);
     const source = choice && sources.find((item) => item.id === choice.id);
-    if (!source) return deny(callback);
+    if (!source) {
+      if (progressive && !contents.isDestroyed()) contents.send('desktop:pick-source:update', id, null, { closed: true });
+      return deny(callback);
+    }
     const streams = { video: { id: source.id, name: source.name } };
     const audio = systemAudioDevice(process.platform, process.getSystemVersion());
     const chosenApp = choice.app && apps.find((item) => item.pid === choice.app);
@@ -390,13 +390,57 @@ async function pickDisplayMedia(request, callback) {
     try { callback(streams); } catch (error) { log.warn('Captura de tela:', error.message); }
   };
   const timer = setTimeout(() => finish(null), 120000);
-  pendingPicks.set(id, { finish, sources });
-  site.webContents.send('desktop:pick-source', id, sources.map((source) => ({
-    id: source.id, name: source.name, kind: source.id.startsWith('screen:') ? 'screen' : 'window',
-    thumbnail: source.thumbnail.isEmpty() ? null : source.thumbnail.toDataURL(),
-    icon: source.appIcon && !source.appIcon.isEmpty() ? source.appIcon.resize({ width: 32 }).toDataURL() : null,
-    app: appOfWindow.get(windowHandle(source.id)) || null,
-  })), { audio: request.audioRequested, apps: apps.map((item, index) => ({ pid: item.pid, name: item.name, icon: appIcons[index] })) });
+  const pick = { finish, sources };
+  pendingPicks.set(id, pick);
+  const alive = () => {
+    if (!pendingPicks.has(id)) return false;
+    if (contents.isDestroyed() || site?.webContents !== contents) { finish(null); return false; }
+    return true;
+  };
+  const send = (channel) => {
+    if (!alive()) return;
+    const appOfWindow = new Map(apps.flatMap((item) => item.windows.map((window) => [window, item.pid])));
+    contents.send(channel, id, sources.map((source) => ({
+      id: source.id, name: source.name, kind: source.id.startsWith('screen:') ? 'screen' : 'window',
+      thumbnail: source.thumbnail.isEmpty() ? null : source.thumbnail.toDataURL(),
+      icon: source.appIcon && !source.appIcon.isEmpty() ? source.appIcon.resize({ width: 32 }).toDataURL() : null,
+      app: appOfWindow.get(windowHandle(source.id)) || null,
+    })), { audio: request.audioRequested, loading, appsLoading,
+      apps: apps.map((item, index) => ({ pid: item.pid, name: item.name, icon: appIcons[index] || null })) });
+  };
+  // A janela abre antes de enumerar as fontes, consultar o Windows ou ler ícones.
+  // Sites antigos continuam recebendo uma única lista completa.
+  if (progressive) send('desktop:pick-source');
+  const audioApps = Promise.resolve().then(() => request.audioRequested ? listAudioApps() : []).catch(() => []);
+  const sourceList = Promise.resolve().then(() => desktopCapturer.getSources({ types: ['screen', 'window'], thumbnailSize: { width: 384, height: 216 }, fetchWindowIcons: true }));
+  const loadApps = audioApps.then((items) => {
+    if (!alive()) return;
+    apps = items;
+    appsLoading = false;
+    if (progressive) send('desktop:pick-source:update');
+  });
+  try {
+    const items = await sourceList;
+    if (!alive()) return;
+    const own = win?.getMediaSourceId();
+    // Janelas sem imagem são janelas invisíveis de outros programas.
+    sources = items.filter((source) => source.id !== own && source.name && (source.id.startsWith('screen:') || !source.thumbnail.isEmpty()));
+    pick.sources = sources;
+    if (!sources.length) return finish(null);
+    loading = false;
+    if (progressive) send('desktop:pick-source:update');
+    await loadApps;
+    if (!alive()) return;
+    if (!progressive) send('desktop:pick-source');
+    // Os ícones são decorativos; nenhuma escolha precisa esperar a leitura deles.
+    if (progressive) {
+      appIcons = await Promise.all(apps.map((item) => appIcon(item, sources).catch(() => null)));
+      send('desktop:pick-source:update');
+    }
+  } catch (error) {
+    log.warn('Fontes para a transmissão:', error.message);
+    finish(null);
+  }
 }
 
 ipcMain.on('desktop:pick-source:result', (event, id, choice) => {

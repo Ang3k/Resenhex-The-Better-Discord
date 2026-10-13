@@ -23,7 +23,7 @@ const sources = [
 ];
 const bridge = () => {
   const calls = { theme: [], picker: null };
-  return { calls, onPickSource: (fn) => { calls.picker = fn; }, setTheme: (colors) => calls.theme.push(colors), setPushToTalk() {}, onPushToTalk() {}, focus() {} };
+  return { calls, onPickSource: (fn, update) => { calls.picker = fn; calls.update = update; }, setTheme: (colors) => calls.theme.push(colors), setPushToTalk() {}, onPushToTalk() {}, focus() {} };
 };
 
 test('no navegador, oferece o app só para quem usa Windows', () => {
@@ -147,4 +147,63 @@ test('Esc cancela e uma nova escolha substitui a anterior', async () => {
   assert.equal(w.document.querySelector('.share-audio'), null, 'sem som pedido, sem opção de som');
   w.document.dispatchEvent(new w.KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
   assert.equal(await second, null);
+});
+
+test('o seletor abre enquanto carrega e recebe fontes e áudio sem perder as escolhas', async () => {
+  const b = bridge();
+  const w = load({ bridge: b });
+  const doc = w.document;
+  const choice = b.calls.picker([], { audio: true, loading: true, appsLoading: true });
+  assert.ok(doc.querySelector('.share-picker'), 'a janela já está aberta');
+  assert.equal(doc.querySelector('.share-grid').getAttribute('aria-busy'), 'true');
+  assert.equal(doc.querySelector('.btn-primary').disabled, true);
+
+  b.calls.update(sources, { loading: false });
+  assert.equal(doc.querySelector('.share-grid').getAttribute('aria-busy'), 'false');
+  doc.querySelector('.share-source').click();
+  const select = doc.querySelector('.share-audio-select');
+  select.value = 'none';
+  select.dispatchEvent(new w.Event('change'));
+  select.focus();
+  const mapped = sources.map((source) => ({ ...source, app: source.kind === 'window' ? 20 : null }));
+  b.calls.update(mapped, { apps: [{ pid: 20, name: 'Jogo' }], appsLoading: false });
+  assert.equal(doc.querySelector('.share-source.selected').textContent, 'Jogo');
+  assert.equal(doc.querySelector('.share-audio-select').value, 'none', 'a atualização respeita o som escolhido');
+  assert.equal(doc.activeElement, select, 'a atualização mantém o foco no som');
+  doc.querySelector('.btn-primary').click();
+  assert.deepEqual({ ...await choice }, { id: 'window:7:0', audio: false, app: null });
+  b.calls.update(sources, {});
+  assert.equal(doc.querySelector('.share-overlay:not(.closing)'), null, 'uma resposta tardia não reabre o seletor');
+  w.close();
+});
+
+test('o áudio do app pode chegar depois da seleção da janela', async () => {
+  const b = bridge();
+  const w = load({ bridge: b });
+  const choice = b.calls.picker(sources, { audio: true, appsLoading: true });
+  w.document.querySelector('.share-source').click();
+  b.calls.update(sources.map((source) => ({ ...source, app: 20 })), { appsLoading: false, apps: [{ pid: 20, name: 'Jogo' }] });
+  assert.equal(w.document.querySelector('.share-audio-select').value, '20');
+  w.document.querySelector('.btn-primary').click();
+  assert.equal((await choice).app, 20);
+  w.close();
+});
+
+test('fechar o seletor identifica o cancelamento, mas erros reais continuam sendo erros', async () => {
+  const b = bridge();
+  const w = load({ bridge: b });
+  const denied = () => Object.assign(new Error('denied'), { name: 'NotAllowedError' });
+  const current = () => w.document.querySelector('.share-overlay:not(.closing)');
+  for (const close of [() => current().querySelector('.share-close').click(),
+    () => current().querySelector('.btn-ghost').click(),
+    () => w.document.dispatchEvent(new w.KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))]) {
+    const capture = w.DesktopApp.captureScreen(async () => { await b.calls.picker(sources, {}); throw denied(); });
+    close();
+    await assert.rejects(capture, { name: 'ShareCancelledError' });
+  }
+  await assert.rejects(w.DesktopApp.captureScreen(async () => { throw denied(); }), { name: 'NotAllowedError' });
+  const failure = w.DesktopApp.captureScreen(async () => { await b.calls.picker([], { loading: true }); throw denied(); });
+  b.calls.update(null, { closed: true });
+  await assert.rejects(failure, { name: 'NotAllowedError' }, 'uma falha do app não vira cancelamento voluntário');
+  w.close();
 });

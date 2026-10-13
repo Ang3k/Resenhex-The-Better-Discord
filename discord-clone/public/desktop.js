@@ -55,23 +55,46 @@ window.DesktopApp = (() => {
   }
 
   let open = null;
+  let captureAttempt = null;
+  // Vincula o cancelamento à captura que abriu o seletor, sem esconder erros de permissão.
+  async function captureScreen(capture) {
+    const attempt = { cancelled: false };
+    captureAttempt = attempt;
+    try { return await capture(); }
+    catch (error) {
+      if (!attempt.cancelled) throw error;
+      const cancelled = new Error('Seleção de tela cancelada.');
+      cancelled.name = 'ShareCancelledError';
+      throw cancelled;
+    } finally { if (captureAttempt === attempt) captureAttempt = null; }
+  }
+
+  function updateSource(sources, options = {}) { open?.update(sources, options); }
+
   function pickSource(sources, options = {}) {
     open?.cancel();
     return new Promise((resolve) => {
-      const screens = sources.filter((source) => source.kind === 'screen');
-      const windows = sources.filter((source) => source.kind === 'window');
-      let tab = windows.length ? 'window' : 'screen';
+      const attempt = captureAttempt;
+      let closed = false;
+      let loading = !!options.loading;
+      let appsLoading = !!options.appsLoading;
+      let screens = sources.filter((source) => source.kind === 'screen');
+      let windows = sources.filter((source) => source.kind === 'window');
+      let tab = loading || windows.length ? 'window' : 'screen';
       let selected = null;
       let audio = !!options.audio;
       // App novo: dá para escolher o som de um app só (o jogo sem o Discord, por exemplo).
       // 'system' é o PC inteiro; 'none', sem som; senão, o ID do processo do app.
-      const apps = audio && Array.isArray(options.apps) ? options.apps.filter((item) => Number.isInteger(item?.pid) && item.name) : [];
+      const validApps = (items) => options.audio && Array.isArray(items) ? items.filter((item) => Number.isInteger(item?.pid) && item.name) : [];
+      let apps = validApps(options.apps);
       let audioSource = 'system';
       let audioTouched = false;
 
-      const finish = (choice) => {
-        if (!open) return;
-        open = null;
+      const finish = (choice, userCancelled = true) => {
+        if (closed) return;
+        closed = true;
+        if (!choice && userCancelled && attempt) attempt.cancelled = true;
+        if (open === picker) open = null;
         document.removeEventListener('keydown', onKey, true);
         overlay.classList.add('closing');
         setTimeout(() => overlay.remove(), 140);
@@ -94,8 +117,8 @@ window.DesktopApp = (() => {
 
       function renderTabs() {
         tabs.replaceChildren(...[['window', 'Aplicativos', windows], ['screen', 'Telas', screens]].map(([key, label, list]) =>
-          el('button', { type: 'button', role: 'tab', class: tab === key ? 'active' : '', ariaSelected: String(tab === key), disabled: !list.length, onclick: () => { tab = key; render(); } },
-            el('span', { textContent: label }), el('span', { class: 'share-count', textContent: String(list.length) }))));
+          el('button', { type: 'button', role: 'tab', class: tab === key ? 'active' : '', ariaSelected: String(tab === key), disabled: loading || !list.length, onclick: () => { tab = key; render(); } },
+            el('span', { textContent: label }), el('span', { class: 'share-count', textContent: loading ? '…' : String(list.length) }))));
       }
       function select(source, card) {
         selected = source;
@@ -109,13 +132,19 @@ window.DesktopApp = (() => {
       }
       function render() {
         renderTabs();
+        grid.setAttribute('aria-busy', String(loading));
+        if (loading) {
+          grid.replaceChildren(el('div', { class: 'share-loading', role: 'status', textContent: 'Buscando aplicativos e telas…' }));
+          return;
+        }
         const list = tab === 'window' ? windows : screens;
         grid.replaceChildren(...list.map((source) => {
           const card = el('button', {
             type: 'button', class: 'share-source' + (selected === source ? ' selected' : ''), role: 'option', ariaSelected: String(selected === source),
+            'data-source-id': source.id,
             title: sourceLabel(source, screens),
             onclick: () => select(source, card),
-            ondblclick: () => { selected = source; go(); },
+            ondblclick: () => { select(source, card); go(); },
           },
           el('span', { class: 'share-thumb' }, source.thumbnail ? el('img', { src: source.thumbnail, alt: '', draggable: false }) : Icon(source.kind === 'screen' ? 'screen' : 'pip', 28)),
           el('span', { class: 'share-name' },
@@ -139,6 +168,7 @@ window.DesktopApp = (() => {
         const pid = Number(value);
         const item = Number.isInteger(pid) && apps.find((app) => app.pid === pid);
         audioSource = item ? item.pid : value === 'none' ? 'none' : 'system';
+        audio = audioSource !== 'none';
         audioSelect.value = String(audioSource);
         audioIcon.replaceChildren(item?.icon ? el('img', { src: item.icon, alt: '' }) : Icon(audioSource === 'none' ? 'volumeX' : 'volume', 18));
         audioHint.textContent = item ? `Só o som de ${item.name}. O resto do PC, como o Discord ou uma música, fica de fora.` : audioHints[audioSource];
@@ -165,11 +195,23 @@ window.DesktopApp = (() => {
       if (quality) setPreset(quality.presets[preset] ? preset : Object.keys(quality.presets)[0]);
 
       const setting = (title, ...children) => el('div', { class: 'share-setting' }, el('span', { class: 'share-setting-title', textContent: title }), ...children);
-      const audioSetting = apps.length
-        ? setting('Som da transmissão', el('div', { class: 'share-audio-row' }, audioIcon, audioSelect), audioHint)
-        : options.audio ? setting('Som', el('label', { class: 'share-audio switch-row' },
-          el('input', { type: 'checkbox', class: 'ds-switch', checked: audio, onchange: (event) => { audio = event.target.checked; } }),
-          el('span', {}, el('strong', { textContent: 'Som do computador' }), el('small', { textContent: 'Seus amigos ouvem o que toca no PC. A voz da chamada fica de fora.' })))) : null;
+      const audioSetting = options.audio ? el('div', { class: 'share-setting' }) : null;
+      function renderAudio() {
+        if (!audioSetting) return;
+        audioSelect.replaceChildren(...[
+          el('option', { value: 'system', textContent: 'Som do computador inteiro' }),
+          apps.length ? el('optgroup', { label: 'Só o som de um app' }, ...apps.map((item) => el('option', { value: String(item.pid), textContent: item.name }))) : null,
+          el('option', { value: 'none', textContent: 'Sem som' })].filter(Boolean));
+        if (selected && !audioTouched) setAudioSource(apps.some((item) => item.pid === selected.app) ? selected.app : 'system');
+        else setAudioSource(audioSource);
+        audioSetting.replaceChildren(el('span', { class: 'share-setting-title', textContent: 'Som da transmissão' }),
+          ...(apps.length || appsLoading ? [el('div', { class: 'share-audio-row' }, audioIcon, audioSelect), audioHint,
+            appsLoading ? el('small', { role: 'status', textContent: 'Buscando opções de som dos aplicativos…' }) : null].filter(Boolean)
+            : [el('label', { class: 'share-audio switch-row' },
+              el('input', { type: 'checkbox', class: 'ds-switch', checked: audio, onchange: (event) => { audioTouched = true; setAudioSource(event.target.checked ? 'system' : 'none'); } }),
+              el('span', {}, el('strong', { textContent: 'Som do computador' }), el('small', { textContent: 'Seus amigos ouvem o que toca no PC. A voz da chamada fica de fora.' })))]));
+      }
+      renderAudio();
       const settings = [quality ? setting('Qualidade', qualityChips, qualityHint) : null, audioSetting].filter(Boolean);
 
       const overlay = el('div', { class: 'confirm-overlay share-overlay', onmousedown: (event) => event.target === overlay && finish(null) },
@@ -184,16 +226,43 @@ window.DesktopApp = (() => {
             el('small', { class: 'share-tip', textContent: 'Jogo em tela cheia? Use o modo janela sem bordas ou escolha a tela inteira. Minimizar a janela pausa a transmissão.' }),
             el('div', { class: 'confirm-actions' }, el('button', { type: 'button', class: 'btn-ghost', textContent: 'Cancelar', onclick: () => finish(null) }), start))));
 
-      open = { cancel: () => finish(null) };
+      const picker = {
+        cancel: () => finish(null),
+        update: (list, next) => {
+          if (closed) return;
+          if (next.closed) return finish(null, false);
+          if (Array.isArray(list)) {
+            screens = list.filter((source) => source.kind === 'screen');
+            windows = list.filter((source) => source.kind === 'window');
+            selected = selected && list.find((source) => source.id === selected.id) || null;
+          }
+          if ('loading' in next) loading = !!next.loading;
+          if ('appsLoading' in next) appsLoading = !!next.appsLoading;
+          if ('apps' in next) apps = validApps(next.apps);
+          if (!loading && !(tab === 'window' ? windows : screens).length) tab = windows.length ? 'window' : 'screen';
+          const focusedSource = document.activeElement?.closest('.share-source')?.dataset.sourceId;
+          const focusedTab = [...tabs.children].indexOf(document.activeElement);
+          const focusedAudio = document.activeElement === audioSelect;
+          const scroll = grid.scrollTop;
+          start.disabled = !selected;
+          render();
+          renderAudio();
+          grid.scrollTop = scroll;
+          if (focusedSource) [...grid.children].find((node) => node.dataset.sourceId === focusedSource)?.focus();
+          else if (focusedTab >= 0) tabs.children[focusedTab]?.focus();
+          else if (focusedAudio) audioSelect.focus();
+        },
+      };
+      open = picker;
       render();
       document.body.append(overlay);
       document.addEventListener('keydown', onKey, true);
       overlay.querySelector('.share-picker').focus();
     });
   }
-  desktop.onPickSource(pickSource);
+  desktop.onPickSource(pickSource, updateSource);
 
   // shareQuality: { presets, current(), set(key) }, registrado pelo app.js.
-  const api = { available: true, pickSource, shareQuality: null };
+  const api = { available: true, pickSource, captureScreen, shareQuality: null };
   return api;
 })();

@@ -265,12 +265,13 @@ window.MediaSession = function ({ state, socket, call, el, toast, voiceEntry, me
   async function captureScreen() {
     const preset = presets[state.sharePreset];
     if (!navigator.mediaDevices?.getDisplayMedia) throw new Error('Seu navegador não oferece captura de tela.');
-    const stream = await navigator.mediaDevices.getDisplayMedia({
+    const capture = () => navigator.mediaDevices.getDisplayMedia({
       video: { width: { ideal: preset.width }, height: { ideal: preset.height }, frameRate: { ideal: preset.fps, max: preset.fps } },
       // restrictOwnAudio: o som do computador vai sem as vozes da própria chamada (evita eco para quem assiste).
       audio: state.shareAudio ? { echoCancellation: false, noiseSuppression: false, autoGainControl: false, restrictOwnAudio: true } : false,
       selfBrowserSurface: 'exclude', surfaceSwitching: 'include', systemAudio: state.shareAudio ? 'include' : 'exclude',
     });
+    const stream = await (window.DesktopApp?.captureScreen ? window.DesktopApp.captureScreen(capture) : capture());
     // A qualidade pode ter sido trocada na janela de escolha do app, depois de pedir a captura.
     const chosen = presets[state.sharePreset];
     if (chosen !== preset) {
@@ -312,6 +313,7 @@ window.MediaSession = function ({ state, socket, call, el, toast, voiceEntry, me
     track.onunmute = () => { state.sharePaused = false; sendVoiceState(); };
   }
   function captureError(error) {
+    if (error.name === 'ShareCancelledError') return;
     if (error.name === 'NotAllowedError' || error.name === 'AbortError') { mediaNotice('Compartilhamento cancelado ou não autorizado. Você pode tentar novamente.'); return; }
     mediaNotice(error.name === 'NotReadableError' ? 'Não foi possível ler essa fonte. Tente outra janela ou tela.' : 'Não foi possível iniciar a captura. Verifique as permissões e a disponibilidade do dispositivo.');
   }
@@ -386,6 +388,7 @@ window.MediaSession = function ({ state, socket, call, el, toast, voiceEntry, me
       mediaNotice(state.shareAudio && !current.getAudioTracks().length ? 'Tela trocada. A nova fonte não forneceu áudio.' : 'Tela trocada. Sua chamada continua conectada.');
       setAudioMode(next.audioMode);
     } catch (error) {
+      if (error.name === 'ShareCancelledError') return;
       if (sfu?.active() && state.local.screen === current) await sfu.publish('screen', current).catch(() => {});
       for (const { peer, sender, old, added } of changed.reverse()) {
         await MediaPolicy.enqueue(peer, async () => {
