@@ -4,6 +4,19 @@
 // O título deve destacar as principais funcionalidades ou correções, com termos objetivos.
 window.CHANGELOG = [
   {
+    version: '1.4.1', date: '2026-10-13', name: 'Transmissão com o som de um app só (app de Windows)',
+    summary: 'No app de Windows, dá para transmitir só o som de um app, como o jogo sem o Discord ou a música de fundo. A qualidade da transmissão agora fica na mesma janela em que você escolhe a tela.',
+    sections: [
+      { kind: 'new', items: [
+        'Som de um app só: na janela de transmitir, escolha entre o som do computador inteiro, o som de um app específico ou sem som. Funciona também com apps da Microsoft Store.',
+        'Ao escolher a janela de um app, o som daquele app já vem selecionado, até você trocar.',
+      ] },
+      { kind: 'improved', items: [
+        'A qualidade da transmissão (resolução e FPS) é escolhida na própria janela de transmitir, sem um passo a mais.',
+      ] },
+    ],
+  },
+  {
     version: '1.4.0', date: '2026-10-12', name: 'Novos efeitos de voz para a resenha',
     summary: 'Os efeitos de voz da call foram refeitos e ganharam novas opções: Bêbado, Autotune, Voz em acordes, Coral e mais. Escolha na setinha do microfone ou em Configurações > Voz e vídeo e teste com Ouvir minha voz.',
     sections: [

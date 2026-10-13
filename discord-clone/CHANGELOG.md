@@ -3,6 +3,19 @@
 Histórico de versões. A mesma lista aparece dentro do app em **Novidades** (menu do servidor ou rodapé das Configurações).
 O Resenhex chegou à versão 1.0 em 4 de outubro de 2026.
 
+## v1.4.1 — Transmissão com o som de um app só (app de Windows)
+
+13 de outubro de 2026.
+
+No app de Windows, dá para transmitir só o som de um app, como o jogo sem o Discord ou a música de fundo. A qualidade da transmissão agora fica na mesma janela em que você escolhe a tela.
+
+### Novidades
+- Som de um app só: na janela de transmitir, escolha entre o som do computador inteiro, o som de um app específico ou sem som. Funciona também com apps da Microsoft Store.
+- Ao escolher a janela de um app, o som daquele app já vem selecionado, até você trocar.
+
+### Melhorias
+- A qualidade da transmissão (resolução e FPS) é escolhida na própria janela de transmitir, sem um passo a mais.
+
 ## v1.4.0 — Novos efeitos de voz para a resenha
 
 12 de outubro de 2026.
