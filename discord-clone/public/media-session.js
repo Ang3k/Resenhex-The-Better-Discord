@@ -277,12 +277,14 @@ window.MediaSession = function ({ state, socket, call, el, toast, voiceEntry, me
   // O som do computador leva junto o que o próprio Resenhex toca (as vozes da chamada), a menos que
   // o navegador (restrictOwnAudio, no Windows 11) ou o app de Windows o deixem de fora ('native');
   // senão o filtro do Resenhex o tira ('filter'), ou, sem filtro, ele vai junto ('mixed'). O som
-  // de uma aba do navegador é só daquela aba ('tab'). Sem som: null.
+  // de uma aba do navegador é só daquela aba ('tab'), e o app de Windows pode levar o som de um
+  // app só ('app'). Sem som: null.
   async function audioMode(stream) {
     const audio = stream.getAudioTracks?.()[0];
     if (!audio) return null;
     const settings = audio.getSettings?.() || {};
     if (stream.getVideoTracks()[0]?.getSettings?.().displaySurface === 'browser') return 'tab';
+    if (String(settings.deviceId || '').startsWith('applicationLoopback:')) return 'app';
     if (settings.restrictOwnAudio === true || settings.deviceId === 'loopbackWithoutChrome') return 'native';
     return (await ownAudio?.clean(stream)) ? 'filter' : 'mixed';
   }
@@ -430,7 +432,7 @@ window.MediaSession = function ({ state, socket, call, el, toast, voiceEntry, me
     const root = $('#diagnostics-peers');
     if (!root) return;
     $('#media-health').textContent = state.mediaHealth;
-    const sound = { native: 'som sem as vozes da chamada', filter: 'vozes da chamada tiradas pelo filtro do Resenhex', mixed: 'som com as vozes da chamada', tab: 'som da aba' }[state.local.screen && state.shareAudioMode];
+    const sound = { native: 'som sem as vozes da chamada', filter: 'vozes da chamada tiradas pelo filtro do Resenhex', mixed: 'som com as vozes da chamada', tab: 'som da aba', app: 'som de um app' }[state.local.screen && state.shareAudioMode];
     $('#diagnostics-summary').textContent = !state.voiceChannel ? 'Entre em uma chamada para ver as conexões.' : [sfu?.active() ? 'SFU · Uma conexão com o servidor de mídia' : `${state.peers.size} conexões`, `${viewers().length} espectadores da sua tela`, sound, state.videoEncoder, state.gpuCapabilities?.videoEncode ? `GPU no app: ${state.gpuCapabilities.videoEncode}` : ''].filter(Boolean).join(' · ');
     const states = { connected: 'Conectado', connecting: 'Conectando', new: 'Preparando', disconnected: 'Reconectando', failed: 'Falha na conexão', closed: 'Encerrado' };
     root.replaceChildren(...[...state.peers].map(([sid, peer]) => {
