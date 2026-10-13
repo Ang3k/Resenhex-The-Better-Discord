@@ -465,6 +465,7 @@ test('screen audio that carries the call is cleaned; excluded system audio and t
     [{ displaySurface: 'monitor' }, { deviceId: 'loopback', restrictOwnAudio: true }, false, 'native'],
     [{ displaySurface: 'monitor' }, { deviceId: 'loopbackWithoutChrome' }, false, 'native'],
     [{ displaySurface: 'browser' }, { deviceId: 'tab' }, false, 'tab'],
+    [{ displaySurface: 'window' }, { deviceId: 'applicationLoopback:4321' }, false, 'app'],
   ];
   for (const [video, audio, cleaned, mode] of cases) {
     const stream = capture(video, audio);

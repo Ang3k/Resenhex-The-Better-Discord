@@ -93,6 +93,35 @@ test('o som do computador na transmissão deixa de fora o próprio app a partir 
   assert.equal(systemAudioDevice('darwin', '15.0.0'), null);
 });
 
+test('o som de um app só: Windows 10 2004 ou mais novo, pelo ID do processo', () => {
+  const { appAudioSupported, appAudioDevice, parseAudioApps, windowHandle, AUDIO_APPS_SCRIPT } = require('../lib/system-audio');
+  assert.equal(appAudioSupported('win32', '10.0.26100'), true);
+  assert.equal(appAudioSupported('win32', '10.0.19041'), true);
+  assert.equal(appAudioSupported('win32', '10.0.18363'), false);
+  assert.equal(appAudioSupported('darwin', '15.0.0'), false);
+  assert.equal(appAudioDevice(4321), 'applicationLoopback:4321');
+  assert.equal(windowHandle('window:132456:0'), '132456');
+  assert.equal(windowHandle('screen:0:0'), null);
+  assert.match(AUDIO_APPS_SCRIPT, /UTF8/, 'nomes com acento chegam inteiros');
+
+  const out = [
+    '900\t555\tResenhex\tResenhex\tC:\\Resenhex.exe',
+    '20\t132456\tValorant\tVALORANT-Win64-Shipping\tC:\\Riot\\VALORANT.exe',
+    '31\t777\t\tDiscord\t',
+    '31\t778\tDiscord de novo\tDiscord\t',
+    'lixo',
+    '12\t999\tConfigurações\tSystemSettings\tC:\\Windows\\ImmersiveControlPanel\\SystemSettings.exe\r',
+    '0\t1\tSystem\tSystem\t',
+  ].join('\r\n');
+  assert.deepEqual(parseAudioApps(out, [900]), [
+    { pid: 12, window: '999', name: 'Configurações', path: 'C:\\Windows\\ImmersiveControlPanel\\SystemSettings.exe' },
+    { pid: 31, window: '777', name: 'Discord', path: null },
+    { pid: 20, window: '132456', name: 'Valorant', path: 'C:\\Riot\\VALORANT.exe' },
+  ]);
+  assert.deepEqual(parseAudioApps(''), []);
+  assert.deepEqual(parseAudioApps(undefined), []);
+});
+
 test('o gancho global fica só no teclado, sem passar o mouse pelo app', () => {
   const { patchSource, MARK } = require('../tools/patch-uiohook');
   const original = [

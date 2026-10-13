@@ -14,7 +14,8 @@ const { parseTitle, badgeName } = require('./lib/title-badge');
 const { uiohookKeycode } = require('./lib/ptt-keys');
 const { globalBindings, matchBinding } = require('./lib/keybinds');
 const { createLog } = require('./lib/log');
-const { systemAudioDevice } = require('./lib/system-audio');
+const { execFile } = require('node:child_process');
+const { systemAudioDevice, appAudioSupported, appAudioDevice, AUDIO_APPS_SCRIPT, parseAudioApps, windowHandle } = require('./lib/system-audio');
 
 const APP_URL = new URL(process.env.RESENHEX_URL || 'https://resenhex.duckdns.org/');
 const ORIGIN = APP_URL.origin;
@@ -316,16 +317,44 @@ function deny(callback) {
   try { callback({}); } catch { /* pedido recusado */ }
 }
 
+// Programas com janela aberta, para transmitir o som de um só. Sem a lista (PowerShell bloqueado,
+// Windows antigo), a escolha volta a ser só entre o som do computador inteiro ou nenhum.
+function listAudioApps() {
+  if (!appAudioSupported(process.platform, process.getSystemVersion())) return Promise.resolve([]);
+  return new Promise((resolve) => {
+    execFile('powershell.exe', ['-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-Command', AUDIO_APPS_SCRIPT],
+      { windowsHide: true, timeout: 5000, maxBuffer: 1024 * 1024 }, (error, stdout) => {
+        if (error) log.warn('Lista de apps para o som da transmissão:', error.message);
+        resolve(parseAudioApps(stdout, app.getAppMetrics().map((metric) => metric.pid)));
+      });
+  });
+}
+
+async function appIcon(item, sources) {
+  const source = item.window && sources.find((s) => windowHandle(s.id) === item.window && s.appIcon && !s.appIcon.isEmpty());
+  if (source) return source.appIcon.resize({ width: 32 }).toDataURL();
+  if (!item.path) return null;
+  try {
+    const icon = await app.getFileIcon(item.path, { size: 'normal' });
+    return icon.isEmpty() ? null : icon.toDataURL();
+  } catch { return null; }
+}
+
 async function pickDisplayMedia(request, callback) {
   if (!site || !isAppUrl(request.securityOrigin) || !request.videoRequested) return deny(callback);
-  let sources;
+  let sources, apps;
   try {
-    sources = await desktopCapturer.getSources({ types: ['screen', 'window'], thumbnailSize: { width: 384, height: 216 }, fetchWindowIcons: true });
+    [sources, apps] = await Promise.all([
+      desktopCapturer.getSources({ types: ['screen', 'window'], thumbnailSize: { width: 384, height: 216 }, fetchWindowIcons: true }),
+      request.audioRequested ? listAudioApps() : [],
+    ]);
   } catch { return deny(callback); }
   const own = win?.getMediaSourceId();
   // Janelas sem imagem são janelas invisíveis de outros programas.
   sources = sources.filter((source) => source.id !== own && source.name && (source.id.startsWith('screen:') || !source.thumbnail.isEmpty()));
   if (!sources.length) return deny(callback);
+  const appOfWindow = new Map(apps.filter((item) => item.window).map((item) => [item.window, item.pid]));
+  const appIcons = await Promise.all(apps.map((item) => appIcon(item, sources)));
 
   const id = ++pickSeq;
   const finish = (choice) => {
@@ -336,7 +365,9 @@ async function pickDisplayMedia(request, callback) {
     if (!source) return deny(callback);
     const streams = { video: { id: source.id, name: source.name } };
     const audio = systemAudioDevice(process.platform, process.getSystemVersion());
-    if (request.audioRequested && choice.audio && audio) streams.audio = audio;
+    const chosenApp = choice.app && apps.find((item) => item.pid === choice.app);
+    if (request.audioRequested && choice.audio && chosenApp) streams.audio = appAudioDevice(chosenApp.pid);
+    else if (request.audioRequested && choice.audio && audio) streams.audio = audio;
     try { callback(streams); } catch (error) { log.warn('Captura de tela:', error.message); }
   };
   const timer = setTimeout(() => finish(null), 120000);
@@ -345,7 +376,8 @@ async function pickDisplayMedia(request, callback) {
     id: source.id, name: source.name, kind: source.id.startsWith('screen:') ? 'screen' : 'window',
     thumbnail: source.thumbnail.isEmpty() ? null : source.thumbnail.toDataURL(),
     icon: source.appIcon && !source.appIcon.isEmpty() ? source.appIcon.resize({ width: 32 }).toDataURL() : null,
-  })), { audio: request.audioRequested });
+    app: appOfWindow.get(windowHandle(source.id)) || null,
+  })), { audio: request.audioRequested, apps: apps.map((item, index) => ({ pid: item.pid, name: item.name, icon: appIcons[index] })) });
 }
 
 ipcMain.on('desktop:pick-source:result', (event, id, choice) => {
@@ -357,7 +389,7 @@ ipcMain.on('desktop:pick-source:result', (event, id, choice) => {
     const screen = pick.sources.find((source) => source.id.startsWith('screen:'));
     return pick.finish(screen ? { id: screen.id, audio: true } : null);
   }
-  pick.finish(choice && typeof choice.id === 'string' ? { id: choice.id, audio: !!choice.audio } : null);
+  pick.finish(choice && typeof choice.id === 'string' ? { id: choice.id, audio: !!choice.audio, app: Number.isInteger(choice.app) ? choice.app : null } : null);
 });
 
 // ---------------- push-to-talk e atalhos globais ----------------

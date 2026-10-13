@@ -61,6 +61,14 @@ a.download-app { text-decoration: none; }
   padding: 14px 24px; background: var(--bg-sidebar); border-top: 1px solid var(--divider);
 }
 .share-audio { flex: 1 1 280px; max-width: 420px; flex-direction: row-reverse !important; justify-content: flex-end; gap: 12px; }
+.share-audio.share-audio-apps { display: flex; flex-direction: row !important; align-items: center; gap: 12px; }
+.share-audio-icon { display: grid; place-items: center; flex-shrink: 0; width: 36px; height: 36px; border-radius: 10px; background: var(--bg-rail); color: var(--interactive); }
+.share-audio-icon img { width: 24px; height: 24px; }
+.share-audio-body { display: grid; gap: 4px; min-width: 0; flex: 1; }
+.share-audio-body strong { font-size: 14px; color: var(--text-strong); }
+.share-audio-body small { font-size: 12.5px; line-height: 1.4; color: var(--text-muted); }
+.share-audio-select { width: 100%; min-height: 36px; padding: 6px 12px; border: 1px solid var(--divider); border-radius: 10px; background-color: var(--bg-input); color: var(--text); font-size: 14px; }
+.share-audio-select:focus-visible { outline: 2px solid var(--brand); outline-offset: 1px; }
 .share-picker .confirm-actions { display: flex; align-items: center; margin: 0 0 0 auto; padding: 0; border: 0; background: none; }
 .share-picker .confirm-actions .btn-primary { display: inline-flex; align-items: center; gap: 8px; }
 

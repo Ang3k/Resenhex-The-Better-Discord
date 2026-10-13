@@ -63,6 +63,11 @@ window.DesktopApp = (() => {
       let tab = windows.length ? 'window' : 'screen';
       let selected = null;
       let audio = !!options.audio;
+      // App novo: dá para escolher o som de um app só (o jogo sem o Discord, por exemplo).
+      // 'system' é o PC inteiro; 'none', sem som; senão, o ID do processo do app.
+      const apps = audio && Array.isArray(options.apps) ? options.apps.filter((item) => Number.isInteger(item?.pid) && item.name) : [];
+      let audioSource = 'system';
+      let audioTouched = false;
 
       const finish = (choice) => {
         if (!open) return;
@@ -72,10 +77,14 @@ window.DesktopApp = (() => {
         setTimeout(() => overlay.remove(), 140);
         resolve(choice);
       };
-      const go = () => selected && finish({ id: selected.id, audio });
+      const go = () => {
+        if (!selected) return;
+        if (!apps.length) return finish({ id: selected.id, audio });
+        finish({ id: selected.id, audio: audioSource !== 'none', app: typeof audioSource === 'number' ? audioSource : null });
+      };
       const onKey = (event) => {
         if (event.key === 'Escape') { event.preventDefault(); event.stopPropagation(); finish(null); }
-        else if (event.key === 'Enter' && selected && !event.target.closest?.('.share-tabs')) { event.preventDefault(); event.stopPropagation(); go(); }
+        else if (event.key === 'Enter' && selected && !event.target.closest?.('.share-tabs, select')) { event.preventDefault(); event.stopPropagation(); go(); }
       };
 
       const grid = el('div', { class: 'share-grid', role: 'listbox', ariaLabel: 'Fontes disponíveis' });
@@ -90,6 +99,8 @@ window.DesktopApp = (() => {
       function select(source, card) {
         selected = source;
         start.disabled = false;
+        // Como no Discord: a janela de um app leva o som daquele app, até a pessoa escolher outro.
+        if (apps.length && !audioTouched) setAudioSource(apps.some((item) => item.pid === source.app) ? source.app : 'system');
         for (const node of grid.children) {
           node.classList.toggle('selected', node === card);
           node.setAttribute('aria-selected', String(node === card));
@@ -113,9 +124,32 @@ window.DesktopApp = (() => {
         }));
       }
 
-      const audioToggle = options.audio ? el('label', { class: 'share-audio switch-row' },
+      const audioHints = {
+        system: 'Seus amigos ouvem tudo que toca no PC. A voz da chamada fica de fora.',
+        none: 'A transmissão vai sem som.',
+      };
+      const audioSelect = el('select', { class: 'share-audio-select', ariaLabel: 'Som da transmissão', onchange: (event) => { audioTouched = true; setAudioSource(event.target.value); } },
+        el('option', { value: 'system', textContent: 'Som do computador inteiro' }),
+        apps.length ? el('optgroup', { label: 'Só o som de um app' }, ...apps.map((item) => el('option', { value: String(item.pid), textContent: item.name }))) : null,
+        el('option', { value: 'none', textContent: 'Sem som' }));
+      const audioIcon = el('span', { class: 'share-audio-icon' });
+      const audioHint = el('small');
+      function setAudioSource(value) {
+        const pid = Number(value);
+        const item = Number.isInteger(pid) && apps.find((app) => app.pid === pid);
+        audioSource = item ? item.pid : value === 'none' ? 'none' : 'system';
+        audioSelect.value = String(audioSource);
+        audioIcon.replaceChildren(item?.icon ? el('img', { src: item.icon, alt: '' }) : Icon(audioSource === 'none' ? 'volumeX' : 'volume', 18));
+        audioHint.textContent = item ? `Só o som de ${item.name}. O resto do PC, como o Discord ou uma música, fica de fora.` : audioHints[audioSource];
+      }
+      if (apps.length) setAudioSource('system');
+      const audioPicker = apps.length ? el('div', { class: 'share-audio share-audio-apps' },
+        audioIcon,
+        el('span', { class: 'share-audio-body' }, el('strong', { textContent: 'Som da transmissão' }), audioSelect, audioHint)) : null;
+
+      const audioToggle = audioPicker || (options.audio ? el('label', { class: 'share-audio switch-row' },
         el('input', { type: 'checkbox', class: 'ds-switch', checked: audio, onchange: (event) => { audio = event.target.checked; } }),
-        el('span', {}, el('strong', { textContent: 'Som do computador' }), el('small', { textContent: 'Seus amigos ouvem o que toca no PC. A voz da chamada fica de fora.' }))) : null;
+        el('span', {}, el('strong', { textContent: 'Som do computador' }), el('small', { textContent: 'Seus amigos ouvem o que toca no PC. A voz da chamada fica de fora.' }))) : null);
 
       const overlay = el('div', { class: 'confirm-overlay share-overlay', onmousedown: (event) => event.target === overlay && finish(null) },
         el('div', { class: 'confirm-card share-picker', role: 'dialog', ariaModal: 'true', ariaLabel: 'Escolher o que transmitir', tabIndex: -1 },
