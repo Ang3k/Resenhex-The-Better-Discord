@@ -76,6 +76,8 @@ let overlay = null; // criado quando o app fica pronto (o módulo screen só exi
 
 const isAppUrl = (url) => { try { return new URL(url).origin === ORIGIN; } catch { return false; } };
 const fromSite = (event) => isAppUrl(event.senderFrame?.url || '');
+// Só a janela principal do site (não iframes nem outras janelas) controla o overlay.
+const fromVoiceSite = (event) => fromSite(event) && event.sender === site?.webContents && event.senderFrame === site.webContents.mainFrame;
 ipcMain.handle('desktop:media-capabilities', (event) => {
   if (!fromSite(event)) throw new Error('Origem não autorizada.');
   return { videoEncode: app.getGPUFeatureStatus().video_encode || 'unknown' };
