@@ -60,28 +60,50 @@ a.download-app { text-decoration: none; }
 .share-app-icon { width: 16px; height: 16px; flex-shrink: 0; }
 
 .share-settings {
-  display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 16px 28px;
+  display: grid; grid-template-columns: minmax(0, 1.45fr) minmax(0, 1fr); gap: 16px 24px;
   padding: 16px 24px; background: var(--bg-sidebar); border-top: 1px solid var(--divider);
 }
+/* Só um ajuste (sem a lista de apps): ocupa a largura toda. Em janela estreita, um embaixo do outro. */
+.share-settings:has(> :only-child) { grid-template-columns: minmax(0, 1fr); }
+@media (max-width: 700px) { .share-settings { grid-template-columns: minmax(0, 1fr); } }
 .share-setting { display: grid; align-content: start; gap: 8px; min-width: 0; }
 .share-setting-title { font-size: 12px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; color: var(--text-muted); }
 .share-setting > small { font-size: 12.5px; line-height: 1.4; color: var(--text-muted); }
-.share-quality { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; }
-.share-chip {
-  display: grid; gap: 2px; padding: 8px 6px; border-radius: 10px; text-align: center; cursor: pointer;
-  background: var(--bg-input); color: var(--text); border: 1px solid transparent; transition: background .15s, border-color .15s, transform .15s;
+/* Qualidade: trilho segmentado igual às abas de cima; o destaque desliza até o perfil escolhido. */
+.share-quality {
+  --i: 0; position: relative; display: grid; grid-template-columns: repeat(var(--count, 4), minmax(0, 1fr));
+  padding: 4px; border-radius: 12px; background: var(--bg-rail);
 }
-.share-chip strong { font-size: 13px; color: var(--text-strong); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.share-chip span { font-size: 11.5px; color: var(--text-muted); white-space: nowrap; }
-.share-chip:hover { border-color: color-mix(in srgb, var(--text) 22%, transparent); }
-.share-chip.selected { background: color-mix(in srgb, var(--brand) 16%, var(--bg-input)); border-color: var(--brand); }
-.share-chip.selected span { color: var(--text); }
-.share-chip:focus-visible { outline: 2px solid var(--brand); outline-offset: 2px; }
-.share-audio-row { display: flex; align-items: center; gap: 10px; }
-.share-audio-icon { display: grid; place-items: center; flex-shrink: 0; width: 38px; height: 38px; border-radius: 10px; background: var(--bg-input); color: var(--interactive); }
+.share-quality-thumb {
+  position: absolute; top: 4px; bottom: 4px; left: 4px; width: calc((100% - 8px) / var(--count, 4)); border-radius: 9px;
+  background: var(--bg-input); box-shadow: 0 1px 3px rgba(0, 0, 0, .25), inset 0 0 0 1px color-mix(in srgb, var(--brand) 55%, transparent);
+  transform: translateX(calc(var(--i) * 100%)); transition: transform .26s cubic-bezier(.3, .9, .3, 1.05);
+}
+.share-chip {
+  position: relative; display: grid; justify-items: center; gap: 3px; min-width: 0; padding: 8px 4px; border: 0; border-radius: 9px;
+  background: transparent; color: var(--interactive); cursor: pointer; transition: color .15s, background .15s;
+}
+.share-chip-label { display: inline-flex; align-items: center; gap: 5px; max-width: 100%; }
+.share-chip-label .ico { flex-shrink: 0; transition: color .15s, transform .2s; }
+.share-chip strong { font-size: 13.5px; font-weight: 600; color: inherit; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.share-chip-spec { font-size: 11.5px; font-weight: 500; color: var(--text-muted); white-space: nowrap; font-variant-numeric: tabular-nums; transition: color .15s; }
+.share-chip:hover:not(.selected) { color: var(--text-strong); background: var(--hover); }
+.share-chip:hover .share-chip-label .ico { transform: scale(1.12); }
+.share-chip.selected { color: var(--text-strong); }
+.share-chip.selected .share-chip-label .ico { color: var(--brand); }
+.share-chip.selected .share-chip-spec { color: var(--text); }
+.share-chip:focus-visible { outline: 2px solid var(--brand); outline-offset: -2px; }
+/* Som: mesmo trilho e mesma altura da qualidade, para os dois lados ficarem alinhados. */
+.share-audio-row { display: flex; align-items: center; gap: 4px; padding: 4px; border-radius: 12px; background: var(--bg-rail); }
+.share-audio-icon { display: grid; place-items: center; flex-shrink: 0; width: 46px; height: 46px; border-radius: 9px; background: var(--bg-input); color: var(--interactive); }
 .share-audio-icon img { width: 24px; height: 24px; }
-.share-audio-select { flex: 1; min-width: 0; min-height: 38px; padding: 6px 12px; border: 1px solid var(--divider); border-radius: 10px; background-color: var(--bg-input); color: var(--text); font-size: 14px; }
-.share-audio-select:focus-visible { outline: 2px solid var(--brand); outline-offset: 1px; }
+.share-audio-select {
+  flex: 1; min-width: 0; height: 46px; padding: 0 12px; border: 0; border-radius: 9px;
+  background-color: transparent; color: var(--text-strong); font-size: 14px; font-weight: 600; cursor: pointer; transition: background-color .15s;
+}
+.share-audio-select:hover { background-color: var(--hover); }
+.share-audio-select option, .share-audio-select optgroup { background: var(--bg-input); color: var(--text); }
+.share-audio-select:focus-visible { outline: 2px solid var(--brand); outline-offset: -2px; }
 .share-audio { flex-direction: row-reverse !important; justify-content: flex-end; gap: 12px; }
 
 .share-foot {
@@ -95,7 +117,7 @@ a.download-app { text-decoration: none; }
 @keyframes share-fade { from { opacity: 0; } }
 @keyframes share-in { from { opacity: 0; transform: translateY(6px) scale(.98); } }
 :root[data-reduce-motion=true] :is(.share-overlay, .share-source, .download-app .ico) { animation: none !important; }
-:root[data-reduce-motion=true] :is(.share-source, .share-close, .share-chip) { transition: none; }
+:root[data-reduce-motion=true] :is(.share-source, .share-close, .share-chip, .share-quality-thumb) { transition: none; }
 .share-picker .confirm-actions .btn-primary:disabled { opacity: .45; box-shadow: none; cursor: not-allowed; }
 
 /* ---------- Overlay em jogos: aparência e posição lado a lado (em tela estreita, uma embaixo da outra) ---------- */

@@ -3,6 +3,19 @@
 Histórico de versões. A mesma lista aparece dentro do app em **Novidades** (menu do servidor ou rodapé das Configurações).
 O Resenhex chegou à versão 1.0 em 4 de outubro de 2026.
 
+## v1.4.2 — Janela de transmitir com a qualidade redesenhada
+
+13 de outubro de 2026.
+
+No app de Windows, a escolha de qualidade da transmissão ganhou um seletor no estilo das abas, com ícones e a resolução de cada opção. O overlay em jogos voltou a funcionar no app 1.4.2.
+
+### Melhorias
+- Qualidade da transmissão em um seletor único: o destaque desliza até a opção escolhida e as setas do teclado trocam entre elas.
+- Qualidade e som da transmissão ficam alinhados, na mesma altura.
+
+### Correções
+- App de Windows 1.4.2: some o erro "fromVoiceSite is not defined" e o overlay em jogos volta a funcionar.
+
 ## v1.4.1 — Transmissão com o som de um app só (app de Windows)
 
 13 de outubro de 2026.

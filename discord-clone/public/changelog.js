@@ -4,6 +4,19 @@
 // O título deve destacar as principais funcionalidades ou correções, com termos objetivos.
 window.CHANGELOG = [
   {
+    version: '1.4.2', date: '2026-10-13', name: 'Janela de transmitir com a qualidade redesenhada',
+    summary: 'No app de Windows, a escolha de qualidade da transmissão ganhou um seletor no estilo das abas, com ícones e a resolução de cada opção. O overlay em jogos voltou a funcionar no app 1.4.2.',
+    sections: [
+      { kind: 'improved', items: [
+        'Qualidade da transmissão em um seletor único: o destaque desliza até a opção escolhida e as setas do teclado trocam entre elas.',
+        'Qualidade e som da transmissão ficam alinhados, na mesma altura.',
+      ] },
+      { kind: 'fixed', items: [
+        'App de Windows 1.4.2: some o erro "fromVoiceSite is not defined" e o overlay em jogos volta a funcionar.',
+      ] },
+    ],
+  },
+  {
     version: '1.4.1', date: '2026-10-13', name: 'Transmissão com o som de um app só (app de Windows)',
     summary: 'No app de Windows, dá para transmitir só o som de um app, como o jogo sem o Discord ou a música de fundo. A qualidade da transmissão agora fica na mesma janela em que você escolhe a tela.',
     sections: [

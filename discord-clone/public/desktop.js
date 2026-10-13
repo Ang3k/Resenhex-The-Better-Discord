@@ -179,18 +179,39 @@ window.DesktopApp = (() => {
       const quality = api.shareQuality;
       let preset = quality?.current();
       const qualityHint = el('small');
-      const spec = (key, p) => key === 'auto' ? `até ${p.height}p` : `${p.height}p${p.fps}`;
-      const qualityChips = quality ? el('div', { class: 'share-quality', role: 'radiogroup', ariaLabel: 'Qualidade da transmissão' },
-        ...Object.entries(quality.presets).map(([key, p]) => el('button', { type: 'button', role: 'radio', class: 'share-chip', 'data-preset': key, onclick: () => setPreset(key) },
-          el('strong', { textContent: p.label.split(' · ')[0] }), el('span', { textContent: spec(key, p) })))) : null;
+      const spec = (key, p) => key === 'auto' ? `até ${p.height}p` : `${p.height}p · ${p.fps} fps`;
+      const qualityIcons = { auto: 'sparkles', p720: 'signal', p1080: 'scan', p1080_60: 'gamepad' };
+      const presetKeys = quality ? Object.keys(quality.presets) : [];
+      // Trilho segmentado, como as abas de cima: o destaque desliza até o perfil escolhido.
+      const qualityChips = quality ? el('div', { class: 'share-quality', role: 'radiogroup', ariaLabel: 'Qualidade da transmissão', style: `--count: ${presetKeys.length}`, onkeydown: onQualityKey },
+        el('span', { class: 'share-quality-thumb', ariaHidden: 'true' }),
+        ...presetKeys.map((key) => {
+          const p = quality.presets[key];
+          return el('button', { type: 'button', role: 'radio', class: 'share-chip', 'data-preset': key, title: p.desc, onclick: () => setPreset(key) },
+            el('span', { class: 'share-chip-label' }, Icon(qualityIcons[key] || 'screen', 14), el('strong', { textContent: p.label.split(' · ')[0] })),
+            el('span', { class: 'share-chip-spec', textContent: spec(key, p) }));
+        })) : null;
       function setPreset(key) {
         if (!quality?.presets[key]) return;
         preset = key;
-        for (const chip of qualityChips.children) {
-          chip.classList.toggle('selected', chip.dataset.preset === key);
-          chip.setAttribute('aria-checked', String(chip.dataset.preset === key));
+        qualityChips.style.setProperty('--i', String(presetKeys.indexOf(key)));
+        for (const chip of qualityChips.querySelectorAll('.share-chip')) {
+          const on = chip.dataset.preset === key;
+          chip.classList.toggle('selected', on);
+          chip.setAttribute('aria-checked', String(on));
+          chip.tabIndex = on ? 0 : -1;
         }
         qualityHint.textContent = quality.presets[key].desc;
+      }
+      // Setas trocam o perfil, como num grupo de rádio.
+      function onQualityKey(event) {
+        const step = { ArrowRight: 1, ArrowDown: 1, ArrowLeft: -1, ArrowUp: -1 }[event.key];
+        if (!step) return;
+        event.preventDefault();
+        event.stopPropagation();
+        const next = presetKeys[(presetKeys.indexOf(preset) + step + presetKeys.length) % presetKeys.length];
+        setPreset(next);
+        qualityChips.querySelector(`[data-preset="${next}"]`)?.focus();
       }
       if (quality) setPreset(quality.presets[preset] ? preset : Object.keys(quality.presets)[0]);
 

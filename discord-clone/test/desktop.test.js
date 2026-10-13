@@ -119,7 +119,7 @@ test('a qualidade fica na janela de escolha, como no Go Live', async () => {
   };
   let choice = b.calls.picker(sources, { audio: true });
   const chips = [...doc.querySelectorAll('.share-chip')];
-  assert.deepEqual(chips.map((c) => c.textContent), ['Automáticaaté 1080p', 'Movimento1080p60']);
+  assert.deepEqual(chips.map((c) => c.textContent), ['Automáticaaté 1080p', 'Movimento1080p · 60 fps']);
   assert.equal(chips[0].getAttribute('aria-checked'), 'true');
   chips[1].click();
   assert.equal(doc.querySelector('.share-setting small').textContent, 'Jogos e vídeos');
