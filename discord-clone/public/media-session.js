@@ -271,6 +271,12 @@ window.MediaSession = function ({ state, socket, call, el, toast, voiceEntry, me
       audio: state.shareAudio ? { echoCancellation: false, noiseSuppression: false, autoGainControl: false, restrictOwnAudio: true } : false,
       selfBrowserSurface: 'exclude', surfaceSwitching: 'include', systemAudio: state.shareAudio ? 'include' : 'exclude',
     });
+    // A qualidade pode ter sido trocada na janela de escolha do app, depois de pedir a captura.
+    const chosen = presets[state.sharePreset];
+    if (chosen !== preset) {
+      try { await stream.getVideoTracks()[0]?.applyConstraints({ width: { ideal: chosen.width }, height: { ideal: chosen.height }, frameRate: { ideal: chosen.fps, max: chosen.fps } }); }
+      catch { /* o perfil completo é aplicado de novo quando a transmissão começa */ }
+    }
     stream.audioMode = await audioMode(stream);
     return stream;
   }

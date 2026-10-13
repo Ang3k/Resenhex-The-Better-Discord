@@ -15,7 +15,7 @@ const { uiohookKeycode } = require('./lib/ptt-keys');
 const { globalBindings, matchBinding } = require('./lib/keybinds');
 const { createLog } = require('./lib/log');
 const { execFile } = require('node:child_process');
-const { systemAudioDevice, appAudioSupported, appAudioDevice, AUDIO_APPS_SCRIPT, parseAudioApps, windowHandle } = require('./lib/system-audio');
+const { systemAudioDevice, appAudioSupported, appAudioDevice, AUDIO_APPS_SCRIPT, encodeScript, parseAudioApps, windowHandle } = require('./lib/system-audio');
 
 const APP_URL = new URL(process.env.RESENHEX_URL || 'https://resenhex.duckdns.org/');
 const ORIGIN = APP_URL.origin;
@@ -322,8 +322,8 @@ function deny(callback) {
 function listAudioApps() {
   if (!appAudioSupported(process.platform, process.getSystemVersion())) return Promise.resolve([]);
   return new Promise((resolve) => {
-    execFile('powershell.exe', ['-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-Command', AUDIO_APPS_SCRIPT],
-      { windowsHide: true, timeout: 5000, maxBuffer: 1024 * 1024 }, (error, stdout) => {
+    execFile('powershell.exe', ['-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-EncodedCommand', encodeScript(AUDIO_APPS_SCRIPT)],
+      { windowsHide: true, timeout: 8000, maxBuffer: 1024 * 1024 }, (error, stdout) => {
         if (error) log.warn('Lista de apps para o som da transmissão:', error.message);
         resolve(parseAudioApps(stdout, app.getAppMetrics().map((metric) => metric.pid)));
       });
@@ -331,7 +331,7 @@ function listAudioApps() {
 }
 
 async function appIcon(item, sources) {
-  const source = item.window && sources.find((s) => windowHandle(s.id) === item.window && s.appIcon && !s.appIcon.isEmpty());
+  const source = sources.find((s) => item.windows.includes(windowHandle(s.id)) && s.appIcon && !s.appIcon.isEmpty());
   if (source) return source.appIcon.resize({ width: 32 }).toDataURL();
   if (!item.path) return null;
   try {
@@ -353,7 +353,7 @@ async function pickDisplayMedia(request, callback) {
   // Janelas sem imagem são janelas invisíveis de outros programas.
   sources = sources.filter((source) => source.id !== own && source.name && (source.id.startsWith('screen:') || !source.thumbnail.isEmpty()));
   if (!sources.length) return deny(callback);
-  const appOfWindow = new Map(apps.filter((item) => item.window).map((item) => [item.window, item.pid]));
+  const appOfWindow = new Map(apps.flatMap((item) => item.windows.map((window) => [window, item.pid])));
   const appIcons = await Promise.all(apps.map((item) => appIcon(item, sources)));
 
   const id = ++pickSeq;
