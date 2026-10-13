@@ -3,6 +3,18 @@
 Histórico de versões. A mesma lista aparece dentro do app em **Novidades** (menu do servidor ou rodapé das Configurações).
 O Resenhex chegou à versão 1.0 em 4 de outubro de 2026.
 
+## v1.4.4 — Propor Melhorias
+
+13 de outubro de 2026.
+
+Tem uma ideia para o Resenhex? O botão discreto no canto inferior direito abre um espaço para compartilhar sua sugestão com a equipe, sem sair do app.
+
+### Novidades
+- **Propor Melhorias:** escreva sua ideia no botão do canto inferior direito ou nas Configurações. As sugestões são enviadas por e-mail à equipe do Resenhex.
+
+### Melhorias
+- Se o envio falhar, sua sugestão continua no campo para você tentar novamente.
+
 ## v1.4.3 — Compartilhamento mais rápido e som de vários aplicativos
 
 13 de outubro de 2026.

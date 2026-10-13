@@ -6,6 +6,7 @@ Plataforma própria de chat e voz para você e seus amigos, inspirada no Discord
 
 - **Página inicial** para quem visita pela primeira vez, com apresentação dos recursos, download para Windows e acesso pelo navegador. Sessões existentes entram automaticamente; convites e o app de desktop continuam abrindo direto no login. Os links `/#entrar` e `/#criar-conta` abrem cada formulário diretamente.
 - **Contas** com nome de usuário, senha e confirmação da senha, sem e-mail (login automático depois da primeira vez)
+- **Propor Melhorias:** botão discreto e visível no canto inferior direito do app e acesso nas Configurações. Envie uma ideia de até 3000 caracteres ao mantenedor sem sair da conversa; se o envio falhar, o texto é preservado.
 - **Vários servidores**: criar e alternar pela barra lateral, entrar por convite e copiar um link exclusivo para seus amigos. Canais, grupos, cargos e chamadas independentes.
 - **Apelidos por servidor**: abra **Editar nome no servidor** no menu do servidor ou em Meu perfil. Escolha até 32 caracteres ou restaure seu nome de usuário; login, amigos e mensagens diretas usam a identidade da conta.
 - **Reconexão automática**: se a internet ou o servidor cair, o app volta sozinho, sem recarregar a página, busca as mensagens perdidas e te coloca de volta na chamada
@@ -393,6 +394,12 @@ discord-clone/
     ├── mudae-salao.js # tela do Salão do Mudae: roleta, Mesa ao vivo, álbum, ranking e presença
     └── app.js         # lógica do cliente: chat, menus de moderação, configurações, WebRTC (voz/tela)
 ```
+
+## Sugestões de melhoria por e-mail
+
+O formulário **Propor Melhorias** envia as sugestões para **angejesufern@gmail.com** pelo [FormSubmit](https://formsubmit.co/), sem senha de e-mail ou chave de API. No primeiro envio, confirme o link de ativação que chegará à caixa de entrada (confira também o spam). O FormSubmit guarda as sugestões pendentes por até 30 dias e as entrega após a confirmação; a confirmação do formulário no app indica que o serviço aceitou o envio, não que o e-mail já chegou.
+
+A rota `/feedback` exige uma sessão válida, confere o limite de 3000 caracteres e permite até três tentativas de envio a cada dez minutos por conta. O destinatário é definido no servidor; o usuário não pode alterá-lo. O e-mail inclui apenas o nome da conta, a sugestão, a versão do Resenhex e o horário do envio. `RESENHEX_DOMAIN`, já configurado no deploy, identifica o formulário no serviço; o padrão é `resenhex.duckdns.org`. Ao trocar o domínio, pode ser necessária uma nova confirmação do formulário.
 
 ## Limitações conhecidas
 

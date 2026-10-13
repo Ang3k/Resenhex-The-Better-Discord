@@ -84,7 +84,7 @@ async function ui(t, invited = false, options = {}) {
   let copied = '';
   Object.defineProperty(w.navigator, 'clipboard', { value: { writeText: async (text) => { copied = text; } } });
   options.setup?.(w);
-  for (const file of ['icons.js', 'format.js', 'sounds.js', 'media-policy.js', 'keybinds.js', 'settings.js', 'photo-editor.js', 'media-session.js', 'media-sfu.js', 'mobile-stream.js', 'stream-zoom.js', 'changelog.js', 'confetti.js', 'channel-navigation.js', 'music.js', 'mudae.js', 'mudae-salao.js', 'dm-call.js', 'gif-picker.js', 'emoji-picker.js', 'lightbox.js', 'voice-fx.js', 'app.js', 'landing.js']) w.eval(fs.readFileSync(path.join(publicDir, file), 'utf8'));
+  for (const file of ['icons.js', 'format.js', 'sounds.js', 'media-policy.js', 'keybinds.js', 'settings.js', 'photo-editor.js', 'media-session.js', 'media-sfu.js', 'mobile-stream.js', 'stream-zoom.js', 'changelog.js', 'confetti.js', 'channel-navigation.js', 'music.js', 'mudae.js', 'mudae-salao.js', 'dm-call.js', 'gif-picker.js', 'emoji-picker.js', 'lightbox.js', 'voice-fx.js', 'feedback.js', 'app.js', 'landing.js']) w.eval(fs.readFileSync(path.join(publicDir, file), 'utf8'));
   w.localStorage.setItem('seenVersion', w.APP_VERSION);
   t.after(() => { dom.window.close(); assert.deepEqual(errors.map((e) => e.message), []); });
   await settle();
@@ -101,6 +101,70 @@ async function ui(t, invited = false, options = {}) {
   return { w, d, events, clickText, register, releaseConfig, deliver: (event, payload) => handlers.get(event)?.(payload),
     setSnapshot: (next) => { current = structuredClone(next); push(); }, get copied() { return copied; } };
 }
+
+test('Propor Melhorias: envia a sugestão autenticada uma vez e confirma só após a resposta', async (t) => {
+  const requests = [];
+  let complete;
+  const app = await ui(t, false, { setup(w) {
+    const original = w.fetch;
+    w.fetch = (url, request) => {
+      if (url !== '/feedback') return original(url, request);
+      requests.push(request);
+      return new Promise((resolve) => { complete = resolve; });
+    };
+  } });
+  await app.register();
+  const button = app.d.querySelector('#btn-feedback');
+  button.focus(); button.click();
+  const input = app.d.querySelector('#feedback-message');
+  const form = app.d.querySelector('#feedback-form');
+  const send = app.d.querySelector('#feedback-send');
+  assert.equal(send.disabled, true);
+  input.value = '  Busca no histórico  ';
+  input.dispatchEvent(new app.w.Event('input'));
+  assert.equal(send.disabled, false);
+  form.dispatchEvent(new app.w.Event('submit', { bubbles: true, cancelable: true }));
+  form.dispatchEvent(new app.w.Event('submit', { bubbles: true, cancelable: true }));
+  assert.equal(requests.length, 1);
+  assert.deepEqual(JSON.parse(requests[0].body), { message: 'Busca no histórico' });
+  assert.equal(requests[0].headers['x-token'], 'fake-ui-token');
+  assert.equal(send.disabled, true);
+  assert.equal(app.d.querySelector('#feedback-success').classList.contains('hidden'), true);
+  complete({ ok: true, json: async () => ({ ok: true }) }); await settle();
+  assert.equal(input.value, '');
+  assert.equal(app.d.querySelector('#feedback-success').classList.contains('hidden'), false);
+  assert.equal(app.d.activeElement.id, 'feedback-done');
+  app.d.querySelector('#feedback-done').click();
+  assert.equal(app.d.querySelector('#feedback').classList.contains('hidden'), true);
+  assert.equal(app.d.querySelector('#app').inert, undefined);
+  assert.equal(app.d.activeElement, button);
+});
+
+test('Propor Melhorias: erro preserva a ideia, inclusive ao fechar e abrir novamente', async (t) => {
+  const app = await ui(t, false, { setup(w) {
+    const original = w.fetch;
+    w.fetch = async (url, request) => url === '/feedback'
+      ? { ok: false, json: async () => ({ error: 'Aguarde dez minutos para enviar outra.' }) }
+      : original(url, request);
+  } });
+  await app.register();
+  app.d.querySelector('#btn-feedback').click();
+  const input = app.d.querySelector('#feedback-message');
+  input.value = 'Minha sugestão'; input.dispatchEvent(new app.w.Event('input'));
+  app.d.querySelector('#feedback-form').dispatchEvent(new app.w.Event('submit', { bubbles: true, cancelable: true })); await settle();
+  assert.match(app.d.querySelector('#feedback-status').textContent, /Aguarde dez minutos/);
+  assert.equal(input.value, 'Minha sugestão');
+  assert.equal(app.d.querySelector('#feedback-success').classList.contains('hidden'), true);
+  app.d.querySelector('.feedback-cancel').click();
+  app.d.querySelector('#btn-settings').click(); await settle();
+  app.d.querySelector('#settings-feedback').click();
+  assert.equal(input.value, 'Minha sugestão');
+  assert.equal(app.d.querySelector('#settings').inert, true);
+  app.d.dispatchEvent(new app.w.KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+  assert.equal(app.d.querySelector('#feedback').classList.contains('hidden'), true);
+  assert.equal(app.d.querySelector('#settings').classList.contains('hidden'), false);
+  assert.equal(app.d.querySelector('#settings').inert, undefined);
+});
 
 async function voicePreviewApp(t, options = {}) {
   const captures = [], played = [], effects = [], destinations = [];

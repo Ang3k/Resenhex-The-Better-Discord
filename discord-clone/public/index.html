@@ -36,6 +36,7 @@
   <link rel="stylesheet" href="emoji-picker.css">
   <link rel="stylesheet" href="chat-media.css">
   <link rel="stylesheet" href="call-tools.css">
+  <link rel="stylesheet" href="feedback.css">
   <script>
     // Mouse de verdade = hover + ponteiro fino. O emulador Android responde "pointer: fine" sem hover,
     // então "pointer: fine" sozinho não serve para saber se é toque. A classe "touch" troca textos e opções.
@@ -509,6 +510,7 @@
       <div id="member-list">
 </div>
     </aside>
+    <button type="button" id="btn-feedback" class="feedback-link" aria-haspopup="dialog" aria-controls="feedback"><span data-icon="message" data-size="14"></span>Propor Melhorias</button>
   </div>
 
   <!-- Configurações do usuário -->
@@ -557,6 +559,7 @@
 </nav>
 <p id="settings-search-empty" class="hint hidden">Nenhuma seção encontrada.</p>
 <div class="settings-nav-bottom">
+<button id="settings-feedback" type="button" aria-haspopup="dialog" aria-controls="feedback">Propor Melhorias <span data-icon="message" data-size="16"></span></button>
 <button id="settings-server-link" class="hidden" type="button">Administrar servidor <span data-icon="settings" data-size="16">
 </span>
 </button>
@@ -1142,6 +1145,29 @@
     </form>
   </div>
 
+  <!-- Sugestões de melhoria -->
+  <div id="feedback" class="feedback-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="feedback-title" aria-describedby="feedback-description">
+    <div class="feedback-card">
+      <button type="button" class="feedback-close" data-feedback-close aria-label="Fechar sugestões"><span data-icon="x" data-size="18"></span></button>
+      <form id="feedback-form">
+        <div class="feedback-mark" aria-hidden="true"><span data-icon="message" data-size="22"></span></div>
+        <h2 id="feedback-title">Propor Melhorias</h2>
+        <p id="feedback-description">O Resenhex está em constante melhoria, e seu feedback é mais do que bem-vindo! Compartilhe aqui sua ideia ou sugestão para deixar a resenha ainda melhor.</p>
+        <label for="feedback-message">Sua ideia ou sugestão</label>
+        <textarea id="feedback-message" name="message" rows="5" maxlength="3000" required placeholder="O que você gostaria de melhorar no Resenhex?" aria-describedby="feedback-note feedback-count feedback-status"></textarea>
+        <div class="feedback-meta"><span id="feedback-note">Sua sugestão e seu nome de usuário serão enviados à equipe do Resenhex.</span><span id="feedback-count">0/3000</span></div>
+        <p id="feedback-status" class="feedback-status" role="status" aria-live="polite"></p>
+        <div class="feedback-actions"><button type="button" class="feedback-cancel" data-feedback-close>Cancelar</button><button type="submit" id="feedback-send" class="feedback-submit" disabled>Enviar sugestão</button></div>
+      </form>
+      <div id="feedback-success" class="hidden" role="status" aria-live="polite">
+        <div class="feedback-mark feedback-success-mark" aria-hidden="true"><span data-icon="check" data-size="22"></span></div>
+        <h2 id="feedback-success-title">Sugestão enviada!</h2>
+        <p id="feedback-success-description">Obrigado por ajudar o Resenhex a melhorar! Sua sugestão será lida pela equipe.</p>
+        <div class="feedback-actions"><button type="button" id="feedback-done" class="feedback-submit" data-feedback-close>Fechar</button></div>
+      </div>
+    </div>
+  </div>
+
   <!-- Novidades (changelog) -->
   <div id="changelog" class="hidden" role="dialog" aria-modal="true" aria-labelledby="changelog-title"><div class="cl-card"></div></div>
 
@@ -1199,6 +1225,7 @@
   <script src="emoji-picker.js"></script>
   <script src="lightbox.js"></script>
   <script src="voice-fx.js"></script>
+  <script src="feedback.js"></script>
   <script src="app.js">
 </script>
   <script src="landing.js"></script>

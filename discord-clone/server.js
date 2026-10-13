@@ -13,6 +13,7 @@ const linkPreview = require('./link-preview');
 const { channelActions } = require('./channels');
 const { communityStore } = require('./communities');
 const { downloadRoutes } = require('./downloads');
+const { feedbackRoutes } = require('./feedback');
 const { createDj } = require('./dj');
 const { createMudae, CLAIM_WINDOW_MS, revealDelay, PRIORITY_MS } = require('./mudae');
 const { youtubeSearch } = require('./youtube');
@@ -442,6 +443,7 @@ const authFromToken = (req) => {
   const acc = db.accounts[db.sessions[req.get('x-token')]];
   return acc || null;
 };
+app.use(feedbackRoutes({ authenticate: authFromToken, allow, version: APP_VERSION, domain: process.env.RESENHEX_DOMAIN }));
 app.post('/profile/avatar', express.raw({ type: () => true, limit: MAX_BANNER_UPLOAD }), (req, res) => {
   const acc = authFromToken(req);
   if (!acc) return res.status(401).json({ error: 'Não autenticado' });

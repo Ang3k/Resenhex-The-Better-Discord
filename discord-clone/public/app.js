@@ -2871,6 +2871,7 @@
     if (!e.target.closest('#context-menu, #context-submenu')) closeMenu();
     if (!e.target.closest('#emoji-picker')) $('#emoji-picker').classList.add('hidden');
   }, true);
+  const feedback = createFeedback({ token: () => localStorage.getItem('token'), prepare: () => { closeMenu(); closeProfile(); } });
   document.addEventListener('keydown', (e) => {
     if (e.key !== 'Escape') return;
     closeMenu();
@@ -6312,12 +6313,13 @@
   // As camadas vão da mais alta para a mais baixa; "close" fecha só aquela.
   const isShown = (sel) => { const node = $(sel); return !!node && !node.classList.contains('hidden'); };
   const openDialogs = () => [...document.querySelectorAll('body > .confirm-overlay, body > #server-dialog, body > [role="dialog"][aria-modal="true"]:not(.hidden)')]
-    .filter((node) => !node.matches('#msg-sheet, #settings, #server-settings, #create-channel, #lightbox, #changelog, #emoji-picker, #gif-picker, #profile-card'));
+    .filter((node) => !node.matches('#msg-sheet, #settings, #server-settings, #create-channel, #lightbox, #changelog, #emoji-picker, #gif-picker, #profile-card, #feedback'));
   const dismissDialog = (node) => {
     const target = node.contains(document.activeElement) ? document.activeElement : node;
     target.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', code: 'Escape', bubbles: true, cancelable: true }));
   };
   const backLayers = [
+    { open: () => feedback.isOpen(), close: () => feedback.close() },
     { open: () => lightbox.isOpen(), close: () => lightbox.close() },
     { open: () => !!messageSheet, close: () => closeMessageSheet() },
     { open: () => openDialogs().length, count: () => openDialogs().length, close: () => dismissDialog(openDialogs().at(-1)) },

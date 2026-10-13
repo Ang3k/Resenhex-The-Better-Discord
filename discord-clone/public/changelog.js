@@ -4,6 +4,18 @@
 // O título deve destacar as principais funcionalidades ou correções, com termos objetivos.
 window.CHANGELOG = [
   {
+    version: '1.4.4', date: '2026-10-13', name: 'Propor Melhorias',
+    summary: 'Tem uma ideia para o Resenhex? O botão discreto no canto inferior direito abre um espaço para compartilhar sua sugestão com a equipe, sem sair do app.',
+    sections: [
+      { kind: 'new', items: [
+        'Propor Melhorias: escreva sua ideia no botão do canto inferior direito ou nas Configurações. As sugestões são enviadas por e-mail à equipe do Resenhex.',
+      ] },
+      { kind: 'improved', items: [
+        'Se o envio falhar, sua sugestão continua no campo para você tentar novamente.',
+      ] },
+    ],
+  },
+  {
     version: '1.4.3', date: '2026-10-13', name: 'Compartilhamento mais rápido e som de vários aplicativos',
     summary: 'O app de Windows prepara as prévias antes de abrir a janela de transmitir e mostra os ícones enquanto as imagens carregam. No Windows 11, dá para combinar o som dos aplicativos que você escolher.',
     sections: [
