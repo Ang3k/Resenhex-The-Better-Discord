@@ -94,7 +94,7 @@ test('o som do computador na transmissão deixa de fora o próprio app a partir 
 });
 
 test('o som de um app só: Windows 10 2004 ou mais novo, pelo ID do processo', () => {
-  const { appAudioSupported, appAudioDevice, parseAudioApps, windowHandle, AUDIO_APPS_SCRIPT } = require('../lib/system-audio');
+  const { appAudioSupported, appAudioDevice, parseAudioApps, windowHandle, AUDIO_APPS_SCRIPT, encodeScript } = require('../lib/system-audio');
   assert.equal(appAudioSupported('win32', '10.0.26100'), true);
   assert.equal(appAudioSupported('win32', '10.0.19041'), true);
   assert.equal(appAudioSupported('win32', '10.0.18363'), false);
@@ -103,20 +103,27 @@ test('o som de um app só: Windows 10 2004 ou mais novo, pelo ID do processo', (
   assert.equal(windowHandle('window:132456:0'), '132456');
   assert.equal(windowHandle('screen:0:0'), null);
   assert.match(AUDIO_APPS_SCRIPT, /UTF8/, 'nomes com acento chegam inteiros');
+  assert.match(AUDIO_APPS_SCRIPT, /Windows\.UI\.Core\.CoreWindow/, 'apps da Microsoft Store usam o processo da janela de dentro');
+  assert.match(AUDIO_APPS_SCRIPT, /catch \{\n\s+\$rows = \$procs\.Values \| Where-Object \{ \$_\.MainWindowHandle/, 'sem C#, volta à janela principal');
+  assert.equal(Buffer.from(encodeScript('é "a"'), 'base64').toString('utf16le'), 'é "a"');
 
   const out = [
     '900\t555\tResenhex\tResenhex\tC:\\Resenhex.exe',
     '20\t132456\tValorant\tVALORANT-Win64-Shipping\tC:\\Riot\\VALORANT.exe',
     '31\t777\t\tDiscord\t',
     '31\t778\tDiscord de novo\tDiscord\t',
+    '31\t778\tDiscord\tDiscord\t',
+    '50\t880\tApplication Frame Host\tApplicationFrameHost\tC:\\Windows\\System32\\ApplicationFrameHost.exe',
+    '51\t880\tNetflix\tNetflix\tC:\\Program Files\\WindowsApps\\Netflix.exe',
     'lixo',
     '12\t999\tConfigurações\tSystemSettings\tC:\\Windows\\ImmersiveControlPanel\\SystemSettings.exe\r',
     '0\t1\tSystem\tSystem\t',
   ].join('\r\n');
   assert.deepEqual(parseAudioApps(out, [900]), [
-    { pid: 12, window: '999', name: 'Configurações', path: 'C:\\Windows\\ImmersiveControlPanel\\SystemSettings.exe' },
-    { pid: 31, window: '777', name: 'Discord', path: null },
-    { pid: 20, window: '132456', name: 'Valorant', path: 'C:\\Riot\\VALORANT.exe' },
+    { pid: 12, windows: ['999'], name: 'Configurações', path: 'C:\\Windows\\ImmersiveControlPanel\\SystemSettings.exe' },
+    { pid: 31, windows: ['777', '778'], name: 'Discord', path: null },
+    { pid: 51, windows: ['880'], name: 'Netflix', path: 'C:\\Program Files\\WindowsApps\\Netflix.exe' },
+    { pid: 20, windows: ['132456'], name: 'Valorant', path: 'C:\\Riot\\VALORANT.exe' },
   ]);
   assert.deepEqual(parseAudioApps(''), []);
   assert.deepEqual(parseAudioApps(undefined), []);

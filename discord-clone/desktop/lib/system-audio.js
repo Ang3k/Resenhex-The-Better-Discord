@@ -23,23 +23,83 @@ function appAudioDevice(pid) {
   return `applicationLoopback:${pid}`;
 }
 
-// Programas com janela aberta: ID do processo, janela principal, nome e arquivo. A janela liga o
-// app à fonte de vídeo escolhida; o arquivo dá o ícone quando a janela não aparece na lista.
-const AUDIO_APPS_SCRIPT = '[Console]::OutputEncoding = [Text.Encoding]::UTF8; '
-  + 'Get-Process | Where-Object { $_.MainWindowHandle -ne 0 -and $_.MainWindowTitle } | '
-  + 'ForEach-Object { "$($_.Id)`t$([int64]$_.MainWindowHandle)`t$($_.Description)`t$($_.ProcessName)`t$($_.Path)" }';
+// Programas com janela aberta: uma linha por janela, com ID do processo, janela, nome e arquivo. A
+// janela liga o app à fonte de vídeo escolhida; o arquivo dá o ícone quando a janela não aparece
+// na lista. Apps da Microsoft Store (Netflix, jogos do Xbox) desenham dentro de uma moldura do
+// ApplicationFrameHost: o som sai do processo da janela de dentro (CoreWindow), e é esse que vale.
+// Sem compilar o trecho em C# (PowerShell restrito), fica a janela principal de cada processo.
+const WINDOWS_CS = `
+using System; using System.Collections.Generic; using System.Runtime.InteropServices; using System.Text;
+public static class ResenhexWindows {
+  delegate bool EnumProc(IntPtr h, IntPtr l);
+  [DllImport("user32.dll")] static extern bool EnumWindows(EnumProc f, IntPtr l);
+  [DllImport("user32.dll")] static extern bool EnumChildWindows(IntPtr p, EnumProc f, IntPtr l);
+  [DllImport("user32.dll")] static extern bool IsWindowVisible(IntPtr h);
+  [DllImport("user32.dll")] static extern int GetWindowTextLength(IntPtr h);
+  [DllImport("user32.dll", CharSet = CharSet.Unicode)] static extern int GetClassName(IntPtr h, StringBuilder s, int n);
+  [DllImport("user32.dll")] static extern uint GetWindowThreadProcessId(IntPtr h, out uint pid);
+  [DllImport("dwmapi.dll")] static extern int DwmGetWindowAttribute(IntPtr h, int a, out int v, int s);
+  static string ClassOf(IntPtr h) { var s = new StringBuilder(256); GetClassName(h, s, 256); return s.ToString(); }
+  public static List<string> List() {
+    var rows = new List<string>();
+    EnumWindows((h, l) => {
+      if (!IsWindowVisible(h) || GetWindowTextLength(h) == 0) return true;
+      int cloaked; if (DwmGetWindowAttribute(h, 14, out cloaked, 4) == 0 && cloaked != 0) return true;
+      string cls = ClassOf(h); if (cls == "Progman") return true;
+      uint pid; GetWindowThreadProcessId(h, out pid);
+      if (cls == "ApplicationFrameWindow") {
+        uint frame = pid;
+        EnumChildWindows(h, (c, x) => {
+          if (ClassOf(c) != "Windows.UI.Core.CoreWindow") return true;
+          uint inner; GetWindowThreadProcessId(c, out inner);
+          if (inner == frame) return true;
+          pid = inner; return false;
+        }, IntPtr.Zero);
+      }
+      rows.Add(pid + "\\t" + h.ToInt64());
+      return true;
+    }, IntPtr.Zero);
+    return rows;
+  }
+}`;
 
-// Uma linha por programa; o próprio Resenhex fica de fora (o som dele nunca vai junto).
+const AUDIO_APPS_SCRIPT = `[Console]::OutputEncoding = [Text.Encoding]::UTF8
+$procs = @{}; Get-Process | ForEach-Object { $procs[$_.Id] = $_ }
+try {
+  Add-Type -TypeDefinition @'
+${WINDOWS_CS}
+'@ -ErrorAction Stop
+  $rows = [ResenhexWindows]::List()
+} catch {
+  $rows = $procs.Values | Where-Object { $_.MainWindowHandle -ne 0 -and $_.MainWindowTitle } | ForEach-Object { "$($_.Id)\`t$([int64]$_.MainWindowHandle)" }
+}
+foreach ($row in $rows) {
+  $id, $hwnd = $row -split "\`t"
+  $p = $procs[[int]$id]
+  if ($p) { "$id\`t$hwnd\`t$($p.Description)\`t$($p.ProcessName)\`t$($p.Path)" }
+}`;
+
+// O script vai codificado (-EncodedCommand): aspas e quebras de linha chegam intactas.
+function encodeScript(script) {
+  return Buffer.from(script, 'utf16le').toString('base64');
+}
+
+// Um app por processo, com todas as janelas dele; o próprio Resenhex fica de fora (o som dele
+// nunca vai junto). O sistema (moldura dos apps da Store, Explorer sem nome) também.
 function parseAudioApps(text, ownPids = []) {
   const own = new Set(ownPids);
   const apps = new Map();
   for (const line of String(text || '').split(/\r?\n/)) {
     const [pid, hwnd, description, processName, file] = line.split('\t');
     const id = Number(pid);
-    if (!Number.isInteger(id) || id <= 0 || own.has(id) || apps.has(id)) continue;
+    if (!Number.isInteger(id) || id <= 0 || own.has(id)) continue;
+    if (/^ApplicationFrameHost$/i.test((processName || '').trim())) continue;
+    const window = /^\d+$/.test(hwnd || '') ? hwnd : null;
+    const known = apps.get(id);
+    if (known) { if (window && !known.windows.includes(window)) known.windows.push(window); continue; }
     const name = (description || '').trim() || (processName || '').trim();
     if (!name) continue;
-    apps.set(id, { pid: id, window: /^\d+$/.test(hwnd || '') ? hwnd : null, name: name.slice(0, 80), path: (file || '').trim() || null });
+    apps.set(id, { pid: id, windows: window ? [window] : [], name: name.slice(0, 80), path: (file || '').trim() || null });
   }
   return [...apps.values()].sort((a, b) => a.name.localeCompare(b.name, 'pt-BR', { sensitivity: 'base' }));
 }
@@ -50,4 +110,4 @@ function windowHandle(sourceId) {
   return match ? match[1] : null;
 }
 
-module.exports = { systemAudioDevice, appAudioSupported, appAudioDevice, AUDIO_APPS_SCRIPT, parseAudioApps, windowHandle };
+module.exports = { systemAudioDevice, appAudioSupported, appAudioDevice, AUDIO_APPS_SCRIPT, encodeScript, parseAudioApps, windowHandle };

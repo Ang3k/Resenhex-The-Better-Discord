@@ -73,7 +73,7 @@ test('o som da transmissão pode ser de um app só, e a janela de um app puxa o 
   const cards = () => [...doc.querySelectorAll('.share-source')];
   cards()[0].click();
   assert.equal(select.value, '20', 'a janela do jogo leva o som do jogo');
-  assert.match(doc.querySelector('.share-audio-body small').textContent, /Só o som de Jogo/);
+  assert.match(doc.querySelector('.share-setting small').textContent, /Só o som de Jogo/);
   assert.ok(doc.querySelector('.share-audio-icon img'), 'com o ícone do app');
   cards()[1].click();
   assert.equal(select.value, 'system', 'janela sem app conhecido volta ao som do computador');
@@ -101,6 +101,41 @@ test('o som da transmissão pode ser de um app só, e a janela de um app puxa o 
   current().querySelector('.share-source').click();
   current().querySelector('.btn-primary').click();
   assert.deepEqual({ ...await choice }, { id: 'window:7:0', audio: false, app: null });
+});
+
+test('a qualidade fica na janela de escolha, como no Go Live', async () => {
+  const b = bridge();
+  const w = load({ userAgent: 'Mozilla/5.0 (Windows NT 10.0) Electron/44', bridge: b });
+  const doc = w.document;
+  const set = [];
+  let current = 'auto';
+  w.DesktopApp.shareQuality = {
+    presets: {
+      auto: { label: 'Automática', desc: 'Fluida', height: 1080, fps: 30 },
+      p1080_60: { label: 'Movimento · 1080p / 60', desc: 'Jogos e vídeos', height: 1080, fps: 60 },
+    },
+    current: () => current,
+    set: (key) => { set.push(key); current = key; },
+  };
+  let choice = b.calls.picker(sources, { audio: true });
+  const chips = [...doc.querySelectorAll('.share-chip')];
+  assert.deepEqual(chips.map((c) => c.textContent), ['Automáticaaté 1080p', 'Movimento1080p60']);
+  assert.equal(chips[0].getAttribute('aria-checked'), 'true');
+  chips[1].click();
+  assert.equal(doc.querySelector('.share-setting small').textContent, 'Jogos e vídeos');
+  assert.deepEqual(set, [], 'só vale ao transmitir');
+  doc.querySelector('.share-source').click();
+  doc.querySelector('.share-picker .btn-primary').click();
+  await choice;
+  assert.deepEqual(set, ['p1080_60']);
+
+  choice = b.calls.picker(sources, { audio: true });
+  const open = [...doc.querySelectorAll('.share-overlay:not(.closing)')].at(-1);
+  assert.equal(open.querySelector('.share-chip.selected').dataset.preset, 'p1080_60', 'abre com a qualidade atual');
+  open.querySelectorAll('.share-chip')[0].click();
+  open.querySelector('.share-close').click();
+  assert.equal(await choice, null);
+  assert.deepEqual(set, ['p1080_60'], 'cancelar não muda a qualidade');
 });
 
 test('Esc cancela e uma nova escolha substitui a anterior', async () => {

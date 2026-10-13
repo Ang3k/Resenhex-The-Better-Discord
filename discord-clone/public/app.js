@@ -5309,9 +5309,13 @@
     menu.querySelector('.device-select, .device-item.current, .device-item')?.focus();
   }
 
+  if (window.DesktopApp?.available) window.DesktopApp.shareQuality = { presets: SHARE_PRESETS, current: () => state.sharePreset, set: setSharePreset };
+
   function openShareMenu(anchor) {
     const menu = $('#context-menu');
     const live = !!state.local.screen;
+    // No app, a qualidade fica na própria janela de escolha (como no Go Live): vai direto para ela.
+    if (!live && window.DesktopApp?.available) { startVideo('screen'); return; }
     if (!live && !navigator.mediaDevices?.getDisplayMedia) {
       // Sem https o navegador esconde a captura; no celular (Chrome Android, Safari do iPhone) ela não existe.
       const why = !window.isSecureContext

@@ -79,12 +79,13 @@ window.DesktopApp = (() => {
       };
       const go = () => {
         if (!selected) return;
+        if (quality && preset !== quality.current()) quality.set(preset);
         if (!apps.length) return finish({ id: selected.id, audio });
         finish({ id: selected.id, audio: audioSource !== 'none', app: typeof audioSource === 'number' ? audioSource : null });
       };
       const onKey = (event) => {
         if (event.key === 'Escape') { event.preventDefault(); event.stopPropagation(); finish(null); }
-        else if (event.key === 'Enter' && selected && !event.target.closest?.('.share-tabs, select')) { event.preventDefault(); event.stopPropagation(); go(); }
+        else if (event.key === 'Enter' && selected && !event.target.closest?.('.share-tabs, .share-quality, select')) { event.preventDefault(); event.stopPropagation(); go(); }
       };
 
       const grid = el('div', { class: 'share-grid', role: 'listbox', ariaLabel: 'Fontes disponíveis' });
@@ -143,13 +144,33 @@ window.DesktopApp = (() => {
         audioHint.textContent = item ? `Só o som de ${item.name}. O resto do PC, como o Discord ou uma música, fica de fora.` : audioHints[audioSource];
       }
       if (apps.length) setAudioSource('system');
-      const audioPicker = apps.length ? el('div', { class: 'share-audio share-audio-apps' },
-        audioIcon,
-        el('span', { class: 'share-audio-body' }, el('strong', { textContent: 'Som da transmissão' }), audioSelect, audioHint)) : null;
 
-      const audioToggle = audioPicker || (options.audio ? el('label', { class: 'share-audio switch-row' },
-        el('input', { type: 'checkbox', class: 'ds-switch', checked: audio, onchange: (event) => { audio = event.target.checked; } }),
-        el('span', {}, el('strong', { textContent: 'Som do computador' }), el('small', { textContent: 'Seus amigos ouvem o que toca no PC. A voz da chamada fica de fora.' }))) : null);
+      // Qualidade na mesma janela, como no Go Live. O site registra os perfis em shareQuality.
+      const quality = api.shareQuality;
+      let preset = quality?.current();
+      const qualityHint = el('small');
+      const spec = (key, p) => key === 'auto' ? `até ${p.height}p` : `${p.height}p${p.fps}`;
+      const qualityChips = quality ? el('div', { class: 'share-quality', role: 'radiogroup', ariaLabel: 'Qualidade da transmissão' },
+        ...Object.entries(quality.presets).map(([key, p]) => el('button', { type: 'button', role: 'radio', class: 'share-chip', 'data-preset': key, onclick: () => setPreset(key) },
+          el('strong', { textContent: p.label.split(' · ')[0] }), el('span', { textContent: spec(key, p) })))) : null;
+      function setPreset(key) {
+        if (!quality?.presets[key]) return;
+        preset = key;
+        for (const chip of qualityChips.children) {
+          chip.classList.toggle('selected', chip.dataset.preset === key);
+          chip.setAttribute('aria-checked', String(chip.dataset.preset === key));
+        }
+        qualityHint.textContent = quality.presets[key].desc;
+      }
+      if (quality) setPreset(quality.presets[preset] ? preset : Object.keys(quality.presets)[0]);
+
+      const setting = (title, ...children) => el('div', { class: 'share-setting' }, el('span', { class: 'share-setting-title', textContent: title }), ...children);
+      const audioSetting = apps.length
+        ? setting('Som da transmissão', el('div', { class: 'share-audio-row' }, audioIcon, audioSelect), audioHint)
+        : options.audio ? setting('Som', el('label', { class: 'share-audio switch-row' },
+          el('input', { type: 'checkbox', class: 'ds-switch', checked: audio, onchange: (event) => { audio = event.target.checked; } }),
+          el('span', {}, el('strong', { textContent: 'Som do computador' }), el('small', { textContent: 'Seus amigos ouvem o que toca no PC. A voz da chamada fica de fora.' })))) : null;
+      const settings = [quality ? setting('Qualidade', qualityChips, qualityHint) : null, audioSetting].filter(Boolean);
 
       const overlay = el('div', { class: 'confirm-overlay share-overlay', onmousedown: (event) => event.target === overlay && finish(null) },
         el('div', { class: 'confirm-card share-picker', role: 'dialog', ariaModal: 'true', ariaLabel: 'Escolher o que transmitir', tabIndex: -1 },
@@ -158,7 +179,9 @@ window.DesktopApp = (() => {
             el('button', { type: 'button', class: 'share-close', ariaLabel: 'Fechar', onclick: () => finish(null) }, Icon('x', 20))),
           tabs,
           grid,
-          el('div', { class: 'share-foot' }, audioToggle || el('span'),
+          settings.length ? el('div', { class: 'share-settings' }, ...settings) : null,
+          el('div', { class: 'share-foot' },
+            el('small', { class: 'share-tip', textContent: 'Jogo em tela cheia? Use o modo janela sem bordas ou escolha a tela inteira. Minimizar a janela pausa a transmissão.' }),
             el('div', { class: 'confirm-actions' }, el('button', { type: 'button', class: 'btn-ghost', textContent: 'Cancelar', onclick: () => finish(null) }), start))));
 
       open = { cancel: () => finish(null) };
@@ -170,5 +193,7 @@ window.DesktopApp = (() => {
   }
   desktop.onPickSource(pickSource);
 
-  return { available: true, pickSource };
+  // shareQuality: { presets, current(), set(key) }, registrado pelo app.js.
+  const api = { available: true, pickSource, shareQuality: null };
+  return api;
 })();
