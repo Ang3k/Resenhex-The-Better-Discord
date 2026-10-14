@@ -6,7 +6,7 @@ Plataforma própria de chat e voz para você e seus amigos, inspirada no Discord
 
 - **Página inicial** para quem visita pela primeira vez, com apresentação dos recursos, download para Windows e acesso pelo navegador. Sessões existentes entram automaticamente; convites e o app de desktop continuam abrindo direto no login. Os links `/#entrar` e `/#criar-conta` abrem cada formulário diretamente.
 - **Contas** com nome de usuário, senha e confirmação da senha, sem e-mail (login automático depois da primeira vez)
-- **Propor Melhorias:** botão discreto e visível no canto inferior direito do app e acesso nas Configurações. Envie uma ideia de até 3000 caracteres ao mantenedor sem sair da conversa; se o envio falhar, o texto é preservado.
+- **Propor Melhorias:** botão discreto no rodapé da lista de membros (só aparece quando ela está visível, para não disputar espaço com o chat ou a call) e acesso nas Configurações, inclusive no celular. Envie uma ideia de até 3000 caracteres ao mantenedor sem sair da conversa; se o envio falhar, o texto é preservado.
 - **Vários servidores**: criar e alternar pela barra lateral, entrar por convite e copiar um link exclusivo para seus amigos. Canais, grupos, cargos e chamadas independentes.
 - **Apelidos por servidor**: abra **Editar nome no servidor** no menu do servidor ou em Meu perfil. Escolha até 32 caracteres ou restaure seu nome de usuário; login, amigos e mensagens diretas usam a identidade da conta.
 - **Reconexão automática**: se a internet ou o servidor cair, o app volta sozinho, sem recarregar a página, busca as mensagens perdidas e te coloca de volta na chamada

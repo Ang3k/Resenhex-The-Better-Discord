@@ -1,19 +1,22 @@
-/* Acesso discreto e visível no canto inferior direito do aplicativo. */
+/* Acesso discreto no rodapé da lista de membros: só aparece quando ela está visível,
+   para nunca disputar espaço com o chat, a call ou o chat da call. No celular, fica nas Configurações. */
 .feedback-link {
   position: fixed; right: 14px; bottom: 12px; z-index: 8;
-  display: flex; align-items: center; gap: 7px; min-height: 30px; margin: 0;
+  display: none; align-items: center; gap: 7px; min-height: 30px; margin: 0;
   padding: 6px 10px; border: 1px solid var(--divider); border-radius: 7px; background: var(--bg-panel);
   color: var(--text-muted); font-size: 11px; text-align: left;
 }
 .feedback-link:hover { color: var(--text-strong); background: var(--hover); }
 .feedback-link:focus-visible { outline: 2px solid var(--brand); outline-offset: 2px; }
-#members { padding-bottom: 56px; }
-/* Sem a lista de membros, deixa espaço abaixo do chat e dos controles da call. */
-#app.hide-members #main { padding-bottom: 48px; }
-body.stream-immersive .feedback-link { display: none; }
-@media (max-width: 1100px) {
-  #main { padding-bottom: 48px; }
+@media (min-width: 1101px) {
+  #app:not(.hide-members) > .feedback-link { display: flex; }
+  #app:not(.hide-members) > #members { padding-bottom: 56px; }
 }
+@media (min-width: 641px) and (max-width: 1100px) {
+  #app.members-open > .feedback-link { display: flex; z-index: 14; }
+  #app.members-open > #members { padding-bottom: 56px; }
+}
+body.stream-immersive .feedback-link { display: none !important; }
 .feedback-overlay {
   position: fixed; inset: 0; z-index: 45; display: grid; place-items: center;
   padding: 20px; background: #0009; backdrop-filter: blur(4px);
@@ -60,6 +63,8 @@ body.stream-immersive .feedback-link { display: none; }
 @media (max-width: 640px) {
   .feedback-overlay { padding: 12px; }
   .feedback-card { padding: 24px 20px; max-height: calc(100dvh - 24px); }
-  .feedback-link { right: 12px; bottom: max(8px, env(safe-area-inset-bottom)); min-height: 36px; }
-  #main, #app.hide-members #main { padding-bottom: calc(48px + env(safe-area-inset-bottom)); }
+  /* No celular, o rodapé das Configurações vira uma fileira abaixo das abas: é aqui que Propor Melhorias mora. */
+  #settings .settings-nav-bottom { display: flex; flex-direction: row; gap: 6px; margin: 0; padding: 8px 0 0; overflow-x: auto; scrollbar-width: none; }
+  #settings .settings-nav-bottom button { width: auto; flex-shrink: 0; gap: 6px; padding: 8px 10px; font-size: 12px; white-space: nowrap; }
+  #settings .settings-nav-bottom .settings-version { display: block; width: auto; padding: 8px 4px; }
 }
