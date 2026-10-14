@@ -2,7 +2,7 @@
 # O app instalado nos computadores dos amigos encontra a versão nova sozinho e se atualiza.
 #
 # Só é preciso publicar o app quando algo na pasta desktop/ mudar. Mudanças no site
-# (public/, server.js) chegam no app pelo deploy normal (atualizar-oracle.ps1).
+# (public/, server.js, server/) chegam no app pelo deploy normal (atualizar-oracle.ps1).
 #
 # Uso, na pasta do projeto:
 #   1. Aumente "version" em discord-clone/desktop/package.json (ex.: 1.0.0 -> 1.0.1)

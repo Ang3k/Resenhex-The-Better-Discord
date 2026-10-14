@@ -1,7 +1,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { createDj, MAX_QUEUE, IDLE_MS } = require('../dj');
-const { parseSearch, parseDuration, videoIdFrom, youtubeSearch } = require('../youtube');
+const { createDj, MAX_QUEUE, IDLE_MS } = require('../server/dj');
+const { parseSearch, parseDuration, videoIdFrom, youtubeSearch } = require('../server/youtube');
 
 // Relógio e timers falsos: dá para "avançar" minutos sem esperar.
 function clock() {

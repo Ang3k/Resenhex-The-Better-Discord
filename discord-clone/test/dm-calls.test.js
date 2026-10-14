@@ -1,6 +1,6 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { createDmCalls } = require('../dm-calls');
+const { createDmCalls } = require('../server/dm-calls');
 
 function setup() {
   const history = { dm: [] };

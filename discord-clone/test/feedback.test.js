@@ -1,7 +1,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const express = require('express');
-const { feedbackRoutes } = require('../feedback');
+const { feedbackRoutes } = require('../server/feedback');
 
 async function setup(t, options = {}) {
   const deliveries = [];

@@ -193,7 +193,7 @@ São problemas concretos do código de referência, relevantes para entregar os 
 | B8 | Publicação verificável e reversível | Testar antes de publicar, conferir versão/saúde depois e manter retorno à versão anterior |
 | B9 | Separar responsabilidades do código conforme as entregas | Isolar mídia, configurações, chat e permissões para reduzir regressões; evitar reescrita geral sem necessidade |
 
-Os detalhes da auditoria prévia estão no [relatório de qualidade](C:/Games/project2/RELATORIO-RESENHEX-2026-09-27.md). Operação remota, custos e estado atual de backups devem ser revalidados antes de implementar mudanças de infraestrutura.
+Os detalhes da auditoria prévia estão no [relatório de qualidade](../relatorios/RELATORIO-RESENHEX-2026-09-27.md). Operação remota, custos e estado atual de backups devem ser revalidados antes de implementar mudanças de infraestrutura.
 
 ## 8. Ordem recomendada de execução
 
@@ -228,15 +228,15 @@ Uma funcionalidade estará concluída quando tiver fluxo principal, estados de e
 
 Links apontam para a cópia analisada na revisão `87457e1`; linhas podem mudar em implementações futuras.
 
-- [Modal pessoal e estrutura da página](C:/Users/angej/.codex/worktrees/resenhex-vps/project2/discord-clone/public/index.html).
-- [Remoção apenas visual da transmissão](C:/Users/angej/.codex/worktrees/resenhex-vps/project2/discord-clone/public/app.js:1159).
-- [Conexões entre participantes](C:/Users/angej/.codex/worktrees/resenhex-vps/project2/discord-clone/public/app.js:2111).
-- [Orçamento de banda e ajuste de envio](C:/Users/angej/.codex/worktrees/resenhex-vps/project2/discord-clone/public/app.js:2316).
-- [Troca de fonte](C:/Users/angej/.codex/worktrees/resenhex-vps/project2/discord-clone/public/app.js:2428).
-- [Estatísticas da transmissão](C:/Users/angej/.codex/worktrees/resenhex-vps/project2/discord-clone/public/app.js:2515).
-- [Abertura e aplicação de configurações](C:/Users/angej/.codex/worktrees/resenhex-vps/project2/discord-clone/public/app.js:2668).
-- [Layout de telas menores](C:/Users/angej/.codex/worktrees/resenhex-vps/project2/discord-clone/public/style.css:622).
-- [Persistência e recuperação](C:/Users/angej/.codex/worktrees/resenhex-vps/project2/discord-clone/server.js:104).
-- [Uploads e leitura de anexos](C:/Users/angej/.codex/worktrees/resenhex-vps/project2/discord-clone/server.js:293).
+- [Modal pessoal e estrutura da página](../../discord-clone/public/index.html).
+- [Remoção apenas visual da transmissão](../../discord-clone/public/app.js#L1159).
+- [Conexões entre participantes](../../discord-clone/public/app.js#L2111).
+- [Orçamento de banda e ajuste de envio](../../discord-clone/public/app.js#L2316).
+- [Troca de fonte](../../discord-clone/public/app.js#L2428).
+- [Estatísticas da transmissão](../../discord-clone/public/app.js#L2515).
+- [Abertura e aplicação de configurações](../../discord-clone/public/app.js#L2668).
+- [Layout de telas menores](../../discord-clone/public/style.css#L622).
+- [Persistência e recuperação](../../discord-clone/server.js#L104).
+- [Uploads e leitura de anexos](../../discord-clone/server.js#L293).
 
 Este documento é o plano inicial de execução. Nenhuma alteração no código do aplicativo ou publicação foi realizada nesta etapa.

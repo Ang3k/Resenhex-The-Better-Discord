@@ -3,7 +3,7 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
-const { slimDetectable, createGameList, RULES, EXTRA_GAMES } = require('../games');
+const { slimDetectable, createGameList, RULES, EXTRA_GAMES } = require('../server/games');
 
 const exe = (name, extra = {}) => ({ name, os: 'win32', is_launcher: false, ...extra });
 
