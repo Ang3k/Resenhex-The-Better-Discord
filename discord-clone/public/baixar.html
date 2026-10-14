@@ -15,18 +15,13 @@
   <script>
     // Mesmo tema escolhido no app (Escuro, Meia-noite ou Alto contraste).
     try { const theme = JSON.parse(localStorage.getItem('appearance'))?.theme; if (['midnight', 'contrast'].includes(theme)) document.documentElement.dataset.theme = theme; } catch {}
-    // No celular Android (ou vindo de /baixar#android) a página oferece o app de Android. Decidido antes de pintar, para não piscar.
-    if (/Android/i.test(navigator.userAgent) || location.hash === '#android') document.documentElement.dataset.os = 'android';
+    // No celular Android a página oferece o app de Android. Decidido antes de pintar, para não piscar.
+    if (/Android/i.test(navigator.userAgent)) document.documentElement.dataset.os = 'android';
   </script>
 </head>
 <body class="dl-page">
   <header class="dl-top">
     <a class="dl-brand" href="/"><span class="brand-mark" data-logo="22"></span><span>Resenhex</span></a>
-    <nav class="dl-nav" aria-label="Site">
-      <a href="/#recursos">Recursos</a>
-      <a href="/baixar" aria-current="page">Baixar</a>
-      <a href="/privacidade">Privacidade</a>
-    </nav>
     <a class="dl-open" href="/#criar-conta">Abrir no navegador <span data-icon="chevronRight" data-size="16"></span></a>
   </header>
 
@@ -125,15 +120,7 @@
     </section>
   </main>
 
-  <footer class="dl-footer">
-    <nav class="dl-footer-links" aria-label="Rodapé">
-      <a href="/#recursos">Recursos</a>
-      <a href="/baixar">Baixar o app</a>
-      <a href="/privacidade">Privacidade</a>
-      <a href="/#criar-conta">Abrir no navegador</a>
-    </nav>
-    <p>Resenhex · chat, voz, vídeo e tela para você e seus amigos</p>
-  </footer>
+  <footer class="dl-footer">Resenhex · chat e voz para você e seus amigos · <a href="/privacidade">Privacidade</a></footer>
 
   <script src="icons.js"></script>
   <script src="download.js"></script>
