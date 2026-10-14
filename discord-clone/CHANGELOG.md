@@ -3,6 +3,18 @@
 Histórico de versões. A mesma lista aparece dentro do app em **Novidades** (menu do servidor ou rodapé das Configurações).
 O Resenhex chegou à versão 1.0 em 4 de outubro de 2026.
 
+## v1.4.5 — Página inicial redesenhada
+
+14 de outubro de 2026.
+
+A página de quem chega pela primeira vez ficou mais completa: uma prévia maior do app, os recursos num lugar só e os apps para Windows, Android e navegador lado a lado.
+
+### Melhorias
+- Página inicial: botões de baixar e de abrir no navegador lado a lado, topo fixo ao rolar e uma prévia maior do app, com a lista de membros.
+- Novas seções com todos os recursos e com as plataformas, destacando a do seu aparelho.
+- No celular, o menu da página inicial leva a Recursos, Baixar e Privacidade.
+- As páginas Baixar e Privacidade ganharam a mesma navegação da página inicial.
+
 ## v1.4.4 — Propor Melhorias
 
 13 de outubro de 2026.

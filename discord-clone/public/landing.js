@@ -15,6 +15,36 @@
   }
   // Sem app para o sistema de quem visita, abrir no navegador vira o botão principal.
   if (!windows && !android) for (const open of landing.querySelectorAll('.ld-open')) open.classList.replace('ld-btn-dark', 'ld-btn-light');
+  // Na seção de plataformas, o cartão do sistema de quem visita ganha destaque.
+  landing.querySelector(`.ld-plat[data-os="${windows ? 'windows' : android ? 'android' : 'web'}"]`)?.classList.add('is-yours');
+
+  document.getElementById('ld-year').textContent = new Date().getFullYear();
+  if (window.APP_VERSION) document.getElementById('ld-version').textContent = `Versão ${window.APP_VERSION}`;
+
+  // Topo fixo: fica escuro depois que a página rola.
+  const top = landing.querySelector('.ld-top');
+  landing.addEventListener('scroll', () => top.classList.toggle('scrolled', landing.scrollTop > 8), { passive: true });
+
+  // Menu do celular: abre por baixo do topo e fecha ao escolher um link, com Esc ou ao alargar a tela.
+  const menuButton = landing.querySelector('.ld-menu-btn');
+  const menu = document.getElementById('ld-menu');
+  function setMenu(open) {
+    if (open === !menu.hidden) return;
+    menu.hidden = !open;
+    top.classList.toggle('menu-open', open);
+    menuButton.setAttribute('aria-expanded', String(open));
+    menuButton.setAttribute('aria-label', open ? 'Fechar menu' : 'Abrir menu');
+    menuButton.replaceChildren(Icon(open ? 'x' : 'menu', 22));
+  }
+  menuButton.addEventListener('click', () => setMenu(menu.hidden));
+  menu.addEventListener('click', (event) => { if (event.target.closest('a')) setMenu(false); });
+  top.addEventListener('click', (event) => { if (event.target === top) setMenu(false); });
+  landing.addEventListener('keydown', (event) => {
+    if (event.key !== 'Escape' || menu.hidden) return;
+    setMenu(false);
+    menuButton.focus();
+  });
+  window.matchMedia('(min-width: 901px)').addEventListener?.('change', (event) => { if (event.matches) setMenu(false); });
 
   function route() {
     const mode = MODES[location.hash];
@@ -22,12 +52,19 @@
     const wasLanding = root.classList.contains('show-landing');
     const showLanding = root.dataset.landing === 'on' && !mode && !authenticated;
     root.classList.toggle('show-landing', showLanding);
+    if (!showLanding) setMenu(false);
     if (mode && !authenticated) window.dispatchEvent(new CustomEvent('resenhex:auth-mode', { detail: mode }));
-    if (showLanding && !wasLanding) (lastTrigger || landing.querySelector('.ld-brand')).focus({ preventScroll: true });
+    // O foco volta para o link usado, menos quando ele ficou no menu do celular, que já fechou.
+    const back = lastTrigger && !lastTrigger.closest('[hidden]') ? lastTrigger : landing.querySelector('.ld-brand');
+    if (showLanding && !wasLanding) back.focus({ preventScroll: true });
   }
   window.addEventListener('popstate', route);
   window.addEventListener('hashchange', route);
   route();
+  // Quem chega por /#recursos (das páginas de baixar e privacidade) cai direto nos recursos.
+  if (location.hash === '#recursos' && root.classList.contains('show-landing')) {
+    requestAnimationFrame(() => document.getElementById('recursos').scrollIntoView({ behavior: 'instant' }));
+  }
 
   landing.addEventListener('click', (event) => {
     const link = event.target.closest('a[href^="#"]');
@@ -54,7 +91,7 @@
   });
 
   // As seções entram com um leve movimento quando aparecem na tela.
-  const reveal = landing.querySelectorAll('.ld-row, .ld-final');
+  const reveal = landing.querySelectorAll('.ld-reveal');
   if ('IntersectionObserver' in window) {
     const seen = new IntersectionObserver((entries) => {
       for (const entry of entries) if (entry.isIntersecting) { entry.target.classList.add('in-view'); seen.unobserve(entry.target); }

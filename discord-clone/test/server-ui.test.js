@@ -714,11 +714,33 @@ test('unsupported systems get the browser CTA as primary; download pages open th
   const app = await ui(t, false, { userAgent: 'Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X)' });
   assert.equal(app.d.querySelector('.ld-hero .ld-download').classList.contains('hidden'), true);
   assert.equal(app.d.querySelector('.ld-hero .ld-open').classList.contains('ld-btn-light'), true);
+  assert.equal(app.d.querySelector('.ld-plat.is-yours').dataset.os, 'web');
   for (const file of ['baixar.html', 'privacidade.html']) {
     const page = new JSDOM(fs.readFileSync(path.join(publicDir, file), 'utf8'));
     assert.equal(page.window.document.querySelector('.dl-open').getAttribute('href'), '/#criar-conta');
     page.window.close();
   }
+});
+
+test('Android visitors get their app highlighted; the mobile menu opens registration and closes behind it', async (t) => {
+  const app = await ui(t, false, { userAgent: 'Mozilla/5.0 (Linux; Android 14; Pixel 8) Mobile' });
+  const { d } = app;
+  assert.equal(d.querySelector('.ld-hero .ld-download').textContent, 'Baixar para Android');
+  assert.equal(d.querySelector('.ld-plat.is-yours').dataset.os, 'android');
+  assert.equal(d.querySelector('.ld-plat[data-os="android"] .ld-plat-link').getAttribute('href'), '/baixar#android');
+  const button = d.querySelector('.ld-menu-btn');
+  button.click();
+  assert.equal(d.getElementById('ld-menu').hidden, false);
+  assert.equal(button.getAttribute('aria-expanded'), 'true');
+  d.querySelector('#ld-menu .ld-open').click(); await settle();
+  assert.equal(d.getElementById('ld-menu').hidden, true);
+  assert.equal(button.getAttribute('aria-expanded'), 'false');
+  assert.equal(app.w.location.hash, '#criar-conta');
+  assert.equal(d.querySelector('#login-submit').textContent, 'Criar conta');
+  // The trigger was inside the now-closed menu, so focus returns to the brand link.
+  d.querySelector('#login-back').click(); await settle();
+  assert.equal(d.documentElement.classList.contains('show-landing'), true);
+  assert.equal(d.activeElement.className, 'ld-brand');
 });
 
 test('registration errors preserve the form so correcting the password can complete signup', async (t) => {
