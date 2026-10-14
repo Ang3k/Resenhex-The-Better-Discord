@@ -1,0 +1,36 @@
+<!doctype html><html><head><meta charset="utf-8"><title>Laboratório de transmissão</title>
+<style>body{background:#111;color:#ccc;font:11px monospace;margin:4px}video{width:192px;height:108px;background:#000;margin:2px}</style></head>
+<body><div id="log"></div><div id="videos"></div><div id="settings" class="hidden"></div><div id="diagnostics-peers" hidden></div><div id="media-health" hidden></div><div id="diagnostics-summary" hidden></div>
+<script src="/livekit-client.js"></script>
+<script>
+const params = new URLSearchParams(location.search), role = params.get('role'), roleIndex = Number(params.get('i'));
+const labNow = () => performance.timeOrigin + performance.now();
+const log = (...a) => { const s = `[${role}${roleIndex >= 0 ? roleIndex : ''}] ` + a.map((x) => typeof x === 'string' ? x : JSON.stringify(x)).join(' '); document.getElementById('log').textContent = s.slice(0, 300); fetch('/log', { method: 'POST', body: s }).catch(() => {}); };
+const mean = (a) => a.length ? a.reduce((x, y) => x + y, 0) / a.length : null;
+function pct(a, p) { if (!a.length) return null; const s = [...a].sort((x, y) => x - y); return s[Math.min(s.length - 1, Math.floor(p * (s.length - 1)))]; }
+function delta(series, key, from, to) { const a = series.find((x) => x.t >= from), b = [...series].reverse().find((x) => x.t <= to + 1500); return a && b && b !== a ? { d: (b[key] ?? 0) - (a[key] ?? 0), dt: (b.t - a.t) / 1000 } : null; }
+let cfg, goAt = null;
+const measureWindow = () => goAt == null ? null : { from: goAt + cfg.warmup * 1000, to: goAt + (cfg.warmup + cfg.duration) * 1000 };
+let finishTimer = null, roleApi = null;
+function setGo(at) {
+  if (goAt != null) return;
+  goAt = at;
+  finishTimer = setTimeout(async () => {
+    try {
+      const result = await roleApi.finish();
+      await fetch(`/result?role=${role}&i=${roleIndex}`, { method: 'POST', body: JSON.stringify(result) });
+    } catch (e) { await fetch(`/result?role=${role}&i=${roleIndex}`, { method: 'POST', body: JSON.stringify({ error: String(e.stack || e) }) }); }
+  }, (cfg.warmup + cfg.duration) * 1000 + 800);
+}
+lab.onMessage((from, msg) => { if (msg.type === 'go') setGo(msg.at); });
+window.addEventListener('error', (e) => log('page error', e.message));
+window.addEventListener('unhandledrejection', (e) => log('rejection', String(e.reason?.stack || e.reason)));
+(async () => {
+  cfg = await (await fetch('/config')).json();
+  const info = await (await fetch('/clipinfo?clip=' + cfg.clip)).json();
+  cfg.clipW = info.W; cfg.clipH = info.H;
+  const load = (src) => new Promise((resolve, reject) => { const s = document.createElement('script'); s.src = src; s.onload = resolve; s.onerror = reject; document.head.append(s); });
+  if (role === 'streamer') { await load('/lab/streamer.js'); roleApi = runStreamerRole(); }
+  else { await load('/lab/viewer.js'); roleApi = runViewerRole(roleIndex, { W: info.W, H: info.H }); }
+})().catch((e) => log('boot error', String(e.stack || e)));
+</script></body></html>

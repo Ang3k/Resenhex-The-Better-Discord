@@ -226,10 +226,10 @@ Ao clicar em 🖥️, você escolhe um perfil. Dá para trocar a qualidade no me
 
 | Perfil | Para quê |
 |---|---|
-| Automática (padrão) | Até 1080p · 30 fps, adaptada a cada espectador |
+| Automática (padrão) | Até 1080p · 30 fps, adaptada a cada espectador; texto nítido em AV1 |
 | 720p · 30 fps | Leve, bom para internet fraca |
 | 1080p · 30 fps | Textos, trabalho e apresentações |
-| 1080p · 60 fps | Fluido, para jogos (usa mais internet; H.264) |
+| 1080p · 60 fps | Fluido, para jogos (usa mais internet; H.264). Mantém 1080p e 60 fps e só desce para 720p/540p quando os quadros caem |
 
 **Controles da transmissão** (como no Discord). Passe o mouse sobre uma transmissão para ver:
 
@@ -246,6 +246,8 @@ No canto da transmissão aparecem **resolução, fps, taxa e codec**. Para quem 
 
 Na 0.9 a transmissão usa um controlador por espectador: considera o tamanho da imagem exibida, a conexão e o limite de upload. Uma miniatura ou conexão lenta libera banda para os demais; voz e áudio da tela têm uma reserva antes do vídeo. A captura acompanha a maior necessidade dos espectadores e reduz o trabalho quando não há ninguém assistindo. Textos priorizam nitidez; jogos priorizam movimento.
 
+Desde a 1.4.7, os perfis de texto usam AV1 com as ferramentas de conteúdo de tela (VP9, VP8 e H.264 como alternativas, conforme o que cada espectador decodifica) e mandam a imagem cheia também para blocos pequenos, que o navegador de quem assiste reduz sem perder a legibilidade. Se a transmissão se mostrar pesada (jogo ou vídeo), cada espectador volta a receber o tamanho do seu bloco. Se o processador não der conta do AV1, ela passa para VP8 sem interromper. Numa tela em H.264 que começa no meio da chamada, o app informa ao navegador a taxa inicial de cada espectador, para não começar a ~300 kbps. As medições estão em [`docs/relatorios/TRANSMISSAO-2026-10-14.md`](../docs/relatorios/TRANSMISSAO-2026-10-14.md).
+
 Ao abrir outra aba ou voltar ao chat, o vídeo passa para até 360p/5 fps e o áudio continua. Ao voltar à reprodução, a qualidade é restaurada; uma janela flutuante ativa continua solicitando qualidade para seu tamanho. Navegadores sem suporte a redução de resolução por espectador mantêm os limites de banda/FPS e mostram essa limitação no diagnóstico.
 
 **A transmissão trava ou congela quando troco de programa.**
@@ -258,10 +260,10 @@ Jogos em *tela cheia exclusiva* não podem ser capturados como janela. Coloque o
 Como a chamada é direta entre os navegadores, quem transmite envia **uma cópia para cada pessoa**. Em ⚙️ Configurações, escolha em **"Upload da sua internet"** o valor do seu teste de velocidade. O app distribui a banda entre os espectadores conforme suas necessidades e recupera qualidade gradualmente. Esse valor continua sendo um teto configurado, não um teste de velocidade automático. Se ainda travar, use o perfil **720p · 30 fps**, que gasta menos.
 
 **Aparece "limitado pelo processador".**
-Use o perfil **720p · 30 fps**, que exige menos do processador. Fechar outros programas pesados também ajuda.
+Nos perfis de texto o app já troca o AV1/VP9 pelo VP8, mais leve. Se continuar, use o perfil **720p · 30 fps**, que exige menos do processador. Fechar outros programas pesados também ajuda. Em Conexão e diagnóstico, "Codificação por hardware" indica que a placa de vídeo está codificando.
 
 **Validação das transmissões (desenvolvimento).**
-`npm test` cobre o controlador e as regras do servidor. `npm run test:media-browser` abre um teste em `http://127.0.0.1:37914/`: clique em Executar para transmitir canvas/áudio sintéticos entre duas conexões WebRTC reais, conferir resize, modo Economia e parar/retomar. Não acessa câmera, microfone ou tela. Encerre pelo botão e pare o servidor com Ctrl+C.
+`tools/stream-lab` mede nitidez (PSNR/SSIM), FPS, travadas e atraso de transmissões reais entre janelas do Electron, com o código do app de duas versões lado a lado, em P2P e no LiveKit ([`tools/stream-lab/README.md`](tools/stream-lab/README.md)). `npm test` cobre o controlador e as regras do servidor. `npm run test:media-browser` abre um teste em `http://127.0.0.1:37914/`: clique em Executar para transmitir canvas/áudio sintéticos entre duas conexões WebRTC reais, conferir resize, modo Economia e parar/retomar. Não acessa câmera, microfone ou tela. Encerre pelo botão e pare o servidor com Ctrl+C.
 
 ## Online 24h, sem depender do seu PC (recomendado)
 

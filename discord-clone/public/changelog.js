@@ -4,6 +4,21 @@
 // O título deve destacar as principais funcionalidades ou correções, com termos objetivos.
 window.CHANGELOG = [
   {
+    version: '1.4.7', date: '2026-10-14', name: 'Transmissão de tela mais nítida',
+    summary: 'Telas com texto chegam bem mais nítidas gastando menos internet, o perfil de 60 fps mantém o 1080p enquanto o computador aguenta, e a transmissão já começa na qualidade certa.',
+    sections: [
+      { kind: 'improved', items: [
+        'Texto, código e planilhas bem mais nítidos: os perfis de texto usam AV1 com ferramentas de conteúdo de tela, com menos da metade da internet de envio.',
+        'Blocos pequenos recebem a imagem inteira e o navegador de quem assiste reduz, o que deixa a letra legível. Jogos e vídeos continuam no tamanho do bloco.',
+        'Se o processador não der conta do codec mais nítido, a transmissão passa para um mais leve sozinha, sem tela preta para quem assiste.',
+        'Movimento · 1080p / 60: mantém 1080p e 60 fps, e só desce para 720p ou 540p quando os quadros começam a cair.',
+        'Jogos em H.264 já começam na qualidade certa: antes, uma transmissão aberta no meio da chamada levava uns 20 segundos para ficar nítida.',
+        'Servidor de mídia (SFU): camadas refeitas e começo em H.264 corrigido. Com três pessoas assistindo, texto a 30 fps e jogos sem travadas.',
+        'Conexão e diagnóstico mostram o codificador, se é por hardware, se o processador está no limite e se o servidor de mídia está por UDP, TCP ou TURN.',
+      ] },
+    ],
+  },
+  {
     version: '1.4.6', date: '2026-10-14', name: 'Chat mais leve nas chamadas',
     summary: 'O app ficou mais leve por dentro, sem mudar nada do que você vê ou ouve: o chat trava menos durante as chamadas, a página abre mais rápido e os ícones ocupam menos espaço.',
     sections: [

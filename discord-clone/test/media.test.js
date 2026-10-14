@@ -55,11 +55,16 @@ test('automatic quality steps resolution down after persistent strain and back u
 });
 
 test('mobile viewers get a hardware-decodable screen codec unless the preset already offers one', () => {
-  assert.deepEqual(policy.screenCodecs(policy.presets.p1080, []), ['video/VP9', 'video/VP8']);
-  assert.deepEqual(policy.screenCodecs(policy.presets.p1080, ['video/H264']), ['video/H264', 'video/VP9', 'video/VP8']);
-  assert.deepEqual(policy.screenCodecs(policy.presets.p1080, ['video/H264', 'video/VP9']), ['video/VP9', 'video/VP8']);
-  assert.deepEqual(policy.screenCodecs(policy.presets.auto, ['video/H264']), ['video/H264', 'video/VP8']);
+  const text = ['video/AV1', 'video/VP9', 'video/VP8', 'video/H264'];
+  assert.deepEqual(policy.screenCodecs(policy.presets.p1080, []), text, 'text presets prefer AV1, then VP9');
+  assert.deepEqual(policy.screenCodecs(policy.presets.p1080, ['video/H264']), ['video/H264', 'video/AV1', 'video/VP9', 'video/VP8']);
+  assert.deepEqual(policy.screenCodecs(policy.presets.p1080, ['video/H264', 'video/VP9']), ['video/VP9', 'video/AV1', 'video/VP8', 'video/H264']);
+  assert.deepEqual(policy.screenCodecs(policy.presets.auto, ['video/H264']), ['video/H264', 'video/AV1', 'video/VP9', 'video/VP8']);
   assert.deepEqual(policy.screenCodecs(policy.presets.auto, ['video/evil']), policy.presets.auto.codecs);
+  assert.deepEqual(policy.screenCodecs(policy.presets.p1080_60, []), ['video/H264', 'video/VP8']);
+  // Depois que o processador não deu conta do AV1, o VP8 vem primeiro, inclusive para quem entra depois.
+  assert.deepEqual(policy.screenCodecs(policy.presets.auto, [], 'video/VP8'), ['video/VP8', 'video/AV1', 'video/VP9', 'video/H264']);
+  assert.deepEqual(policy.screenCodecs(policy.presets.auto, ['video/H264'], 'video/VP8'), ['video/H264', 'video/VP8', 'video/AV1', 'video/VP9']);
   assert.deepEqual(policy.viewerDemand({ width: 844, height: 390, pixelRatio: 3, codecs: ['video/H264'] }), { mode: 'auto', maxHeight: 1080, background: false, codecs: ['video/H264'] });
 });
 
@@ -121,12 +126,73 @@ test('encoding keeps the requested FPS under low bandwidth, scales in fixed step
 test('adaptive steps descend from the viewer request through 720/540/360 and only for adaptive presets', () => {
   const heights = (preset, demand) => [0, 1, 2, 3, 4].map((level) => policy.screenTarget(preset, demand, level).height);
   assert.deepEqual(heights(policy.presets.auto, { maxHeight: 1080 }), [1080, 720, 540, 360, 360]);
-  assert.deepEqual(heights(policy.presets.auto, { maxHeight: 540 }), [540, 360, 360, 360, 360]);
+  // Texto: blocos médios recebem a imagem inteira (reduzir no envio borra as letras); só miniaturas recebem menos.
+  assert.deepEqual(heights(policy.presets.auto, { maxHeight: 540 }), [1080, 720, 540, 360, 360]);
+  assert.deepEqual(heights(policy.presets.auto, { maxHeight: 720 }), [1080, 720, 540, 360, 360]);
+  assert.deepEqual(heights(policy.presets.auto, { maxHeight: 360 }), [360, 360, 360, 360, 360]);
   assert.deepEqual(heights(policy.presets.auto, { maxHeight: 180 }), [180, 180, 180, 180, 180]);
+  assert.deepEqual(heights(policy.presets.auto, { maxHeight: 1080, background: true }), [360, 360, 360, 360, 360]);
+  assert.deepEqual(heights(policy.presets.auto, { mode: 'economy', maxHeight: 720 }), [720, 540, 360, 360, 360]);
   assert.deepEqual(heights(policy.presets.p720, { maxHeight: 1080 }), [720, 540, 360, 360, 360]);
   assert.deepEqual(heights(policy.presets.p1080, { maxHeight: 1080 }), [1080, 1080, 1080, 1080, 1080]);
-  assert.deepEqual(heights(policy.presets.p1080_60, { maxHeight: 1080 }), [1080, 1080, 1080, 1080, 1080]);
+  // Movimento: mantém 1080p60 até os quadros caírem; então desce degraus e cada bloco segue seu tamanho.
+  assert.deepEqual(heights(policy.presets.p1080_60, { maxHeight: 1080 }), [1080, 720, 540, 360, 360]);
+  assert.deepEqual(heights(policy.presets.p1080_60, { maxHeight: 540 }), [540, 360, 360, 360, 360]);
+  assert.equal(policy.presets.p1080_60.degradation, 'maintain-framerate-and-resolution');
   for (const level of [0, 1, 2, 3]) assert.equal(policy.screenTarget(policy.presets.auto, { maxHeight: 1080 }, level).fps, 30);
+  for (const level of [0, 1, 2, 3]) assert.equal(policy.screenTarget(policy.presets.p1080_60, { maxHeight: 1080 }, level).fps, 60);
+});
+
+test('a CPU-bound AV1/VP9 encoder falls back to VP8 only after 5 s of sustained limitation', () => {
+  assert.equal(policy.cpuFallback('video/AV1'), 'video/VP8');
+  assert.equal(policy.cpuFallback('video/VP9'), 'video/VP8');
+  assert.equal(policy.cpuFallback('video/VP8'), null);
+  assert.equal(policy.cpuFallback('video/H264'), null);
+  let cpu = policy.cpuStrain({}, { limited: true, codec: 'video/AV1' }, 1000);
+  assert.deepEqual(cpu, { since: 1000, fallback: false });
+  cpu = policy.cpuStrain(cpu, { limited: true, codec: 'video/AV1' }, 5999);
+  assert.equal(cpu.fallback, false);
+  cpu = policy.cpuStrain(cpu, { limited: true, codec: 'video/AV1' }, 6000);
+  assert.equal(cpu.fallback, true);
+  assert.deepEqual(policy.cpuStrain(cpu, { limited: false, codec: 'video/AV1' }, 6500), { since: null, fallback: false }, 'a short spike resets the timer');
+  assert.deepEqual(policy.cpuStrain({}, { limited: true, codec: 'video/VP8' }, 0), { since: null, fallback: false }, 'nothing lighter than VP8');
+});
+
+test('encoder load separates light text from games and videos with the measured numbers', () => {
+  // Medições do laboratório (Electron 44, 1080p30): texto em AV1 usa ~22% da taxa e ~10 ms por quadro;
+  // jogo em AV1 levava 30–40 ms por quadro; jogo em VP8 usava toda a taxa com ~16 ms por quadro.
+  assert.deepEqual(policy.encoderLoad({ reason: 'none', encodeMs: 10, fps: 30, bitrate: 870_000, target: 4_000_000 }), { cpu: false, heavy: false });
+  assert.deepEqual(policy.encoderLoad({ reason: 'none', encodeMs: 38, fps: 30, bitrate: 3_300_000, target: 4_000_000 }), { cpu: true, heavy: true });
+  assert.deepEqual(policy.encoderLoad({ reason: 'none', encodeMs: 16, fps: 30, bitrate: 3_950_000, target: 4_000_000 }), { cpu: false, heavy: true });
+  assert.deepEqual(policy.encoderLoad({ reason: 'cpu', encodeMs: 12, fps: 30 }), { cpu: true, heavy: true });
+  assert.equal(policy.encoderLoad({ reason: 'none', encodeMs: 30, fps: 5 }).cpu, false, 'background viewers only need 5 fps');
+  assert.equal(policy.encoderLoad({ reason: 'none', bitrate: null, target: 4e6 }).heavy, false, 'no sample yet');
+  // Conteúdo pesado num perfil de texto: cada bloco volta a receber o seu tamanho.
+  const motion = { ...policy.presets.auto, motion: true };
+  assert.deepEqual([0, 1, 2].map((level) => policy.screenTarget(motion, { maxHeight: 540 }, level).height), [540, 360, 360]);
+  assert.equal(policy.screenTarget(motion, { maxHeight: 1080 }).height, 1080);
+  assert.deepEqual(policy.sustained({}, true, 0), { since: 0, reached: false });
+  assert.deepEqual(policy.sustained({ since: 0 }, true, 5000), { since: 0, reached: true });
+});
+
+// Trecho de SDP como o Chrome gera: áudio, câmera (mid 1) e tela (mid 2), com H.264 42001f/42e01f, VP8 e RTX.
+const answerSdp = ['v=0', 'o=- 1 2 IN IP4 127.0.0.1', 's=-', 't=0 0',
+  'm=audio 9 UDP/TLS/RTP/SAVPF 111', 'a=mid:0', 'a=rtpmap:111 opus/48000/2', 'a=fmtp:111 minptime=10;useinbandfec=1',
+  ...['1', '2'].flatMap((mid) => [`m=video 9 UDP/TLS/RTP/SAVPF 108 109 102 103 96 97`, `a=mid:${mid}`,
+    'a=rtpmap:108 H264/90000', 'a=fmtp:108 level-asymmetry-allowed=1;packetization-mode=1;profile-level-id=42e01f', 'a=rtpmap:109 rtx/90000', 'a=fmtp:109 apt=108',
+    'a=rtpmap:102 H264/90000', 'a=fmtp:102 level-asymmetry-allowed=1;packetization-mode=1;profile-level-id=42001f', 'a=rtpmap:103 rtx/90000', 'a=fmtp:103 apt=102',
+    'a=rtpmap:96 VP8/90000', 'a=rtpmap:97 rtx/90000', 'a=fmtp:97 apt=96']), ''].join('\r\n');
+
+test('the start bitrate goes only on the H.264 payloads of the chosen video sections, once', () => {
+  const sdp = policy.startBitrate(answerSdp, { 2: 5400 });
+  const sections = sdp.split('\r\nm=');
+  assert.equal(sections[0] + sections[1] + sections[2], answerSdp.split('\r\nm=').slice(0, 3).join(''), 'session, audio and camera untouched');
+  assert.match(sections[3], /a=fmtp:108 [^\r]*profile-level-id=42e01f;x-google-start-bitrate=5400\r\n/);
+  assert.match(sections[3], /a=fmtp:102 [^\r]*profile-level-id=42001f;x-google-start-bitrate=5400\r\n/);
+  assert.equal((sections[3].match(/x-google-start-bitrate/g) || []).length, 2, 'not on RTX, not on VP8');
+  assert.equal(policy.startBitrate(sdp, { 2: 5400 }), sdp, 'idempotent');
+  assert.equal(policy.startBitrate(answerSdp, {}), answerSdp);
+  assert.equal(policy.startBitrate(answerSdp.replace(/\r\n/g, '\n'), { 2: 5400 }), sdp.replace(/\r\n/g, '\n'));
 });
 
 test('sender mutation queue preserves order after a rejected operation', async () => {
@@ -273,6 +339,101 @@ test('stats use the selected ICE path and do not downgrade a static screen from 
   const video = h.peer.senders.screen.find((s) => s.track.kind === 'video').params.encodings[0];
   assert.equal(video.scaleResolutionDownBy, 1.5);
   assert.equal(video.maxFramerate, 30);
+});
+
+test('a CPU-bound AV1 screen switches viewers to VP8 without renegotiating, before reducing resolution', async () => {
+  const h = mediaHarness();
+  h.self.viewers = ['viewer']; h.media.syncScreenSubscriptions(); await settle(h);
+  const video = h.peer.senders.screen.find((s) => s.track.kind === 'video');
+  video.params.codecs = [{ mimeType: 'video/AV1', clockRate: 90000 }, { mimeType: 'video/VP8', clockRate: 90000 }];
+  const screenTrack = h.screen.getVideoTracks()[0];
+  const report = (at) => new Map([
+    ['transport', { id: 'transport', type: 'transport', selectedCandidatePairId: 'pair' }],
+    ['pair', { id: 'pair', type: 'candidate-pair', state: 'succeeded', nominated: true, availableOutgoingBitrate: 3e6, currentRoundTripTime: .02 }],
+    ['source', { id: 'source', type: 'media-source', trackIdentifier: screenTrack.id, framesPerSecond: 30 }],
+    ['codec', { id: 'codec', type: 'codec', mimeType: 'video/AV1' }],
+    ['screen', { id: 'screen', type: 'outbound-rtp', kind: 'video', mediaSourceId: 'source', codecId: 'codec', bytesSent: at * 100, framesSent: at, framesPerSecond: 12, timestamp: at, qualityLimitationReason: 'cpu', encoderImplementation: 'libaom' }],
+  ]);
+  for (const at of [1000, 3000, 5500]) { h.clock(at); h.peer.pc.report = report(at); await h.media.updateStreamStats(); }
+  assert.ok(!h.state.screenCodecFallback, 'a short CPU spike does not change the codec');
+  assert.equal(h.peer.adaptation.level || 0, 0, 'no resolution step while the codec switch is pending');
+  assert.match(h.state.videoEncoder, /libaom · AV1 · limitado pelo processador/);
+  h.clock(6500); h.peer.pc.report = report(6500); await h.media.updateStreamStats(); await settle(h);
+  assert.equal(h.state.screenCodecFallback, 'video/VP8');
+  assert.equal(video.params.encodings[0].codec.mimeType, 'video/VP8', 'switched live through encodings[0].codec');
+  assert.match(h.state.mediaHealth, /mais leve/);
+  h.media.setSharePreset('p1080');
+  assert.equal(h.state.screenCodecFallback, null, 'a new preset tries the sharper codec again');
+});
+
+test('a text preset sends full resolution to small tiles until the content turns out to be heavy', async () => {
+  const h = mediaHarness();
+  h.self.viewers = ['viewer']; h.media.syncScreenSubscriptions(); await settle(h);
+  h.events.get('screen:quality')({ viewer: 'viewer', demand: { mode: 'auto', maxHeight: 540, background: false } });
+  await settle(h);
+  const video = h.peer.senders.screen.find((s) => s.track.kind === 'video');
+  assert.equal(video.params.encodings[0].scaleResolutionDownBy, 1, 'text: the viewer scales 1080p down better than the encoder');
+  const screenTrack = h.screen.getVideoTracks()[0];
+  const report = (at) => new Map([
+    ['source', { id: 'source', type: 'media-source', trackIdentifier: screenTrack.id, framesPerSecond: 30 }],
+    ['codec', { id: 'codec', type: 'codec', mimeType: 'video/VP8' }],
+    ['screen', { id: 'screen', type: 'outbound-rtp', kind: 'video', mediaSourceId: 'source', codecId: 'codec', bytesSent: at * 490, framesSent: at * .03, framesEncoded: at * .03, totalEncodeTime: at * .03 * .012,
+      framesPerSecond: 30, timestamp: at, qualityLimitationReason: 'none', targetBitrate: 4_000_000 }],
+  ]);
+  for (const at of [1000, 2500, 4000, 5500]) { h.clock(at); h.peer.pc.report = report(at); await h.media.updateStreamStats(); }
+  assert.ok(!h.state.screenMotion, 'needs 5 s of a saturated encoder');
+  for (const at of [7000, 8500]) { h.clock(at); h.peer.pc.report = report(at); await h.media.updateStreamStats(); }
+  await settle(h);
+  assert.equal(h.state.screenMotion, true);
+  assert.equal(video.params.encodings[0].scaleResolutionDownBy, 2, 'heavy content: the small tile gets its own size again');
+  assert.ok(!h.state.screenCodecFallback, '12 ms per frame is not a CPU limit');
+  h.media.stopVideo('screen');
+  assert.equal(h.state.screenMotion, null);
+});
+
+test('the 60 fps preset keeps resolution and frame rate, falling back to maintain-framerate where unsupported', async () => {
+  const h = mediaHarness();
+  h.state.sharePreset = 'p1080_60';
+  h.self.viewers = ['viewer']; h.media.syncScreenSubscriptions(); await settle(h);
+  assert.equal(h.peer.senders.screen.find((s) => s.track.kind === 'video').params.degradationPreference, 'maintain-framerate-and-resolution');
+  const old = mediaHarness();
+  old.state.sharePreset = 'p1080_60';
+  const addTrack = old.peer.pc.addTrack.bind(old.peer.pc);
+  old.peer.pc.addTrack = (track) => {
+    const sender = addTrack(track), set = sender.setParameters;
+    sender.setParameters = async function (params) { if (params.degradationPreference === 'maintain-framerate-and-resolution') throw new TypeError('unknown enum value'); return set.call(this, params); };
+    return sender;
+  };
+  old.self.viewers = ['viewer']; old.media.syncScreenSubscriptions(); await settle(old);
+  const video = old.peer.senders.screen.find((s) => s.track.kind === 'video');
+  assert.equal(video.params.degradationPreference, 'maintain-framerate');
+  assert.equal(video.params.encodings[0].maxFramerate, 60);
+  old.media.tuneSenders(); await settle(old);
+  assert.equal(video.params.degradationPreference, 'maintain-framerate', 'later tuning does not retry the unsupported value');
+});
+
+test('a screen joining a call that only carried audio tells the encoder where to start, with a fixed value', async () => {
+  const h = mediaHarness();
+  h.state.sharePreset = 'p1080_60';
+  h.self.viewers = ['viewer']; h.media.syncScreenSubscriptions(); await settle(h);
+  const video = h.peer.senders.screen.find((s) => s.track.kind === 'video');
+  h.peer.pc.getTransceivers().find((t) => t.sender === video).mid = '2';
+  const offer = { type: 'offer', sdp: answerSdp };
+  assert.equal(h.media.remoteDescription(h.peer, offer), offer, 'offers are not touched');
+  const kbps = Math.round(h.media.videoBitrates().get('viewer').screen * .9 / 1000);
+  assert.ok(kbps >= 3000, `90% of the viewer's screen budget (${kbps} kbps)`);
+  const answer = h.media.remoteDescription(h.peer, { type: 'answer', sdp: answerSdp });
+  assert.equal(answer.type, 'answer');
+  assert.equal(answer.sdp, policy.startBitrate(answerSdp, { 2: kbps }));
+  h.state.uploadMbps = 3;
+  assert.equal(h.media.remoteDescription(h.peer, { type: 'answer', sdp: answerSdp }).sdp, answer.sdp, 'renegotiations keep the first value');
+  const warm = mediaHarness();
+  warm.state.local.camera = warm.stream([warm.track('video')]);
+  warm.self.viewers = ['viewer']; warm.media.syncScreenSubscriptions(); await settle(warm);
+  const screenSender = warm.peer.senders.screen.find((s) => s.track.kind === 'video');
+  warm.peer.pc.getTransceivers().find((t) => t.sender === screenSender).mid = '2';
+  const plainAnswer = { type: 'answer', sdp: answerSdp };
+  assert.equal(warm.media.remoteDescription(warm.peer, plainAnswer), plainAnswer, 'a camera already warmed the estimate');
 });
 
 test('viewer resize and background requests are coalesced without stopping the subscribed audio', async () => {

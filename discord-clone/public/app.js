@@ -4877,7 +4877,7 @@
         peer.remoteIds = { screen: data.video?.screen || null, camera: data.video?.camera || null };
         peer.settingRemoteAnswer = data.description.type === 'answer';
         try {
-          await pc.setRemoteDescription(data.description);
+          await pc.setRemoteDescription(remoteDescription(peer, data.description));
         } finally {
           peer.settingRemoteAnswer = false;
         }
@@ -5125,20 +5125,22 @@
   }
 
   // Usa o primeiro codec da lista que o navegador suportar (nem todo Chromium tem H.264).
+  // A lista inteira vale como ordem de preferência: quem não decodifica o primeiro (AV1) negocia o
+  // segundo (VP9), e não o primeiro codec que o navegador listar. Os demais continuam negociados,
+  // para dar para trocar de codec depois sem renegociar (encodings[0].codec).
   function preferCodec(pc, sender, mimes) {
     const transceiver = pc.getTransceivers().find((t) => t.sender === sender);
     const caps = window.RTCRtpReceiver?.getCapabilities?.('video');
     if (!transceiver?.setCodecPreferences || !caps) return;
-    for (const mime of mimes) {
-      const first = caps.codecs.filter((c) => c.mimeType.toLowerCase() === mime.toLowerCase()
-        // VP9 perfil 0 é o compatível com todo mundo; os outros são de 10/12 bits.
-        && (mime !== 'video/VP9' || !c.sdpFmtpLine || c.sdpFmtpLine.includes('profile-id=0')));
-      if (!first.length) continue;
-      try {
-        transceiver.setCodecPreferences([...first, ...caps.codecs.filter((c) => !first.includes(c))]);
-      } catch {}
-      return;
-    }
+    const usable = (c, mime) => c.mimeType.toLowerCase() === mime.toLowerCase()
+      // VP9 perfil 0 e AV1 perfil 0 (main) são os que todo mundo codifica; os outros são de 10/12 bits ou 4:4:4.
+      && (mime !== 'video/VP9' || !c.sdpFmtpLine || c.sdpFmtpLine.includes('profile-id=0'))
+      && (mime !== 'video/AV1' || !c.sdpFmtpLine || !/(^|;)profile=[1-9]/.test(c.sdpFmtpLine));
+    const first = mimes.flatMap((mime) => caps.codecs.filter((c) => usable(c, mime)));
+    if (!first.length) return;
+    try {
+      transceiver.setCodecPreferences([...first, ...caps.codecs.filter((c) => !first.includes(c))]);
+    } catch {}
   }
 
   // A conexão com o servidor de mídia caiu (reinício do SFU, rede): entra de novo na mesma chamada.
@@ -5154,7 +5156,7 @@
     joinVoice(state.voiceChannel, { keepView: state.view !== 'voice', serverId: callInfo()?.serverId, startedAt: state.callStartedAt, silent: true });
   }
   const sfu = MediaSfu({ state, renderStage, applyAudio, watchSpeaking, unwatchSpeaking, closePeer, notice: (message) => mediaNotice(message), onLost: recoverMedia });
-  const { isWatching, setWatching, getWatchQuality, setWatchQuality, syncViewerQuality, addVideoTracks, syncScreenSubscriptions, videoBitrates, tuneSenders, applySharePreset, setSharePreset, captureScreen, watchScreenTrack, switchScreen, startVideo, stopVideo, scheduleRecovery, renderDiagnostics, updateStreamStats, mediaNotice } = MediaSession({ state, socket, call, el, toast, voiceEntry, member: callMember, render, renderStage, sendVoiceState, preferCodec, ownAudio, sfu });
+  const { isWatching, setWatching, getWatchQuality, setWatchQuality, syncViewerQuality, addVideoTracks, syncScreenSubscriptions, videoBitrates, remoteDescription, tuneSenders, applySharePreset, setSharePreset, captureScreen, watchScreenTrack, switchScreen, startVideo, stopVideo, scheduleRecovery, renderDiagnostics, updateStreamStats, mediaNotice } = MediaSession({ state, socket, call, el, toast, voiceEntry, member: callMember, render, renderStage, sendVoiceState, preferCodec, ownAudio, sfu });
   const streamZoom = StreamZoom({ el, Icon, syncViewerQuality });
   const mobileStream = MobileStream({ state, el, Icon, toast, member: callMember, voiceEntry, syncViewerQuality, openWatchQualityMenu, toggleStreamMute, togglePip });
 

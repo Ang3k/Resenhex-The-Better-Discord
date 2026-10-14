@@ -45,8 +45,8 @@ Caminhos relativos a `discord-clone/`.
 | Servidores, convites, cargos e moderação | `server/communities.js`, `server/channels.js`, `server.js` | `public/app.js`, `public/channel-navigation.js`, `public/settings.js` | `test/servers.test.js`, `test/communities.test.js`, `test/channels.test.js`, `test/server-settings.test.js` |
 | Amigos e mensagens diretas | `server.js` | `public/app.js` | `test/friends-dm.test.js` |
 | Chamadas privadas | `server/dm-calls.js` | `public/dm-call.js` | `test/dm-call.test.js`, `test/dm-calls.test.js` |
-| Voz, câmera e tela (P2P) | `server.js` (sinalização) | `public/app.js`, `public/media-policy.js`, `public/media-session.js` | `test/media.test.js` |
-| Servidor de mídia LiveKit (SFU) | `server/media-sfu.js`, `deploy/instalar-sfu.sh` | `public/media-sfu.js` | `test/media-sfu.test.js`, `test/media-sfu-server.test.js` |
+| Voz, câmera e tela (P2P) | `server.js` (sinalização) | `public/app.js`, `public/media-policy.js`, `public/media-session.js` | `test/media.test.js`; qualidade medida com `tools/stream-lab/` |
+| Servidor de mídia LiveKit (SFU) | `server/media-sfu.js`, `deploy/instalar-sfu.sh` | `public/media-sfu.js` | `test/media-sfu.test.js`, `test/media-sfu-server.test.js`, `test/media-sfu-client.test.js` |
 | Som do computador na transmissão | — | `public/own-audio*.js` | `test/own-audio.test.js` |
 | Efeitos de voz | — | `public/voice-fx.js`, `public/voice-fx-*.mjs`, `public/voice-fx-assets/`, `public/vendor/autotalent/` | `test/voice-chosen.test.js` |
 | DJ (YouTube) | `server/dj.js`, `server/youtube.js` | `public/music.js` | `test/dj.test.js`, `test/dj-server.test.js` |
@@ -118,4 +118,5 @@ Os apps têm versões próprias e só precisam ser publicados quando suas pastas
 - [`discord-clone/deploy/SFU.md`](../discord-clone/deploy/SFU.md): ativação do LiveKit.
 - [`discord-clone/desktop/store/LOJA.md`](../discord-clone/desktop/store/LOJA.md): textos e respostas da Microsoft Store.
 - [`discord-clone/tools/voice-chosen/README.md`](../discord-clone/tools/voice-chosen/README.md): laboratório dos efeitos de voz.
+- [`discord-clone/tools/stream-lab/README.md`](../discord-clone/tools/stream-lab/README.md): laboratório da transmissão de tela (nitidez, FPS, travadas e atraso, antes × depois, P2P e SFU). Mudou codec, camada ou taxa da transmissão? Meça com ele antes de concluir que melhorou.
 - [`ROADMAP.md`](ROADMAP.md), [`planos/`](planos/) e [`relatorios/`](relatorios/): planejamento e histórico.
