@@ -7,13 +7,13 @@ O Resenhex chegou à versão 1.0 em 4 de outubro de 2026.
 
 14 de outubro de 2026.
 
-A página de quem chega pela primeira vez ficou mais completa: o app aparece maior, em plena chamada, e os apps para Windows, Android e navegador ficam lado a lado.
+A página de quem chega pela primeira vez ganhou um visual novo: títulos em letras largas, fundo escuro e o app aparecendo maior, em plena chamada.
 
 ### Melhorias
-- Página inicial: topo fixo ao rolar e uma prévia maior do app, com a Sala 1 em chamada e a tela de um amigo numa janela flutuante.
+- Página inicial: nova fonte nos títulos, topo fixo ao rolar e uma prévia maior do app, com a Sala 1 em chamada e a tela de um amigo numa janela flutuante.
 - Novas seções com mais recursos e com as plataformas, destacando a do seu aparelho.
 - No celular, o menu da página inicial leva a Recursos, Baixar e Privacidade.
-- As páginas Baixar e Privacidade ganharam a mesma navegação da página inicial.
+- As páginas Baixar e Privacidade ganharam a mesma navegação e os mesmos títulos da página inicial.
 
 ## v1.4.4 — Propor Melhorias
 
