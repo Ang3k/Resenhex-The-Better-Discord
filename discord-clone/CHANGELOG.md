@@ -7,7 +7,7 @@ O Resenhex chegou à versão 1.0 em 4 de outubro de 2026.
 
 14 de outubro de 2026.
 
-Os títulos da página de quem chega pela primeira vez ganharam uma fonte larga e pesada, em branco e no roxo-escuro dos botões.
+Os títulos da página de quem chega pela primeira vez ganharam uma fonte larga e pesada.
 
 ### Melhorias
 - Página inicial: títulos na fonte Unbounded, com "A galera já tá na call" e "Bora pra resenha?" em caixa alta.

@@ -5,7 +5,7 @@
 window.CHANGELOG = [
   {
     version: '1.4.5', date: '2026-10-14', name: 'Nova fonte na página inicial',
-    summary: 'Os títulos da página de quem chega pela primeira vez ganharam uma fonte larga e pesada, em branco e no roxo-escuro dos botões.',
+    summary: 'Os títulos da página de quem chega pela primeira vez ganharam uma fonte larga e pesada.',
     sections: [
       { kind: 'improved', items: [
         'Página inicial: títulos na fonte Unbounded, com "A galera já tá na call" e "Bora pra resenha?" em caixa alta.',
