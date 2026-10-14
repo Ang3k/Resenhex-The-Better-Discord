@@ -1,6 +1,7 @@
 /* Página inicial (primeira visita). Cores chapadas, sem degradê, brilho ou vidro: o acabamento vem da tipografia
    (Unbounded nos títulos, Figtree no texto) e de um grão fino sobre os fundos, como papel impresso.
-   No topo, o texto fica à esquerda e o app à direita, num palco roxo que encosta na borda da tela.
+   No topo, o texto fica à esquerda e o app à direita, solto no escuro e encostado na borda da tela. O roxo vem
+   em peças inteiras: a etiqueta do título e a faixa inclinada que passa por trás do app.
    O que chama atenção é o próprio app: a Sala 1 em chamada, o chat que anda sozinho e o soundboard que toca de verdade. */
 
 /* Unbounded (SIL Open Font License, veja fonts/OFL-Unbounded.txt): servida pelo próprio app, sem CDN. */
@@ -23,7 +24,8 @@
   --ld-line: rgba(255, 255, 255, .09);
   --ld-max: 1200px;
   --ld-gutter: 32px;
-  --ld-win-h: 560px;
+  --ld-win-h: 600px;
+  --ld-tilt: -2.5deg;
   --brand: var(--ld-purple);
   --brand-hover: var(--ld-purple-press);
 }
@@ -88,9 +90,9 @@
 .ld-menu-cta .ld-btn { width: 100%; }
 
 /* ---------- Destaque ---------- */
-.ld-hero { overflow: hidden; }
+.ld-hero { position: relative; overflow: hidden; padding-bottom: 56px; }
 .ld-hero-inner {
-  display: grid; grid-template-columns: minmax(0, clamp(440px, 39vw, 540px)) minmax(0, 1fr); align-items: center; gap: 56px;
+  position: relative; z-index: 1; display: grid; grid-template-columns: minmax(0, clamp(440px, 39vw, 540px)) minmax(0, 1fr); align-items: center; gap: 56px;
   max-width: var(--ld-max); margin: 0 auto; padding: 32px var(--ld-gutter) 64px;
 }
 .ld-hero h1 {
@@ -102,7 +104,14 @@
 .ld-line > span { display: block; animation: ld-line-in 1s cubic-bezier(.16, 1, .3, 1) .05s both; }
 .ld-line + .ld-line > span { animation-delay: .14s; }
 @keyframes ld-line-in { from { transform: translateY(110%); } }
-.ld-accent { color: var(--ld-lilac); }
+/* "Tá na call" é uma etiqueta roxa colada torta no título, que se desenrola da esquerda para a direita. */
+.ld-line.ld-accent { overflow: visible; margin-top: .1em; }
+.ld-line.ld-accent > span {
+  display: inline-block; margin-left: -.14em; padding: .1em .18em .05em; background: var(--ld-grain), var(--ld-purple); color: #fff;
+  transform: rotate(var(--ld-tilt)); transform-origin: 0 50%;
+  animation: ld-tag-in .85s cubic-bezier(.65, 0, .35, 1) .3s both;
+}
+@keyframes ld-tag-in { from { clip-path: inset(0 100% 0 0); } to { clip-path: inset(0); } }
 .ld-lead { margin: 28px 0 0; max-width: 31em; color: var(--ld-muted); font-size: 18.5px; line-height: 1.65; text-wrap: pretty; animation: ld-fade-up .9s cubic-bezier(.16, 1, .3, 1) .3s both; }
 .ld-hero .ld-cta { animation: ld-fade-up .9s cubic-bezier(.16, 1, .3, 1) .4s both; }
 @keyframes ld-fade-up { from { opacity: 0; transform: translateY(14px); } }
@@ -122,20 +131,18 @@
 @keyframes ld-nudge { 50% { transform: translateY(2px); } }
 
 /* ---------- Prévia do app ---------- */
-/* O palco roxo vai até a borda direita da tela, e a janela do app encosta nela, sem o canto direito. */
+/* A janela do app vai até a borda direita da tela, sem o canto direito, como se continuasse fora dela. */
 .ld-preview {
   position: relative; container-type: inline-size;
   margin-right: calc(-1 * max(var(--ld-gutter), (100vw - var(--ld-max)) / 2 + var(--ld-gutter)));
-  padding: 40px 0 40px 40px; border-radius: 28px 0 0 28px; background: var(--ld-grain), var(--ld-purple);
-  animation: ld-rise 1s cubic-bezier(.16, 1, .3, 1) .1s both;
 }
 @keyframes ld-rise { from { opacity: 0; transform: translateX(48px); } }
 .ld-window {
   --rail: 72px; --side: 232px;
   position: relative; display: grid; grid-template-columns: var(--rail) var(--side) minmax(0, 1fr); height: var(--ld-win-h); overflow: hidden;
-  border-radius: 14px 0 0 14px; background: var(--bg-main); font-size: 14px; text-align: left; user-select: none;
-  box-shadow: 0 1px 0 rgba(255, 255, 255, .06) inset, 0 30px 70px rgba(20, 6, 60, .5), 0 0 0 1px rgba(20, 6, 60, .45);
-  animation: ld-rise 1.1s cubic-bezier(.16, 1, .3, 1) .2s both;
+  border-radius: 16px 0 0 16px; background: var(--bg-main); font-size: 14px; text-align: left; user-select: none;
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, .09), 0 40px 90px rgba(0, 0, 0, .55);
+  animation: ld-rise 1.1s cubic-bezier(.16, 1, .3, 1) .15s both;
 }
 /* Em telas largas cabe a lista de membros; nas médias, a faixa dos servidores e a dos canais estreitam para o chat caber. */
 @container (min-width: 840px) {
@@ -267,6 +274,21 @@
 /* Entrada suave quando aparece na tela. */
 .ld-reveal { opacity: 0; transform: translateY(24px); transition: opacity .7s ease, transform .7s cubic-bezier(.16, 1, .3, 1); transition-delay: var(--delay, 0s); }
 .ld-reveal.in-view { opacity: 1; transform: none; }
+
+/* ---------- Faixa roxa ---------- */
+/* Mais larga que a tela, para as pontas inclinadas não aparecerem; nasce por trás da base da janela e desce para a esquerda. */
+.ld-tape {
+  margin: -92px -8% 0; padding: 22px 0; overflow: hidden; background: var(--ld-grain), var(--ld-purple);
+  transform: rotate(var(--ld-tilt)); animation: ld-fade 1s ease .5s both;
+}
+.ld-tape-track { display: flex; width: max-content; animation: ld-marquee 70s linear infinite; }
+.ld-tape-group { display: flex; align-items: center; flex-shrink: 0; }
+.ld-tape span {
+  padding: 0 30px; color: #fff; font-family: var(--ld-display); font-size: 22px; font-weight: 700; line-height: 1.2;
+  letter-spacing: -.01em; text-transform: uppercase; white-space: nowrap;
+}
+.ld-tape i { width: 11px; height: 11px; flex-shrink: 0; background: var(--ld-ink); transform: rotate(45deg); }
+@keyframes ld-marquee { to { transform: translateX(-50%); } }
 
 /* ---------- Recursos ---------- */
 /* Cada recurso tem a sua cor, misturada no fundo escuro, sempre chapada. */
@@ -436,12 +458,15 @@
 .ld-plat-link:hover .ico { transform: translateX(3px); }
 
 /* ---------- Fecho ---------- */
+/* Uma faixa roxa de ponta a ponta, cortada no mesmo ângulo da faixa do topo; aqui a etiqueta é a escura. */
 .ld-final {
-  display: grid; justify-items: center; max-width: 1136px; margin: 88px auto; padding: 88px 32px; border-radius: 32px; text-align: center;
-  background: var(--ld-grain), var(--ld-purple);
+  --slant: 4.4vw;
+  display: grid; justify-items: center; margin: 72px 0 88px; padding: calc(96px + var(--slant)) var(--ld-gutter); text-align: center;
+  background: var(--ld-grain), var(--ld-purple); clip-path: polygon(0 var(--slant), 100% 0, 100% calc(100% - var(--slant)), 0 100%);
 }
+.ld-final .ld-tag { display: inline-block; margin-top: .1em; padding: .1em .2em .05em; background: var(--ld-grain), var(--ld-ink); transform: rotate(var(--ld-tilt)); }
 .ld-final h2 { margin: 0; color: #fff; font-family: var(--ld-display); font-size: clamp(30px, 4.6vw, 58px); font-weight: 800; line-height: 1.05; letter-spacing: -.02em; text-transform: uppercase; }
-.ld-final p { margin: 16px 0 0; max-width: 520px; color: #fff; font-size: 18px; line-height: 1.6; opacity: .88; }
+.ld-final p { margin: 24px 0 0; max-width: 520px; color: #fff; font-size: 18px; line-height: 1.6; opacity: .88; }
 .ld-final .ld-cta { justify-content: center; }
 
 /* ---------- Rodapé ---------- */
@@ -464,6 +489,9 @@
   .ld-hero-copy { max-width: 640px; }
   .ld-hero h1 { font-size: clamp(34px, 6.6vw, 64px); }
   .ld-preview { margin-right: calc(-1 * var(--ld-gutter)); }
+  /* Com o app embaixo do texto, a faixa sai rente à base da janela e só a ponta direita fica por trás dela. */
+  .ld-tape { margin-top: -64px; }
+  .ld-features { padding-top: 40px; }
 }
 @media (max-width: 1080px) {
   .ld-row { gap: 48px; }
@@ -481,7 +509,11 @@
 }
 @media (max-width: 720px) {
   #landing { --ld-gutter: 16px; --ld-win-h: 420px; }
-  .ld-preview { padding: 20px 0 20px 20px; border-radius: 22px 0 0 22px; }
+  .ld-hero { padding-bottom: 32px; }
+  .ld-window { border-radius: 14px 0 0 14px; }
+  .ld-tape { margin-top: -68px; padding: 15px 0; }
+  .ld-tape span { padding: 0 20px; font-size: 16px; }
+  .ld-tape i { width: 8px; height: 8px; }
   .ld-top-inner { gap: 10px; padding-block: 14px; }
   .ld-top.scrolled .ld-top-inner { padding-block: 10px; }
   .ld-brand .brand-mark { width: 34px; height: 34px; }
@@ -503,7 +535,7 @@
   .ld-msg small { display: none; }
   .ld-w-input { gap: 10px; margin: 0 12px 14px; padding: 11px 12px; }
   .ld-pip { top: 58px; right: 12px; width: 46%; }
-  .ld-features { padding: 48px var(--ld-gutter) 16px; }
+  .ld-features { padding: 24px var(--ld-gutter) 16px; }
   .ld-copy p { font-size: 17px; }
   .ld-art { min-height: 320px; padding: 28px 16px; border-radius: 22px; }
   .ld-art .ld-invite { transform: rotate(-2deg) translate(0, -6px); }
@@ -516,7 +548,7 @@
   .ld-more, .ld-platforms { padding-top: 56px; }
   .ld-more h2, .ld-platforms h2 { margin-bottom: 28px; }
   .ld-plat { padding: 24px 22px; border-radius: 20px; }
-  .ld-final { margin: 56px var(--ld-gutter); padding: 56px 20px; border-radius: 24px; }
+  .ld-final { margin: 48px 0 56px; padding: calc(64px + var(--slant)) 20px; }
   .ld-footer-main { flex-direction: column; gap: 32px; padding: 36px 0 28px; }
   .ld-footer-cols { gap: 56px; }
 }
