@@ -1418,7 +1418,7 @@
   }
 
   // ---------------- mensagens ----------------
-  const msgNodes = new Map(); // id -> { sig, node }
+  const msgNodes = new Map(); // id -> { sig, epoch, node }
   const extraNodes = new Map(); // boas-vindas e divisores de data, por chave
 
   function cachedNode(key, build) {
@@ -1473,6 +1473,8 @@
       scrollToEnd = true;
     }
     const list = state.messages[state.textChannel] || [];
+    // O que vale para todas as mensagens (membros, cargos, permissões...): comparado à parte, uma vez por
+    // mensagem, em vez de entrar no texto da assinatura de cada uma (que chega a 300 por canal).
     const epoch = JSON.stringify([state.server.members.map((m) => [m.id, m.name, m.color, m.avatarUrl, m.avatarCrop, m.roles]), [...new Set(list.map((msg) => msg.authorId))].map((id) => state.messageAuthors.get(id)), state.server.roles.map((r) => [r.id, r.name, r.color]),
       hasPerm('MANAGE_MESSAGES'), canWrite(), inDm(), state.replyTo?.id, dayKey(Date.now()), salon.channel === state.textChannel, state.voiceChannel]);
     const nodes = [welcomeNode(channel)];
@@ -1484,12 +1486,12 @@
         ? !!(prev?.bot && !newDay && !msg.command && !msg.ephemeral && !prev.ephemeral && msg.ts - prev.ts < 5 * 60 * 1000)
         : !!(prev && !newDay && !msg.replyTo && !prev.bot && prev.authorId === msg.authorId && (msg.authorId || prev.authorName === msg.authorName) && msg.ts - prev.ts < 5 * 60 * 1000);
       const replied = msg.replyTo ? list.find((m) => m.id === msg.replyTo) || null : null;
-      const sig = JSON.stringify([msg, continued, state.editing === msg.id, epoch, replied && [replied.text, replied.authorId, !!replied.attachments]]);
+      const sig = JSON.stringify([msg, continued, state.editing === msg.id, replied && [replied.text, replied.authorId, !!replied.attachments]]);
       let entry = msgNodes.get(msg.id);
-      if (!entry || entry.sig !== sig) {
+      if (!entry || entry.sig !== sig || entry.epoch !== epoch) {
         // Só a mensagem que acabou de chegar entra deslizando; histórico e reconstruções aparecem direto.
         const arriving = !entry && !firstPaint && Date.now() - msg.ts < 15000;
-        entry = { sig, node: msg.call
+        entry = { sig, epoch, node: msg.call
           ? dmCall.messageNode(msg, { channel: state.textChannel, time: hhmm(msg.ts), stamp: formatStamp(msg.ts) })
           : buildMessage(msg, continued, replied, msg.replyTo && !replied) };
         if (arriving) {
@@ -2343,10 +2345,17 @@
           if (src) video.play().catch(() => { if (video.srcObject === src) mediaNotice('O navegador pausou a reprodução. Clique no vídeo para retomar.'); });
         }
         video.onclick = () => video.play().catch(() => {});
-        tile.querySelector('.label').replaceChildren(
-          el('span', { class: 'live-pill' + (v.paused ? ' paused' : '') }, v.paused ? 'PAUSADO' : 'AO VIVO'),
-          Icon('screen', 16), el('span', { class: 'label-name', textContent: self ? `Sua transmissão · ${SHARE_PRESETS[state.sharePreset].label}` : 'Tela de ' + m.name }));
-        tile.querySelector('.label .ico').style.color = '#fff';
+        // Como no bloco de cada pessoa: a etiqueta só é refeita quando o texto dela muda.
+        const screenLabel = tile.querySelector('.label');
+        const screenLabelText = self ? `Sua transmissão · ${SHARE_PRESETS[state.sharePreset].label}` : 'Tela de ' + m.name;
+        const screenLabelKey = JSON.stringify([!!v.paused, screenLabelText]);
+        if (screenLabel.dataset.key !== screenLabelKey) {
+          screenLabel.dataset.key = screenLabelKey;
+          screenLabel.replaceChildren(
+            el('span', { class: 'live-pill' + (v.paused ? ' paused' : '') }, v.paused ? 'PAUSADO' : 'AO VIVO'),
+            Icon('screen', 16), el('span', { class: 'label-name', textContent: screenLabelText }));
+          screenLabel.querySelector('.ico').style.color = '#fff';
+        }
         tile.setAttribute('aria-label', self ? 'Destacar sua transmissão' : 'Destacar tela de ' + m.name);
         renderTileControls(tile, { kind: 'screen', self, sid: v.sid, accountId: m.id, hidden });
       }

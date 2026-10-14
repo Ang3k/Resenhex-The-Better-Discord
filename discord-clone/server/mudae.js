@@ -56,10 +56,14 @@ function parse(text) {
 // antigas (só anime), e a foto do anime é só o final do endereço do AniList.
 function createMudae({ catalog, now = Date.now, random = Math.random, refSize = REF_SIZE }) {
   const bySource = new Map();
+  // O nome da obra se repete em milhares de linhas: guardar uma cópia só de cada um economiza memória.
+  const seriesNames = new Map();
   for (const [id, name, series, img, gender, score = 0, source = 'a'] of catalog) {
     if (!SOURCES[source]) continue;
     if (!bySource.has(source)) bySource.set(source, []);
-    bySource.get(source).push({ id, name, series, img, gender, score, source, key: normalize(name) });
+    if (!seriesNames.has(series)) seriesNames.set(series, series);
+    // pos e eq já nascem no objeto (preenchidos logo abaixo): todos ficam com o mesmo formato, mais enxuto.
+    bySource.get(source).push({ id, name, series: seriesNames.get(series), img, gender, score, source, key: normalize(name), pos: 0, eq: 0 });
   }
   for (const list of bySource.values()) {
     list.sort((a, b) => b.score - a.score);
@@ -72,15 +76,15 @@ function createMudae({ catalog, now = Date.now, random = Math.random, refSize = 
   const chars = [...bySource.values()].flat().sort((a, b) => a.eq - b.eq);
   const byId = new Map(chars.map((c) => [String(c.id), c]));
   const lookup = (id) => byId.get(String(id));
-  const pools = {};
-  const pool = (name, filter) => { pools[name] = chars.filter(filter); };
-  pool('m', () => true);
-  pool('w', (c) => c.gender === 'F');
-  pool('h', (c) => c.gender === 'M');
-  for (const s of bySource.keys()) {
-    pool('m' + s, (c) => c.source === s);
-    pool('w' + s, (c) => c.source === s && c.gender === 'F');
-    pool('h' + s, (c) => c.source === s && c.gender === 'M');
+  // Listas de sorteio ($w, $h, $m e por fonte), montadas numa passada só e na mesma ordem de chars.
+  // "m" é a própria chars: nenhuma lista é alterada depois de pronta.
+  const pools = { m: chars, w: [], h: [] };
+  const poolsOf = new Map([...bySource.keys()].map((s) => [s, [pools['m' + s] = [], pools['w' + s] = [], pools['h' + s] = []]]));
+  for (const c of chars) {
+    const [all, women, men] = poolsOf.get(c.source);
+    all.push(c);
+    if (c.gender === 'F') { pools.w.push(c); women.push(c); }
+    else if (c.gender === 'M') { pools.h.push(c); men.push(c); }
   }
 
   const imageOf = (c) => (/^https?:\/\//.test(c.img) ? c.img : IMG_PREFIX + c.img);
