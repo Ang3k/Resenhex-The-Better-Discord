@@ -100,6 +100,9 @@ window.MediaSession = function ({ state, socket, call, el, toast, voiceEntry, me
     } finally { watchingRequests.delete(sid); }
   }
 
+  const screenCodecs = (sid) => MediaPolicy.screenCodecs(presets[state.sharePreset], demands.get(sid)?.codecs, state.screenCodecFallback);
+  // Jogo ou vídeo detectado num perfil de texto: cada espectador volta a receber o tamanho do seu bloco.
+  const activePreset = () => state.screenMotion ? { ...presets[state.sharePreset], motion: true } : presets[state.sharePreset];
   function addVideoTracks(peer, kind) {
     if (sfu?.active()) return;
     const stream = state.local[kind];
@@ -107,8 +110,35 @@ window.MediaSession = function ({ state, socket, call, el, toast, voiceEntry, me
     for (const track of stream.getTracks()) {
       const sender = peer.pc.addTrack(track, stream);
       peer.senders[kind].push(sender);
-      if (track.kind === 'video') preferCodec(peer.pc, sender, kind === 'screen' ? MediaPolicy.screenCodecs(presets[state.sharePreset], demands.get(peer.sid)?.codecs) : ['video/VP8']);
+      if (track.kind === 'video') preferCodec(peer.pc, sender, kind === 'screen' ? screenCodecs(peer.sid) : ['video/VP8']);
     }
+  }
+
+  // Troca o codec de envio sem renegociar (encodings[0].codec), entre os que a conexão já negociou:
+  // o espectador informou outro codec preferido ou o processador não deu conta do AV1/VP9.
+  async function setCodec(sender, wanted) {
+    const params = sender.getParameters();
+    if (!params.codecs?.length || !params.encodings?.length) return;
+    const codec = wanted.map((mime) => params.codecs.find((c) => c.mimeType.toLowerCase() === mime.toLowerCase())).find(Boolean);
+    const current = params.encodings[0].codec?.mimeType || params.codecs[0]?.mimeType;
+    if (!codec || current?.toLowerCase() === codec.mimeType.toLowerCase()) return;
+    params.encodings[0].codec = codec;
+    try { await sender.setParameters(params); }
+    catch (error) { if (!['NotSupportedError', 'TypeError', 'InvalidModificationError'].includes(error.name)) throw error; }
+  }
+  function heavyContent() {
+    if (state.screenMotion) return;
+    state.screenMotion = true;
+    tuneSenders();
+  }
+  function lighterCodec(codec) {
+    const fallback = MediaPolicy.cpuFallback(codec);
+    if (!fallback || state.screenCodecFallback) return;
+    state.screenCodecFallback = fallback;
+    for (const peer of state.peers.values()) { peer.cpu = {}; peer.adaptation = {}; peer.encodeSample = null; }
+    state.mediaHealth = 'Seu processador ficou no limite com o codec mais nítido. A transmissão passou para um mais leve.';
+    renderDiagnostics();
+    tuneSenders();
   }
 
   function syncScreenSubscriptions() {
@@ -155,12 +185,28 @@ window.MediaSession = function ({ state, socket, call, el, toast, voiceEntry, me
   function videoBitrates() {
     return MediaPolicy.allocate(state.uploadMbps, [...state.peers].map(([sid, peer]) => ({ sid, watching: viewers().includes(sid),
       demand: demands.get(sid), level: peer.adaptation.level || 0 })),
-    { screen: !!state.local.screen, screenAudio: !!state.local.screen?.getAudioTracks().length, camera: !!state.local.camera, preset: presets[state.sharePreset] });
+    { screen: !!state.local.screen, screenAudio: !!state.local.screen?.getAudioTracks().length, camera: !!state.local.camera, preset: activePreset() });
+  }
+  // Resposta do espectador com a taxa inicial da tela em H.264 (MediaPolicy.startBitrate): 90% do que
+  // ele vai receber. O valor fica fixo por trilha, porque trocá-lo numa renegociação seguinte recriaria
+  // o codificador. Com a câmera ligada a estimativa já está aquecida e nada muda.
+  function remoteDescription(peer, description) {
+    if (description?.type !== 'answer' || sfu?.active() || !state.local.screen) return description;
+    const rates = {};
+    for (const transceiver of peer.pc.getTransceivers()) {
+      const { sender, mid } = transceiver;
+      if (mid == null || sender.track?.kind !== 'video' || !peer.senders.screen.includes(sender)) continue;
+      if (sender.startKbps === undefined) sender.startKbps = state.local.camera ? 0 : Math.max(300, Math.round((videoBitrates().get(peer.sid)?.screen || 0) * .9 / 1000));
+      if (sender.startKbps) rates[mid] = sender.startKbps;
+    }
+    return Object.keys(rates).length ? { type: 'answer', sdp: MediaPolicy.startBitrate(description.sdp, rates) } : description;
   }
 
   async function setEncoding(sender, encoding, degradation) {
     encoding = { ...encoding };
     if (sender.scalingUnsupported) delete encoding.scaleResolutionDownBy;
+    // "maintain-framerate-and-resolution" é recente; quem não conhece recebe o comportamento anterior.
+    if (degradation === 'maintain-framerate-and-resolution' && sender.keepBothUnsupported) degradation = 'maintain-framerate';
     let params = sender.getParameters();
     if (!params.encodings?.length) return;
     const same = Object.entries(encoding).every(([key, value]) => params.encodings[0][key] === value);
@@ -174,6 +220,7 @@ window.MediaSession = function ({ state, socket, call, el, toast, voiceEntry, me
     }
     catch (error) {
       if (!['NotSupportedError', 'TypeError', 'InvalidModificationError'].includes(error.name)) throw error;
+      if (degradation === 'maintain-framerate-and-resolution') { sender.keepBothUnsupported = true; return setEncoding(sender, encoding, 'maintain-framerate'); }
       // Optional controls differ across browsers. Preserve bitrate/active limits and
       // never constrain a shared track to one viewer's smaller resolution.
       params = sender.getParameters();
@@ -204,13 +251,14 @@ window.MediaSession = function ({ state, socket, call, el, toast, voiceEntry, me
         do {
           peer.tuneAgain = false;
           const rates = videoBitrates().get(peer.sid);
-          const preset = presets[state.sharePreset];
+          const preset = activePreset();
           const mic = peer.pc.getSenders().find((sender) => sender.track?.kind === 'audio' && !peer.senders.screen.includes(sender));
           if (mic) await setEncoding(mic, { maxBitrate: 64000, priority: 'high' });
           for (const kind of ['screen', 'camera']) {
             for (const sender of peer.senders[kind]) {
               if (sender.track?.kind === 'audio' && kind === 'screen') { await setEncoding(sender, { maxBitrate: 96000, priority: 'high' }); continue; }
               if (sender.track?.kind !== 'video') continue;
+              if (kind === 'screen') await setCodec(sender, screenCodecs(peer.sid));
               const encoding = kind === 'screen' ? MediaPolicy.screenEncoding(preset, rates.screen, demands.get(peer.sid), sender.track.getSettings?.(), peer.adaptation.level || 0)
                 : MediaPolicy.encoding({ fps: 30 }, rates.camera);
               await setEncoding(sender, encoding, kind === 'screen' ? preset.degradation : 'balanced');
@@ -256,6 +304,7 @@ window.MediaSession = function ({ state, socket, call, el, toast, voiceEntry, me
   function setSharePreset(key) {
     if (!presets[key]) return;
     state.sharePreset = key;
+    state.screenCodecFallback = state.screenMotion = null;
     localStorage.setItem('sharePreset', key);
     for (const peer of state.peers.values()) peer.adaptation = {};
     applySharePreset();
@@ -424,7 +473,7 @@ window.MediaSession = function ({ state, socket, call, el, toast, voiceEntry, me
     if (sfu?.active()) sfu.stop(kind).catch(() => {});
     if (!stream) return;
     releaseCapture(stream);
-    if (kind === 'screen') { state.sharePaused = false; state.shareAudioMode = null; ownAudio?.sync(null); syncScreenSubscriptions(); }
+    if (kind === 'screen') { state.sharePaused = false; state.shareAudioMode = null; state.screenCodecFallback = state.screenMotion = null; state.videoEncoder = ''; ownAudio?.sync(null); syncScreenSubscriptions(); }
     else for (const peer of state.peers.values()) {
       for (const sender of peer.senders.camera) { if (active(peer)) peer.pc.removeTrack(sender); }
       peer.senders.camera = [];
@@ -512,8 +561,22 @@ window.MediaSession = function ({ state, socket, call, el, toast, voiceEntry, me
           const r = outbound;
           stats.screen = videoMeasurement(sid, outboundReport, r, r.bytesSent);
           stats.video = MediaPolicy.formatVideoStats([stats.screen]);
-          const preset = presets[state.sharePreset];
-          if (preset.adaptive) {
+          const preset = activePreset();
+          const codec = (outboundReport.get(r.codecId) || report.get(r.codecId))?.mimeType;
+          const previous = peer.encodeSample;
+          peer.encodeSample = { time: r.totalEncodeTime, frames: r.framesEncoded };
+          const encodeMs = previous && r.framesEncoded > previous.frames ? (r.totalEncodeTime - previous.time) / (r.framesEncoded - previous.frames) * 1000 : null;
+          const load = MediaPolicy.encoderLoad({ reason: r.qualityLimitationReason, encodeMs, fps: MediaPolicy.screenTarget(preset, demands.get(sid), peer.adaptation.level || 0).fps,
+            bitrate: stats.screen.bitrate, target: r.targetBitrate });
+          state.videoEncoder = [r.powerEfficientEncoder === true ? 'Codificação por hardware' : r.encoderImplementation ? `Codificador: ${r.encoderImplementation}` : '',
+            codec?.split('/')[1], load.cpu ? 'limitado pelo processador' : ''].filter(Boolean).join(' · ');
+          // Processador no limite com AV1/VP9: primeiro troca para o codec leve, mantendo a resolução.
+          peer.cpu = MediaPolicy.cpuStrain(peer.cpu, { limited: load.cpu && !state.screenCodecFallback, codec }, now);
+          if (peer.cpu.fallback) lighterCodec(codec);
+          peer.heavy = MediaPolicy.sustained(peer.heavy, load.heavy && preset.hint === 'detail' && !state.screenMotion, now);
+          if (peer.heavy.reached) heavyContent();
+          const awaitingCodec = peer.cpu.since != null;
+          if (preset.adaptive && !awaitingCodec) {
             const demand = demands.get(sid), level = peer.adaptation.level || 0;
             const target = MediaPolicy.screenTarget(preset, demand, level);
             const source = outboundReport.get(r.mediaSourceId) || report.get(r.mediaSourceId);
@@ -522,7 +585,7 @@ window.MediaSession = function ({ state, socket, call, el, toast, voiceEntry, me
             const upper = level ? MediaPolicy.screenTarget(preset, demand, level - 1).bitrate : 0;
             const headroom = level && fresh != null ? fresh - 176_000 >= upper * 1.25 : undefined;
             peer.adaptation = MediaPolicy.adapt(peer.adaptation, { active: stats.screen.progressing, strained, headroom }, now);
-          } else peer.adaptation = {};
+          } else if (!preset.adaptive) peer.adaptation = {};
         }
         peer.stats = stats;
         const tile = document.querySelector(`[data-key="screen-${sid}"]`);
@@ -556,5 +619,5 @@ window.MediaSession = function ({ state, socket, call, el, toast, voiceEntry, me
     } finally { statsBusy = false; }
   }
   setInterval(updateStreamStats, 1500);
-  return { isWatching, setWatching, getWatchQuality, setWatchQuality, syncViewerQuality, addVideoTracks, syncScreenSubscriptions, videoBitrates, tuneSenders, applySharePreset, setSharePreset, captureScreen, watchScreenTrack, switchScreen, startVideo, stopVideo, scheduleRecovery, renderDiagnostics, updateStreamStats, mediaNotice };
+  return { isWatching, setWatching, getWatchQuality, setWatchQuality, syncViewerQuality, addVideoTracks, syncScreenSubscriptions, videoBitrates, remoteDescription, tuneSenders, applySharePreset, setSharePreset, captureScreen, watchScreenTrack, switchScreen, startVideo, stopVideo, scheduleRecovery, renderDiagnostics, updateStreamStats, mediaNotice };
 };
