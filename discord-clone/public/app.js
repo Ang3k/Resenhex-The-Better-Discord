@@ -125,6 +125,10 @@
   };
 
   let audioCtx = null;
+  // Chamada que continua quando a conexão cai (veja "a chamada continua quando a conexão cai").
+  let callTarget = null; // canal da chamada da pessoa: entrando, dentro ou esperando a conexão voltar
+  let heldMic = null; // { stream, key }: microfone guardado para a volta à chamada
+  let androidTitle = { channel: null, name: '' }; // título da notificação da call no Android
   const analysers = new Map(); // sid -> { analyser, source, data }
   let nicknameDialog = null;
 
@@ -528,9 +532,11 @@
       if (res.error) {
         if (payload.token) localStorage.removeItem('token');
         setConnBanner(null);
+        endCall(); // sem sessão, não há chamada para voltar
         showLogin(undefined, payload.token ? 'login' : payload.mode);
         return toast(res.error);
       }
+      sessionReady = true;
       localStorage.setItem('token', res.token);
       if (payload.name) localStorage.setItem('name', payload.name);
       state.me = { accountId: res.accountId, sid: res.sid, name: res.name, since: res.since };
@@ -557,7 +563,7 @@
         $('#messages').dataset.channel = '';
         setConnBanner(null);
         toast('Reconectado!', 'info');
-        if (opts.rejoin) joinVoice(opts.rejoin, { keepView: opts.view !== 'voice', serverId: opts.rejoinServer, startedAt: opts.rejoinStartedAt, silent: true });
+        resumeCall();
       }
       call('chat:unread').then((r) => {
         if (!r) return;
@@ -597,26 +603,29 @@
     state.removed = true;
     localStorage.removeItem('token');
     leaveVoice(false);
+    endCall();
     showLogin(reason);
   });
 
-  // Se a conexão cair, o app tenta voltar sozinho, sem recarregar a página.
+  // Se a conexão cair, o app tenta voltar sozinho, sem recarregar a página. A chamada fica guardada
+  // (microfone aberto e o serviço da call no Android ligado) e volta junto com a conexão.
   let reconnecting = false;
   let rejoinVoice = null;
+  let socketDrops = 0; // quedas da conexão desde que a página abriu
+  let sessionReady = false; // conectado e autenticado
   socket.on('disconnect', (reason) => {
+    socketDrops++;
+    sessionReady = false;
     if (reason === 'io client disconnect' || state.removed || !state.me) return;
     reconnecting = true;
-    if (state.voiceChannel) rejoinVoice = { channel: state.voiceChannel, serverId: callInfo()?.serverId, view: state.view, startedAt: state.callStartedAt };
-    leaveVoice(false, false);
+    holdCall();
     setConnBanner('Conexão perdida. Tentando reconectar…');
   });
   socket.on('connect', () => {
     const token = localStorage.getItem('token');
     if (!reconnecting || state.removed || !token) return;
     reconnecting = false;
-    const rejoin = rejoinVoice;
-    rejoinVoice = null;
-    authenticate({ token }, { reconnect: true, rejoin: rejoin?.channel, rejoinServer: rejoin?.serverId, rejoinStartedAt: rejoin?.startedAt, view: rejoin?.view });
+    authenticate({ token }, { reconnect: true });
   });
 
   socket.on('notice', (text) => toast(text, 'info'));
@@ -4162,7 +4171,9 @@
       console.warn('Microfone indisponível:', err);
       toast('Microfone indisponível — você entrou só para ouvir.');
       // Trilha silenciosa para manter a negociação WebRTC igual para todos.
-      return getAudioCtx().createMediaStreamDestination().stream;
+      const silence = getAudioCtx().createMediaStreamDestination().stream;
+      silence.listenOnly = true;
+      return silence;
     }
     const fx = VoiceFx.valid(options.voiceFx) && options.voiceFx !== 'none';
     return ai || fx ? processMic(raw, options) : raw;
@@ -4183,8 +4194,11 @@
     const mode = options.noiseMode, ai = mode === 'ai' || mode === 'ai-lite';
     const fxId = VoiceFx.valid(options.voiceFx) && options.voiceFx !== 'none' ? options.voiceFx : null;
     // Os modelos trabalham a 48 kHz (a taxa do Opus), então o contexto é criado nessa taxa.
-    noise.ctx ||= new AudioContext({ sampleRate: 48000, latencyHint: 'interactive' });
-    if (noise.ctx.state === 'suspended') noise.ctx.resume();
+    if (!noise.ctx) {
+      noise.ctx = new AudioContext({ sampleRate: 48000, latencyHint: 'interactive' });
+      noise.ctx.addEventListener?.('statechange', keepCallAudio);
+    }
+    if (noise.ctx.state === 'suspended') noise.ctx.resume().catch(() => {});
     const source = noise.ctx.createMediaStreamSource(raw);
     // Converte para mono antes da IA: o modelo processa um canal só e, se o microfone
     // chegasse em estéreo, o canal vazio na saída cortaria o volume da voz pela metade (-6 dB).
@@ -4249,9 +4263,16 @@
   }
 
   // Troca o microfone (outro dispositivo ou outra supressão) sem derrubar a chamada.
-  async function restartMic(options = state) {
+  // fresh: solta a captura atual antes de abrir a nova. Enquanto alguma trilha dela vive (o medidor
+  // usa uma cópia), o navegador reaproveita a mesma captura, e uma captura que o Android silenciou
+  // continuaria muda; só uma aberta do zero, com o app na tela, volta a ter voz.
+  async function restartMic(options = state, { fresh = false } = {}) {
     if (!state.voiceChannel) return;
     const old = state.micStream;
+    if (fresh) {
+      attachGate(null);
+      releaseMic(old);
+    }
     const next = await getMicStream(options, true);
     const blocked = !state.me || !state.server || selfSilent();
     next.getAudioTracks().forEach((track) => { track.enabled = !blocked; });
@@ -4317,9 +4338,17 @@
   }
 
   function getAudioCtx() {
-    audioCtx ||= new AudioContext();
-    if (audioCtx.state === 'suspended') audioCtx.resume();
+    if (!audioCtx) {
+      audioCtx = new AudioContext();
+      audioCtx.addEventListener?.('statechange', keepCallAudio);
+    }
+    if (audioCtx.state === 'suspended') audioCtx.resume().catch(() => {});
     return audioCtx;
+  }
+  // Na chamada, um contexto de áudio suspenso ou interrompido pelo sistema (outro app, ligação) volta.
+  function keepCallAudio() {
+    if (!callTarget) return;
+    for (const ctx of [audioCtx, noise.ctx]) if (ctx && ['suspended', 'interrupted'].includes(ctx.state)) ctx.resume().catch(() => {});
   }
 
   // ---------------- saída única da chamada ----------------
@@ -4408,7 +4437,8 @@
 
   // ---------------- sensibilidade de entrada ----------------
   // Mede o microfone por uma cópia da trilha (a original é desligada quando o "portão" fecha).
-  const gate = { open: true, meter: null, level: -100, floor: -60, lastLoud: 0 };
+  // repeats: leituras iguais seguidas; lastTick: hora da última medida (o timer pode atrasar).
+  const gate = { open: true, meter: null, level: -100, floor: -60, lastLoud: 0, repeats: 0, lastTick: 0 };
   function levelMeter(stream) {
     const track = stream.getAudioTracks()[0];
     if (!track) return null;
@@ -4420,6 +4450,7 @@
     source.connect(analyser);
     const data = new Float32Array(analyser.fftSize);
     return {
+      ctx,
       read() {
         analyser.getFloatTimeDomainData(data);
         let sum = 0;
@@ -4435,7 +4466,8 @@
     // corte mesmo quando a supressão já limpou o ruído.
     gate.meter = stream ? levelMeter(noise.pipes.get(stream)?.raw || stream) : null;
     gate.open = true;
-    gate.lastLoud = performance.now();
+    gate.lastLoud = gate.lastTick = performance.now();
+    gate.repeats = 0;
   }
   // Limite automático: acompanha o ruído de fundo e abre ~12 dB acima dele.
   const gateThreshold = () => (state.sensAuto ? Math.min(-25, Math.max(-65, gate.floor + 12)) : state.sensThreshold);
@@ -4443,21 +4475,30 @@
     if (!gate.meter) return;
     const now = performance.now();
     const level = gate.meter.read();
+    // O corte só fecha o microfone com uma medida confiável. Um microfone de verdade nunca repete o
+    // mesmo valor: repetido é o medidor parado ou o Android entregando silêncio absoluto. Contexto
+    // de áudio parado ou timer atrasado também não medem a voz. Na dúvida, a voz passa.
+    gate.repeats = level === gate.level ? gate.repeats + 1 : 0;
+    const trusted = gate.meter.ctx.state === 'running' && gate.repeats < 8 && now - gate.lastTick < 1000;
+    gate.lastTick = now;
     gate.level = level;
-    gate.floor = level < gate.floor ? gate.floor * 0.7 + level * 0.3 : gate.floor + 0.02; // sobe devagar, desce rápido
-    // No mínimo manual (-80 dB) o corte fica desligado: microfone sempre aberto.
-    if (level > gateThreshold() || (!state.sensAuto && state.sensThreshold <= -80)) gate.lastLoud = now;
-    // Com a página escondida (tela bloqueada, outro app ou aba) o navegador espaça este timer para
-    // 1 vez por segundo ou menos, e o corte fecharia entre as leituras: aí o microfone fica aberto.
+    if (trusted) {
+      gate.floor = level < gate.floor ? gate.floor * 0.7 + level * 0.3 : gate.floor + 0.02; // sobe devagar, desce rápido
+      // No mínimo manual (-80 dB) o corte fica desligado: microfone sempre aberto.
+      if (level > gateThreshold() || (!state.sensAuto && state.sensThreshold <= -80)) gate.lastLoud = now;
+    } else gate.lastLoud = now;
+    // Com a página escondida (aba, outro app) ou o app de Android fora da tela (tela bloqueada) o
+    // timer pode espaçar ou parar, e o corte ficaria fechado entre as leituras: o microfone fica aberto.
     // A queued Bêbado syllable must reach the receiver before the sensitivity
     // gate closes. Hard mute/PTT still blocks immediately in applyAudio().
     const fxTail = noise.pipes.get(state.micStream)?.fx?.tailSeconds || 0;
-    const open = document.hidden || now - gate.lastLoud < 400 + Math.min(4, fxTail) * 1000;
+    const open = micInBackground() || now - gate.lastLoud < 400 + Math.min(4, fxTail) * 1000;
     if (open !== gate.open) {
       gate.open = open;
       applyAudio();
     }
   }
+  const micInBackground = () => document.hidden || !!window.AndroidApp?.backgrounded;
   setInterval(updateGate, 50);
 
   // Aplica mudo/surdo (meu, do servidor e local) em tudo que toca ou transmite.
@@ -4627,22 +4668,95 @@
   }
   document.addEventListener('visibilitychange', updateCallTime);
 
+  // ---------------- a chamada continua quando a conexão cai ----------------
+  // Do toque em "entrar" até a pessoa sair de vez, ela está na chamada, inclusive enquanto a conexão
+  // cai e volta (rede oscilando, servidor reiniciando): o microfone fica aberto e o app de Android
+  // mantém o serviço da call. Com o celular bloqueado, o Android não deixa abrir o microfone de novo
+  // nem religar o serviço com ele; se a chamada acabasse a cada queda, a pessoa voltava ouvindo todo
+  // mundo e ninguém a ouvia.
+  let rejoinGiveUp = null;
+  const REJOIN_LIMIT = 5 * 60_000; // tanto tempo sem conexão e a pessoa sai da chamada
+  const micKey = () => JSON.stringify([state.micDeviceId, state.noiseMode, state.echoCancellation, state.voiceFx]);
+  const capturing = (stream) => !!stream?.getAudioTracks().some((t) => t.readyState === 'live');
+
+  function holdMic(stream) {
+    if (!stream || heldMic?.stream === stream) return;
+    dropHeldMic();
+    heldMic = { stream, key: micKey() };
+  }
+  // Devolve o microfone guardado se ele ainda captura com as mesmas opções; senão o solta.
+  function takeHeldMic() {
+    const held = heldMic;
+    heldMic = null;
+    if (!held) return null;
+    if (held.key === micKey() && capturing(held.stream) && capturing(noise.pipes.get(held.stream)?.raw || held.stream)) return held.stream;
+    releaseMic(held.stream);
+    return null;
+  }
+  function dropHeldMic() {
+    const held = heldMic;
+    heldMic = null;
+    if (held) releaseMic(held.stream);
+  }
+
+  // A conexão caiu no meio da chamada: guarda a chamada para voltar a ela com a conexão.
+  function holdCall() {
+    if (!state.voiceChannel) return; // entrando: joinVoice percebe a queda e guarda a chamada
+    awaitRejoin({ channel: state.voiceChannel, serverId: callInfo()?.serverId, view: state.view, startedAt: state.callStartedAt });
+    leaveVoice(false, false, { rejoin: true });
+  }
+  function awaitRejoin(rejoin) {
+    rejoinVoice = rejoin;
+    clearTimeout(rejoinGiveUp);
+    rejoinGiveUp = setTimeout(() => {
+      if (!rejoinVoice || joining || state.voiceChannel) return;
+      endCall();
+      toast('A conexão não voltou a tempo e você saiu da chamada.', 'info');
+    }, REJOIN_LIMIT);
+  }
+  // A conexão voltou (e a sessão também): entra de novo na chamada guardada, com o mesmo microfone.
+  function resumeCall() {
+    const rejoin = rejoinVoice;
+    if (!rejoin || joining || state.voiceChannel || !sessionReady) return;
+    rejoinVoice = null;
+    clearTimeout(rejoinGiveUp);
+    joinVoice(rejoin.channel, { keepView: rejoin.view !== 'voice', serverId: rejoin.serverId, startedAt: rejoin.startedAt, silent: true });
+  }
+  // A pessoa saiu de vez (ou não há chamada para voltar): solta o microfone e desliga o serviço da call.
+  function endCall() {
+    callTarget = null;
+    rejoinVoice = null;
+    clearTimeout(rejoinGiveUp);
+    dropHeldMic();
+    micWatch.tries = [];
+    micWatch.silentRetried = false;
+    syncAndroidCall();
+  }
+
   // opts.keepView: entra na chamada sem trocar a tela (usado ao reconectar).
   async function joinVoice(channel, opts = {}) {
     if (joining) return; // clique duplo ou entrada já em andamento
     joining = true;
+    callTarget = channel;
+    const drops = socketDrops;
+    let mic = null, joined = false;
+    // A conexão caiu durante a entrada: a chamada fica guardada e volta com a conexão.
+    const dropped = () => drops !== socketDrops || !socket.connected;
+    // A pessoa saiu (pela notificação do Android) enquanto entrava.
+    const abandoned = () => callTarget !== channel;
     try {
-      if (state.voiceChannel) leaveVoice(true, false);
-      state.micStream = await getMicStream();
+      if (state.voiceChannel) leaveVoice(true, false, { rejoin: true }); // trocar de sala mantém o microfone
+      mic = takeHeldMic() || await getMicStream();
+      state.micStream = mic;
+      // Microfone aberto e o app ainda na tela: o app de Android já liga o serviço da call.
+      syncAndroidCall();
+      if (abandoned() || dropped()) return;
       // opts.serverId: sala de outro servidor (reconectar ou ser movido enquanto olha outro servidor).
       const res = await call('voice:join', isDm(channel) ? { dm: channel, silent: !!opts.silent, mediaVersion: 1 } : { channel, serverId: opts.serverId ?? state.server.serverId, mediaVersion: 1 });
-      if (!res) {
-        releaseMic(state.micStream);
-        state.micStream = null;
-        return;
-      }
+      if (abandoned() || dropped() || !res) return;
+      joined = true;
       const media = await call('voice:media');
-      if (!media) { socket.emit('voice:leave'); releaseMic(state.micStream); state.micStream = null; return; }
+      if (abandoned() || dropped() || !media) return;
       state.mediaTransport = media.transport;
       startVoice(channel, media.transport === 'sfu' ? [] : res.peers, opts);
       if (media.transport === 'sfu') {
@@ -4660,11 +4774,26 @@
       if (opts.video) startVideo('camera');
     } finally {
       joining = false;
+      if (!state.voiceChannel) {
+        if (state.micStream === mic) state.micStream = null;
+        if (!abandoned() && dropped()) {
+          // A sessão antiga caiu com a sala junto; a volta entra de novo com o mesmo microfone.
+          holdMic(mic);
+          awaitRejoin({ channel, serverId: opts.serverId, view: opts.keepView ? state.view : 'voice', startedAt: opts.startedAt });
+          resumeCall(); // a conexão pode ter voltado enquanto esperava
+        } else {
+          if (joined && socket.connected) socket.emit('voice:leave');
+          if (mic && heldMic?.stream !== mic) releaseMic(mic);
+          if (!abandoned()) endCall(); // não deu para entrar: a chamada acabou
+        }
+      }
     }
   }
 
   function startVoice(channel, peers, opts = {}) {
     state.voiceChannel = channel;
+    rejoinVoice = null; // entrou: nenhuma volta pendente vale mais
+    clearTimeout(rejoinGiveUp);
     state.pinned = null;
     state.stageGrid = false;
     state.voiceSnapshot = null;
@@ -4684,20 +4813,31 @@
   }
 
   // No app de Android, a chamada liga um serviço com notificação fixa que mantém a call viva com a
-  // tela bloqueada. Os botões da notificação silenciam o microfone ou saem da chamada.
+  // tela bloqueada. Ele fica ligado de quando o microfone abre até a pessoa sair de vez, inclusive
+  // durante uma queda da conexão. Os botões da notificação silenciam o microfone ou saem da chamada.
   function syncAndroidCall(micOff = state.muted || state.deafened) {
     if (!window.AndroidApp?.available) return;
-    const channel = state.voiceChannel;
-    const title = !channel ? '' : isDm(channel) ? 'Chamada privada' : channelById(channel)?.name || 'Sala de voz';
-    window.AndroidApp.callState(!!channel, title, micOff);
+    const channel = callTarget;
+    const active = !!channel && !!(state.micStream || heldMic);
+    if (active) {
+      // Durante a volta à chamada o nome da sala pode faltar: fica o último, sem mexer na notificação.
+      const name = isDm(channel) ? 'Chamada privada' : (state.voiceChannel === channel && callChannelName()) || channelById(channel)?.name;
+      if (name || androidTitle.channel !== channel) androidTitle = { channel, name: name || 'Sala de voz' };
+    }
+    window.AndroidApp.callState(active, active ? androidTitle.name : '', micOff);
   }
   window.AndroidApp?.onCallAction((action) => {
-    if (!state.voiceChannel) return;
-    if (action === 'mute') $('#btn-mute').click();
-    else if (action === 'leave') leaveVoice();
+    if (action === 'leave') leaveCall();
+    else if (action === 'mute' && callTarget) $('#btn-mute').click();
   });
+  // "Sair da call" da notificação vale também entrando ou esperando a conexão voltar.
+  function leaveCall() {
+    if (state.voiceChannel) leaveVoice();
+    else endCall();
+  }
 
-  function leaveVoice(notify = true, sound = true) {
+  // rejoin: a pessoa volta logo (queda da conexão, troca de sala): o microfone e o serviço da call ficam.
+  function leaveVoice(notify = true, sound = true, { rejoin = false } = {}) {
     if (!state.voiceChannel) return;
     if (micTestScope === 'menu') stopMicTest(false);
     Sounds.stopBoard();
@@ -4708,7 +4848,8 @@
     state.mediaTransport = null;
     state.videoEncoder = '';
     for (const sid of [...state.peers.keys()]) closePeer(sid);
-    releaseMic(state.micStream);
+    if (rejoin) holdMic(state.micStream);
+    else releaseMic(state.micStream);
     state.micStream = null;
     attachGate(null);
     unwatchSpeaking(state.me.sid);
@@ -4718,9 +4859,119 @@
     state.view = 'chat';
     if (sound) Sounds.play('leave');
     if (notify && socket.connected) socket.emit('voice:leave');
-    syncAndroidCall();
+    if (!rejoin) endCall();
     render();
   }
+
+  // ---------------- o microfone segue vivo na chamada ----------------
+  // Microfone que parou de capturar (fone desconectado, captura encerrada ou em silêncio absoluto com
+  // o app na tela) é reaberto sozinho; processamento da voz (IA ou efeito) que travou dá lugar ao
+  // microfone direto. Com limite de tentativas, para não ficar pedindo o microfone sem parar.
+  const micWatch = { tries: [], busy: false, clock: -1, clockAt: 0, meterClock: -1, meterClockAt: 0, silentSince: 0, silentRetried: false };
+  // No celular, silêncio absoluto é o sistema cortando o microfone; no computador costuma ser o botão
+  // de mudo do headset, e aí não há o que reabrir.
+  const mobileCapture = !!window.AndroidApp?.available || /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
+  function micRecoveryAllowed(now) {
+    micWatch.tries = micWatch.tries.filter((time) => now - time < 120_000);
+    return micWatch.tries.length < 3 && (!micWatch.tries.length || now - micWatch.tries.at(-1) > 10_000);
+  }
+  async function recoverMic(bypass) {
+    micWatch.busy = true;
+    micWatch.tries.push(performance.now());
+    const stuck = bypass ? noise.ctx : null;
+    try {
+      if (bypass) {
+        // O contexto travado fica para trás; a voz segue direto até a próxima entrada na chamada.
+        noise.ctx = null;
+        noise.modules.clear();
+        await restartMic({ ...state, noiseMode: state.noiseMode === 'off' ? 'off' : 'browser', voiceFx: 'none' });
+        stuck?.close().catch(() => {});
+        mediaNotice('O processamento da sua voz travou. Seu microfone seguiu direto, sem a supressão por IA e sem efeito, até você entrar de novo na chamada.');
+        sendVoiceState();
+      } else {
+        try { await restartMic(state, { fresh: true }); }
+        catch (error) {
+          // O microfone escolhido sumiu (fone desconectado): segue pelo padrão, sem mudar a escolha salva.
+          if (!state.micDeviceId || !['NotFoundError', 'OverconstrainedError'].includes(error?.name)) throw error;
+          await restartMic({ ...state, micDeviceId: '' });
+        }
+      }
+    } catch {
+      if (bypass && !noise.ctx) noise.ctx = stuck;
+      mediaNotice('Seu microfone parou de captar e não voltou sozinho. Saia e entre de novo na chamada.');
+    } finally {
+      micWatch.busy = false;
+      micWatch.clockAt = micWatch.meterClockAt = performance.now();
+      if (state.voiceChannel) renderControls();
+    }
+  }
+  setInterval(() => {
+    const stream = state.micStream;
+    if (!state.voiceChannel || !stream || stream.listenOnly || joining || micWatch.busy) return;
+    keepCallAudio();
+    const now = performance.now();
+    const pipe = noise.pipes.get(stream);
+    const raw = (pipe?.raw || stream).getAudioTracks()[0];
+    // Processamento travado: o relógio do contexto dele parou de andar com a página na tela (escondida,
+    // o navegador pode pausar o áudio dela de propósito).
+    let stalled = false;
+    if (pipe && noise.ctx) {
+      if (noise.ctx.currentTime !== micWatch.clock || document.hidden) { micWatch.clock = noise.ctx.currentTime; micWatch.clockAt = now; }
+      stalled = now - micWatch.clockAt > 3000;
+    }
+    // Silêncio absoluto com o medidor funcionando: nenhum microfone de verdade entrega zero puro.
+    // Com o app na tela não é corte do Android; reabrir o microfone resolve (uma vez por chamada).
+    const meter = gate.meter?.ctx;
+    if (meter && meter.currentTime !== micWatch.meterClock) { micWatch.meterClock = meter.currentTime; micWatch.meterClockAt = now; }
+    const silent = !!meter && meter.state === 'running' && now - micWatch.meterClockAt < 1500 && gate.level <= -119;
+    if (!silent || !mobileCapture || micInBackground()) micWatch.silentSince = 0;
+    else micWatch.silentSince ||= now;
+    const deaf = micWatch.silentSince && now - micWatch.silentSince > 4000 && !micWatch.silentRetried;
+    const ended = !raw || raw.readyState === 'ended';
+    if (!(ended || stalled || deaf) || !micRecoveryAllowed(now)) return;
+    if (deaf) micWatch.silentRetried = true;
+    recoverMic(stalled && !ended);
+  }, 1000);
+
+  // Estado do serviço da call contado pelo app de Android (APK 1.3.1+).
+  let callServiceProblem = '';
+  let micSilenced = false; // o Android está entregando silêncio no lugar do microfone (APK 1.3.2+)
+  // Uma captura que o Android silenciou continua muda mesmo com o app de volta na tela: só uma
+  // captura nova, aberta com o app na tela, volta a ter voz.
+  let reopenTimer = null;
+  function reopenSilencedMic() {
+    clearTimeout(reopenTimer);
+    reopenTimer = setTimeout(() => {
+      if (!micSilenced || !state.voiceChannel || joining || micWatch.busy || micInBackground()) return;
+      if (micRecoveryAllowed(performance.now())) recoverMic(false);
+    }, 1000);
+  }
+  window.AndroidApp?.onCallService?.((status) => {
+    micSilenced = !!status.silenced;
+    const problem = !callTarget || !status.requested ? ''
+      : status.silenced ? 'O Android pausou seu microfone com a tela bloqueada. Abra o Resenhex para voltar a falar.'
+      : status.error ? 'O Android não deixou manter o microfone com a tela bloqueada. Abra o Resenhex e libere o uso da bateria para ele.'
+      : '';
+    if (problem && problem !== callServiceProblem) mediaNotice(problem);
+    callServiceProblem = problem;
+    if (micSilenced) reopenSilencedMic();
+  });
+  // App de Android saindo ou voltando para a tela (tela bloqueada, outro app).
+  window.AndroidApp?.onAppVisibility?.((visible) => {
+    if (!callTarget) return;
+    keepCallAudio();
+    const now = performance.now();
+    micWatch.clockAt = micWatch.meterClockAt = now;
+    // Fora da tela, o corte de sensibilidade abre já: o próximo timer pode demorar.
+    if (!visible && state.voiceChannel && !gate.open) { gate.open = true; gate.lastLoud = now; applyAudio(); }
+    if (visible) {
+      micWatch.silentRetried = false; // de volta à tela, o microfone mudo pode ser reaberto de novo
+      if (micSilenced) reopenSilencedMic();
+      if (state.voiceChannel) renderControls(); // reafirma a call para o app (refaz o serviço se ele caiu)
+    }
+  });
+  // No navegador do celular a captura também pode voltar muda da segunda tela.
+  document.addEventListener('visibilitychange', () => { if (!document.hidden) micWatch.silentRetried = false; });
 
   // Ligar ou atender numa conversa privada (com a câmera já ligada, na chamada de vídeo).
   function startDmCall(dm, opts = {}) {

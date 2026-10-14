@@ -8,17 +8,26 @@ import android.app.NotificationChannel;
 import android.app.NotificationManager;
 import android.app.PendingIntent;
 import android.content.ActivityNotFoundException;
+import android.content.ComponentName;
 import android.content.Context;
 import android.content.Intent;
+import android.content.ServiceConnection;
 import android.content.SharedPreferences;
 import android.content.pm.ApplicationInfo;
 import android.content.pm.PackageManager;
 import android.graphics.Color;
 import android.media.AudioManager;
+import android.media.AudioRecordingConfiguration;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
+import android.os.Handler;
+import android.os.IBinder;
+import android.os.Looper;
+import android.os.Message;
+import android.os.Messenger;
 import android.os.PowerManager;
+import android.os.RemoteException;
 import android.provider.Settings;
 import android.view.View;
 import android.view.ViewGroup;
@@ -42,6 +51,8 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import org.json.JSONObject;
+
 /**
  * Tela única do app: um WebView com o site do Resenhex. O site conversa com o app pela ponte
  * window.ResenhexAndroid (notificações e estado da chamada; veja public/android.js no site).
@@ -54,7 +65,10 @@ public class MainActivity extends Activity {
     static final String CHANNEL_MESSAGES = "mensagens";
     static final String CHANNEL_RINGS = "chamadas";
     static final String CHANNEL_UPDATES = "atualizacoes";
+    static final String CHANNEL_CALL_ALERTS = "avisos-da-call";
     static final String EXTRA_NOTIFICATION = "notificationId";
+    /** Espera antes de encerrar o serviço da call: trocar de sala ou voltar de uma queda não o derruba. */
+    private static final long CALL_STOP_GRACE_MS = 4000;
 
     private static final int REQUEST_MEDIA = 1;
     private static final int REQUEST_NOTIFICATIONS = 2;
@@ -72,10 +86,42 @@ public class MainActivity extends Activity {
     private View fullscreenView;
     private WebChromeClient.CustomViewCallback fullscreenCallback;
     private final Map<Integer, String> notificationTags = new HashMap<>();
-    private boolean inCall;
+    private volatile boolean inCall;
     private String callTitle = "";
     private boolean callMuted;
+    /** A atividade está na tela (CallWebView esconde isso do site durante a call). */
+    private volatile boolean appVisible;
+    private volatile String callServiceError = "";
+    /** "Sair da call" na notificação: o serviço para na hora, sem a espera de troca de sala. */
+    private boolean leavingFromNotification;
+    private final Handler handler = new Handler(Looper.getMainLooper());
+    private final Runnable stopCall = this::endCall;
     private Updater updater;
+
+    // Som do DJ no processo :dj (DjService). djLast é o último estado: vai de novo se o processo reiniciar.
+    private Messenger djService;
+    private boolean djBound;
+    private String djLast;
+    private final Messenger djReplies = new Messenger(new Handler(Looper.getMainLooper()) {
+        @Override
+        public void handleMessage(Message message) {
+            if (message.what != DjService.MSG_REPORT) return;
+            String json = safeJson(message.getData().getString(DjService.KEY_JSON));
+            if (json != null) callJs("_djReport", json);
+        }
+    });
+    private final ServiceConnection djConnection = new ServiceConnection() {
+        @Override
+        public void onServiceConnected(ComponentName name, IBinder binder) {
+            djService = new Messenger(binder);
+            if (djLast != null) sendDj(djLast);
+        }
+
+        @Override
+        public void onServiceDisconnected(ComponentName name) {
+            djService = null; // o processo do DJ caiu; o Android o religa e o último estado vai de novo
+        }
+    };
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -102,10 +148,25 @@ public class MainActivity extends Activity {
     protected void onResume() {
         super.onResume();
         current = this;
+        setAppVisible(true);
+        // Com o app na tela, o serviço da call (re)ganha o microfone para a próxima vez que a tela bloquear.
+        if (inCall) startCallService();
         if (updater != null) {
             updater.resume();
             updater.checkSoon();
         }
+    }
+
+    @Override
+    protected void onPause() {
+        // CallWebView mantém a página "visível" na call; o site recebe o estado real por aqui.
+        setAppVisible(false);
+        super.onPause();
+    }
+
+    private void setAppVisible(boolean visible) {
+        appVisible = visible;
+        if (web != null) callJs("_appVisibilityChanged", visible ? "true" : "false");
     }
 
     static MainActivity current() {
@@ -282,6 +343,12 @@ public class MainActivity extends Activity {
         updates.setDescription("Avisa quando o app terminou de se atualizar.");
         updates.setSound(null, null);
         manager.createNotificationChannel(updates);
+        // Aparece por cima da tela e vibra: a pessoa está falando e ninguém a ouve.
+        NotificationChannel alerts = new NotificationChannel(CHANNEL_CALL_ALERTS, "Avisos da call", NotificationManager.IMPORTANCE_HIGH);
+        alerts.setDescription("Avisa quando o Android pausa o seu microfone durante uma call.");
+        alerts.setSound(null, null);
+        alerts.enableVibration(true);
+        manager.createNotificationChannel(alerts);
     }
 
     private boolean notificationsAllowed() {
@@ -332,26 +399,124 @@ public class MainActivity extends Activity {
 
     // ---------------- chamada ----------------
 
+    /**
+     * O site avisa se a pessoa está numa call. O serviço liga na entrada e só desliga quando ela sai de
+     * vez: um "fim" seguido de uma nova entrada (trocar de sala, voltar de uma queda da conexão) não o
+     * derruba, porque com a tela bloqueada o Android não deixaria religá-lo com o microfone. Era isso
+     * que deixava a pessoa ouvindo todo mundo e muda depois de uma reconexão.
+     */
     private void setCall(boolean active, String title, boolean muted) {
-        if (active == inCall && title.equals(callTitle) && muted == callMuted) return;
-        boolean starting = active && !inCall;
-        inCall = active;
-        web.setKeepVisible(active); // a call não desacelera com a tela bloqueada
-        callTitle = title;
-        callMuted = muted;
-        // Os botões de volume controlam o volume da call enquanto ela durar.
-        setVolumeControlStream(active ? AudioManager.STREAM_VOICE_CALL : AudioManager.USE_DEFAULT_STREAM_TYPE);
         if (!active) {
-            stopService(new Intent(this, CallService.class));
-            updater.allowCheck(); // atualização que chegou durante a call é oferecida agora
-            updater.checkSoon();
+            if (!inCall) return;
+            handler.removeCallbacks(stopCall);
+            // Com o app na tela ou pela notificação, a saída é na hora; com a tela bloqueada, espera.
+            if (appVisible || leavingFromNotification) endCall();
+            else handler.postDelayed(stopCall, CALL_STOP_GRACE_MS);
             return;
         }
-        if (checkSelfPermission(Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) return;
-        Intent intent = new Intent(this, CallService.class).putExtra(CallService.EXTRA_TITLE, title).putExtra(CallService.EXTRA_MUTED, muted);
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) startForegroundService(intent);
-        else startService(intent);
-        if (starting) askBattery();
+        handler.removeCallbacks(stopCall);
+        leavingFromNotification = false;
+        boolean starting = !inCall;
+        boolean changed = starting || !title.equals(callTitle) || muted != callMuted;
+        inCall = true;
+        callTitle = title;
+        callMuted = muted;
+        if (starting) {
+            web.setKeepVisible(true); // a call não desacelera com a tela bloqueada
+            // Os botões de volume controlam o volume da call enquanto ela durar.
+            setVolumeControlStream(AudioManager.STREAM_VOICE_CALL);
+        }
+        boolean hasMicrophone = checkSelfPermission(Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED;
+        if (changed || !CallService.ready || hasMicrophone && !CallService.microphoneReady) startCallService();
+        else reportCallServiceState(null);
+        if (starting && appVisible) askBattery();
+    }
+
+    /** Liga o serviço da call ou atualiza a notificação dele (com o app na tela, renova o microfone). */
+    private void startCallService() {
+        boolean hasMicrophone = checkSelfPermission(Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED;
+        Intent intent = new Intent(this, CallService.class).putExtra(CallService.EXTRA_TITLE, callTitle)
+                .putExtra(CallService.EXTRA_MUTED, callMuted).putExtra(CallService.EXTRA_CAPTURE, hasMicrophone)
+                .putExtra(CallService.EXTRA_VISIBLE, appVisible);
+        try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O && !CallService.ready) startForegroundService(intent);
+            else startService(intent);
+        } catch (RuntimeException error) {
+            // Android 12+ sem a liberação da bateria não deixa ligar o serviço com o app fora da tela.
+            reportCallServiceState(appVisible ? "foreground_service_unavailable" : "open_app_to_start_call");
+        }
+    }
+
+    /** A pessoa saiu da call: desliga o serviço e devolve o volume e as atualizações do app. */
+    private void endCall() {
+        handler.removeCallbacks(stopCall);
+        leavingFromNotification = false;
+        if (!inCall) return;
+        inCall = false;
+        callServiceError = "";
+        web.setKeepVisible(false);
+        setVolumeControlStream(AudioManager.USE_DEFAULT_STREAM_TYPE);
+        stopService(new Intent(this, CallService.class));
+        CallService.ready = false;
+        CallService.microphoneReady = false;
+        stopDjSound(); // o DJ só toca dentro da call
+        reportCallServiceState(null);
+        updater.allowCheck(); // atualização que chegou durante a call é oferecida agora
+        updater.checkSoon();
+    }
+
+    /** Estado do serviço e do microfone, para o site avisar a pessoa e para diagnóstico. */
+    private JSONObject callDiagnostics() {
+        JSONObject result = new JSONObject();
+        try {
+            boolean hasMicrophone = checkSelfPermission(Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED;
+            result.put("requested", inCall);
+            result.put("ready", inCall && CallService.ready);
+            result.put("microphoneReady", inCall && CallService.microphoneReady && hasMicrophone);
+            result.put("silenced", inCall && CallService.silenced);
+            result.put("microphonePermission", hasMicrophone);
+            result.put("backgrounded", !appVisible);
+            result.put("error", callServiceError);
+            result.put("sdkInt", Build.VERSION.SDK_INT);
+            result.put("appVersion", BuildConfig.VERSION_NAME);
+            result.put("manufacturer", Build.MANUFACTURER);
+            result.put("model", Build.MODEL);
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                android.content.pm.PackageInfo provider = WebView.getCurrentWebViewPackage();
+                if (provider != null) result.put("webViewVersion", provider.versionName);
+            }
+            AudioManager audio = getSystemService(AudioManager.class);
+            result.put("audioMode", audio.getMode());
+            result.put("systemMicrophoneMuted", audio.isMicrophoneMute());
+            result.put("batteryExempt", getSystemService(PowerManager.class).isIgnoringBatteryOptimizations(getPackageName()));
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                int silenced = 0;
+                List<AudioRecordingConfiguration> recordings = audio.getActiveRecordingConfigurations();
+                for (AudioRecordingConfiguration recording : recordings) if (recording.isClientSilenced()) silenced++;
+                result.put("recordingsObserved", recordings.size());
+                result.put("recordingsSilenced", silenced);
+            }
+        } catch (Exception ignored) {
+            // Diagnóstico parcial nunca deve derrubar a chamada.
+        }
+        return result;
+    }
+
+    private void reportCallServiceState(String error) {
+        if (error != null) callServiceError = error;
+        else if (inCall && CallService.ready) callServiceError = "";
+        callJs("_callServiceState", callDiagnostics().toString());
+    }
+
+    /** O serviço da call mudou (ligou, falhou, parou, microfone silenciado): conta ao site. */
+    static void callServiceState(String error) {
+        MainActivity activity = current;
+        if (activity == null) return;
+        activity.runOnUiThread(() -> {
+            activity.reportCallServiceState(error);
+            // O serviço caiu no meio da call (o sistema o encerrou): liga de novo.
+            if (error == null && activity.inCall && !CallService.ready && activity.callServiceError.isEmpty()) activity.startCallService();
+        });
     }
 
     /**
@@ -416,11 +581,74 @@ public class MainActivity extends Activity {
         startActivity(new Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.parse("package:" + getPackageName())));
     }
 
+    // ---------------- som do DJ ----------------
+
+    /** O som do DJ pode tocar no processo próprio dele (precisa de uma pasta de WebView por processo, Android 9+). */
+    static boolean djSoundAvailable() {
+        return Build.VERSION.SDK_INT >= Build.VERSION_CODES.P;
+    }
+
+    /** Estado do DJ vindo do site: liga o processo do DJ na primeira música e o desliga quando ela para. */
+    private void setDjSound(String json) {
+        JSONObject state;
+        try {
+            state = new JSONObject(json);
+        } catch (Exception e) {
+            return;
+        }
+        if (!state.optBoolean("on") || !djSoundAvailable()) {
+            stopDjSound();
+            return;
+        }
+        djLast = state.toString();
+        if (!djBound) djBound = bindService(new Intent(this, DjService.class), djConnection, BIND_AUTO_CREATE | BIND_IMPORTANT);
+        if (djService != null) sendDj(djLast);
+    }
+
+    private void sendDj(String json) {
+        Message message = Message.obtain(null, DjService.MSG_STATE);
+        message.replyTo = djReplies;
+        Bundle data = new Bundle();
+        data.putString(DjService.KEY_JSON, json);
+        message.setData(data);
+        try {
+            djService.send(message);
+        } catch (RemoteException e) {
+            djService = null; // reconecta em onServiceConnected e manda djLast de novo
+        }
+    }
+
+    private void stopDjSound() {
+        djLast = null;
+        djService = null;
+        if (djBound) {
+            unbindService(djConnection);
+            djBound = false;
+        }
+    }
+
+    /** Só JSON de verdade volta para o site (a ponte do DJ também fica ao alcance do iframe do YouTube). */
+    private static String safeJson(String json) {
+        if (json == null) return null;
+        try {
+            return new JSONObject(json).toString();
+        } catch (Exception e) {
+            return null;
+        }
+    }
+
     /** Botões "Silenciar" e "Sair" da notificação da call. */
     static void callAction(String action) {
         MainActivity activity = current;
         if (activity == null) return;
-        activity.runOnUiThread(() -> activity.callJs("_callAction", "'" + action + "'"));
+        activity.runOnUiThread(() -> {
+            if ("leave".equals(action)) {
+                activity.leavingFromNotification = true;
+                // Se o site não responder (página travada), a notificação não fica presa na tela.
+                activity.handler.postDelayed(() -> { if (activity.leavingFromNotification) activity.endCall(); }, 5000);
+            }
+            activity.callJs("_callAction", "'" + action + "'");
+        });
     }
 
     // ---------------- ponte com o site ----------------
@@ -465,6 +693,28 @@ public class MainActivity extends Activity {
         @JavascriptInterface
         public void callState(boolean active, String title, boolean muted) {
             runOnUiThread(() -> setCall(active, title, muted));
+        }
+
+        /** O app está fora da tela (tela bloqueada ou outro app), mesmo com a página "visível" na call. */
+        @JavascriptInterface
+        public boolean isInBackground() {
+            return !appVisible;
+        }
+
+        @JavascriptInterface
+        public String getCallDiagnostics() {
+            return callDiagnostics().toString();
+        }
+
+        /** O som do DJ toca fora do processo da call, como mídia (Android 9+). */
+        @JavascriptInterface
+        public boolean djSoundAvailable() {
+            return MainActivity.djSoundAvailable();
+        }
+
+        @JavascriptInterface
+        public void djSound(String json) {
+            runOnUiThread(() -> setDjSound(json));
         }
     }
 
@@ -532,7 +782,12 @@ public class MainActivity extends Activity {
     @Override
     protected void onDestroy() {
         if (current == this) current = null;
-        if (inCall) stopService(new Intent(this, CallService.class));
+        handler.removeCallbacksAndMessages(null);
+        stopDjSound();
+        if (inCall) {
+            inCall = false;
+            stopService(new Intent(this, CallService.class));
+        }
         web.destroy();
         super.onDestroy();
     }

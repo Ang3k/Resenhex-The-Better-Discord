@@ -14,6 +14,8 @@
     <!-- Serviço da call: mantém o microfone e a conexão vivos com a tela bloqueada. -->
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MICROPHONE" />
+    <!-- Sem o microfone liberado (app fora da tela), o serviço segue só com o som da call. -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK" />
     <uses-permission android:name="android.permission.WAKE_LOCK" />
     <!-- Pedido (com explicação) para o Android não pausar o app durante a call. -->
     <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
@@ -64,6 +66,12 @@
         <service
             android:name=".CallService"
             android:exported="false"
-            android:foregroundServiceType="microphone" />
+            android:foregroundServiceType="microphone|mediaPlayback" />
+
+        <!-- Som do DJ num processo sem microfone: toca como mídia, fora da faixa da ligação. -->
+        <service
+            android:name=".DjService"
+            android:exported="false"
+            android:process=":dj" />
     </application>
 </manifest>

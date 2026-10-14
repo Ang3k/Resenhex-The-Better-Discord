@@ -4,6 +4,24 @@
 // O título deve destacar as principais funcionalidades ou correções, com termos objetivos.
 window.CHANGELOG = [
   {
+    version: '1.4.5', date: '2026-10-13', name: 'Call no celular bloqueado sem perder o microfone e DJ como mídia',
+    summary: 'Com o celular bloqueado, uma queda da conexão não deixa mais você mudo na call: o Resenhex volta sozinho para a sala com o mesmo microfone. No app de Android 1.3.2, a música do DJ sai como mídia, com qualidade de música, e não mais pelo som da ligação.',
+    sections: [
+      { kind: 'new', items: [
+        'App de Android 1.3.2: a música do DJ toca como mídia, separada do som da call. Antes, com o microfone aberto, ela saía pela faixa da ligação, com qualidade de voz e no volume da chamada. O vídeo continua na tela, acompanhando o som.',
+      ] },
+      { kind: 'fixed', items: [
+        'Celular bloqueado: depois de uma queda da conexão (internet oscilando ou atualização do servidor), a call voltava e você ouvia todo mundo, mas ninguém te ouvia. Agora a chamada fica guardada durante a queda e volta com o mesmo microfone.',
+        'A sensibilidade de entrada não fecha mais o microfone quando não consegue medir a sua voz, como com a tela bloqueada ou o áudio pausado pelo sistema.',
+      ] },
+      { kind: 'improved', items: [
+        'Microfone que para de captar (fone desconectado, captura silenciada pelo sistema) é reaberto sozinho. Se a supressão de ruído ou o efeito de voz travar, sua voz segue direto pelo microfone.',
+        'App de Android 1.3.2: o serviço da call continua ligado entre a queda e a volta, recupera o microfone sempre que o app aparece na tela e avisa "Ninguém está te ouvindo" se o Android pausar o microfone. Atualize pelo botão Atualizar do app ou em resenhex.duckdns.org/baixar.',
+        'App de Android 1.3.2: o Wi-Fi fica em modo de baixa latência também com a tela apagada (Android 10 a 13).',
+      ] },
+    ],
+  },
+  {
     version: '1.4.4', date: '2026-10-13', name: 'Propor Melhorias',
     summary: 'Tem uma ideia para o Resenhex? O botão discreto no canto inferior direito abre um espaço para compartilhar sua sugestão com a equipe, sem sair do app.',
     sections: [

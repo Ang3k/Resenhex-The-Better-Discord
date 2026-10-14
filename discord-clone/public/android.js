@@ -5,7 +5,7 @@
 // Durante uma chamada, o app liga um serviço que mantém a call viva com a tela bloqueada.
 window.AndroidApp = (() => {
   const bridge = window.ResenhexAndroid;
-  if (!bridge) return { available: false, callState() {}, onCallAction() {} };
+  if (!bridge) return { available: false, backgrounded: false, djSound: null, callState() {}, onCallAction() {}, onAppVisibility() {}, onCallService() {}, onDjReport() {} };
 
   document.documentElement.classList.add('android-app');
 
@@ -41,15 +41,43 @@ window.AndroidApp = (() => {
 
   // ---------------- chamada ----------------
   let actionHandler = null;
+  let visibilityHandler = null;
+  let serviceHandler = null;
+  let djHandler = null;
+  // Durante a call o app mantém a página "visível" (o site não desacelera), então document.hidden
+  // não diz se a tela bloqueou. O APK 1.3.1+ conta o estado real; nos anteriores, a perda de foco
+  // do WebView é o sinal mais próximo.
+  const nativeVisibility = typeof bridge.isInBackground === 'function';
+  let backgrounded = nativeVisibility ? !!bridge.isInBackground() : false;
+  function appVisibilityChanged(visible) {
+    if (backgrounded === !visible) return;
+    backgrounded = !visible;
+    visibilityHandler?.(!!visible);
+  }
+  if (!nativeVisibility) {
+    window.addEventListener('blur', () => appVisibilityChanged(false));
+    window.addEventListener('focus', () => appVisibilityChanged(true));
+  }
+  // A página acabou de abrir: se ela recarregou no meio de uma call, a call acabou junto.
+  bridge.callState(false, '', false);
 
   return {
     available: true,
+    // O app está fora da tela (tela bloqueada ou outro app aberto).
+    get backgrounded() { return backgrounded; },
     // Liga ou desliga o serviço de chamada (a notificação fixa "Na call").
     callState(inCall, title = '', muted = false) {
       bridge.callState(!!inCall, String(title), !!muted);
     },
     // O app chama isto quando a pessoa toca em "Silenciar" ou "Sair" na notificação da chamada.
     onCallAction(handler) { actionHandler = handler; },
+    onAppVisibility(handler) { visibilityHandler = handler; },
+    // Estado do serviço da call (APK 1.3.1+): ligado, com microfone, microfone pausado pelo Android.
+    onCallService(handler) { serviceHandler = handler; },
+    // Som do DJ fora do processo da call (APK 1.3.2+, Android 9+). Com o microfone aberto, tudo que
+    // o WebView toca vai para a faixa da ligação; lá a música sai como mídia. null: toca aqui mesmo.
+    djSound: typeof bridge.djSound === 'function' && bridge.djSoundAvailable?.() ? (state) => bridge.djSound(JSON.stringify(state)) : null,
+    onDjReport(handler) { djHandler = handler; },
 
     // ---- chamados pelo app (Java) ----
     _notificationClicked(id) {
@@ -66,5 +94,11 @@ window.AndroidApp = (() => {
       for (const resolve of waiting) resolve(result);
     },
     _callAction(action) { actionHandler?.(action); },
+    _appVisibilityChanged: appVisibilityChanged,
+    _callServiceState(status) {
+      if (typeof status === 'string') try { status = JSON.parse(status); } catch { return; }
+      if (status) serviceHandler?.(status);
+    },
+    _djReport(report) { if (report && typeof report === 'object') djHandler?.(report); },
   };
 })();

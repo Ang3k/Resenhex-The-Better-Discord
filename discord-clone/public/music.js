@@ -56,6 +56,39 @@ window.MusicDJ = function ({ state, el, Icon, toast, call, callInfo, callPerm, c
   let wantPlayAt = 0; // desde quando o player deveria estar tocando e não está
   let errorShown = null;
 
+  // ---------- som do DJ no app de Android ----------
+  // Com o microfone da call aberto, o WebView do app manda tudo que toca para a faixa da ligação
+  // (qualidade de voz, volume da call). O app toca o som num processo próprio, como mídia; o player
+  // daqui fica mudo, só com o vídeo, e pausa com a tela bloqueada (o som segue lá).
+  const nativeSound = window.AndroidApp?.djSound || null;
+  let nativeSent = '';
+  let nativeClock = null; // { trackId, time, at }: onde o som do processo do DJ estava, e quando
+  function syncNativeSound(m) {
+    if (!nativeSound) return;
+    const volume = Math.round(state.djVolume * 100), muted = deafened() || state.djMuted;
+    const sig = m ? JSON.stringify([m.current.id, m.startedAt, m.pausedAt, volume, muted]) : 'off';
+    if (sig === nativeSent) return;
+    nativeSent = sig;
+    const t = m?.current;
+    nativeSound(m ? { on: true, trackId: t.id, videoId: t.videoId, live: !!t.live, duration: t.duration || 0,
+      position: positionOf(m), at: Date.now(), paused: m.pausedAt !== null, volume, muted } : { on: false });
+  }
+  // O player do processo do DJ conta o que acontece; com a tela bloqueada só ele está tocando.
+  window.AndroidApp?.onDjReport?.((r) => {
+    const m = music();
+    if (!m || m.current.id !== r.trackId) return;
+    if (r.type === 'time' && Number.isFinite(r.time) && Number.isFinite(r.at)) nativeClock = { trackId: r.trackId, time: r.time, at: r.at };
+    if (r.type === 'ended') call('music:report', { trackId: r.trackId, ended: true });
+    if (r.type === 'playing' && !m.current.duration && !m.current.live && r.duration > 0) call('music:report', { trackId: r.trackId, duration: r.duration });
+    if (r.type === 'error' && [100, 101, 150].includes(r.code)) {
+      call('music:report', { trackId: r.trackId, error: r.code });
+      if (errorShown !== r.trackId) {
+        errorShown = r.trackId;
+        toast('O YouTube não deixa essa música tocar aqui. Se for assim para a sala toda, o DJ troca de versão.', 'info');
+      }
+    }
+  });
+
   async function ensurePlayer() {
     if (player || creating) return;
     creating = true;
@@ -96,6 +129,7 @@ window.MusicDJ = function ({ state, el, Icon, toast, call, callInfo, callPerm, c
   function drive() {
     const m = music();
     if (!m) {
+      syncNativeSound(null);
       if (ready && loaded) player.stopVideo();
       loaded = null;
       return;
@@ -105,8 +139,16 @@ window.MusicDJ = function ({ state, el, Icon, toast, call, callInfo, callPerm, c
       offsets.push(m.now - Date.now());
       if (offsets.length > 20) offsets.shift();
     }
+    syncNativeSound(m);
     if (!player) return void ensurePlayer();
     if (!ready) return;
+    // O som está no processo do DJ e o app saiu da tela: o vídeo daqui pausa (bateria e dados).
+    if (nativeSound && window.AndroidApp.backgrounded) {
+      const playing = player.getPlayerState();
+      if (playing === YT.PlayerState.PLAYING || playing === YT.PlayerState.BUFFERING) player.pauseVideo();
+      listen.classList.add('hidden');
+      return;
+    }
     const t = m.current;
     const target = positionOf(m);
     const paused = m.pausedAt !== null;
@@ -117,7 +159,7 @@ window.MusicDJ = function ({ state, el, Icon, toast, call, callInfo, callPerm, c
       const options = { videoId: t.videoId, ...(t.live ? {} : { startSeconds: target }) };
       if (paused) player.cueVideoById(options); else player.loadVideoById(options);
     }
-    if (deafened() || state.djMuted) player.mute(); else player.unMute();
+    if (nativeSound || deafened() || state.djMuted) player.mute(); else player.unMute();
     player.setVolume(Math.round(state.djVolume * 100));
     const now = player.getPlayerState();
     const S = YT.PlayerState;
@@ -133,10 +175,18 @@ window.MusicDJ = function ({ state, el, Icon, toast, call, callInfo, callPerm, c
       wantPlayAt ||= Date.now();
       player.playVideo();
       // O navegador pode bloquear som sem um clique na página (ex.: abriu pelo link e já caiu na sala).
-      if (Date.now() - wantPlayAt > 2500) listen.classList.remove('hidden');
-    } else if (!t.live && now === S.PLAYING && Date.now() - lastSeek > 3000 && Math.abs(player.getCurrentTime() - target) > 1.5) {
-      lastSeek = Date.now();
-      player.seekTo(target, true);
+      // Mudo (som no processo do DJ), o vídeo sempre pode tocar sozinho.
+      if (!nativeSound && Date.now() - wantPlayAt > 2500) listen.classList.remove('hidden');
+    } else if (!t.live && now === S.PLAYING) {
+      // Com o som no processo do DJ, o vídeo mudo segue o ponto real do som, mais de perto.
+      const heard = nativeSound && nativeClock?.trackId === t.id && Date.now() - nativeClock.at < 6000
+        ? nativeClock.time + (Date.now() - nativeClock.at) / 1000 : null;
+      const goal = heard ?? target;
+      if (Date.now() - lastSeek > (heard === null ? 3000 : 4000) && Math.abs(player.getCurrentTime() - goal) > (heard === null ? 1.5 : 0.4)) {
+        lastSeek = Date.now();
+        // O vídeo leva um instante para voltar a andar depois de pular: mira um pouco à frente do som.
+        player.seekTo(heard === null ? goal : goal + 0.25, true);
+      }
     }
   }
 

@@ -12,6 +12,7 @@ import android.webkit.WebView;
  * 1 vez por minuto). O corte de ruído do microfone, a reconexão e o resto da call dependem desses
  * timers: o microfone parava de abrir e a call ficava muda nos dois sentidos. Durante a call, o
  * serviço em primeiro plano já mantém o app vivo; aqui a página também segue como se estivesse na tela.
+ * O estado real (tela bloqueada, outro app) vai ao site pela ponte (MainActivity.setAppVisible).
  */
 class CallWebView extends WebView {
     private boolean keepVisible;
