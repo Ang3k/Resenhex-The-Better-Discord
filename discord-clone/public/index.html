@@ -85,88 +85,93 @@
 
     <main>
       <section class="ld-hero">
-        <svg class="ld-spark sp1" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 0c.7 6.3 5.7 11.3 12 12-6.3.7-11.3 5.7-12 12-.7-6.3-5.7-11.3-12-12C6.3 11.3 11.3 6.3 12 0z"/></svg>
-        <svg class="ld-spark sp2" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 0c.7 6.3 5.7 11.3 12 12-6.3.7-11.3 5.7-12 12-.7-6.3-5.7-11.3-12-12C6.3 11.3 11.3 6.3 12 0z"/></svg>
-        <svg class="ld-spark sp3" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 0c.7 6.3 5.7 11.3 12 12-6.3.7-11.3 5.7-12 12-.7-6.3-5.7-11.3-12-12C6.3 11.3 11.3 6.3 12 0z"/></svg>
-        <svg class="ld-spark sp4" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 0c.7 6.3 5.7 11.3 12 12-6.3.7-11.3 5.7-12 12-.7-6.3-5.7-11.3-12-12C6.3 11.3 11.3 6.3 12 0z"/></svg>
-
-        <div class="ld-hero-copy">
-          <h1>A galera já <span class="ld-keep ld-mark">tá na call<svg class="ld-squiggle" viewBox="0 0 240 16" preserveAspectRatio="none" aria-hidden="true"><path d="M4 11c22-7 40-7 58-1s38 7 58 0 38-7 58 0 34 6 58-2"/></svg></span></h1>
-          <p class="ld-lead">Chat, voz, vídeo e compartilhamento de tela para você e seus amigos. A conta só pede nome e senha, e o convite do servidor é um link que você manda no grupo.</p>
-          <div class="ld-cta">
-            <a class="ld-btn ld-btn-light ld-download hidden" href="/baixar"><span data-icon="download" data-size="20"></span>Baixar para Windows</a>
-            <a class="ld-btn ld-btn-dark ld-open" href="#criar-conta">Abrir o Resenhex no navegador</a>
-          </div>
-          <ul class="ld-trust" aria-label="Sem pegadinha">
-            <li><span data-icon="check" data-size="14"></span>Grátis</li>
-            <li><span data-icon="check" data-size="14"></span>Sem e-mail</li>
-            <li><span data-icon="check" data-size="14"></span>Sem anúncios</li>
-          </ul>
-        </div>
-
-        <!-- Prévia do app, só visual -->
-        <div class="ld-preview" aria-hidden="true">
-          <div class="ld-window">
-            <div class="ld-w-rail">
-              <span class="ld-w-home" data-logo="20"></span>
-              <span class="ld-w-sep"></span>
-              <span class="ld-w-server active">R</span>
-              <span class="ld-w-server alt">J</span>
-              <span class="ld-w-server alt2">F</span>
-              <span class="ld-w-server add">+</span>
-            </div>
-            <div class="ld-w-side">
-              <div class="ld-w-title">Resenha<span data-icon="chevronDown" data-size="16"></span></div>
-              <div class="ld-w-group">CANAIS DE TEXTO</div>
-              <div class="ld-w-channel active"><span data-icon="hash" data-size="16"></span>geral</div>
-              <div class="ld-w-channel"><span data-icon="hash" data-size="16"></span>jogos</div>
-              <div class="ld-w-channel unread"><span data-icon="hash" data-size="16"></span>memes</div>
-              <div class="ld-w-group">CANAIS DE VOZ</div>
-              <div class="ld-w-channel"><span data-icon="volume" data-size="16"></span>Sala 1</div>
-              <div class="ld-w-voice"><span class="ld-av speaking" style="--c:#e67e22">C</span>Caio</div>
-              <div class="ld-w-voice"><span class="ld-av" style="--c:#9b59b6">D</span>Duda<span data-icon="micOff" data-size="14"></span></div>
-              <div class="ld-w-voice"><span class="ld-av speaking later" style="--c:#1abc9c">L</span>Lu<span class="ld-live">AO VIVO</span></div>
-              <div class="ld-w-me">
-                <span class="ld-av" style="--c:#3498db">J<i class="ld-dot"></i></span>
-                <div><b>Ju</b><small>Online</small></div>
-                <span class="ld-w-me-tools"><span data-icon="mic" data-size="16"></span><span data-icon="headphones" data-size="16"></span><span data-icon="settings" data-size="16"></span></span>
-              </div>
-            </div>
-            <div class="ld-w-chat">
-              <div class="ld-w-head"><span data-icon="hash" data-size="18"></span>geral<span class="ld-w-topic">o rolê de hoje é na Sala 1</span><span class="ld-w-tools"><span data-icon="pin" data-size="18"></span><span data-icon="users" data-size="18"></span><span class="ld-w-search">Buscar<span data-icon="search" data-size="14"></span></span></span></div>
-              <div class="ld-w-msgs" id="ld-chat">
-                <div class="ld-msg"><span class="ld-av big" style="--c:#1abc9c">L</span><div><b style="color:#1abc9c">Lu</b><small>hoje às 20:41</small><p>alguém on pra jogar mais tarde?</p></div></div>
-                <div class="ld-msg"><span class="ld-av big" style="--c:#9b59b6">D</span><div><b style="color:#b07cd6">Duda</b><small>hoje às 20:43</small><p>bora! 21h na Sala 1</p><span class="ld-react">🔥 3</span></div></div>
-                <div class="ld-msg ld-msg-new"><span class="ld-av big" style="--c:#e67e22">C</span><div><b style="color:#e89a4f">Caio</b><small>hoje às 21:02</small><p>já tô lá transmitindo, cola</p></div></div>
-              </div>
-              <div class="ld-w-typing"><i></i><i></i><i></i> <span id="ld-typing-name">Ju</span> está digitando…</div>
-              <div class="ld-w-input"><span data-icon="plusCircle" data-size="20"></span><span class="ld-w-placeholder">Conversar em #geral</span><span data-icon="gif" data-size="20"></span><span data-icon="smile" data-size="20"></span></div>
-            </div>
-            <div class="ld-w-members">
-              <div class="ld-w-group">DIRETORIA — 1</div>
-              <div class="ld-w-member"><span class="ld-av" style="--c:#1abc9c">L<i class="ld-dot"></i></span><div><b style="color:#1abc9c">Lu</b><small>Na Sala 1</small></div></div>
-              <div class="ld-w-group">ONLINE — 3</div>
-              <div class="ld-w-member"><span class="ld-av" style="--c:#e67e22">C<i class="ld-dot live"></i></span><div><b>Caio</b><small>Transmitindo a tela</small></div></div>
-              <div class="ld-w-member"><span class="ld-av" style="--c:#9b59b6">D<i class="ld-dot"></i></span><div><b>Duda</b><small>Na Sala 1</small></div></div>
-              <div class="ld-w-member"><span class="ld-av" style="--c:#3498db">J<i class="ld-dot"></i></span><div><b>Ju</b></div></div>
-              <div class="ld-w-group">OFFLINE — 2</div>
-              <div class="ld-w-member off"><span class="ld-av" style="--c:#7f8c8d">B</span><div><b>Bia</b></div></div>
-              <div class="ld-w-member off"><span class="ld-av" style="--c:#7f8c8d">T</span><div><b>Theo</b></div></div>
+        <div class="ld-hero-inner">
+          <div class="ld-hero-copy">
+            <h1>A galera já <span class="ld-keep">tá na call</span></h1>
+            <p class="ld-lead">Chat, voz, vídeo e compartilhamento de tela para você e seus amigos. A conta só pede nome e senha, e o convite do servidor é um link que você manda no grupo.</p>
+            <div class="ld-cta">
+              <a class="ld-btn ld-btn-light ld-download hidden" href="/baixar"><span data-icon="download" data-size="20"></span>Baixar para Windows</a>
+              <a class="ld-btn ld-btn-dark ld-open" href="#criar-conta">Abrir o Resenhex no navegador</a>
             </div>
           </div>
-          <div class="ld-float ld-float-call"><span data-icon="volume" data-size="16"></span><div><b>Sala 1</b><small>3 na chamada</small></div></div>
-          <div class="ld-float ld-float-invite"><span class="ld-w-server">R</span><div><b>Convite para Resenha</b><small>12 membros · 5 online</small></div></div>
+
+          <!-- Prévia do app, só visual: a Sala 1 em chamada, com a tela do Caio numa janela flutuante. -->
+          <div class="ld-preview" aria-hidden="true">
+            <div class="ld-window">
+              <div class="ld-w-rail">
+                <span class="ld-w-home" data-logo="20"></span>
+                <span class="ld-w-sep"></span>
+                <span class="ld-w-server active">R</span>
+                <span class="ld-w-server alt">J</span>
+                <span class="ld-w-server alt2">F</span>
+                <span class="ld-w-server add">+</span>
+              </div>
+              <div class="ld-w-side">
+                <div class="ld-w-title">Resenha<span data-icon="chevronDown" data-size="16"></span></div>
+                <div class="ld-w-group">CANAIS DE TEXTO</div>
+                <div class="ld-w-channel active"><span data-icon="hash" data-size="16"></span>geral</div>
+                <div class="ld-w-channel"><span data-icon="hash" data-size="16"></span>jogos</div>
+                <div class="ld-w-channel unread"><span data-icon="hash" data-size="16"></span>memes</div>
+                <div class="ld-w-group">CANAIS DE VOZ</div>
+                <div class="ld-w-channel"><span data-icon="volume" data-size="16"></span>Sala 1</div>
+                <div class="ld-w-voice"><span class="ld-av speaking" style="--c:#e67e22">C</span>Caio<span class="ld-live">AO VIVO</span></div>
+                <div class="ld-w-voice"><span class="ld-av" style="--c:#9b59b6">D</span>Duda<span data-icon="micOff" data-size="14"></span></div>
+                <div class="ld-w-voice"><span class="ld-av speaking later" style="--c:#1abc9c">L</span>Lu</div>
+                <div class="ld-w-voice"><span class="ld-av" style="--c:#16a085">T</span>Theo</div>
+              </div>
+              <div class="ld-w-chat">
+                <div class="ld-w-head"><span data-icon="hash" data-size="18"></span>geral<span class="ld-w-topic">o rolê de hoje é na Sala 1</span></div>
+                <div class="ld-w-msgs" id="ld-chat">
+                  <div class="ld-msg"><span class="ld-av big" style="--c:#1abc9c">L</span><div><b style="color:#1abc9c">Lu</b><small>hoje às 20:41</small><p>alguém on pra jogar mais tarde?</p></div></div>
+                  <div class="ld-msg"><span class="ld-av big" style="--c:#9b59b6">D</span><div><b style="color:#b07cd6">Duda</b><small>hoje às 20:43</small><p>bora! 21h na Sala 1</p><span class="ld-react">🔥 3</span></div></div>
+                  <div class="ld-msg ld-msg-new"><span class="ld-av big" style="--c:#e67e22">C</span><div><b style="color:#e89a4f">Caio</b><small>hoje às 21:02</small><p>já tô lá transmitindo, cola</p></div></div>
+                </div>
+                <div class="ld-w-typing"><i></i><i></i><i></i> <span id="ld-typing-name">Ju</span> está digitando…</div>
+                <div class="ld-w-input"><span data-icon="plusCircle" data-size="20"></span><span class="ld-w-placeholder">Conversar em #geral</span><span data-icon="smile" data-size="20"></span></div>
+                <div class="ld-pip">
+                  <div class="ld-screen-img">
+                    <span class="ld-game-sun"></span><span class="ld-game-cloud a"></span><span class="ld-game-cloud b"></span>
+                    <span class="ld-game-hill"></span><span class="ld-game-ground"></span>
+                    <span class="ld-game-coin"></span><span class="ld-game-player"></span>
+                  </div>
+                  <span class="ld-pip-live">AO VIVO</span>
+                  <span class="ld-pip-name">Tela do Caio</span>
+                </div>
+              </div>
+              <div class="ld-w-members">
+                <div class="ld-w-group">DIRETORIA — 1</div>
+                <div class="ld-w-member"><span class="ld-av" style="--c:#1abc9c">L<i class="ld-dot"></i></span><div><b style="color:#1abc9c">Lu</b><small>Na Sala 1</small></div></div>
+                <div class="ld-w-group">ONLINE — 4</div>
+                <div class="ld-w-member"><span class="ld-av" style="--c:#e67e22">C<i class="ld-dot live"></i></span><div><b>Caio</b><small>Transmitindo a tela</small></div></div>
+                <div class="ld-w-member"><span class="ld-av" style="--c:#9b59b6">D<i class="ld-dot"></i></span><div><b>Duda</b><small>Na Sala 1</small></div></div>
+                <div class="ld-w-member"><span class="ld-av" style="--c:#3498db">J<i class="ld-dot"></i></span><div><b>Ju</b></div></div>
+                <div class="ld-w-member"><span class="ld-av" style="--c:#16a085">T<i class="ld-dot"></i></span><div><b>Theo</b><small>Na Sala 1</small></div></div>
+                <div class="ld-w-group">OFFLINE — 1</div>
+                <div class="ld-w-member off"><span class="ld-av" style="--c:#7f8c8d">B</span><div><b>Bia</b></div></div>
+              </div>
+              <!-- O cartão de voz e do usuário atravessa a faixa dos servidores e a dos canais, como no app. -->
+              <div class="ld-dock">
+                <div class="ld-dock-voice">
+                  <div class="ld-dock-row">
+                    <div class="ld-dock-info"><b><span data-icon="signal" data-size="16"></span>Voz conectada</b><small>Sala 1 / Resenha</small></div>
+                    <span class="ld-dock-icon" data-icon="waves" data-size="18"></span>
+                    <span class="ld-dock-icon" data-icon="phone" data-size="18"></span>
+                  </div>
+                  <div class="ld-dock-actions"><span data-icon="camera" data-size="16"></span><span data-icon="screenShare" data-size="16"></span></div>
+                </div>
+                <div class="ld-dock-me">
+                  <span class="ld-av" style="--c:#16a085">T<i class="ld-dot"></i></span>
+                  <div><b>Theo</b><small>Online</small></div>
+                  <span class="ld-dock-tools"><span data-icon="mic" data-size="18"></span><span data-icon="headphones" data-size="18"></span><span data-icon="settings" data-size="18"></span></span>
+                </div>
+              </div>
+            </div>
+          </div>
         </div>
       </section>
 
       <div id="recursos" class="ld-features">
-        <header class="ld-section-head ld-reveal">
-          <span class="ld-eyebrow">Recursos</span>
-          <h2>Tudo o que a resenha precisa</h2>
-          <p>Do papo no #geral à call de madrugada: texto, voz, vídeo e tela num lugar só, feito para a sua turma.</p>
-        </header>
-
-        <section class="ld-row ld-reveal" style="--tag:#9b7bf7">
+        <section class="ld-row ld-reveal" style="--tag:#8b6cf0">
           <div class="ld-art ld-art-servers" aria-hidden="true">
             <div class="ld-card ld-invite">
               <span class="ld-invite-icon">R</span>
@@ -183,18 +188,12 @@
             </div>
           </div>
           <div class="ld-copy">
-            <span class="ld-tag"><span data-icon="users" data-size="16"></span>Servidores</span>
             <h2>Um servidor para cada turma</h2>
             <p>Monte um para o time do LoL e outro para a faculdade. Separe os assuntos em canais e use cargos para decidir quem vê cada um, tipo aquele canal que é só da diretoria.</p>
-            <ul class="ld-points">
-              <li><span data-icon="check" data-size="14"></span>Convite em link, sem pedir e-mail de ninguém</li>
-              <li><span data-icon="check" data-size="14"></span>Grupos de canais com texto e voz juntos</li>
-              <li><span data-icon="check" data-size="14"></span>Cargos com hierarquia e canais privados</li>
-            </ul>
           </div>
         </section>
 
-        <section class="ld-row reverse ld-reveal" style="--tag:#2dc770">
+        <section class="ld-row reverse ld-reveal" style="--tag:#23a55a">
           <div class="ld-art ld-art-voice" aria-hidden="true">
             <div class="ld-card ld-stage">
               <div class="ld-tile speaking" style="--c:#e67e22"><span class="ld-av huge">C</span><em>Caio</em></div>
@@ -205,18 +204,12 @@
             <div class="ld-card ld-chip-noise"><span data-icon="waves" data-size="18"></span><div><b>Supressão de ruído</b><small>Teclado e ventilador ficam de fora</small></div></div>
           </div>
           <div class="ld-copy">
-            <span class="ld-tag"><span data-icon="mic" data-size="16"></span>Voz e vídeo</span>
             <h2>Entre na sala quando quiser</h2>
             <p>A sala de voz fica aberta: quem está livre entra, e ninguém precisa ligar para ninguém. A supressão de ruído corta o barulho do teclado e do ventilador, e no app de Windows o push-to-talk funciona com o jogo aberto.</p>
-            <ul class="ld-points">
-              <li><span data-icon="check" data-size="14"></span>Câmera na call quando der vontade</li>
-              <li><span data-icon="check" data-size="14"></span>Volume de cada pessoa ajustado só para você</li>
-              <li><span data-icon="check" data-size="14"></span>Caiu a internet? Você volta sozinho para a call</li>
-            </ul>
           </div>
         </section>
 
-        <section class="ld-row ld-reveal" style="--tag:#f25f62">
+        <section class="ld-row ld-reveal" style="--tag:#f23f43">
           <div class="ld-art ld-art-stream" aria-hidden="true">
             <div class="ld-card ld-screen">
               <div class="ld-screen-img">
@@ -228,17 +221,10 @@
               <span class="ld-screen-viewers"><span data-icon="eye" data-size="14"></span>4</span>
               <span class="ld-screen-name"><span data-icon="screenShare" data-size="14"></span>Tela do Caio</span>
             </div>
-            <div class="ld-card ld-chip-quality"><b>1080p</b><span>60 fps</span></div>
           </div>
           <div class="ld-copy">
-            <span class="ld-tag"><span data-icon="screenShare" data-size="16"></span>Transmissão</span>
             <h2>Mostra a tela aí</h2>
-            <p>Transmita a tela com o som do computador junto. A imagem se ajusta à internet de quem está assistindo, e no celular dá para dar zoom com dois dedos.</p>
-            <ul class="ld-points">
-              <li><span data-icon="check" data-size="14"></span>Até 1080p a 60 fps</li>
-              <li><span data-icon="check" data-size="14"></span>Câmera e tela ao mesmo tempo</li>
-              <li><span data-icon="check" data-size="14"></span>No app de Windows, o som de só um app</li>
-            </ul>
+            <p>Transmita a tela com o som do computador junto, em até 1080p a 60 fps. A imagem se ajusta à internet de quem está assistindo, e no celular dá para dar zoom com dois dedos.</p>
           </div>
         </section>
 
@@ -255,14 +241,12 @@
             </div>
           </div>
           <div class="ld-copy">
-            <span class="ld-tag"><span data-icon="volume" data-size="16"></span>Soundboard</span>
             <h2>Solta o efeito</h2>
-            <p>Ba dum tss na piada ruim, buzina na vitória. Cada servidor monta a própria mesa de sons com até 32 áudios da galera, e todo mundo na call ouve na hora.</p>
-            <p class="ld-hint"><span data-icon="play" data-size="14"></span>Aperta os botões pra ouvir.</p>
+            <p>Ba dum tss na piada ruim, buzina na vitória. Cada servidor monta a própria mesa de sons com até 32 áudios da galera, e todo mundo na call ouve na hora. Aperta os botões pra ouvir.</p>
           </div>
         </section>
 
-        <section class="ld-row ld-reveal" style="--tag:#33c9a8">
+        <section class="ld-row ld-reveal" style="--tag:#1abc9c">
           <div class="ld-art ld-art-profile" aria-hidden="true">
             <div class="ld-card ld-profile">
               <div class="ld-profile-banner"></div>
@@ -279,62 +263,43 @@
             </div>
           </div>
           <div class="ld-copy">
-            <span class="ld-tag"><span data-icon="smile" data-size="16"></span>Perfil e amigos</span>
             <h2>Perfil com a sua cara</h2>
             <p>Coloque foto, banner (pode ser GIF) e a cor do seu nome. Adicione amigos para conversar no privado e escolha entre os temas Escuro, Meia-noite e Alto contraste.</p>
-            <ul class="ld-points">
-              <li><span data-icon="check" data-size="14"></span>Apelido diferente em cada servidor</li>
-              <li><span data-icon="check" data-size="14"></span>Fundo do perfil com imagem ou GIF</li>
-              <li><span data-icon="check" data-size="14"></span>Mensagens diretas só entre amigos</li>
-            </ul>
           </div>
         </section>
       </div>
 
-      <section class="ld-more">
-        <header class="ld-section-head ld-reveal">
-          <span class="ld-eyebrow">E ainda tem mais</span>
-          <h2>Os detalhes que fazem a diferença</h2>
-        </header>
-        <div class="ld-more-grid">
-          <article class="ld-more-card ld-reveal" style="--c:#9b7bf7"><span class="ld-more-icon" data-icon="disc" data-size="22"></span><h3>DJ da sala</h3><p>Música do YouTube tocando para a call inteira, no mesmo ponto, com fila.</p></article>
-          <article class="ld-more-card ld-reveal" style="--c:#4aa8f0"><span class="ld-more-icon" data-icon="message" data-size="22"></span><h3>Mensagens diretas</h3><p>Converse no privado com os amigos, com arquivos, respostas e reações.</p></article>
-          <article class="ld-more-card ld-reveal" style="--c:#f25f62"><span class="ld-more-icon" data-icon="at" data-size="22"></span><h3>Menções</h3><p>@nome, @cargo e @everyone, com contador de não lidas e notificação.</p></article>
-          <article class="ld-more-card ld-reveal" style="--c:#33c9a8"><span class="ld-more-icon" data-icon="image" data-size="22"></span><h3>Prints e arquivos</h3><p>Cole com Ctrl+V ou arraste para o chat. Imagens e vídeos aparecem na conversa.</p></article>
-          <article class="ld-more-card ld-reveal" style="--c:#f0b232"><span class="ld-more-icon" data-icon="gem" data-size="22"></span><h3>Salão do Mudae</h3><p>Roleta de personagens de anime ao vivo: case, roube e monte o seu álbum.</p></article>
-          <article class="ld-more-card ld-reveal" style="--c:#2dc770"><span class="ld-more-icon" data-icon="shieldCheck" data-size="22"></span><h3>Moderação</h3><p>Castigo, expulsar, banir e mover gente entre as salas de voz.</p></article>
-          <article class="ld-more-card ld-reveal" style="--c:#e67e22"><span class="ld-more-icon" data-icon="pencil" data-size="22"></span><h3>Formatação</h3><p>Negrito, código, citação e ||spoiler|| para não estragar o final da série.</p></article>
-          <article class="ld-more-card ld-reveal" style="--c:#b07cd6"><span class="ld-more-icon" data-icon="lock" data-size="22"></span><h3>Privacidade</h3><p>Sem anúncios e sem rastreadores. A senha fica guardada embaralhada.</p></article>
-        </div>
+      <section class="ld-more ld-reveal">
+        <h2>E tem mais um monte de coisa</h2>
+        <dl class="ld-more-list">
+          <div><dt>DJ da sala</dt><dd>Música do YouTube tocando para a call inteira, no mesmo ponto, com fila.</dd></div>
+          <div><dt>Mensagens diretas</dt><dd>Conversa no privado com os amigos, com arquivos, respostas e reações.</dd></div>
+          <div><dt>Menções</dt><dd>@nome, @cargo e @everyone, com contador de não lidas e notificação.</dd></div>
+          <div><dt>Prints e arquivos</dt><dd>Cola com Ctrl+V ou arrasta para o chat. Imagens e vídeos aparecem na conversa.</dd></div>
+          <div><dt>Salão do Mudae</dt><dd>Roleta de personagens de anime ao vivo: case, roube e monte o seu álbum.</dd></div>
+          <div><dt>Moderação</dt><dd>Castigo, expulsar, banir e mover gente entre as salas de voz.</dd></div>
+          <div><dt>Reconexão</dt><dd>Caiu a internet? O app volta sozinho, busca as mensagens perdidas e te põe de volta na call.</dd></div>
+          <div><dt>Privacidade</dt><dd>Sem anúncios e sem rastreadores. A senha fica guardada embaralhada.</dd></div>
+        </dl>
       </section>
 
       <section id="plataformas" class="ld-platforms">
-        <header class="ld-section-head ld-reveal">
-          <span class="ld-eyebrow">Onde você estiver</span>
-          <h2>No PC, no celular ou no navegador</h2>
-          <p>A mesma conta, os mesmos servidores e as mesmas calls em todo lugar.</p>
-        </header>
+        <h2 class="ld-reveal">No PC, no celular ou no navegador</h2>
         <div class="ld-plat-grid">
           <article class="ld-plat ld-reveal" data-os="windows">
-            <span class="ld-plat-badge">Seu sistema</span>
-            <span class="ld-plat-icon" data-icon="screen" data-size="26"></span>
-            <h3>Windows</h3>
+            <h3><span data-icon="screen" data-size="22"></span>Windows</h3>
             <p>Push-to-talk com o jogo aberto, menções na barra de tarefas e atualização automática.</p>
             <small>Windows 10 e 11 · também na Microsoft Store</small>
             <a class="ld-plat-link" href="/baixar">Baixar para Windows<span data-icon="arrowRight" data-size="18"></span></a>
           </article>
           <article class="ld-plat ld-reveal" data-os="android">
-            <span class="ld-plat-badge">Seu sistema</span>
-            <span class="ld-plat-icon" data-icon="smartphone" data-size="26"></span>
-            <h3>Android</h3>
+            <h3><span data-icon="smartphone" data-size="22"></span>Android</h3>
             <p>A call continua com a tela bloqueada e as mensagens chegam como notificação.</p>
             <small>Android 7 ou mais novo</small>
             <a class="ld-plat-link" href="/baixar#android">Baixar para Android<span data-icon="arrowRight" data-size="18"></span></a>
           </article>
           <article class="ld-plat ld-reveal" data-os="web">
-            <span class="ld-plat-badge">Recomendado</span>
-            <span class="ld-plat-icon" data-icon="globe" data-size="26"></span>
-            <h3>Navegador</h3>
+            <h3><span data-icon="globe" data-size="22"></span>Navegador</h3>
             <p>Nada para instalar: abra o site e entre na sua conta. É assim que se usa no Mac e no iPhone.</p>
             <small>Computador, Mac e celular</small>
             <a class="ld-plat-link" href="#criar-conta">Abrir no navegador<span data-icon="arrowRight" data-size="18"></span></a>
@@ -343,12 +308,6 @@
       </section>
 
       <section class="ld-final ld-reveal">
-        <span class="ld-final-av f1" style="--c:#1abc9c" aria-hidden="true">L</span>
-        <span class="ld-final-av f2" style="--c:#e67e22" aria-hidden="true">C</span>
-        <span class="ld-final-av f3" style="--c:#9b59b6" aria-hidden="true">D</span>
-        <span class="ld-final-av f4" style="--c:#3498db" aria-hidden="true">J</span>
-        <span class="ld-final-emoji e1" aria-hidden="true">🔥</span>
-        <span class="ld-final-emoji e2" aria-hidden="true">😂</span>
         <h2>Bora pra resenha?</h2>
         <p>É de graça e não pede e-mail. Funciona no navegador e nos apps para Windows e Android.</p>
         <div class="ld-cta">
