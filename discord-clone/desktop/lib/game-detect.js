@@ -1,4 +1,4 @@
-// Descobre se um executável é um jogo, com o que o servidor do Resenhex manda (games.js):
+// Descobre se um executável é um jogo, com o que o servidor do Resenhex manda (server/games.js):
 // { games: [[nome, ["pasta/jogo.exe", "jogo.exe"]]], folders, ignore, ignorePaths, minScreenShare }.
 //
 // - Pela lista: o caminho completo do processo precisa terminar com o executável da lista, inteiro.

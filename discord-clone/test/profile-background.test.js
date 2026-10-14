@@ -6,7 +6,7 @@ const os = require('node:os');
 const path = require('node:path');
 const { io } = require('socket.io-client');
 const { PNG } = require('pngjs');
-const { decodeProfileBackground } = require('../avatar');
+const { decodeProfileBackground } = require('../server/avatar');
 
 const wait = (ms = 100) => new Promise((r) => setTimeout(r, ms));
 const TINY_GIF = Buffer.from('R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7', 'base64');

@@ -4,7 +4,7 @@ import { createRequire } from 'node:module';
 import { state, duration, cues, REVEAL_MS, CRANK, DROP, WOBBLE, LOCK, OPEN, AFTER } from '../public/gacha/linha-do-tempo.mjs';
 
 const require = createRequire(import.meta.url);
-const mudae = require('../mudae.js');
+const mudae = require('../server/mudae.js');
 const ORDER = ['common', 'rare', 'epic', 'legendary'];
 const WOBBLES = { common: 1, rare: 2, epic: 3, legendary: 3 };
 const sample = (rarity, options) => {

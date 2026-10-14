@@ -7,19 +7,19 @@ const crypto = require('crypto');
 const { promisify } = require('util');
 const express = require('express');
 const { Server } = require('socket.io');
-const { decodeAvatar, decodeBanner, decodeProfileBackground, decodeProfilePhoto, validateAvatarCrop } = require('./avatar');
-const { decodeSound, soundName, MAX_SOUND_BYTES, MAX_SERVER_SOUNDS } = require('./soundboard');
-const linkPreview = require('./link-preview');
-const { channelActions } = require('./channels');
-const { communityStore } = require('./communities');
-const { downloadRoutes } = require('./downloads');
-const { feedbackRoutes } = require('./feedback');
-const { createDj } = require('./dj');
-const { createMudae, CLAIM_WINDOW_MS, revealDelay, PRIORITY_MS } = require('./mudae');
-const { youtubeSearch } = require('./youtube');
-const { createDmCalls } = require('./dm-calls');
-const { cleanGif } = require('./gifs');
-const { createGameList } = require('./games');
+const { decodeAvatar, decodeBanner, decodeProfileBackground, decodeProfilePhoto, validateAvatarCrop } = require('./server/avatar');
+const { decodeSound, soundName, MAX_SOUND_BYTES, MAX_SERVER_SOUNDS } = require('./server/soundboard');
+const linkPreview = require('./server/link-preview');
+const { channelActions } = require('./server/channels');
+const { communityStore } = require('./server/communities');
+const { downloadRoutes } = require('./server/downloads');
+const { feedbackRoutes } = require('./server/feedback');
+const { createDj } = require('./server/dj');
+const { createMudae, CLAIM_WINDOW_MS, revealDelay, PRIORITY_MS } = require('./server/mudae');
+const { youtubeSearch } = require('./server/youtube');
+const { createDmCalls } = require('./server/dm-calls');
+const { cleanGif } = require('./server/gifs');
+const { createGameList } = require('./server/games');
 const { version: APP_VERSION } = require('./package.json');
 
 const PORT = process.env.PORT || 3000;
@@ -341,7 +341,7 @@ setInterval(() => {
 // ---------------- sessões conectadas ----------------
 // socket.id -> { accountId, voice: idDoCanal|null, muted, deafened, sharing, paused, camera }
 const online = new Map();
-const { mediaSfu } = require('./media-sfu');
+const { mediaSfu } = require('./server/media-sfu');
 // O LiveKit caiu: quem está numa sala que usava o SFU reconecta em P2P.
 let mediaSwitched = () => {};
 const media = mediaSfu({ onSwitch: (...args) => mediaSwitched(...args), membership: (sid) => {
@@ -579,7 +579,7 @@ app.get('/emojis/:id', (req, res) => {
 const dj = createDj({ newId, onChange: () => broadcastState() });
 
 // Catálogo do Mudae: lido uma vez. Sem o arquivo, os comandos só avisam que não tem personagens.
-const MUDAE_CATALOG = process.env.MUDAE_CATALOG || path.join(__dirname, 'mudae-catalogo.json');
+const MUDAE_CATALOG = process.env.MUDAE_CATALOG || path.join(__dirname, 'server', 'mudae-catalogo.json');
 const mudae = createMudae({ catalog: fs.existsSync(MUDAE_CATALOG) ? JSON.parse(fs.readFileSync(MUDAE_CATALOG, 'utf8')) : [] });
 const MUDAE_REACTIONS = ['😱', '🔥', '💖', '😂', '💀'];
 
@@ -721,7 +721,7 @@ app.use((err, req, res, _next) => {
 const server = http.createServer(app);
 const io = new Server(server, { maxHttpBufferSize: 1e6 });
 
-// Toque e mensagem de chamada das conversas privadas (dm-calls.js).
+// Toque e mensagem de chamada das conversas privadas (server/dm-calls.js).
 mediaSwitched = (server, channel, transport) => {
   for (const [sid, s] of online) if (s.voice === channel && (s.voiceServerId ?? null) === (server ?? null)) io.to(sid).emit('media:switch', { transport });
 };

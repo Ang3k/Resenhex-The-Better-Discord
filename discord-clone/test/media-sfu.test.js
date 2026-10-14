@@ -2,7 +2,7 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const { createHash } = require('node:crypto');
 const { AccessToken, TokenVerifier, TrackSource } = require('livekit-server-sdk');
-const { mediaSfu, roomName } = require('../media-sfu');
+const { mediaSfu, roomName } = require('../server/media-sfu');
 const env = { LIVEKIT_URL: 'ws://127.0.0.1:7880', LIVEKIT_API_KEY: 'unit-key', LIVEKIT_API_SECRET: 'unit-secret-123456789012345678901234' };
 
 test('SFU tokens isolate servers, carry authenticated identity, expire, and restrict sources', async () => {

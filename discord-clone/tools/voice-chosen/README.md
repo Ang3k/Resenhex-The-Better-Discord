@@ -1,6 +1,6 @@
 # Reproduzir e verificar os efeitos escolhidos
 
-O app executa as receitas locais com Web Audio, AudioWorklet e Autotalent WASM. Os WAVs de favoritos e a frase usada para comparar ficam em artefatos locais, fora do pacote público. O documento `docs/PLANO-EFEITOS-ESCOLHIDOS-2026-10-12.md` é o contrato da seleção; o relatório em `docs/relatorios/` registra as medições e exceções.
+O app executa as receitas locais com Web Audio, AudioWorklet e Autotalent WASM. Os WAVs de favoritos e a frase usada para comparar ficam em artefatos locais, fora do pacote público. O documento [`docs/planos/PLANO-EFEITOS-ESCOLHIDOS-2026-10-12.md`](../../../docs/planos/PLANO-EFEITOS-ESCOLHIDOS-2026-10-12.md) é o contrato da seleção; o relatório em [`docs/relatorios/`](../../../docs/relatorios/) registra as medições e exceções.
 
 ## Verificação essencial
 

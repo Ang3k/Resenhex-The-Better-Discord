@@ -4,7 +4,7 @@ const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
 const express = require('express');
-const { downloadRoutes, readRelease } = require('../downloads');
+const { downloadRoutes, readRelease } = require('../server/downloads');
 
 const LATEST = `version: 1.2.0
 files:

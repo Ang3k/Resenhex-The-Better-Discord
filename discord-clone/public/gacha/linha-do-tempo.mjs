@@ -1,6 +1,6 @@
 // Linha do tempo da cápsula do Salão do Mudae. É uma função pura do tempo desde o roll: quem entra
 // no meio de um roll, ou volta de outra aba, cai no ponto certo sem depender de timers.
-// As durações batem com REVEAL_MS do mudae.js (o servidor abre o casamento no fim do OPEN).
+// As durações batem com REVEAL_MS do server/mudae.js (o servidor abre o casamento no fim do OPEN).
 export const CRANK = 500;  // o botão da máquina dá uma volta
 export const DROP = 600;   // a cápsula sai, quica e rola até o círculo de luz
 export const WOBBLE = 450; // cada balançada

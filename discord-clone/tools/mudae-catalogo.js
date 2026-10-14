@@ -10,7 +10,7 @@ const { createCollection, preserveRows, mergeByRank, validateRows, writeJson } =
 const { correctCatalog, isAuxiliaryRow } = require('./mudae-fontes/qualidade');
 const { realPeopleExclusions, isRealPersonRow } = require('./mudae-fontes/pessoas-reais');
 
-const OUT = path.join(__dirname, '..', 'mudae-catalogo.json');
+const OUT = path.join(__dirname, '..', 'server', 'mudae-catalogo.json');
 const CACHE = path.join(__dirname, 'mudae-cache');
 const KEYS = path.join(__dirname, 'mudae-chaves.json');
 const SOURCES = { anime: 'a', jogos: 'g', quadrinhos: 'c', desenhos: 'd', series: 's' };
