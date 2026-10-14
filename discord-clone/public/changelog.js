@@ -4,6 +4,19 @@
 // O título deve destacar as principais funcionalidades ou correções, com termos objetivos.
 window.CHANGELOG = [
   {
+    version: '1.4.6', date: '2026-10-14', name: 'Chat mais leve nas chamadas',
+    summary: 'O app ficou mais leve por dentro, sem mudar nada do que você vê ou ouve: o chat trava menos durante as chamadas, a página abre mais rápido e os ícones ocupam menos espaço.',
+    sections: [
+      { kind: 'improved', items: [
+        'Chat mais leve durante as chamadas: quando alguém entra, sai ou muta na sala, as mensagens na tela são atualizadas com bem menos trabalho.',
+        'A transmissão de tela atualiza a etiqueta "AO VIVO" só quando ela muda.',
+        'O app abre mais rápido: a conexão com o servidor carrega menos código.',
+        'Ícones e imagens do site e dos apps ocupam até 39% menos espaço, com a mesma qualidade.',
+        'O servidor usa menos memória com o Mudae e volta mais rápido depois de cada atualização.',
+      ] },
+    ],
+  },
+  {
     version: '1.4.5', date: '2026-10-14', name: 'Nova fonte na página inicial',
     summary: 'Os títulos da página de quem chega pela primeira vez ganharam uma fonte larga e pesada.',
     sections: [

@@ -3,6 +3,19 @@
 Histórico de versões. A mesma lista aparece dentro do app em **Novidades** (menu do servidor ou rodapé das Configurações).
 O Resenhex chegou à versão 1.0 em 4 de outubro de 2026.
 
+## v1.4.6 — Chat mais leve nas chamadas
+
+14 de outubro de 2026.
+
+O app ficou mais leve por dentro, sem mudar nada do que você vê ou ouve: o chat trava menos durante as chamadas, a página abre mais rápido e os ícones ocupam menos espaço.
+
+### Melhorias
+- Chat mais leve durante as chamadas: quando alguém entra, sai ou muta na sala, as mensagens na tela são atualizadas com bem menos trabalho.
+- A transmissão de tela atualiza a etiqueta "AO VIVO" só quando ela muda.
+- O app abre mais rápido: a conexão com o servidor carrega menos código.
+- Ícones e imagens do site e dos apps ocupam até 39% menos espaço, com a mesma qualidade.
+- O servidor usa menos memória com o Mudae e volta mais rápido depois de cada atualização.
+
 ## v1.4.5 — Nova fonte na página inicial
 
 14 de outubro de 2026.
