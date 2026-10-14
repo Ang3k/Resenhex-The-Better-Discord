@@ -54,6 +54,70 @@ test('automatic quality steps resolution down after persistent strain and back u
   assert.equal(policy.encoding(policy.presets.auto, 2e6, 1).scaleResolutionDownBy, 1.5);
 });
 
+test('Movimento holds each resolution down to 30 fps, then steps down trying 60 again', () => {
+  const sixty = { sourceFps: 60, targetFps: 60, floorFps: policy.presets.p1080_60.floorFps };
+  const run = (state, fps, from, to) => { for (let at = from; at <= to; at += 1500) state = policy.ladder(state, { active: true, sentFps: fps, ...sixty }, at); return state; };
+  assert.equal(policy.presets.p1080_60.floorFps, 30);
+  // 59 e 45 fps por um minuto: segura 1080p, mesmo com o aviso de banda do navegador ligado.
+  let state = run({}, 59, 0, 60_000);
+  state = run(state, 45, 61_500, 120_000);
+  assert.equal(state.level, 0);
+  // 31 fps ainda segura; abaixo de 30 por 5 s desce para 720p.
+  state = run(state, 31, 121_500, 150_000);
+  assert.equal(state.level, 0);
+  state = run(state, 25, 151_500, 154_500);
+  assert.equal(state.level, 0, 'a short dip does not change the resolution');
+  state = run(state, 25, 156_000, 160_000);
+  assert.equal(state.level, 1);
+  // 720p sem dar conta também desce, até o último degrau, e para lá.
+  state = run(state, 20, 161_500, 200_000);
+  assert.equal(state.level, 3);
+  // Um tranco curto no meio dos 60 fps não derruba: a média dos últimos segundos decide.
+  let steady = run({}, 60, 0, 6_000);
+  steady = policy.ladder(steady, { active: true, sentFps: 5, ...sixty }, 7_500);
+  steady = run(steady, 60, 9_000, 30_000);
+  assert.equal(steady.level, 0);
+  // Tela parada (captura abaixo do piso) e jogo rodando a 25 fps não descem.
+  let still = {};
+  for (let at = 0; at <= 30_000; at += 1500) still = policy.ladder(still, { active: true, sentFps: 2, sourceFps: 2, targetFps: 60, floorFps: 30 }, at);
+  assert.equal(still.level, 0);
+  let slowGame = {};
+  for (let at = 0; at <= 30_000; at += 1500) slowGame = policy.ladder(slowGame, { active: true, sentFps: 25, sourceFps: 25, targetFps: 60, floorFps: 30 }, at);
+  assert.equal(slowGame.level, 0);
+});
+
+test('Movimento climbs back after 20 s near 60 fps and backs off after a failed climb', () => {
+  const sixty = { sourceFps: 60, targetFps: 60, floorFps: 30 };
+  const run = (state, fps, from, to) => { for (let at = from; at <= to; at += 1500) state = policy.ladder(state, { active: true, sentFps: fps, ...sixty }, at); return state; };
+  let state = run({}, 20, 0, 7_500);
+  assert.equal(state.level, 1);
+  // 720p a 45 fps: segura, mas não sobe (não está perto de 60).
+  state = run(state, 45, 9_000, 60_000);
+  assert.equal(state.level, 1);
+  // 720p a 58 fps por 20 s (contados depois que a média dos últimos segundos chega lá): tenta 1080p.
+  state = run(state, 58, 61_500, 84_000);
+  assert.equal(state.level, 1);
+  state = run(state, 58, 85_500, 88_500);
+  assert.equal(state.level, 0);
+  const upAt = state.changedAt;
+  // 1080p engasga logo: volta para 720p e a próxima tentativa espera 40 s.
+  state = run(state, 20, upAt + 1500, upAt + 10_500);
+  assert.equal(state.level, 1);
+  assert.equal(state.failures, 1);
+  const down = state.changedAt;
+  state = run(state, 60, down + 1500, down + 36_000);
+  assert.equal(state.level, 1, 'waits 40 s after one failed climb');
+  state = run(state, 60, down + 37_500, down + 43_500);
+  assert.equal(state.level, 0);
+  // Firme em 1080p por 60 s: a espera volta ao normal.
+  state = run(state, 60, state.changedAt + 1500, state.changedAt + 61_500);
+  assert.equal(state.failures, 0);
+  assert.equal(state.level, 0);
+  // Parar de enviar limpa a medição, sem mudar o degrau.
+  const paused = policy.ladder({ ...state, level: 2 }, { active: false }, 1e6);
+  assert.deepEqual([paused.level, paused.fps, paused.badSince], [2, [], null]);
+});
+
 test('mobile viewers get a hardware-decodable screen codec unless the preset already offers one', () => {
   const text = ['video/AV1', 'video/VP9', 'video/VP8', 'video/H264'];
   assert.deepEqual(policy.screenCodecs(policy.presets.p1080, []), text, 'text presets prefer AV1, then VP9');
@@ -339,6 +403,28 @@ test('stats use the selected ICE path and do not downgrade a static screen from 
   const video = h.peer.senders.screen.find((s) => s.track.kind === 'video').params.encodings[0];
   assert.equal(video.scaleResolutionDownBy, 1.5);
   assert.equal(video.maxFramerate, 30);
+});
+
+test('Movimento in the stats loop: 1080p at 45 fps with a bandwidth warning stays, below 30 fps steps to 720p at 60', async () => {
+  const h = mediaHarness();
+  h.state.sharePreset = 'p1080_60';
+  h.self.viewers = ['viewer']; h.media.syncScreenSubscriptions(); await settle(h);
+  const screenTrack = h.screen.getVideoTracks()[0];
+  const report = (at, fps) => new Map([
+    ['source', { id: 'source', type: 'media-source', trackIdentifier: screenTrack.id, framesPerSecond: 60 }],
+    ['codec', { id: 'codec', type: 'codec', mimeType: 'video/H264' }],
+    ['screen', { id: 'screen', type: 'outbound-rtp', kind: 'video', mediaSourceId: 'source', codecId: 'codec', bytesSent: at * 500, framesSent: at * fps / 1000,
+      framesPerSecond: fps, timestamp: at, qualityLimitationReason: 'bandwidth' }],
+  ]);
+  const tick = async (from, to, fps) => { for (let at = from; at <= to; at += 1500) { h.clock(at); h.peer.pc.report = report(at, fps); await h.media.updateStreamStats(); } };
+  await tick(1000, 40_000, 45);
+  assert.equal(h.peer.adaptation.level, 0, '45 fps with the browser reporting a bandwidth limit keeps 1080p');
+  await tick(41_500, 50_500, 22);
+  assert.equal(h.peer.adaptation.level, 1);
+  h.media.tuneSenders(); await settle(h);
+  const video = h.peer.senders.screen.find((s) => s.track.kind === 'video').params.encodings[0];
+  assert.equal(video.scaleResolutionDownBy, 1.5);
+  assert.equal(video.maxFramerate, 60, '720p goes back to trying 60 fps');
 });
 
 test('a CPU-bound AV1 screen switches viewers to VP8 without renegotiating, before reducing resolution', async () => {

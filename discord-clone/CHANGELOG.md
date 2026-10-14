@@ -3,6 +3,23 @@
 Histórico de versões. A mesma lista aparece dentro do app em **Novidades** (menu do servidor ou rodapé das Configurações).
 O Resenhex chegou à versão 1.0 em 4 de outubro de 2026.
 
+## v1.5.1 — Transmissão a 60 fps segura o 1080p e Propor Melhorias no lugar certo
+
+14 de outubro de 2026.
+
+No perfil Movimento · 1080p / 60, a transmissão só baixa a resolução quando cai abaixo de 30 fps, e volta sozinha quando melhora. O botão Propor Melhorias não ocupa mais espaço do chat.
+
+### Melhorias
+
+- Movimento · 1080p / 60: a resolução fica enquanto a transmissão mantém pelo menos 30 fps. A 45 fps continua em 1080p; abaixo de 30 por alguns segundos desce para 720p tentando 60 de novo, e assim por diante até 360p para não travar.
+- Quedas rápidas, como uma tela de carregamento, não baixam mais a resolução, e o aviso de internet ou processador do navegador sozinho também não.
+- Quando melhora, a transmissão volta para a resolução de cima depois de uns 20 s perto de 60 fps. Se não segurar, espera mais antes de tentar de novo.
+- Propor Melhorias: no computador, o botão fica no rodapé da lista de membros e some quando ela está escondida, como no chat da call. No celular, fica nas Configurações.
+
+### Correções
+
+- Celular: o rodapé das Configurações (Propor Melhorias, Sair da conta e a versão) não aparecia. Agora fica numa fileira abaixo das abas.
+
 ## v1.5.0 — Transmissão de tela mais nítida e chat mais leve
 
 14 de outubro de 2026.

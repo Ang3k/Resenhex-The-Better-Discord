@@ -580,11 +580,15 @@ window.MediaSession = function ({ state, socket, call, el, toast, voiceEntry, me
             const demand = demands.get(sid), level = peer.adaptation.level || 0;
             const target = MediaPolicy.screenTarget(preset, demand, level);
             const source = outboundReport.get(r.mediaSourceId) || report.get(r.mediaSourceId);
-            const strained = MediaPolicy.strained({ reason: r.qualityLimitationReason, sentFps: r.framesPerSecond, sourceFps: source?.framesPerSecond, targetFps: target.fps });
-            const fresh = peer.estimate && now - peer.estimate.at < 8000 ? peer.estimate.bitrate : null;
-            const upper = level ? MediaPolicy.screenTarget(preset, demand, level - 1).bitrate : 0;
-            const headroom = level && fresh != null ? fresh - 176_000 >= upper * 1.25 : undefined;
-            peer.adaptation = MediaPolicy.adapt(peer.adaptation, { active: stats.screen.progressing, strained, headroom }, now);
+            if (preset.floorFps) {
+              peer.adaptation = MediaPolicy.ladder(peer.adaptation, { active: stats.screen.progressing, sentFps: r.framesPerSecond, sourceFps: source?.framesPerSecond, targetFps: target.fps, floorFps: preset.floorFps }, now);
+            } else {
+              const strained = MediaPolicy.strained({ reason: r.qualityLimitationReason, sentFps: r.framesPerSecond, sourceFps: source?.framesPerSecond, targetFps: target.fps });
+              const fresh = peer.estimate && now - peer.estimate.at < 8000 ? peer.estimate.bitrate : null;
+              const upper = level ? MediaPolicy.screenTarget(preset, demand, level - 1).bitrate : 0;
+              const headroom = level && fresh != null ? fresh - 176_000 >= upper * 1.25 : undefined;
+              peer.adaptation = MediaPolicy.adapt(peer.adaptation, { active: stats.screen.progressing, strained, headroom }, now);
+            }
           } else if (!preset.adaptive) peer.adaptation = {};
         }
         peer.stats = stats;
