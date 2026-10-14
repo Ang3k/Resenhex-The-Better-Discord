@@ -125,7 +125,7 @@ window.MediaSfu = function ({ state, renderStage, applyAudio, watchSpeaking, unw
     renderStage(); applyAudio();
   }
   function disconnect() {
-    generation++; profile = '';
+    generation++; profile = ''; state.sfuPath = null;
     const previous = room; room = null; queues.clear(); samples.clear(); layouts.clear();
     previous?.disconnect(false).catch(() => {});
   }
@@ -139,23 +139,74 @@ window.MediaSfu = function ({ state, renderStage, applyAudio, watchSpeaking, unw
     next.finally(() => { if (queues.get(kind) === next) queues.delete(kind); }).catch(() => {});
     return next;
   }
+  const canSend = (mime) => !!RTCRtpSender.getCapabilities?.('video')?.codecs.some((c) => c.mimeType.toLowerCase() === mime);
+  // AV1/VP9 em camada única (uma camada por envio) exige LiveKit 1.13.7 ou mais novo. Em servidores
+  // antigos o SDK publicaria SVC e forçaria contentHint "motion", o que tira as ferramentas de texto.
+  function oneLayerSvc() {
+    const [major = 0, minor = 0, patch = 0] = String(room?.engine?.serverVersion || '').split('.').map(Number);
+    return major > 1 || (major === 1 && (minor > 13 || (minor === 13 && patch >= 7)));
+  }
+  // Como cada fonte é publicada (docs/relatorios/TRANSMISSAO-2026-10-14.md):
+  // - tela com texto: uma camada só, em AV1 com as ferramentas de conteúdo de tela. Todo espectador
+  //   recebe 1080p e o navegador dele reduz para o tamanho do bloco, o que deixa o texto bem mais
+  //   nítido do que camadas menores. Quem não decodifica AV1 recebe a versão VP8 (backupCodec);
+  // - tela com movimento (1080p/60): a camada cheia e uma de 540p no mesmo FPS, para miniaturas e
+  //   conexões fracas. A versão anterior tinha camadas de 720p a 600 kbps/20 fps e 360p a 150 kbps/10 fps,
+  //   e era a de 720p que chegava a quase todo bloco que não estava em tela cheia;
+  // - câmera: 720p e 360p a 30 fps.
   function options(kind, track) {
     const S = sdk(), preset = MediaPolicy.presets[state.sharePreset];
     const settings = track.getSettings(), screen = kind === 'screen';
-    const cap = Math.max(200_000, (Number(state.uploadMbps) || 10) * 850_000 - (state.local.camera ? 1_200_000 : 0) - 176_000);
-    const bitrate = Math.min(screen ? preset.bitrate : 1_200_000, cap) * .75;
+    const cap = Math.max(300_000, (Number(state.uploadMbps) || 10) * 850_000 - (state.local.camera ? 1_200_000 : 0) - 176_000);
     const height = settings.height || (screen ? preset.height : 720), aspect = (settings.width || height * 16 / 9) / height;
-    const layers = [360, 720].filter((h) => h < height).map((h, i) => new S.VideoPreset(Math.round(h * aspect), h, Math.min(i ? 600_000 : 150_000, bitrate * (i ? .2 : .1)), Math.min(i ? 20 : 10, preset.fps)));
-    const h264 = screen && preset.fps === 60 && RTCRtpSender.getCapabilities?.('video')?.codecs.some((c) => c.mimeType.toLowerCase() === 'video/h264');
-    return { source: source(kind, track), videoCodec: h264 ? 'h264' : 'vp8', backupCodec: false,
-      simulcast: track.kind === 'video', screenShareSimulcastLayers: layers, videoSimulcastLayers: layers,
-      screenShareEncoding: { maxBitrate: bitrate, maxFramerate: preset.fps }, videoEncoding: { maxBitrate: bitrate, maxFramerate: 30 },
-      degradationPreference: screen ? preset.degradation : 'balanced', audioPreset: { maxBitrate: kind === 'microphone' ? 64000 : 96000 }, dtx: kind === 'microphone', forceStereo: kind === 'screen' };
+    const layer = (h, maxBitrate, fps) => new S.VideoPreset(Math.round(h * aspect), h, maxBitrate, fps);
+    const base = { source: source(kind, track), audioPreset: { maxBitrate: kind === 'microphone' ? 64000 : 96000 }, dtx: kind === 'microphone', forceStereo: kind === 'screen' };
+    if (!screen) {
+      const bitrate = Math.min(1_200_000, cap);
+      return { ...base, videoCodec: 'vp8', backupCodec: false, simulcast: true, videoSimulcastLayers: height > 360 ? [layer(360, Math.min(450_000, bitrate / 2), 30)] : [],
+        videoEncoding: { maxBitrate: bitrate, maxFramerate: 30 }, degradationPreference: 'balanced' };
+    }
+    const top = { maxBitrate: Math.min(preset.bitrate, cap), maxFramerate: preset.fps };
+    if (preset.hint === 'detail') {
+      const codec = canSend('video/av1') ? 'av1' : canSend('video/vp9') ? 'vp9' : null;
+      if (codec && oneLayerSvc()) return { ...base, videoCodec: codec, backupCodec: { codec: 'vp8', encoding: top }, simulcast: true, scalabilityMode: 'L1T1', screenShareSimulcastLayers: [], screenShareEncoding: top, degradationPreference: preset.degradation };
+      return { ...base, videoCodec: 'vp8', backupCodec: false, simulcast: false, screenShareEncoding: top, degradationPreference: preset.degradation };
+    }
+    return { ...base, videoCodec: canSend('video/h264') ? 'h264' : 'vp8', backupCodec: false, simulcast: true,
+      screenShareSimulcastLayers: height > 540 ? [layer(540, Math.min(1_500_000, top.maxBitrate / 3), preset.fps)] : [], screenShareEncoding: top, degradationPreference: preset.degradation };
+  }
+  // O SDK põe a taxa inicial (x-google-start-bitrate) no primeiro H.264 da oferta, que no Chrome é o
+  // perfil 42001f, mas o LiveKit negocia o 42e01f e a taxa se perde: a tela em H.264 começava a
+  // ~300 kbps e levava mais de 30 s para chegar a 3 Mbps. Só durante esta publicação, o 42e01f
+  // (packetization-mode=1) vem primeiro entre os H.264; o resto da lista fica na mesma ordem.
+  function h264First() {
+    const codecs = RTCRtpReceiver.getCapabilities?.('video')?.codecs || [];
+    const rank = (c) => c.mimeType.toLowerCase() !== 'video/h264' ? 0 : /profile-level-id=42e01f/i.test(c.sdpFmtpLine || '') && /packetization-mode=1/.test(c.sdpFmtpLine || '') ? 1 : 2;
+    const h264 = codecs.filter(rank).sort((a, b) => rank(a) - rank(b));
+    let next = 0;
+    return codecs.map((c) => (rank(c) ? h264[next++] : c));
+  }
+  async function publishTrack(current, track, opts) {
+    if (opts.videoCodec !== 'h264' || !globalThis.RTCRtpTransceiver?.prototype.setCodecPreferences) return current.localParticipant.publishTrack(track, opts);
+    const addTransceiver = RTCPeerConnection.prototype.addTransceiver;
+    RTCPeerConnection.prototype.addTransceiver = function (what, init) {
+      const transceiver = addTransceiver.call(this, what, init);
+      if (what === track || (what?.id && what.id === track.id)) try { transceiver.setCodecPreferences(h264First()); } catch {}
+      return transceiver;
+    };
+    try { return await current.localParticipant.publishTrack(track, opts); }
+    finally { RTCPeerConnection.prototype.addTransceiver = addTransceiver; }
+  }
+  // "maintain-framerate-and-resolution" é recente; se o navegador recusar, o padrão para movimento
+  // seria "balanced", que derrubava o FPS nas medições. Nesse caso fica "maintain-framerate".
+  async function confirmDegradation(publication, wanted) {
+    if (wanted !== 'maintain-framerate-and-resolution' || !publication?.track?.sender) return;
+    if (publication.track.sender.getParameters().degradationPreference !== wanted) await publication.track.setDegradationPreference('maintain-framerate');
   }
   // What forces a new publication (codec, layers, frame rate); bitrate alone does not.
   function layout(opts) {
     const screen = opts.source === sdk().Track.Source.ScreenShare;
-    const top = screen ? opts.screenShareEncoding : opts.videoEncoding, layers = screen ? opts.screenShareSimulcastLayers : opts.videoSimulcastLayers;
+    const top = screen ? opts.screenShareEncoding : opts.videoEncoding, layers = (screen ? opts.screenShareSimulcastLayers : opts.videoSimulcastLayers) || [];
     return { key: JSON.stringify([opts.videoCodec, layers.map((l) => [l.width, l.height, l.encoding.maxFramerate]), top.maxFramerate, opts.degradationPreference]),
       bitrates: [...layers.map((l) => l.encoding.maxBitrate), top.maxBitrate] };
   }
@@ -182,8 +233,8 @@ window.MediaSfu = function ({ state, renderStage, applyAudio, watchSpeaking, unw
         if (existing?.track) await existing.track.replaceTrack(track, true);
         else {
           const opts = options(kind, track);
-          await current.localParticipant.publishTrack(track, opts);
-          if (track.kind === 'video') layouts.set(kind, layout(opts).key);
+          const publication = await publishTrack(current, track, opts);
+          if (track.kind === 'video') { layouts.set(kind, layout(opts).key); await confirmDegradation(publication, opts.degradationPreference); }
         }
         if (current !== room || epoch !== generation) throw new Error('A chamada mudou.');
       }
@@ -210,7 +261,7 @@ window.MediaSfu = function ({ state, renderStage, applyAudio, watchSpeaking, unw
         // Camera on/off or a new upload limit only moves bitrates: no flicker for viewers.
         if (publication.track.mediaStreamTrack === track && layouts.get(kind) === next.key && await retune(publication.track, next.bitrates).catch(() => false)) return;
         await current.localParticipant.unpublishTrack(publication.track, false);
-        await current.localParticipant.publishTrack(track, opts);
+        await confirmDegradation(await publishTrack(current, track, opts), opts.degradationPreference);
         layouts.set(kind, next.key);
       }).catch(() => { profile = ''; if (room) notice('Não foi possível atualizar os limites de vídeo. Tentaremos novamente.'); });
     }
@@ -232,6 +283,18 @@ window.MediaSfu = function ({ state, renderStage, applyAudio, watchSpeaking, unw
     const current = room;
     if (!current) return;
     const own = [];
+    // Caminho da mídia até o servidor: UDP direto é o esperado. TCP ou TURN costuma indicar a porta
+    // UDP do LiveKit fechada no firewall da nuvem e deixa a transmissão travando (deploy/SFU.md).
+    const mic = [...current.localParticipant.trackPublications.values()].find((p) => p.source === sdk().Track.Source.Microphone);
+    let transport = null;
+    try { transport = await mic?.track?.getRTCStatsReport?.(); } catch { /* sem estatísticas nesta amostra */ }
+    transport?.forEach((r) => {
+      if (r.type !== 'candidate-pair' || !r.nominated || r.state !== 'succeeded') return;
+      const local = transport.get(r.localCandidateId);
+      const path = local?.candidateType === 'relay' ? 'relay' : local?.protocol === 'tcp' ? 'tcp' : 'udp';
+      if (path !== 'udp' && state.sfuPath !== path) notice(path === 'relay' ? 'A mídia está passando por retransmissão (TURN) até o servidor. A qualidade pode cair.' : 'A mídia está indo por TCP até o servidor de mídia. A porta UDP 7882 pode estar bloqueada.');
+      state.sfuPath = path;
+    });
     for (const p of current.localParticipant.trackPublications.values()) {
       if (p.source !== sdk().Track.Source.ScreenShare) continue;
       const report = await p.track?.getRTCStatsReport();
@@ -248,7 +311,7 @@ window.MediaSfu = function ({ state, renderStage, applyAudio, watchSpeaking, unw
     const tile = render && document.querySelector(`[data-key="screen-${state.me?.sid}"]`);
     if (tile) { const output = tile.querySelector('.stats'); if (output) output.textContent = MediaPolicy.formatVideoStats(own, true); const health = tile.querySelector('.stream-health'); if (health) health.textContent = 'SFU · Um envio para todos os espectadores'; }
     for (const participant of current.remoteParticipants.values()) {
-      const p = peer(participant); p.stats.path = 'Servidor de mídia (SFU)';
+      const p = peer(participant); p.stats.path = { udp: 'Servidor de mídia (SFU) · UDP', tcp: 'Servidor de mídia (SFU) · TCP, mais lento', relay: 'Servidor de mídia (SFU) · via TURN' }[state.sfuPath] || 'Servidor de mídia (SFU)';
       for (const publication of participant.trackPublications.values()) {
         if (publication.source !== sdk().Track.Source.ScreenShare || !publication.track) continue;
         const report = await publication.track.getRTCStatsReport();

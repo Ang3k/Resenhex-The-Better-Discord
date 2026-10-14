@@ -5,8 +5,8 @@ const path = require('node:path');
 const app = express();
 const publicDir = path.join(__dirname, '../public');
 const imageRequests = new Map();
-const catalog = require('../mudae-catalogo.json');
-const previewMudae = require('../mudae').createMudae({ catalog });
+const catalog = require('../server/mudae-catalogo.json');
+const previewMudae = require('../server/mudae').createMudae({ catalog });
 app.get('/preview-cards', (_req, res) => res.json([176754, 127691, 40, 'g-mario-178619'].map(previewMudae.card).filter(Boolean)));
 app.get('/preview-stats', (req, res) => res.json(Object.fromEntries([...imageRequests].filter(([url]) =>
   new URL(url, 'http://preview.local').searchParams.get('session') === req.query.session))));

@@ -1,6 +1,6 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { createMudae, parse, valueOf, rarityOf, normalize, ROLL_RESET_MS, CLAIM_RESET_MS, CLAIM_WINDOW_MS, REVEAL_MS, revealDelay, PRIORITY_MS } = require('../mudae');
+const { createMudae, parse, valueOf, rarityOf, normalize, ROLL_RESET_MS, CLAIM_RESET_MS, CLAIM_WINDOW_MS, REVEAL_MS, revealDelay, PRIORITY_MS } = require('../server/mudae');
 
 const CATALOG = [
   [1, 'Satoru Gojou', 'Jujutsu Kaisen', 'b1-a.png', 'M', 900],

@@ -4,6 +4,27 @@
 // O título deve destacar as principais funcionalidades ou correções, com termos objetivos.
 window.CHANGELOG = [
   {
+    version: '1.5.0', date: '2026-10-14', name: 'Transmissão de tela mais nítida e chat mais leve',
+    summary: 'Telas com texto chegam bem mais nítidas gastando menos internet, o perfil de 60 fps mantém o 1080p enquanto o computador aguenta, o chat trava menos durante as chamadas e a página abre mais rápido.',
+    sections: [
+      { kind: 'improved', items: [
+        'Texto, código e planilhas bem mais nítidos: os perfis de texto usam AV1 com ferramentas de conteúdo de tela, com menos da metade da internet de envio.',
+        'Blocos pequenos recebem a imagem inteira e o navegador de quem assiste reduz, o que deixa a letra legível. Jogos e vídeos continuam no tamanho do bloco.',
+        'Se o processador não der conta do codec mais nítido, a transmissão passa para um mais leve sozinha, sem tela preta para quem assiste.',
+        'Movimento · 1080p / 60: mantém 1080p e 60 fps, e só desce para 720p ou 540p quando os quadros começam a cair.',
+        'Jogos em H.264 já começam na qualidade certa: antes, uma transmissão aberta no meio da chamada levava uns 20 segundos para ficar nítida.',
+        'Servidor de mídia (SFU): camadas refeitas e começo em H.264 corrigido. Com três pessoas assistindo, texto a 30 fps e jogos sem travadas.',
+        'Conexão e diagnóstico mostram o codificador, se é por hardware, se o processador está no limite e se o servidor de mídia está por UDP, TCP ou TURN.',
+        'Chat mais leve durante as chamadas: quando alguém entra, sai ou muta na sala, as mensagens na tela são atualizadas com bem menos trabalho.',
+        'A transmissão de tela atualiza a etiqueta "AO VIVO" só quando ela muda.',
+        'O app abre mais rápido: a conexão com o servidor carrega menos código.',
+        'Ícones e imagens do site e dos apps ocupam até 39% menos espaço, com a mesma qualidade.',
+        'O servidor usa menos memória com o Mudae e volta mais rápido depois de cada atualização.',
+        'Página inicial: títulos na fonte Unbounded, com "A galera já tá na call" e "Bora pra resenha?" em caixa alta.',
+      ] },
+    ],
+  },
+  {
     version: '1.4.5', date: '2026-10-13', name: 'Call no celular bloqueado sem perder o microfone e DJ como mídia',
     summary: 'Com o celular bloqueado, uma queda da conexão não deixa mais você mudo na call: o Resenhex volta sozinho para a sala com o mesmo microfone. No app de Android 1.3.2, a música do DJ sai como mídia, com qualidade de música, e não mais pelo som da ligação.',
     sections: [

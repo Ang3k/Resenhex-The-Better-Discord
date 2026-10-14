@@ -4,7 +4,7 @@ const express = require('express');
 const fs = require('node:fs');
 const path = require('node:path');
 const { AccessToken } = require('livekit-server-sdk');
-const { roomName } = require('../media-sfu');
+const { roomName } = require('../server/media-sfu');
 const app = express(), directory = path.join(__dirname, '../public');
 app.get('/config', (_req, res) => res.json({ hasOwner: true }));
 app.get('/socket.io/socket.io.js', (_req, res) => res.type('js').send(`window.io=()=>({connected:false,on(){},connect(){},disconnect(){},timeout(){return this},emit(event,payload,callback){callback?.(null,{ok:true})}});`));

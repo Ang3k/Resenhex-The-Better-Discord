@@ -1,6 +1,6 @@
 # Resenhex
 
-**Versão 0.99** · veja o que mudou em cada versão no [CHANGELOG.md](CHANGELOG.md) ou em **Novidades**, dentro do app.
+Veja o que mudou em cada versão no [CHANGELOG.md](CHANGELOG.md) ou em **Novidades**, dentro do app.
 
 Plataforma própria de chat e voz para você e seus amigos, inspirada no Discord. Vem com o servidor **Resenha** pronto para usar, com:
 
@@ -38,7 +38,7 @@ Plataforma própria de chat e voz para você e seus amigos, inspirada no Discord
 
 ## App para Windows
 
-O modificador de voz usa os **efeitos padrão escolhidos**: Esquilo, Gigante, Telefone, Megafone, Banheiro, Caverna, Alien, Robô, Fantasma, Bêbado, Autotune, Voz em acordes e Coral. Rádio foi preservado. As vozes de personagens por IA foram retiradas da interface, do carregamento e do pacote do aplicativo; os experimentos continuam recuperáveis no histórico do Git. Consulte a [integração e as medições](docs/relatorios/EFEITOS-ESCOLHIDOS-INTEGRACAO-2026-10-12.md).
+O modificador de voz usa os **efeitos padrão escolhidos**: Esquilo, Gigante, Telefone, Megafone, Banheiro, Caverna, Alien, Robô, Fantasma, Bêbado, Autotune, Voz em acordes e Coral. Rádio foi preservado. As vozes de personagens por IA foram retiradas da interface, do carregamento e do pacote do aplicativo; os experimentos continuam recuperáveis no histórico do Git. Consulte a [integração e as medições](../docs/relatorios/EFEITOS-ESCOLHIDOS-INTEGRACAO-2026-10-12.md).
 
 Mande para os amigos o link **`https://seu-dominio/baixar`**. Lá tem o botão de download e o passo a passo. No site, quem usa Windows também vê um botão verde de download na barra de servidores.
 
@@ -137,7 +137,9 @@ Navegador ──Socket.IO──► server.js (chat + sinalização)
     └──── WebRTC direto (voz e tela) ────► navegador dos amigos
 ```
 
-O servidor só repassa as mensagens de texto e a "sinalização" (quem entrou na sala, ofertas e respostas WebRTC). O áudio e o vídeo vão **direto entre os navegadores** (malha P2P). Por isso o servidor pode ser pequeno e barato. O limite prático fica em torno de **6 a 8 pessoas por sala** (cada pessoa envia o áudio/tela para cada uma das outras). Para mais gente do que isso seria preciso um SFU (ex.: LiveKit ou mediasoup).
+O servidor só repassa as mensagens de texto e a "sinalização" (quem entrou na sala, ofertas e respostas WebRTC). O áudio e o vídeo vão **direto entre os navegadores** (malha P2P). Por isso o servidor pode ser pequeno e barato. O limite prático fica em torno de **6 a 8 pessoas por sala** (cada pessoa envia o áudio/tela para cada uma das outras).
+
+Com o servidor de mídia **LiveKit (SFU)** ativado, as calls passam por ele: cada pessoa envia cada fonte uma vez só, não importa quantos assistam. Se o LiveKit cair, a sala volta para a malha P2P. Ativação e portas em [deploy/SFU.md](deploy/SFU.md); a integração fica em `server/media-sfu.js` e `public/media-sfu.js`.
 
 ## DJ da sala (músicas do YouTube)
 
@@ -145,8 +147,8 @@ Na chamada, o botão do disco abre o DJ: busque no YouTube ou cole um link (víd
 
 **Como funciona:** o servidor não toca nem baixa áudio. Ele guarda a fila de cada sala e o instante em que a música começou. Cada pessoa toca o vídeo no **player oficial do YouTube**, no próprio navegador, e o `public/music.js` mantém o player no mesmo ponto que o resto da sala (corrige quando passa de 1,5 s de diferença). Por isso não há bloqueio de IP do servidor, não gasta banda da VPS e o volume da música é separado das vozes.
 
-- **Busca:** `youtube.js` usa a mesma API interna que o site do YouTube usa para pesquisar (sem chave e sem cota). Só dá para tocar o que veio de uma busca feita pelo servidor, então ninguém inventa título ou duração.
-- **Fila:** `dj.js`, até 50 músicas por sala. A música acaba sozinha no servidor pelo tempo (com 2,5 s de folga) ou quando os players avisam. Sala vazia: a música espera 5 minutos no ponto em que parou e volta sozinha se alguém entrar; depois a fila é esquecida. Reiniciar o servidor também limpa as filas.
+- **Busca:** `server/youtube.js` usa a mesma API interna que o site do YouTube usa para pesquisar (sem chave e sem cota). Só dá para tocar o que veio de uma busca feita pelo servidor, então ninguém inventa título ou duração.
+- **Fila:** `server/dj.js`, até 50 músicas por sala. A música acaba sozinha no servidor pelo tempo (com 2,5 s de folga) ou quando os players avisam. Sala vazia: a música espera 5 minutos no ponto em que parou e volta sozinha se alguém entrar; depois a fila é esquecida. Reiniciar o servidor também limpa as filas.
 - **Clipe bloqueado:** alguns clipes de gravadora não tocam fora do YouTube. Quando a maior parte da sala avisa, o DJ toca outra versão da mesma busca (ou pula). Se só um aparelho não consegue (país, idade), só ele fica sem a música.
 - **Permissão:** **Usar o DJ** (ligada para o @everyone, inclusive nos servidores existentes) controla pedir, pausar, pular, parar e tirar da fila. É preciso estar na sala.
 - **Limites:** 20 buscas por minuto e 12 comandos do DJ a cada 20 segundos por pessoa.
@@ -168,11 +170,11 @@ O Mudae mora no **Salão do Mudae**, um canal de texto com `mudae: true` (crie e
 
 - **Só no Salão:** em outro canal, os comandos respondem (só para quem pediu) com o caminho até o Salão.
 - **Modo simplificado** (botão no topo do Salão, guardado no navegador de cada pessoa): o canal aparece como chat comum, com os cards completos e o botão Casar no chat, como no Mudae original. Os rolls, casamentos e limites são os mesmos de quem está na roleta; o botão do card espera o giro e a vez de quem rodou. **Abrir o Salão**, no topo, volta para a tela da roleta.
-- **Roleta de fotos:** o servidor sorteia na hora e manda o resultado com o `revealAt` (de 1,95 s no comum a 3,85 s no lendário, `REVEAL_MS` em `mudae.js`). O palco usa a roleta com 8 fotos-isca sobre um fundo preto em gradiente; ninguém casa antes da revelação. A cena 3D foi retirada do Salão e não carrega Three.js nem cria um contexto WebGL. O código anterior permanece separado em `public/gacha/` para referência.
+- **Roleta de fotos:** o servidor sorteia na hora e manda o resultado com o `revealAt` (de 1,95 s no comum a 3,85 s no lendário, `REVEAL_MS` em `server/mudae.js`). O palco usa a roleta com 8 fotos-isca sobre um fundo preto em gradiente; ninguém casa antes da revelação. A cena 3D foi retirada do Salão e não carrega Three.js nem cria um contexto WebGL. O código anterior permanece separado em `public/gacha/` para referência.
 - **Regras:** 10 rolls e 1 casamento a cada 30 minutos por pessoa, contados pelo relógio (ambos renovam na hora cheia e aos 30 minutos). Depois que o card aparece, quem rodou tem 3 s de prioridade; depois, qualquer um casa (e o chat conta o roubo). A janela total é de 45 s. Cada personagem tem um só dono por servidor.
 - **Raridade** pela posição dentro da própria fonte, em proporção: os 0,67% mais populares são lendários, até 6,7% épicos, até 33% raros, o resto comum (numa fonte de 15 mil: 1–100, até 1.000, até 5.000). Assim a chance de lendário não muda com o tamanho da fonte. Lendário toma o palco de todos, com banner, flash e fanfarra.
 - **Palco:** o seu roll sempre vai para o palco; o de um amigo só se o palco estiver livre (senão entra na Mesa ao vivo); lendário de qualquer um sempre.
-- **Personagens:** `mudae-catalogo.json`, gerado no seu computador por `node tools/mudae-catalogo.js` (um módulo por fonte em `tools/mudae-fontes/`, cada uma com cache em `tools/mudae-cache/`). O servidor lê o arquivo uma vez e nunca chama essas APIs: um roll é só um sorteio na memória. As fotos vão direto do site de cada fonte para o navegador.
+- **Personagens:** `server/mudae-catalogo.json`, gerado no seu computador por `node tools/mudae-catalogo.js` (um módulo por fonte em `tools/mudae-fontes/`, cada uma com cache em `tools/mudae-cache/`). O servidor lê o arquivo uma vez e nunca chama essas APIs: um roll é só um sorteio na memória. As fotos vão direto do site de cada fonte para o navegador.
 
   | Fonte | Cobertura | De onde | Popularidade | Chave |
   |---|---|---|---|---|
@@ -227,10 +229,10 @@ Ao clicar em 🖥️, você escolhe um perfil. Dá para trocar a qualidade no me
 
 | Perfil | Para quê |
 |---|---|
-| Automática (padrão) | Até 1080p · 30 fps, adaptada a cada espectador |
+| Automática (padrão) | Até 1080p · 30 fps, adaptada a cada espectador; texto nítido em AV1 |
 | 720p · 30 fps | Leve, bom para internet fraca |
 | 1080p · 30 fps | Textos, trabalho e apresentações |
-| 1080p · 60 fps | Fluido, para jogos (usa mais internet; H.264) |
+| 1080p · 60 fps | Fluido, para jogos (usa mais internet; H.264). Mantém 1080p e 60 fps e só desce para 720p/540p quando os quadros caem |
 
 **Controles da transmissão** (como no Discord). Passe o mouse sobre uma transmissão para ver:
 
@@ -247,6 +249,8 @@ No canto da transmissão aparecem **resolução, fps, taxa e codec**. Para quem 
 
 Na 0.9 a transmissão usa um controlador por espectador: considera o tamanho da imagem exibida, a conexão e o limite de upload. Uma miniatura ou conexão lenta libera banda para os demais; voz e áudio da tela têm uma reserva antes do vídeo. A captura acompanha a maior necessidade dos espectadores e reduz o trabalho quando não há ninguém assistindo. Textos priorizam nitidez; jogos priorizam movimento.
 
+Desde a 1.4.7, os perfis de texto usam AV1 com as ferramentas de conteúdo de tela (VP9, VP8 e H.264 como alternativas, conforme o que cada espectador decodifica) e mandam a imagem cheia também para blocos pequenos, que o navegador de quem assiste reduz sem perder a legibilidade. Se a transmissão se mostrar pesada (jogo ou vídeo), cada espectador volta a receber o tamanho do seu bloco. Se o processador não der conta do AV1, ela passa para VP8 sem interromper. Numa tela em H.264 que começa no meio da chamada, o app informa ao navegador a taxa inicial de cada espectador, para não começar a ~300 kbps. As medições estão em [`docs/relatorios/TRANSMISSAO-2026-10-14.md`](../docs/relatorios/TRANSMISSAO-2026-10-14.md).
+
 Ao abrir outra aba ou voltar ao chat, o vídeo passa para até 360p/5 fps e o áudio continua. Ao voltar à reprodução, a qualidade é restaurada; uma janela flutuante ativa continua solicitando qualidade para seu tamanho. Navegadores sem suporte a redução de resolução por espectador mantêm os limites de banda/FPS e mostram essa limitação no diagnóstico.
 
 **A transmissão trava ou congela quando troco de programa.**
@@ -259,10 +263,10 @@ Jogos em *tela cheia exclusiva* não podem ser capturados como janela. Coloque o
 Como a chamada é direta entre os navegadores, quem transmite envia **uma cópia para cada pessoa**. Em ⚙️ Configurações, escolha em **"Upload da sua internet"** o valor do seu teste de velocidade. O app distribui a banda entre os espectadores conforme suas necessidades e recupera qualidade gradualmente. Esse valor continua sendo um teto configurado, não um teste de velocidade automático. Se ainda travar, use o perfil **720p · 30 fps**, que gasta menos.
 
 **Aparece "limitado pelo processador".**
-Use o perfil **720p · 30 fps**, que exige menos do processador. Fechar outros programas pesados também ajuda.
+Nos perfis de texto o app já troca o AV1/VP9 pelo VP8, mais leve. Se continuar, use o perfil **720p · 30 fps**, que exige menos do processador. Fechar outros programas pesados também ajuda. Em Conexão e diagnóstico, "Codificação por hardware" indica que a placa de vídeo está codificando.
 
 **Validação das transmissões (desenvolvimento).**
-`npm test` cobre o controlador e as regras do servidor. `npm run test:media-browser` abre um teste em `http://127.0.0.1:37914/`: clique em Executar para transmitir canvas/áudio sintéticos entre duas conexões WebRTC reais, conferir resize, modo Economia e parar/retomar. Não acessa câmera, microfone ou tela. Encerre pelo botão e pare o servidor com Ctrl+C. Análise e referências: [transmissões na 0.9](../ANALISE-TRANSMISSOES-0.9.md).
+`tools/stream-lab` mede nitidez (PSNR/SSIM), FPS, travadas e atraso de transmissões reais entre janelas do Electron, com o código do app de duas versões lado a lado, em P2P e no LiveKit ([`tools/stream-lab/README.md`](tools/stream-lab/README.md)). `npm test` cobre o controlador e as regras do servidor. `npm run test:media-browser` abre um teste em `http://127.0.0.1:37914/`: clique em Executar para transmitir canvas/áudio sintéticos entre duas conexões WebRTC reais, conferir resize, modo Economia e parar/retomar. Não acessa câmera, microfone ou tela. Encerre pelo botão e pare o servidor com Ctrl+C.
 
 ## Online 24h, sem depender do seu PC (recomendado)
 
@@ -382,21 +386,32 @@ Depois é só preencher `TURN_URL`, `TURN_USERNAME` e `TURN_CREDENTIAL`.
 
 ```
 discord-clone/
-├── server.js          # Express + Socket.IO: contas, cargos/permissões, moderação, chat e sinalização WebRTC
-├── downloads.js       # /download (instalador e atualizações do app de Windows) e o link fixo do instalador
-├── dj.js              # DJ de cada sala de voz: fila, música atual e o relógio que sincroniza todo mundo
-├── youtube.js         # busca no YouTube para o DJ (o áudio toca no player oficial de cada pessoa)
-├── mudae.js           # Mudae: sorteio, limites de rolls e casamentos, harem (personagens em mudae-catalogo.json)
-├── desktop/           # app para Windows (Electron): janela, bandeja, push-to-talk global, escolha de tela, atualização
-└── public/
-    ├── index.html     # layout (servidores, canais, chat, palco de voz, membros)
-    ├── icons.js       # ícones SVG e o logo do Resenhex
-    ├── style.css      # tema escuro estilo Discord
-    ├── music.js       # DJ na chamada: player do YouTube sincronizado, painel de busca e fila, comandos /play
-    ├── mudae.js       # respostas do Mudae no chat: cards, linhas compactas do Salão, $im e $tu
-    ├── mudae-salao.js # tela do Salão do Mudae: roleta, Mesa ao vivo, álbum, ranking e presença
-    └── app.js         # lógica do cliente: chat, menus de moderação, configurações, WebRTC (voz/tela)
+├── server.js            # ponto de entrada: Express + Socket.IO (contas, cargos/permissões, moderação, chat, sinalização WebRTC)
+├── server/              # módulos do servidor, usados pelo server.js
+│   ├── communities.js   # servidores (comunidades), participação e convites; channels.js organiza os canais
+│   ├── dj.js            # DJ de cada sala de voz: fila, música atual e o relógio que sincroniza todo mundo
+│   ├── youtube.js       # busca no YouTube para o DJ (o áudio toca no player oficial de cada pessoa)
+│   ├── mudae.js         # Mudae: sorteio, limites de rolls e casamentos, harem
+│   ├── mudae-catalogo.json  # personagens do Mudae (~33 MB, gerado por tools/mudae-catalogo.js)
+│   ├── downloads.js     # /download: instalador e atualizações do app de Windows e o APK do Android
+│   ├── media-sfu.js     # integração com o LiveKit (SFU)
+│   └── …                # avatar, soundboard, link-preview, gifs, games, dm-calls, feedback
+├── public/              # site servido como arquivos estáticos (os caminhos são as URLs: não renomeie)
+│   ├── index.html       # layout (servidores, canais, chat, palco de voz, membros)
+│   ├── app.js           # lógica do cliente: chat, menus de moderação, configurações, WebRTC (voz/tela)
+│   ├── style.css        # tema escuro estilo Discord (as cores ficam em :root)
+│   ├── changelog.js     # lista da janela Novidades (a mesma do CHANGELOG.md)
+│   ├── music.js         # DJ na chamada: player do YouTube sincronizado, painel de busca e fila, comandos /play
+│   ├── mudae.js         # respostas do Mudae no chat: cards, linhas compactas do Salão, $im e $tu
+│   └── mudae-salao.js   # tela do Salão do Mudae: roleta, Mesa ao vivo, álbum, ranking e presença
+├── desktop/             # app para Windows (Electron, package.json próprio): janela, bandeja, push-to-talk global, atualização
+├── android/             # app para Android (WebView em Java)
+├── deploy/              # instalação na VPS, atualização da Oracle e publicação dos apps
+├── tools/               # geradores e ferramentas de desenvolvimento (catálogo do Mudae, ícones, prévias, `npm run check`)
+└── test/                # testes automatizados (node:test)
 ```
+
+Relatórios, planos e o roadmap ficam em [`docs/`](../docs/), na raiz do repositório.
 
 ## Sugestões de melhoria por e-mail
 
@@ -406,11 +421,9 @@ A rota `/feedback` exige uma sessão válida, confere o limite de 3000 caractere
 
 ## Limitações conhecidas
 
-- Um único servidor (dá para ter vários canais, mas não vários "servidores")
-- Sem mensagens diretas (DM), fotos de perfil ou status ("jogando X")
 - No navegador, o push-to-talk só funciona com a janela do Resenhex em foco. No app para Windows ele funciona em segundo plano.
 - Quem tiver o link de um arquivo enviado consegue abri-lo, mesmo que o arquivo esteja num canal privado. Os links são aleatórios e impossíveis de adivinhar.
 - O servidor guarda as últimas 300 mensagens de cada canal. As mais antigas, e os arquivos delas, são apagadas.
-- Não dá para trocar senha nem nome pela interface
-- Chamada em malha P2P: boa para grupos pequenos (até ~6 a 8 pessoas por sala)
+- Não dá para trocar o nome de usuário da conta. A senha muda em **Minha conta**, e o nome mostrado em cada servidor muda pelo apelido.
+- Sem o servidor de mídia (LiveKit), a chamada é em malha P2P: boa para grupos pequenos (até ~6 a 8 pessoas por sala)
 - DJ: no celular, com a tela bloqueada, o navegador costuma pausar o player do YouTube. Às vezes o YouTube mostra um anúncio para alguém; essa pessoa fica uns segundos atrás e depois volta para o ponto certo. Quem usa caixa de som em vez de fone pode deixar a música vazar pelo microfone.

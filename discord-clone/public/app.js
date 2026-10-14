@@ -1427,7 +1427,7 @@
   }
 
   // ---------------- mensagens ----------------
-  const msgNodes = new Map(); // id -> { sig, node }
+  const msgNodes = new Map(); // id -> { sig, epoch, node }
   const extraNodes = new Map(); // boas-vindas e divisores de data, por chave
 
   function cachedNode(key, build) {
@@ -1482,6 +1482,8 @@
       scrollToEnd = true;
     }
     const list = state.messages[state.textChannel] || [];
+    // O que vale para todas as mensagens (membros, cargos, permissões...): comparado à parte, uma vez por
+    // mensagem, em vez de entrar no texto da assinatura de cada uma (que chega a 300 por canal).
     const epoch = JSON.stringify([state.server.members.map((m) => [m.id, m.name, m.color, m.avatarUrl, m.avatarCrop, m.roles]), [...new Set(list.map((msg) => msg.authorId))].map((id) => state.messageAuthors.get(id)), state.server.roles.map((r) => [r.id, r.name, r.color]),
       hasPerm('MANAGE_MESSAGES'), canWrite(), inDm(), state.replyTo?.id, dayKey(Date.now()), salon.channel === state.textChannel, state.voiceChannel]);
     const nodes = [welcomeNode(channel)];
@@ -1493,12 +1495,12 @@
         ? !!(prev?.bot && !newDay && !msg.command && !msg.ephemeral && !prev.ephemeral && msg.ts - prev.ts < 5 * 60 * 1000)
         : !!(prev && !newDay && !msg.replyTo && !prev.bot && prev.authorId === msg.authorId && (msg.authorId || prev.authorName === msg.authorName) && msg.ts - prev.ts < 5 * 60 * 1000);
       const replied = msg.replyTo ? list.find((m) => m.id === msg.replyTo) || null : null;
-      const sig = JSON.stringify([msg, continued, state.editing === msg.id, epoch, replied && [replied.text, replied.authorId, !!replied.attachments]]);
+      const sig = JSON.stringify([msg, continued, state.editing === msg.id, replied && [replied.text, replied.authorId, !!replied.attachments]]);
       let entry = msgNodes.get(msg.id);
-      if (!entry || entry.sig !== sig) {
+      if (!entry || entry.sig !== sig || entry.epoch !== epoch) {
         // Só a mensagem que acabou de chegar entra deslizando; histórico e reconstruções aparecem direto.
         const arriving = !entry && !firstPaint && Date.now() - msg.ts < 15000;
-        entry = { sig, node: msg.call
+        entry = { sig, epoch, node: msg.call
           ? dmCall.messageNode(msg, { channel: state.textChannel, time: hhmm(msg.ts), stamp: formatStamp(msg.ts) })
           : buildMessage(msg, continued, replied, msg.replyTo && !replied) };
         if (arriving) {
@@ -2352,10 +2354,17 @@
           if (src) video.play().catch(() => { if (video.srcObject === src) mediaNotice('O navegador pausou a reprodução. Clique no vídeo para retomar.'); });
         }
         video.onclick = () => video.play().catch(() => {});
-        tile.querySelector('.label').replaceChildren(
-          el('span', { class: 'live-pill' + (v.paused ? ' paused' : '') }, v.paused ? 'PAUSADO' : 'AO VIVO'),
-          Icon('screen', 16), el('span', { class: 'label-name', textContent: self ? `Sua transmissão · ${SHARE_PRESETS[state.sharePreset].label}` : 'Tela de ' + m.name }));
-        tile.querySelector('.label .ico').style.color = '#fff';
+        // Como no bloco de cada pessoa: a etiqueta só é refeita quando o texto dela muda.
+        const screenLabel = tile.querySelector('.label');
+        const screenLabelText = self ? `Sua transmissão · ${SHARE_PRESETS[state.sharePreset].label}` : 'Tela de ' + m.name;
+        const screenLabelKey = JSON.stringify([!!v.paused, screenLabelText]);
+        if (screenLabel.dataset.key !== screenLabelKey) {
+          screenLabel.dataset.key = screenLabelKey;
+          screenLabel.replaceChildren(
+            el('span', { class: 'live-pill' + (v.paused ? ' paused' : '') }, v.paused ? 'PAUSADO' : 'AO VIVO'),
+            Icon('screen', 16), el('span', { class: 'label-name', textContent: screenLabelText }));
+          screenLabel.querySelector('.ico').style.color = '#fff';
+        }
         tile.setAttribute('aria-label', self ? 'Destacar sua transmissão' : 'Destacar tela de ' + m.name);
         renderTileControls(tile, { kind: 'screen', self, sid: v.sid, accountId: m.id, hidden });
       }
@@ -5119,7 +5128,7 @@
         peer.remoteIds = { screen: data.video?.screen || null, camera: data.video?.camera || null };
         peer.settingRemoteAnswer = data.description.type === 'answer';
         try {
-          await pc.setRemoteDescription(data.description);
+          await pc.setRemoteDescription(remoteDescription(peer, data.description));
         } finally {
           peer.settingRemoteAnswer = false;
         }
@@ -5367,20 +5376,22 @@
   }
 
   // Usa o primeiro codec da lista que o navegador suportar (nem todo Chromium tem H.264).
+  // A lista inteira vale como ordem de preferência: quem não decodifica o primeiro (AV1) negocia o
+  // segundo (VP9), e não o primeiro codec que o navegador listar. Os demais continuam negociados,
+  // para dar para trocar de codec depois sem renegociar (encodings[0].codec).
   function preferCodec(pc, sender, mimes) {
     const transceiver = pc.getTransceivers().find((t) => t.sender === sender);
     const caps = window.RTCRtpReceiver?.getCapabilities?.('video');
     if (!transceiver?.setCodecPreferences || !caps) return;
-    for (const mime of mimes) {
-      const first = caps.codecs.filter((c) => c.mimeType.toLowerCase() === mime.toLowerCase()
-        // VP9 perfil 0 é o compatível com todo mundo; os outros são de 10/12 bits.
-        && (mime !== 'video/VP9' || !c.sdpFmtpLine || c.sdpFmtpLine.includes('profile-id=0')));
-      if (!first.length) continue;
-      try {
-        transceiver.setCodecPreferences([...first, ...caps.codecs.filter((c) => !first.includes(c))]);
-      } catch {}
-      return;
-    }
+    const usable = (c, mime) => c.mimeType.toLowerCase() === mime.toLowerCase()
+      // VP9 perfil 0 e AV1 perfil 0 (main) são os que todo mundo codifica; os outros são de 10/12 bits ou 4:4:4.
+      && (mime !== 'video/VP9' || !c.sdpFmtpLine || c.sdpFmtpLine.includes('profile-id=0'))
+      && (mime !== 'video/AV1' || !c.sdpFmtpLine || !/(^|;)profile=[1-9]/.test(c.sdpFmtpLine));
+    const first = mimes.flatMap((mime) => caps.codecs.filter((c) => usable(c, mime)));
+    if (!first.length) return;
+    try {
+      transceiver.setCodecPreferences([...first, ...caps.codecs.filter((c) => !first.includes(c))]);
+    } catch {}
   }
 
   // A conexão com o servidor de mídia caiu (reinício do SFU, rede): entra de novo na mesma chamada.
@@ -5396,7 +5407,7 @@
     joinVoice(state.voiceChannel, { keepView: state.view !== 'voice', serverId: callInfo()?.serverId, startedAt: state.callStartedAt, silent: true });
   }
   const sfu = MediaSfu({ state, renderStage, applyAudio, watchSpeaking, unwatchSpeaking, closePeer, notice: (message) => mediaNotice(message), onLost: recoverMedia });
-  const { isWatching, setWatching, getWatchQuality, setWatchQuality, syncViewerQuality, addVideoTracks, syncScreenSubscriptions, videoBitrates, tuneSenders, applySharePreset, setSharePreset, captureScreen, watchScreenTrack, switchScreen, startVideo, stopVideo, scheduleRecovery, renderDiagnostics, updateStreamStats, mediaNotice } = MediaSession({ state, socket, call, el, toast, voiceEntry, member: callMember, render, renderStage, sendVoiceState, preferCodec, ownAudio, sfu });
+  const { isWatching, setWatching, getWatchQuality, setWatchQuality, syncViewerQuality, addVideoTracks, syncScreenSubscriptions, videoBitrates, remoteDescription, tuneSenders, applySharePreset, setSharePreset, captureScreen, watchScreenTrack, switchScreen, startVideo, stopVideo, scheduleRecovery, renderDiagnostics, updateStreamStats, mediaNotice } = MediaSession({ state, socket, call, el, toast, voiceEntry, member: callMember, render, renderStage, sendVoiceState, preferCodec, ownAudio, sfu });
   const streamZoom = StreamZoom({ el, Icon, syncViewerQuality });
   const mobileStream = MobileStream({ state, el, Icon, toast, member: callMember, voiceEntry, syncViewerQuality, openWatchQualityMenu, toggleStreamMute, togglePip });
 

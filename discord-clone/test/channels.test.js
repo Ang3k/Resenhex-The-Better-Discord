@@ -7,7 +7,7 @@ const path = require('node:path');
 const net = require('node:net');
 const { once } = require('node:events');
 const { io } = require('socket.io-client');
-const { migrateChannels, channelActions } = require('../channels');
+const { migrateChannels, channelActions } = require('../server/channels');
 
 const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 async function until(check) {

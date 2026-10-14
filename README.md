@@ -8,7 +8,7 @@ Plataforma própria de chat, voz, vídeo e compartilhamento de tela em tempo rea
 Roda no navegador, como app para Windows (publicado na Microsoft Store) e como app para Android, baixado do próprio site.
 
 [![Microsoft Store](https://img.shields.io/badge/Microsoft%20Store-Baixar-0078D4?style=for-the-badge&logo=microsoft&logoColor=white)](https://apps.microsoft.com/detail/9NG3QRZSB1LX)
-![Versão](https://img.shields.io/badge/versão-1.4.0-7C3AED?style=for-the-badge)
+![Versão](https://img.shields.io/badge/versão-1.4.7-7C3AED?style=for-the-badge)
 ![Node.js](https://img.shields.io/badge/Node.js-18%2B-339933?style=for-the-badge&logo=nodedotjs&logoColor=white)
 
 </div>
@@ -47,14 +47,19 @@ O Resenhex é um produto completo, usado no dia a dia por um grupo de amigos: se
 ## Estrutura
 
 ```
+docs/                    # guia para agentes de IA, roadmap, planos e relatórios
 discord-clone/
-├── server.js          # servidor HTTP e de tempo real
-├── *.js               # módulos de domínio: canais, comunidades, DJ, soundboard, chamadas...
-├── public/            # cliente web
-├── desktop/           # app para Windows (Electron) e pacote da Microsoft Store
-├── deploy/            # scripts de instalação, deploy e servidor de mídia
-└── test/              # testes automatizados
+├── server.js            # ponto de entrada do servidor HTTP e de tempo real
+├── server/              # módulos do servidor: comunidades, canais, DJ, Mudae, downloads, SFU...
+├── public/              # cliente web
+├── desktop/             # app para Windows (Electron) e pacote da Microsoft Store
+├── android/             # app para Android (WebView)
+├── deploy/              # scripts de instalação, deploy e servidor de mídia
+├── tools/               # geradores e ferramentas de desenvolvimento
+└── test/                # testes automatizados
 ```
+
+Agentes de IA (Codex, Claude Code etc.): comecem pelo [guia para agentes](docs/GUIA-AGENTES.md).
 
 ## Como rodar
 

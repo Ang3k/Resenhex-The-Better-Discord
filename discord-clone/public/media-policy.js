@@ -4,13 +4,19 @@
   else root.MediaPolicy = factory();
 })(typeof globalThis !== 'undefined' ? globalThis : this, () => {
   // "adaptive": quando a transmissão engasga, a resolução desce um degrau e o FPS fica.
-  // Nitidez mantém a resolução escolhida; Movimento deixa o navegador reduzir a resolução
-  // para manter os 60 fps (maintain-framerate), como na primeira versão da transmissão.
+  // Nitidez mantém a resolução escolhida. Movimento mantém resolução e 60 fps enquanto o computador
+  // e a conexão dão conta (maintain-framerate-and-resolution) e desce degraus só quando os quadros
+  // começam a cair: o ajuste do navegador (maintain-framerate) baixava para 540p ou 360p mesmo com
+  // banda sobrando, e a mesma taxa rendeu ~3 dB a mais mantendo a resolução.
+  // Telas com texto ("detail") vão em AV1: com as ferramentas de conteúdo de tela ele deixa o texto
+  // bem mais nítido que o VP8 gastando menos internet (docs/relatorios/TRANSMISSAO-2026-10-14.md).
+  // Quem não decodifica AV1 negocia o próximo da lista; processador no limite passa para o VP8.
+  const TEXT_CODECS = ['video/AV1', 'video/VP9', 'video/VP8', 'video/H264'];
   const presets = {
-    auto: { label: 'Automática', desc: 'Fluida para cada espectador: reduz a resolução antes do FPS', width: 1920, height: 1080, fps: 30, hint: 'detail', degradation: 'maintain-resolution', adaptive: true, bitrate: 4_000_000, codecs: ['video/VP8', 'video/H264'] },
-    p720: { label: 'Economia · 720p / 30', desc: 'Menor uso de internet e processamento', width: 1280, height: 720, fps: 30, hint: 'detail', degradation: 'maintain-resolution', adaptive: true, bitrate: 2_500_000, codecs: ['video/VP8', 'video/H264'] },
-    p1080: { label: 'Nitidez · 1080p / 30', desc: 'Textos, trabalho e apresentações', width: 1920, height: 1080, fps: 30, hint: 'detail', degradation: 'maintain-resolution', adaptive: false, bitrate: 4_000_000, codecs: ['video/VP9', 'video/VP8'] },
-    p1080_60: { label: 'Movimento · 1080p / 60', desc: 'Jogos e vídeos; exige mais do computador', width: 1920, height: 1080, fps: 60, hint: 'motion', degradation: 'maintain-framerate', adaptive: false, bitrate: 6_000_000, codecs: ['video/H264', 'video/VP8'] },
+    auto: { label: 'Automática', desc: 'Fluida para cada espectador: reduz a resolução antes do FPS', width: 1920, height: 1080, fps: 30, hint: 'detail', degradation: 'maintain-resolution', adaptive: true, bitrate: 4_000_000, codecs: TEXT_CODECS },
+    p720: { label: 'Economia · 720p / 30', desc: 'Menor uso de internet e processamento', width: 1280, height: 720, fps: 30, hint: 'detail', degradation: 'maintain-resolution', adaptive: true, bitrate: 2_500_000, codecs: TEXT_CODECS },
+    p1080: { label: 'Nitidez · 1080p / 30', desc: 'Textos, trabalho e apresentações', width: 1920, height: 1080, fps: 30, hint: 'detail', degradation: 'maintain-resolution', adaptive: false, bitrate: 4_000_000, codecs: TEXT_CODECS },
+    p1080_60: { label: 'Movimento · 1080p / 60', desc: 'Jogos e vídeos; exige mais do computador', width: 1920, height: 1080, fps: 60, hint: 'motion', degradation: 'maintain-framerate-and-resolution', adaptive: true, bitrate: 6_000_000, codecs: ['video/H264', 'video/VP8'] },
   };
 
   const watchModes = {
@@ -40,8 +46,13 @@
   }
 
   // Meta de um espectador. O pedido dele é um teto; a adaptação (level) só reduz resolução.
+  // Em telas com texto, reduzir a imagem no envio borra as letras bem mais do que a redução feita
+  // na tela de quem assiste (1080p reduzido para 720p no envio perdeu ~13 dB nas medições) e
+  // economiza pouco com AV1/VP9. Por isso só miniaturas recebem a imagem menor. Com conteúdo pesado
+  // (preset.motion: jogo ou vídeo detectado), cada bloco volta a receber o seu tamanho.
   function screenTarget(preset, demand = {}, level = 0) {
-    let height = Math.min(preset.height, demand.mode === 'source' ? preset.height : demand.maxHeight || preset.height);
+    const requested = demand.mode === 'source' ? preset.height : demand.maxHeight || preset.height;
+    let height = Math.min(preset.height, preset.hint === 'detail' && !preset.motion && requested > 360 ? preset.height : requested);
     let fps = preset.fps;
     if (demand.mode === 'economy') { height = Math.min(720, height); fps = Math.min(15, fps); }
     if (demand.background) { height = Math.min(360, height); fps = Math.min(5, fps); }
@@ -126,11 +137,37 @@
 
   // Codec da tela para um espectador. Celulares informam quais codecs decodificam por hardware
   // (mais fluido e sem esquentar); o perfil escolhido vence se um dos codecs dele estiver nessa lista.
-  function screenCodecs(preset, efficient = []) {
+  // Depois que o processador de quem transmite não deu conta (cpuFallback), o codec leve vem primeiro.
+  function screenCodecs(preset, efficient = [], fallback = null) {
     const known = (Array.isArray(efficient) ? efficient : []).filter((c) => CODECS.includes(c));
-    if (!known.length) return preset.codecs;
-    const first = preset.codecs.find((c) => known.includes(c)) || known[0];
-    return [first, ...preset.codecs.filter((c) => c !== first)];
+    const list = fallback && preset.codecs.includes(fallback) ? [fallback, ...preset.codecs.filter((c) => c !== fallback)] : preset.codecs;
+    if (!known.length) return list;
+    const first = list.find((c) => known.includes(c)) || known[0];
+    return [first, ...list.filter((c) => c !== first)];
+  }
+
+  // AV1 e VP9 deixam o texto mais nítido, mas custam mais processador em cenas com movimento.
+  // Se o codificador ficar limitado pelo processador, a transmissão troca para o VP8 (sem renegociar),
+  // antes de baixar a resolução.
+  const CPU_FALLBACK = 'video/VP8';
+  const cpuFallback = (codec) => ['video/AV1', 'video/VP9'].includes(codec) ? CPU_FALLBACK : null;
+  // Só vale depois de 5 s seguidos: um pico ao trocar de janela não conta.
+  function sustained(previous = {}, active, now, ms = 5_000) {
+    if (!active) return { since: null, reached: false };
+    const since = previous.since ?? now;
+    return { since, reached: now - since >= ms };
+  }
+  function cpuStrain(previous = {}, { limited, codec }, now) {
+    const state = sustained(previous, limited && !!cpuFallback(codec), now);
+    return { since: state.since, fallback: state.reached };
+  }
+  // Como o codificador está: no limite do processador quando o navegador diz ou quando cada quadro
+  // leva quase o intervalo inteiro para codificar (o navegador demorou mais de 20 s para avisar nas
+  // medições). Pesado quando, além disso, gasta quase toda a taxa que recebe: texto usa uma fração
+  // (AV1 22–35%, VP8 até ~70%), jogos e vídeos usam 80–100%.
+  function encoderLoad({ reason, encodeMs, fps, bitrate, target } = {}) {
+    const cpu = reason === 'cpu' || (Number.isFinite(encodeMs) && fps > 0 && encodeMs >= 800 / fps);
+    return { cpu, heavy: cpu || reason === 'bandwidth' || (target > 0 && Number.isFinite(bitrate) && bitrate >= target * .8) };
   }
 
   // Todas as mudanças nos senders de uma conexão passam por uma fila (assistir, parar, trocar, ajustar).
@@ -138,6 +175,21 @@
     const result = (peer.mediaQueue || Promise.resolve()).then(task);
     peer.mediaQueue = result.catch(() => {}); // quem chamou trata o erro; a fila continua usável
     return result;
+  }
+  // Taxa inicial do estimador de banda (x-google-start-bitrate, em kbps) nos payloads H.264 das
+  // seções de vídeo indicadas ({ mid: kbps }). O Chrome só lê esse parâmetro da descrição remota.
+  // Uma tela em H.264 que entra numa conexão que só levava áudio começa a ~300 kbps e leva uns 20 s
+  // para passar de 3 Mbps; VP8 e AV1 chegam lá sozinhos em 1–2 s.
+  function startBitrate(sdp, rates, codec = 'H264') {
+    if (typeof sdp !== 'string' || !rates || !Object.keys(rates).length) return sdp;
+    const eol = sdp.includes('\r\n') ? '\r\n' : '\n';
+    return sdp.split(eol + 'm=').map((section, index) => {
+      if (!index || !section.startsWith('video')) return section;
+      const lines = section.split(eol), kbps = Math.round(rates[lines.find((line) => line.startsWith('a=mid:'))?.slice(6)]);
+      if (!(kbps > 0)) return section;
+      const types = new Set(lines.map((line) => /^a=rtpmap:(\d+) ([\w-]+)\//.exec(line)).filter((m) => m?.[2].toUpperCase() === codec.toUpperCase()).map((m) => m[1]));
+      return lines.map((line) => types.has(/^a=fmtp:(\d+) /.exec(line)?.[1]) && !line.includes('x-google-start-bitrate') ? `${line};x-google-start-bitrate=${kbps}` : line).join(eol);
+    }).join(eol + 'm=');
   }
   function formatVideoStats(measurements, total = false) {
     if (!measurements.length) return 'Medindo qualidade…';
@@ -153,5 +205,5 @@
     const codecs = [...new Set(measurements.map((item) => item.codec).filter(Boolean))].join('/');
     return [size, `${range('fps')} fps`, rate, codecs].filter(Boolean).join(' · ');
   }
-  return { presets, watchModes, CODECS, viewerDemand, screenTarget, allocate, screenEncoding, screenCodecs, strained, adapt, encoding, enqueue, formatVideoStats };
+  return { presets, watchModes, CODECS, viewerDemand, screenTarget, allocate, screenEncoding, screenCodecs, cpuFallback, cpuStrain, sustained, encoderLoad, strained, adapt, encoding, enqueue, startBitrate, formatVideoStats };
 });

@@ -1,7 +1,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const { PNG } = require('pngjs');
-const { decodeAvatar, decodeBanner } = require('../avatar');
+const { decodeAvatar, decodeBanner } = require('../server/avatar');
 
 const encoded = (image) => 'data:image/png;base64,' + image.toString('base64');
 const image = () => PNG.sync.write({ width: 32, height: 32, data: Buffer.alloc(32 * 32 * 4, 255) });

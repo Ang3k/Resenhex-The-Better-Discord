@@ -66,7 +66,7 @@ Dados do usuário ficam em `app.getPath('userData')/voice-ai/models`; preferênc
 
 Para adicionar uma voz, verifique distribuição e idioma, fixe URL/revisão/hash/tamanho e associe o encoder correto. Os schemas suportados são RVC v1/v2 com pitch: `feats/p_len/pitch/pitchf/sid` ou `phone/phone_lengths/pitch/pitchf/ds/rnd`, com 256 ou 768 características. Faça conversão real e avaliação de fala/timbre antes de divulgar o modelo. Esta versão não usa índice de recuperação RVC/Faiss, o que pode limitar a semelhança com algumas vozes.
 
-Avisos e licenças estão em [THIRD-PARTY-NOTICES.md](../desktop/voice-engine/THIRD-PARTY-NOTICES.md). As condições são as declarações dos distribuidores, sem certificação independente dos dados de treinamento.
+Avisos e licenças estão em [THIRD-PARTY-NOTICES.md](../discord-clone/desktop/voice-engine/THIRD-PARTY-NOTICES.md). As condições são as declarações dos distribuidores, sem certificação independente dos dados de treinamento.
 
 ## Requisitos e tamanho
 

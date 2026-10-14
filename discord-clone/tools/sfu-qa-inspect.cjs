@@ -1,7 +1,7 @@
 // Inspect and exercise only the synthetic QA room, never production rooms.
 const assert = require('node:assert/strict');
 const { RoomServiceClient, TrackSource } = require('livekit-server-sdk');
-const { mediaSfu, roomName } = require('../media-sfu');
+const { mediaSfu, roomName } = require('../server/media-sfu');
 const env = { LIVEKIT_URL: 'ws://127.0.0.1:17880', LIVEKIT_INTERNAL_URL: 'http://127.0.0.1:17880', LIVEKIT_API_KEY: 'qa-only', LIVEKIT_API_SECRET: 'qa-only-secret-not-for-production-1234567890' };
 const service = new RoomServiceClient(env.LIVEKIT_INTERNAL_URL, env.LIVEKIT_API_KEY, env.LIVEKIT_API_SECRET);
 const room = roomName('qa', 'voice');

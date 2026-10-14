@@ -1,6 +1,6 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { communityStore } = require('../communities');
+const { communityStore } = require('../server/communities');
 let sequence = 0;
 const newId = () => String(++sequence);
 const defaults = () => ({ accounts: {}, sessions: {}, roles: [{ id: 'everyone', perms: ['SEND_MESSAGES'] }], channels: [{ id: 'geral', name: 'geral', type: 'text', allowedRoles: [] }], messages: { geral: [] } });

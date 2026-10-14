@@ -1,6 +1,6 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { cleanGif } = require('../gifs');
+const { cleanGif } = require('../server/gifs');
 
 const base = 'https://static.klipy.com/ii/935d7ab9d8c6202580a668421940ec81/14/af/';
 const good = { slug: 'gato-dancando-123', title: 'Gato dançando', url: base + 'um0L4dFH.gif', webp: base + 'eUbp2uNc.webp', width: 320, height: 240 };
