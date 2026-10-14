@@ -4,6 +4,15 @@
 // O título deve destacar as principais funcionalidades ou correções, com termos objetivos.
 window.CHANGELOG = [
   {
+    version: '1.4.5', date: '2026-10-14', name: 'Nova fonte na página inicial',
+    summary: 'Os títulos da página de quem chega pela primeira vez ganharam uma fonte larga e pesada.',
+    sections: [
+      { kind: 'improved', items: [
+        'Página inicial: títulos na fonte Unbounded, com "A galera já tá na call" e "Bora pra resenha?" em caixa alta.',
+      ] },
+    ],
+  },
+  {
     version: '1.4.4', date: '2026-10-13', name: 'Propor Melhorias',
     summary: 'Tem uma ideia para o Resenhex? O botão discreto no canto inferior direito abre um espaço para compartilhar sua sugestão com a equipe, sem sair do app.',
     sections: [

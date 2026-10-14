@@ -3,6 +3,15 @@
 Histórico de versões. A mesma lista aparece dentro do app em **Novidades** (menu do servidor ou rodapé das Configurações).
 O Resenhex chegou à versão 1.0 em 4 de outubro de 2026.
 
+## v1.4.5 — Nova fonte na página inicial
+
+14 de outubro de 2026.
+
+Os títulos da página de quem chega pela primeira vez ganharam uma fonte larga e pesada.
+
+### Melhorias
+- Página inicial: títulos na fonte Unbounded, com "A galera já tá na call" e "Bora pra resenha?" em caixa alta.
+
 ## v1.4.4 — Propor Melhorias
 
 13 de outubro de 2026.
