@@ -5,7 +5,7 @@ Veja o que mudou em cada versão no [CHANGELOG.md](CHANGELOG.md) ou em **Novidad
 Plataforma própria de chat e voz para você e seus amigos, inspirada no Discord. Vem com o servidor **Resenha** pronto para usar, com:
 
 - **Página inicial** para quem visita pela primeira vez, com apresentação dos recursos, download para Windows e acesso pelo navegador. Sessões existentes entram automaticamente; convites e o app de desktop continuam abrindo direto no login. Os links `/#entrar` e `/#criar-conta` abrem cada formulário diretamente.
-- **Contas** com nome de usuário, senha e confirmação da senha, sem e-mail (login automático depois da primeira vez)
+- **Contas** com nome de usuário, senha e confirmação da senha. O e-mail é opcional e serve só para recuperar a senha (login automático depois da primeira vez)
 - **Propor Melhorias:** botão discreto no rodapé da lista de membros (só aparece quando ela está visível, para não disputar espaço com o chat ou a call) e acesso nas Configurações, inclusive no celular. Envie uma ideia de até 3000 caracteres ao mantenedor sem sair da conversa; se o envio falhar, o texto é preservado.
 - **Vários servidores**: criar e alternar pela barra lateral, entrar por convite e copiar um link exclusivo para seus amigos. Canais, grupos, cargos e chamadas independentes.
 - **Apelidos por servidor**: abra **Editar nome no servidor** no menu do servidor ou em Meu perfil. Escolha até 32 caracteres ou restaure seu nome de usuário; login, amigos e mensagens diretas usam a identidade da conta.
@@ -359,6 +359,9 @@ Depois de criar sua conta, mande aos amigos o **link de convite do servidor**, d
 | `DOWNLOAD_DIR` | Pasta com o instalador do app para Windows e o `latest.yml` (padrão `downloads/`; o instalador do VPS já define) |
 | `MS_STORE_ID` | ID do app na Microsoft Store (ex.: `9NBLGGH4R32N`). Com ele, a página `/baixar` entrega o instalador oficial da Microsoft |
 | `KLIPY_KEY` | Chave da API de GIFs do [KLIPY](https://partner.klipy.com/api-keys). Com ela aparece o botão de GIF no chat; a busca sai do navegador de quem usa (regra do KLIPY), então a chave chega aos clientes logados. A chave de teste faz 100 buscas por hora; peça a de produção no painel deles |
+| `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASS`, `MAIL_FROM` | Envio dos e-mails de confirmação e de "Esqueci a senha" (Gmail: `smtp.gmail.com`, porta `465`, senha de app). Sem eles, a recuperação por e-mail fica desligada. Em produção ficam num drop-in do systemd (`/etc/systemd/system/resenhex.service.d/mail.conf`) |
+| `PUBLIC_URL` | Endereço usado nos links dos e-mails (padrão `https://resenhex.duckdns.org`) |
+| `MAIL_DEV` | `console` escreve os e-mails no log em vez de enviar. Só para a máquina local e para os testes |
 
 ### Voz não conecta para alguém? Configure um TURN
 

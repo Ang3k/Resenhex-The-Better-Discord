@@ -88,11 +88,12 @@ button[hidden] { display: none !important; }
 #account-password-status.error { color: var(--red); }
 #account-password-status.ok { color: var(--green); }
 .account-email-state { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 12px; font-size: 13px; line-height: 1.5; color: var(--text-muted); }
-.account-email-state.missing { color: var(--yellow); }
-.account-email-state.verified { color: var(--green); }
-.account-email-resend { background: none; border: 0; padding: 0; color: var(--text-link, var(--brand)); font: inherit; font-weight: 600; cursor: pointer; }
-.account-email-resend:hover { text-decoration: underline; }
-.account-email-resend:disabled { opacity: .6; cursor: default; text-decoration: none; }
+.account-email-state.email-missing { color: var(--yellow); }
+.account-email-state.email-verified { color: var(--green); }
+/* Link de texto: vence as regras gerais de botão das Configurações (#settings .settings-content button). */
+#settings .settings-content .account-email-resend { min-height: 0; background: none; border: 0; padding: 0; border-radius: 0; color: var(--text-link, var(--brand)); font: inherit; font-weight: 600; cursor: pointer; }
+#settings .settings-content .account-email-resend:hover { background: none; text-decoration: underline; }
+#settings .settings-content .account-email-resend:disabled { opacity: .6; cursor: default; text-decoration: none; }
 #account-email-status:empty { display: none; }
 #account-email-status.error { color: var(--red); }
 #account-email-status.ok { color: var(--green); }

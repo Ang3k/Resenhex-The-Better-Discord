@@ -6,7 +6,7 @@ Leia este guia antes de mexer no código. Ele diz onde cada coisa fica, como val
 
 O Resenhex é uma plataforma de chat, voz, vídeo e compartilhamento de tela inspirada no Discord, usada por um grupo de amigos e hospedada em uma VPS da Oracle.
 
-- **Servidor:** Node.js (≥ 18; produção usa 22), Express 5 e Socket.IO, em CommonJS. Os dados ficam em um único arquivo JSON (`DATA_FILE`), sem banco de dados.
+- **Servidor:** Node.js (≥ 20; produção usa 22), Express 5 e Socket.IO, em CommonJS. Os dados ficam em um único arquivo JSON (`DATA_FILE`), sem banco de dados.
 - **Cliente web:** HTML, CSS e JavaScript puros, sem framework e sem bundler. Os scripts entram por `<script>` no `public/index.html` e conversam por variáveis globais em `window`.
 - **Apps:** o de Windows (Electron, em `desktop/`) e o de Android (WebView em Java, em `android/`) apenas abrem o site, então mudanças no site chegam a eles pelo deploy normal.
 - **Idioma:** português do Brasil na interface, na documentação, no CHANGELOG e nas mensagens de commit. Os nomes no código são, na maioria, em inglês.
@@ -42,6 +42,7 @@ Caminhos relativos a `discord-clone/`.
 | Assunto | Servidor | Cliente | Testes |
 |---|---|---|---|
 | Contas, login e senha | `server.js` (`auth`, `account:password`) | `public/app.js`, `public/landing.js` | `test/account-password.test.js` |
+| E-mail de recuperação e Esqueci a senha | `server/recovery.js`, `server/mailer.js`, `server.js` (`/password/*`, `/email/confirm`, `account:email`) | `public/app.js` | `test/recovery.test.js`, `test/recovery-server.test.js`, `test/mailer.test.js` |
 | Servidores, convites, cargos e moderação | `server/communities.js`, `server/channels.js`, `server.js` | `public/app.js`, `public/channel-navigation.js`, `public/settings.js` | `test/servers.test.js`, `test/communities.test.js`, `test/channels.test.js`, `test/server-settings.test.js` |
 | Amigos e mensagens diretas | `server.js` | `public/app.js` | `test/friends-dm.test.js` |
 | Chamadas privadas | `server/dm-calls.js` | `public/dm-call.js` | `test/dm-call.test.js`, `test/dm-calls.test.js` |

@@ -3,6 +3,19 @@
 Histórico de versões. A mesma lista aparece dentro do app em **Novidades** (menu do servidor ou rodapé das Configurações).
 O Resenhex chegou à versão 1.0 em 4 de outubro de 2026.
 
+## v1.6.0 — E-mail de recuperação e Esqueci a senha
+
+15 de outubro de 2026.
+
+Agora dá para cadastrar um e-mail, que é opcional, e criar uma senha nova por ele se você esquecer a sua. Quem não quiser colocar e-mail continua entrando só com usuário e senha.
+
+### Novidades
+
+- Cadastro: campo de e-mail opcional. Sem e-mail, não dá para recuperar a conta se você esquecer a senha, e o aviso aparece logo abaixo do campo.
+- Minha conta: seção E-mail de recuperação para adicionar, trocar ou remover o e-mail. Pede a senha atual, e o e-mail só vale depois de confirmado pelo link que chega na caixa de entrada.
+- Esqueci a senha, na tela de login: digite o seu e-mail e receba um link para criar uma senha nova. O link vale por 1 hora e uma vez só, e os outros aparelhos saem da conta.
+- Ninguém mais vê o seu e-mail, nem os membros dos servidores nem os amigos.
+
 ## v1.5.1 — Transmissão a 60 fps segura o 1080p e Propor Melhorias no lugar certo
 
 14 de outubro de 2026.

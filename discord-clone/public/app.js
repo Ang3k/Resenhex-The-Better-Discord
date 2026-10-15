@@ -6488,7 +6488,7 @@
     $('#account-email-form').classList.toggle('hidden', !config.mailEnabled);
     const email = state.me?.email || null;
     const verified = !!state.me?.emailVerified;
-    $('#account-email-state').className = 'account-email-state ' + (!email ? 'missing' : verified ? 'verified' : 'pending');
+    $('#account-email-state').className = 'account-email-state ' + (!email ? 'email-missing' : verified ? 'email-verified' : 'email-pending');
     $('#account-email-state-text').textContent = !email
       ? 'Sem e-mail, não dá para recuperar a conta se você esquecer a senha.'
       : verified ? `Confirmado: ${email}. Se esquecer a senha, use "Esqueci a senha" na tela de login.`
