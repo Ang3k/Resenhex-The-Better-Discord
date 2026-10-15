@@ -182,10 +182,10 @@ input[type=color]::-moz-color-swatch { border: 0; border-radius: 10px; }
 /* ---------- Tela de entrada ---------- */
 /* Entrada: a mesma família roxa da página pública, com superfícies sólidas. */
 .auth { background: var(--bg-rail); isolation: isolate; }
-/* Entrar e criar conta usam sempre o roxo do Resenhex, venha a pessoa da página inicial, de um convite ou do app. */
+/* Entrar e criar conta: o carvão neutro do app com um toque de roxo no cartão, e o roxo do logo no botão e nos links. */
 :root:not([data-theme=midnight]):not([data-theme=contrast]) .auth {
-  --brand: #6b38e8; --brand-hover: #5a2ad0;
-  --bg-rail: #120b22; --bg-main: #1f1640; --bg-input: #26174f;
+  --brand: #8e2fd8; --brand-hover: #7a24bd;
+  --bg-rail: #141417; --bg-main: #1e1b23; --bg-input: #28252e;
 }
 .auth::before {
   content: ''; position: fixed; inset: 0 0 auto; height: 6px; z-index: -1; pointer-events: none;
