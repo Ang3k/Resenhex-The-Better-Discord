@@ -472,6 +472,19 @@
   let inviteShown = false;
   // Links dos e-mails: #confirmar=TOKEN e #redefinir=TOKEN. O token fica só na memória e o endereço
   // vira #nova-senha ou #entrar, para ele não ficar no histórico do navegador.
+  // Chegada de um endereço antigo do site (#transferir=CÓDIGO): o servidor devolve a sessão e as
+  // preferências daquele navegador, e a página recarrega já com elas.
+  {
+    const moved = /^#transferir=([0-9a-f]{64})$/.exec(location.hash);
+    if (moved) {
+      history.replaceState(null, '', location.pathname + location.search);
+      postJson('/session/claim', { code: moved[1] }).then((res) => {
+        for (const [key, value] of Object.entries(res.prefs || {})) if (key !== 'token' && localStorage.getItem(key) === null) localStorage.setItem(key, value);
+        if (res.token && !localStorage.getItem('token')) localStorage.setItem('token', res.token);
+        location.reload();
+      });
+    }
+  }
   let resetToken = null;
   let confirmToken = null;
   {
@@ -658,6 +671,29 @@
     toast('Senha nova salva. Os outros aparelhos saíram da conta.', 'info');
   });
 
+  // Aberto num endereço antigo, no navegador: leva para o endereço oficial com a sessão e as preferências.
+  // Os apps (Windows, Android ou instalado) ficam onde estão até a versão nova deles.
+  function moveToSite(siteUrl) {
+    let site;
+    try { site = new URL(siteUrl); } catch { return false; }
+    if (site.origin === location.origin || window.resenhexDesktop || window.ResenhexAndroid || window.matchMedia?.('(display-mode: standalone)').matches) return false;
+    document.documentElement.classList.add('moving');
+    const target = site.origin + location.pathname + location.search;
+    // Link de e-mail aberto no endereço antigo: segue com o link, sem levar a sessão.
+    if (resetToken || confirmToken) {
+      location.replace(target + (resetToken ? '#redefinir=' + resetToken : '#confirmar=' + confirmToken));
+      return true;
+    }
+    const prefs = {};
+    for (let i = 0; i < localStorage.length; i++) {
+      const key = localStorage.key(i);
+      if (key !== 'token') prefs[key] = localStorage.getItem(key);
+    }
+    postJson('/session/transfer', { token: localStorage.getItem('token'), prefs })
+      .then((res) => location.replace(target + (res.code ? '#transferir=' + res.code : '')));
+    return true;
+  }
+
   async function confirmEmail(token) {
     const res = await postJson('/email/confirm', { token });
     const text = res.error || 'E-mail confirmado. Se esquecer a senha, dá para criar uma nova por ele.';
@@ -666,6 +702,7 @@
   }
 
   Promise.all([fetch('/config').then((r) => r.json()), pendingInviteCode ? fetch('/invites/' + encodeURIComponent(pendingInviteCode)).then((r) => r.json()).catch(() => ({ error: 'Não foi possível consultar o convite. Tente novamente.' })) : null]).then(([c, invite]) => {
+    if (c.siteUrl && moveToSite(c.siteUrl)) return;
     config = c;
     pendingInvitePreview = invite && !invite.error ? invite : null;
     const requestedMode = AUTH_HASHES[location.hash] || loginMode;

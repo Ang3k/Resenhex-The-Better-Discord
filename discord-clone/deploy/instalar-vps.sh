@@ -40,6 +40,7 @@ if [ -f "$ENV_FILE" ]; then
   PUBLIC_IP="$(read_env PUBLIC_IP)"
   TURN_USERNAME="$(read_env TURN_USERNAME)"
   TURN_CREDENTIAL="$(read_env TURN_CREDENTIAL)"
+  OLD_DOMAINS="$(read_env RESENHEX_OLD_DOMAINS)"
 else
   apt-get update -q
   apt-get install -y -q curl ca-certificates >/dev/null
@@ -73,8 +74,12 @@ if [ -n "${RESENHEX_SET_DOMAIN:-}" ]; then
       exit 1
     fi
   fi
+  # O domínio anterior continua respondendo: os apps instalados ainda usam ele, e no navegador
+  # o site leva a pessoa para o domínio novo já conectada.
+  if [ -n "$DOMAIN" ] && [ "$DOMAIN" != "$NEW_DOMAIN" ] && [ "$DOMAIN" != "$FREE_DOMAIN" ]; then OLD_DOMAINS="${OLD_DOMAINS:-} $DOMAIN"; fi
   DOMAIN="$NEW_DOMAIN"
 fi
+OLD_DOMAINS="$(for d in ${OLD_DOMAINS:-}; do if [ "$d" != "$DOMAIN" ]; then echo "$d"; fi; done | sort -u | tr '\n' ' ' | sed 's/ $//')"
 
 # Apenas valores validados entram nos arquivos de Caddy, coturn e systemd.
 [[ "$PUBLIC_IP" =~ ^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$ ]] || { echo "IP inválido: $PUBLIC_IP"; exit 1; }
@@ -82,10 +87,12 @@ IFS='.' read -ra IP_OCTETS <<< "$PUBLIC_IP"
 for octet in "${IP_OCTETS[@]}"; do
   [ "$octet" -le 255 ] || { echo "IP inválido: $PUBLIC_IP"; exit 1; }
 done
-[ "${#DOMAIN}" -le 253 ] && [[ "$DOMAIN" == *.* && "$DOMAIN" != .* && "$DOMAIN" != *. && "$DOMAIN" != *..* ]] || { echo "Domínio inválido."; exit 1; }
-IFS='.' read -ra DOMAIN_LABELS <<< "$DOMAIN"
-for label in "${DOMAIN_LABELS[@]}"; do
-  [[ "$label" =~ ^[A-Za-z0-9]([A-Za-z0-9-]{0,61}[A-Za-z0-9])?$ ]] || { echo "Domínio inválido."; exit 1; }
+for checked in $DOMAIN $OLD_DOMAINS; do
+  [ "${#checked}" -le 253 ] && [[ "$checked" == *.* && "$checked" != .* && "$checked" != *. && "$checked" != *..* ]] || { echo "Domínio inválido: $checked"; exit 1; }
+  IFS='.' read -ra DOMAIN_LABELS <<< "$checked"
+  for label in "${DOMAIN_LABELS[@]}"; do
+    [[ "$label" =~ ^[A-Za-z0-9]([A-Za-z0-9-]{0,61}[A-Za-z0-9])?$ ]] || { echo "Domínio inválido: $checked"; exit 1; }
+  done
 done
 [[ "$TURN_USERNAME" =~ ^[A-Za-z0-9_-]+$ && "$TURN_CREDENTIAL" =~ ^[A-Za-z0-9]+$ ]] || { echo "Credenciais TURN inválidas."; exit 1; }
 
@@ -93,6 +100,8 @@ umask 077
 cat > "$ENV_FILE" <<EOF
 # Configuração do Resenhex (gerada por deploy/instalar-vps.sh)
 RESENHEX_DOMAIN=$DOMAIN
+RESENHEX_OLD_DOMAINS=$OLD_DOMAINS
+PUBLIC_URL=https://$DOMAIN
 PUBLIC_IP=$PUBLIC_IP
 PORT=3000
 HOST=127.0.0.1
@@ -167,8 +176,10 @@ if [ "${RESENHEX_ENABLE_SFU:-0}" = 1 ] || [ -f /etc/resenhex-livekit.env ]; then
   bash "$APP_SRC/deploy/instalar-sfu.sh"
 fi
 say "Configurando HTTPS para $DOMAIN"
+SITE_HOSTS="$DOMAIN"
+for d in $OLD_DOMAINS; do SITE_HOSTS="$SITE_HOSTS, $d"; done
 cat > /etc/caddy/Caddyfile <<EOF
-$DOMAIN {
+$SITE_HOSTS {
 	encode gzip
 	reverse_proxy 127.0.0.1:3000
 }
@@ -177,6 +188,15 @@ EOF
 if [ -f /etc/resenhex-livekit.env ]; then
   sed -i '/encode gzip/a\	handle /rtc* {\n\t\treverse_proxy 127.0.0.1:7880\n\t}' /etc/caddy/Caddyfile
   sed -i 's/^\treverse_proxy 127.0.0.1:3000/\thandle {\n\t\treverse_proxy 127.0.0.1:3000\n\t}/' /etc/caddy/Caddyfile
+fi
+# www.dominio leva para o domínio sem www, quando o www também aponta para este servidor.
+if [[ "$DOMAIN" != www.* ]] && getent ahostsv4 "www.$DOMAIN" 2>/dev/null | awk '{ print $1 }' | grep -qx "$PUBLIC_IP"; then
+  cat >> /etc/caddy/Caddyfile <<EOF
+
+www.$DOMAIN {
+	redir https://$DOMAIN{uri} permanent
+}
+EOF
 fi
 if [ "$DOMAIN" != "$FREE_DOMAIN" ]; then
   cat >> /etc/caddy/Caddyfile <<EOF

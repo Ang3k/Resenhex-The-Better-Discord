@@ -44,6 +44,8 @@
     document.documentElement.classList.toggle('touch', !window.hasMouse());
   </script>
   <script>
+    // Chegando de um endereço antigo do site: a página fica escondida até recarregar com a sessão.
+    if (/^#transferir=/.test(location.hash)) document.documentElement.classList.add('moving');
     // Quem chega pela primeira vez vê a página inicial; quem já entrou neste navegador, veio por convite
     // ou usa um app (desktop ou Android) vai direto para o Resenhex. Decidido antes de pintar, para não piscar.
     try {
@@ -51,7 +53,7 @@
       const firstVisit = !installedApp &&!new URLSearchParams(location.search).has('invite') && !localStorage.getItem('token') && !localStorage.getItem('name');
       if (firstVisit) {
         document.documentElement.dataset.landing = 'on';
-        if (!/^#(entrar|criar-conta|esqueci|nova-senha)$|^#(confirmar|redefinir)=/.test(location.hash)) document.documentElement.classList.add('show-landing');
+        if (!/^#(entrar|criar-conta|esqueci|nova-senha)$|^#(confirmar|redefinir|transferir)=/.test(location.hash)) document.documentElement.classList.add('show-landing');
       }
     } catch {}
   </script>

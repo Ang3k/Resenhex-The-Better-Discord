@@ -60,6 +60,7 @@ a { color: var(--link); }
 .hidden { display: none !important; }
 /* Textos e opções que só fazem sentido com mouse/teclado (ou só no toque). A classe vem do <head>. */
 html.touch .mouse-only, html:not(.touch) .touch-only { display: none !important; }
+html.moving body { visibility: hidden; } /* mudando para o endereço oficial do site */
 .muted-text { color: var(--text-muted); font-size: 13px; }
 .ico { flex-shrink: 0; display: block; }
 .ico .slash { stroke: var(--red); }

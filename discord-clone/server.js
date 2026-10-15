@@ -405,8 +405,37 @@ app.use('/vendor/three/addons', express.static(path.join(threeDir, 'examples', '
 // Jogos que o overlay do app de desktop reconhece (lista enxuta da lista pública do Discord).
 const gameList = createGameList({ file: path.join(path.dirname(DATA_FILE), 'jogos-detectaveis.json') });
 app.get('/api/games/detectable', gameList.route);
+// Endereço oficial do site (PUBLIC_URL). Quem abre um endereço antigo no navegador é levado para ele
+// já conectado; os apps de Windows e Android continuam no endereço que conhecem.
+const SITE_URL = String(process.env.PUBLIC_URL || '').replace(/\/+$/, '');
 app.get('/config', (_req, res) => {
-  res.json({ passwordRequired: false, hasOwner: Object.keys(db.accounts).length > 0, maxUploadMb: MAX_UPLOAD_MB, mailEnabled: recovery.enabled });
+  res.json({ passwordRequired: false, hasOwner: Object.keys(db.accounts).length > 0, maxUploadMb: MAX_UPLOAD_MB, mailEnabled: recovery.enabled, siteUrl: SITE_URL || null });
+});
+// A mudança de endereço leva a sessão e as preferências do navegador por um código de uso único,
+// que vale 60 s e só pode ser usado do mesmo IP que o pediu.
+const transfers = new Map();
+const TRANSFER_MS = 60 * 1000;
+app.post('/session/transfer', express.json({ limit: '300kb' }), (req, res) => {
+  res.set('Cache-Control', 'no-store');
+  const ip = clientIp(req.headers, req.socket.remoteAddress);
+  if (!allow('transfer:' + ip, 20, 60 * 60 * 1000)) return res.status(429).json({ error: 'Muitas tentativas.' });
+  const token = String(req.body?.token || '');
+  const accountId = db.sessions[token] || null;
+  const prefs = {};
+  for (const [key, value] of Object.entries(req.body?.prefs || {})) if (key !== 'token' && typeof value === 'string') prefs[key] = value;
+  for (const [code, entry] of transfers) if (entry.expires <= Date.now()) transfers.delete(code);
+  const code = crypto.randomBytes(32).toString('hex');
+  transfers.set(code, { accountId, prefs, ip, expires: Date.now() + TRANSFER_MS });
+  res.json({ code });
+});
+app.post('/session/claim', express.json({ limit: '4kb' }), (req, res) => {
+  res.set('Cache-Control', 'no-store');
+  const code = String(req.body?.code || '');
+  const entry = transfers.get(code);
+  transfers.delete(code);
+  if (!entry || entry.expires <= Date.now() || entry.ip !== clientIp(req.headers, req.socket.remoteAddress)) return res.status(400).json({ error: 'Esse link de mudança expirou.' });
+  const token = entry.accountId && db.accounts[entry.accountId] ? createSession(entry.accountId) : null;
+  res.json({ token, prefs: entry.prefs });
 });
 // Confirmação do e-mail e "Esqueci a senha". Acontecem antes do login, então por HTTP e não pelo socket.
 const HOUR = 60 * 60 * 1000;

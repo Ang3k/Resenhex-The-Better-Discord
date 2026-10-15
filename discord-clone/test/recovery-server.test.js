@@ -185,3 +185,18 @@ test('e-mail: no cadastro, a sessão fica sabendo se o link de confirmação sai
   for (let i = 0; i < 40 && !pushed.length; i++) await wait(50);
   assert.deepEqual(pushed, [{ email: 'ana@exemplo.com', emailVerified: false, sent: true, signup: true }]);
 });
+
+test('mudança de endereço: o código leva a sessão e as preferências uma vez só', async (t) => {
+  const { auth, post, config } = await startServer(t);
+  assert.equal((await config()).siteUrl, 'https://resenhex.test');
+  const ana = await auth({ mode: 'register', name: 'Ana', password: '1234', confirmPassword: '1234' });
+  const { code } = (await post('/session/transfer', { token: ana.res.token, prefs: { theme: 'dark', token: 'nao-vai' } })).body;
+  assert.match(code, /^[0-9a-f]{64}$/);
+  const claimed = await post('/session/claim', { code });
+  assert.deepEqual(claimed.body.prefs, { theme: 'dark' });
+  assert.notEqual(claimed.body.token, ana.res.token, 'o endereço novo ganha uma sessão própria');
+  assert.equal((await auth({ token: claimed.body.token })).res.accountId, ana.res.accountId);
+  assert.equal((await post('/session/claim', { code })).status, 400, 'o código vale uma vez só');
+  const semSessao = (await post('/session/transfer', { token: 'invalido', prefs: {} })).body.code;
+  assert.equal((await post('/session/claim', { code: semSessao })).body.token, null);
+});
