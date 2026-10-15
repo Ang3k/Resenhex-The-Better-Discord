@@ -20,6 +20,8 @@ const { youtubeSearch } = require('./server/youtube');
 const { createDmCalls } = require('./server/dm-calls');
 const { cleanGif } = require('./server/gifs');
 const { createGameList } = require('./server/games');
+const { createMailer } = require('./server/mailer');
+const { createRecovery, normalizeEmail } = require('./server/recovery');
 const { version: APP_VERSION } = require('./package.json');
 
 const PORT = process.env.PORT || 3000;
@@ -158,6 +160,10 @@ db.uploads ||= {};
 db.friendships ||= {}; // "idA-idB" (ids em ordem) -> { status: 'pending' | 'friends', from, ts }
 db.blocks ||= {}; // idDeQuemBloqueou -> [ids bloqueados]
 db.dms ||= {}; // "dm-idA-idB" -> { id, users: [idA, idB], closed: { idDaConta: true } }; as mensagens ficam em db.messages[id]
+// E-mail de recuperação (opcional). Os links usam PUBLIC_URL, nunca o Host da requisição,
+// para ninguém conseguir um e-mail com link apontando para outro site.
+const recovery = createRecovery({ db, save, mailer: createMailer(), publicUrl: process.env.PUBLIC_URL || 'https://resenhex.duckdns.org' });
+setInterval(() => recovery.prune(), 60 * 60 * 1000).unref();
 
 // Grava na hora ao desligar o servidor (Ctrl+C), para não perder o que estava pendente.
 function saveNow() {
@@ -400,7 +406,56 @@ app.use('/vendor/three/addons', express.static(path.join(threeDir, 'examples', '
 const gameList = createGameList({ file: path.join(path.dirname(DATA_FILE), 'jogos-detectaveis.json') });
 app.get('/api/games/detectable', gameList.route);
 app.get('/config', (_req, res) => {
-  res.json({ passwordRequired: false, hasOwner: Object.keys(db.accounts).length > 0, maxUploadMb: MAX_UPLOAD_MB });
+  res.json({ passwordRequired: false, hasOwner: Object.keys(db.accounts).length > 0, maxUploadMb: MAX_UPLOAD_MB, mailEnabled: recovery.enabled });
+});
+// Confirmação do e-mail e "Esqueci a senha". Acontecem antes do login, então por HTTP e não pelo socket.
+const HOUR = 60 * 60 * 1000;
+const recoveryJson = express.json({ limit: '4kb' });
+const recoveryOff = (res) => res.status(404).json({ error: 'A recuperação por e-mail está desligada neste servidor.' });
+app.post('/email/confirm', recoveryJson, (req, res) => {
+  res.set('Cache-Control', 'no-store');
+  if (!recovery.enabled) return recoveryOff(res);
+  if (!allow('email-confirm:' + clientIp(req.headers, req.socket.remoteAddress), 10, HOUR)) return res.status(429).json({ error: 'Muitas tentativas. Aguarde um pouco e tente de novo.' });
+  const account = recovery.confirm(req.body?.token);
+  if (!account) return res.status(400).json({ error: 'Esse link de confirmação expirou ou já foi usado. Peça outro em Minha conta.' });
+  emitToAccount(account.id, 'account:email', recovery.view(account));
+  res.json({ ok: true });
+});
+app.post('/password/forgot', recoveryJson, (req, res) => {
+  res.set('Cache-Control', 'no-store');
+  if (!recovery.enabled) return recoveryOff(res);
+  let email;
+  try { email = normalizeEmail(req.body?.email); } catch (error) { return res.status(400).json({ error: error.message }); }
+  if (!email) return res.status(400).json({ error: 'Digite o seu e-mail.' });
+  const ip = clientIp(req.headers, req.socket.remoteAddress);
+  if (!allow('forgot-ip:' + ip, 5, HOUR) || !allow('forgot-email:' + email, 3, HOUR)) return res.status(429).json({ error: 'Muitos pedidos. Aguarde um pouco e tente de novo.' });
+  // Responde antes de enviar: o tempo de resposta não pode revelar se o e-mail está cadastrado.
+  res.json({ ok: true });
+  recovery.forgot(email).catch((error) => console.error('Falha no Esqueci a senha:', error.message));
+});
+app.post('/password/reset', recoveryJson, async (req, res) => {
+  res.set('Cache-Control', 'no-store');
+  if (!recovery.enabled) return recoveryOff(res);
+  if (!allow('reset:' + clientIp(req.headers, req.socket.remoteAddress), 10, HOUR)) return res.status(429).json({ error: 'Muitas tentativas. Aguarde um pouco e tente de novo.' });
+  const next = String(req.body?.next ?? '');
+  // Valida antes de usar o link: um erro de digitação não pode gastar o token.
+  if (next.length < 4) return res.status(400).json({ error: 'A nova senha precisa ter pelo menos 4 caracteres.' });
+  if (next.length > 128) return res.status(400).json({ error: 'A nova senha deve ter até 128 caracteres.' });
+  if (req.body?.confirm !== next) return res.status(400).json({ error: 'As senhas não coincidem.' });
+  const account = recovery.takeReset(req.body?.token);
+  if (!account) return res.status(400).json({ error: 'Esse link expirou ou já foi usado. Peça outro em "Esqueci a senha".' });
+  Object.assign(account, await hashPassword(next));
+  for (const [token, id] of Object.entries(db.sessions)) if (id === account.id) delete db.sessions[token];
+  for (const key of loginFailures.keys()) if (key.endsWith('|' + account.name.toLowerCase())) loginFailures.delete(key);
+  for (const [sid, s] of online) {
+    if (s.accountId !== account.id) continue;
+    const other = io.sockets.sockets.get(sid);
+    other?.emit('session:ended', 'Sua senha foi redefinida. Entre de novo com a senha nova.');
+    other?.disconnect(true);
+  }
+  const token = createSession(account.id);
+  recovery.passwordChanged(account).catch((error) => console.error('Falha ao avisar a troca de senha:', error.message));
+  res.json({ ok: true, token, name: account.name });
 });
 app.get('/invites/:code', (req, res) => {
   res.set('Cache-Control', 'no-store');
@@ -1214,6 +1269,8 @@ io.on('connection', (socket) => {
         if (password.length < 4) return ack({ error: 'A senha precisa ter pelo menos 4 caracteres' });
         if (password.length > 128) return ack({ error: 'A senha deve ter até 128 caracteres.' });
         if (payload.confirmPassword !== password) return ack({ error: 'As senhas não coincidem. Confirme sua senha.' });
+        let email = '';
+        try { email = recovery.enabled ? normalizeEmail(payload.email) : ''; } catch (error) { return ack({ error: error.message }); }
         if (existing) return ack({ error: 'Esse nome já está em uso' });
         if (!allow('register:' + ip, 20, 60 * 60 * 1000)) return ack({ error: 'Muitas contas criadas daqui. Tente mais tarde.' });
         const secret = await hashPassword(password);
@@ -1221,6 +1278,8 @@ io.on('connection', (socket) => {
         if (Object.values(db.accounts).some((a) => a.name.toLowerCase() === name.toLowerCase())) return ack({ error: 'Esse nome já está em uso' });
         acc = { id: newId(), name, color: cleanColor(payload.color), createdAt: Date.now(), ...secret };
         db.accounts[acc.id] = acc;
+        // E-mail opcional: fica gravado na hora, e o link de confirmação sai sem segurar o cadastro.
+        if (email) recovery.setEmail(acc, email).catch((error) => console.error('Falha ao gravar o e-mail:', error.message));
         // A primeira conta criada vira dona do servidor.
         const legacy = communities.root.servers[communities.root.defaultServerId];
         // Only the first account bootstraps a fresh installation. All later accounts
@@ -1247,7 +1306,7 @@ io.on('connection', (socket) => {
     const serverId = communities.choose(acc.id, payload.serverId || acc.lastServerId);
     online.set(socket.id, { accountId: acc.id, serverId, voice: null, voiceServerId: null, muted: false, deafened: false, sharing: false, camera: false });
     save();
-    ack({ token, accountId: acc.id, name: acc.name, since: acc.createdAt || null, serverId, sid: socket.id, presence: acc.presence || 'online', statusText: acc.statusText || '', iceServers: iceServers(), permNames: PERMS, maxUploadMb: MAX_UPLOAD_MB, version: APP_VERSION, gifKey: process.env.KLIPY_KEY || null });
+    ack({ token, accountId: acc.id, name: acc.name, since: acc.createdAt || null, serverId, sid: socket.id, presence: acc.presence || 'online', statusText: acc.statusText || '', iceServers: iceServers(), permNames: PERMS, maxUploadMb: MAX_UPLOAD_MB, version: APP_VERSION, gifKey: process.env.KLIPY_KEY || null, ...recovery.view(acc), mailEnabled: recovery.enabled });
     // Páginas de antes da 0.99.3 não mandam a versão nem sabem mostrar o aviso de atualização.
     if (!payload.version) socket.emit('notice', 'Saiu uma versão nova do Resenhex. Aperte F5 para atualizar.');
     socket.emit('social', socialFor(acc));
@@ -1287,6 +1346,24 @@ io.on('connection', (socket) => {
       other?.disconnect(true);
     }
     return { ok: true };
+  });
+
+  // E-mail de recuperação em Minha conta. Pedir a senha atual impede que alguém com o aparelho
+  // destravado coloque o próprio e-mail para roubar a conta depois.
+  on('account:email', async (acc, { email, password }) => {
+    if (!recovery.enabled) fail('O envio de e-mails está desligado neste servidor.');
+    if (!allow('email:' + acc.id, 5, 10 * 60 * 1000)) fail('Muitas tentativas. Aguarde alguns minutos.');
+    normalizeEmail(email); // endereço inválido falha antes de conferir a senha
+    if (!(await checkPassword(acc, String(password || '')))) {
+      await new Promise((r) => setTimeout(r, 800)); // atrasa tentativas de adivinhar senha
+      fail('A senha atual está incorreta.');
+    }
+    return { ok: true, ...(await recovery.setEmail(acc, email)) };
+  });
+  on('account:email:resend', async (acc) => {
+    if (!recovery.enabled) fail('O envio de e-mails está desligado neste servidor.');
+    if (!allow('email-resend:' + acc.id, 3, 10 * 60 * 1000)) fail('Você já pediu alguns links. Aguarde alguns minutos.');
+    return { ok: true, ...(await recovery.resend(acc)) };
   });
 
   on('profile', (acc, { color, avatar }) => {
