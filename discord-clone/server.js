@@ -1324,19 +1324,14 @@ io.on('connection', (socket) => {
   });
 
   // O nome de usuário é fixo; só a senha muda. Trocar a senha encerra as outras sessões
-  // (outros aparelhos e abas) e mantém só esta.
-  on('account:password', async (acc, { current, next, confirm }) => {
-    current = String(current || '');
+  // (outros aparelhos e abas) e mantém só esta. A senha atual não é pedida: quem está
+  // conectado e esqueceu a senha consegue criar outra.
+  on('account:password', async (acc, { next, confirm }) => {
     next = String(next || '');
     if (next.length < 4) fail('A nova senha precisa ter pelo menos 4 caracteres.');
     if (next.length > 128) fail('A nova senha deve ter até 128 caracteres.');
     if (confirm !== next) fail('As senhas novas não coincidem.');
-    if (next === current) fail('A nova senha precisa ser diferente da atual.');
     if (!allow('password:' + acc.id, 5, 10 * 60 * 1000)) fail('Muitas tentativas. Aguarde alguns minutos.');
-    if (!(await checkPassword(acc, current))) {
-      await new Promise((r) => setTimeout(r, 800)); // atrasa tentativas de adivinhar senha
-      fail('A senha atual está incorreta.');
-    }
     Object.assign(acc, await hashPassword(next));
     const keep = socket.data.token;
     for (const [token, id] of Object.entries(db.sessions)) if (id === acc.id && token !== keep) delete db.sessions[token];
@@ -1351,16 +1346,11 @@ io.on('connection', (socket) => {
     return { ok: true };
   });
 
-  // E-mail de recuperação em Minha conta. Pedir a senha atual impede que alguém com o aparelho
-  // destravado coloque o próprio e-mail para roubar a conta depois.
-  on('account:email', async (acc, { email, password }) => {
+  // E-mail de recuperação em Minha conta, sem pedir a senha atual. Se já havia um e-mail
+  // confirmado, ele recebe um aviso da troca.
+  on('account:email', async (acc, { email }) => {
     if (!recovery.enabled) fail('O envio de e-mails está desligado neste servidor.');
     if (!allow('email:' + acc.id, 5, 10 * 60 * 1000)) fail('Muitas tentativas. Aguarde alguns minutos.');
-    normalizeEmail(email); // endereço inválido falha antes de conferir a senha
-    if (!(await checkPassword(acc, String(password || '')))) {
-      await new Promise((r) => setTimeout(r, 800)); // atrasa tentativas de adivinhar senha
-      fail('A senha atual está incorreta.');
-    }
     return { ok: true, ...(await recovery.setEmail(acc, email)) };
   });
   on('account:email:resend', async (acc) => {

@@ -3,6 +3,17 @@
 Histórico de versões. A mesma lista aparece dentro do app em **Novidades** (menu do servidor ou rodapé das Configurações).
 O Resenhex chegou à versão 1.0 em 4 de outubro de 2026.
 
+## v1.6.1 — Trocar a senha e o e-mail sem a senha atual
+
+15 de outubro de 2026.
+
+Em Minha conta, trocar a senha e o e-mail de recuperação não pede mais a senha atual. Quem está conectado e esqueceu a senha consegue criar outra.
+
+### Melhorias
+
+- Trocar senha: basta digitar a senha nova e confirmar. Os outros aparelhos continuam saindo da conta.
+- E-mail de recuperação: adicionar, trocar ou remover o e-mail não pede a senha. Se já havia um e-mail confirmado, ele recebe um aviso da troca.
+
 ## v1.6.0 — E-mail de recuperação e Esqueci a senha
 
 15 de outubro de 2026.

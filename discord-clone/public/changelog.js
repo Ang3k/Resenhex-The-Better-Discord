@@ -4,6 +4,16 @@
 // O título deve destacar as principais funcionalidades ou correções, com termos objetivos.
 window.CHANGELOG = [
   {
+    version: '1.6.1', date: '2026-10-15', name: 'Trocar a senha e o e-mail sem a senha atual',
+    summary: 'Em Minha conta, trocar a senha e o e-mail de recuperação não pede mais a senha atual. Quem está conectado e esqueceu a senha consegue criar outra.',
+    sections: [
+      { kind: 'improved', items: [
+        'Trocar senha: basta digitar a senha nova e confirmar. Os outros aparelhos continuam saindo da conta.',
+        'E-mail de recuperação: adicionar, trocar ou remover o e-mail não pede a senha. Se já havia um e-mail confirmado, ele recebe um aviso da troca.',
+      ] },
+    ],
+  },
+  {
     version: '1.6.0', date: '2026-10-15', name: 'E-mail de recuperação e Esqueci a senha',
     summary: 'Agora dá para cadastrar um e-mail, que é opcional, e criar uma senha nova por ele se você esquecer a sua. Quem não quiser colocar e-mail continua entrando só com usuário e senha.',
     sections: [

@@ -1299,7 +1299,7 @@ test('link de confirmação confirma o e-mail e abre o login de quem não está 
   assert.match(app.d.querySelector('#login-notice').textContent, /E-mail confirmado/);
 });
 
-test('Minha conta: adicionar o e-mail pede a senha atual e mostra se está confirmado', async (t) => {
+test('Minha conta: adicionar o e-mail não pede a senha atual e mostra se está confirmado', async (t) => {
   const app = await ui(t, false, { mailEnabled: true, reply: {
     'account:email': (payload) => payload.email ? { ok: true, email: payload.email, emailVerified: false, sent: true } : { ok: true, email: null, emailVerified: false, sent: false },
     'account:email:resend': () => ({ ok: true, email: 'ana@exemplo.com', emailVerified: false, sent: true }),
@@ -1313,17 +1313,13 @@ test('Minha conta: adicionar o e-mail pede a senha atual e mostra se está confi
   assert.match(state.textContent, /não dá para recuperar a conta/);
   assert.equal(app.d.querySelector('#account-email-remove').classList.contains('hidden'), true);
 
+  assert.equal(app.d.querySelector('#account-email-password'), null, 'sem campo de senha atual');
+  assert.doesNotMatch(form.textContent, /senha atual/i);
   app.d.querySelector('#account-email-input').value = 'ana@exemplo.com';
   form.dispatchEvent(new app.w.Event('submit', { bubbles: true, cancelable: true })); await settle();
-  assert.match(app.d.querySelector('#account-email-status').textContent, /senha atual/);
-  assert.equal(app.events.some((e) => e.event === 'account:email'), false);
-
-  app.d.querySelector('#account-email-password').value = 'test-only';
-  form.dispatchEvent(new app.w.Event('submit', { bubbles: true, cancelable: true })); await settle();
-  assert.deepEqual(JSON.parse(JSON.stringify(app.events.find((e) => e.event === 'account:email').payload)), { email: 'ana@exemplo.com', password: 'test-only' });
+  assert.deepEqual(JSON.parse(JSON.stringify(app.events.find((e) => e.event === 'account:email').payload)), { email: 'ana@exemplo.com' });
   assert.match(app.d.querySelector('#account-email-status').textContent, /link de confirmação/);
   assert.match(state.textContent, /Não confirmado/);
-  assert.equal(app.d.querySelector('#account-email-password').value, '');
   assert.equal(app.d.querySelector('#account-email-resend').classList.contains('hidden'), false);
   assert.equal(app.d.querySelector('#account-email-remove').classList.contains('hidden'), false);
 
@@ -1373,4 +1369,23 @@ test('link de senha nova num navegador conectado: Pedir outro link e Voltar para
   assert.equal(app.d.querySelector('#login-form').classList.contains('hidden'), false);
   assert.equal(app.d.querySelector('#forgot-form').classList.contains('hidden'), true);
   assert.equal(app.events.some((e) => e.event === 'auth'), false);
+});
+
+test('Minha conta: trocar a senha não pede a senha atual', async (t) => {
+  const app = await ui(t, false, { reply: { 'account:password': () => ({ ok: true }) } });
+  await app.register();
+  app.d.querySelector('#btn-settings').click(); await settle();
+  app.d.querySelector('#tab-account').click(); await settle();
+  const form = app.d.querySelector('#account-password-form');
+  assert.equal(app.d.querySelector('#account-password-current'), null, 'sem campo de senha atual');
+  assert.doesNotMatch(form.textContent, /senha atual/i);
+  app.d.querySelector('#account-password-next').value = 'nova1';
+  app.d.querySelector('#account-password-confirm').value = 'nova2';
+  form.dispatchEvent(new app.w.Event('submit', { bubbles: true, cancelable: true })); await settle();
+  assert.match(app.d.querySelector('#account-password-status').textContent, /não coincidem/);
+  assert.equal(app.events.some((e) => e.event === 'account:password'), false);
+  app.d.querySelector('#account-password-confirm').value = 'nova1';
+  form.dispatchEvent(new app.w.Event('submit', { bubbles: true, cancelable: true })); await settle();
+  assert.deepEqual(JSON.parse(JSON.stringify(app.events.find((e) => e.event === 'account:password').payload)), { next: 'nova1', confirm: 'nova1' });
+  assert.match(app.d.querySelector('#account-password-status').textContent, /Senha trocada/);
 });

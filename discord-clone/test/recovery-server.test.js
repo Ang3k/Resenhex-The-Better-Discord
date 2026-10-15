@@ -84,7 +84,7 @@ test('e-mail: cadastro, confirmação e senha nova pelo link encerram as sessõe
   assert.equal(again.status, 400);
   assert.match(again.body.error, /expirou ou já foi usado/);
 
-  const celular = await auth({ mode: 'login', name: 'Ana', password: '1234' });
+  const celular = await auth({ mode: 'login', name: 'Ana' });
   let ended = null;
   celular.on('session:ended', (reason) => { ended = reason; });
 
@@ -109,7 +109,7 @@ test('e-mail: cadastro, confirmação e senha nova pelo link encerram as sessõe
   assert.equal(ana.connected, false);
   assert.match((await auth({ token: ana.res.token })).res.error, /Sessão expirada/);
   assert.ok(!(await auth({ token: reset.body.token })).res.error, 'a sessão nova vale');
-  assert.match((await auth({ mode: 'login', name: 'Ana', password: '1234' })).res.error, /incorretos/);
+  assert.match((await auth({ mode: 'login', name: 'Ana' })).res.error, /incorretos/);
   assert.ok(!(await auth({ mode: 'login', name: 'Ana', password: 'nova1' })).res.error);
   assert.match((await nextMail()).subject, /senha do Resenhex foi trocada/);
   const reused = await post('/password/reset', { token: resetToken, next: 'outra1', confirm: 'outra1' });
@@ -135,7 +135,7 @@ test('e-mail: esqueci a senha responde igual para e-mail desconhecido e não con
   assert.match(limited.body.error, /Muitos pedidos/);
 });
 
-test('e-mail: Minha conta pede a senha atual e o endereço não vaza para ninguém', async (t) => {
+test('e-mail: Minha conta troca o e-mail sem pedir a senha e o endereço não vaza para ninguém', async (t) => {
   const { auth, post, nextMail } = await startServer(t);
   assert.match((await auth({ mode: 'register', name: 'Caio', password: '1234', confirmPassword: '1234', email: 'invalido' })).res.error, /e-mail válido/);
   const ana = await auth({ mode: 'register', name: 'Ana', password: '1234', confirmPassword: '1234' });
@@ -143,12 +143,11 @@ test('e-mail: Minha conta pede a senha atual e o endereço não vaza para ningu�
   const states = [];
   ana.on('state', (state) => states.push(JSON.stringify(state)));
 
-  assert.match((await emit(ana, 'account:email', { email: 'ana@exemplo.com', password: 'errada' })).error, /atual está incorreta/);
-  assert.match((await emit(ana, 'account:email', { email: 'invalido', password: '1234' })).error, /e-mail válido/);
-  assert.deepEqual(await emit(ana, 'account:email', { email: 'ana@exemplo.com', password: '1234' }), { ok: true, email: 'ana@exemplo.com', emailVerified: false, sent: true });
+  assert.match((await emit(ana, 'account:email', { email: 'invalido' })).error, /e-mail válido/);
+  assert.deepEqual(await emit(ana, 'account:email', { email: 'ana@exemplo.com' }), { ok: true, email: 'ana@exemplo.com', emailVerified: false, sent: true });
   await post('/email/confirm', { token: tokenIn(await nextMail(), 'confirmar') });
 
-  assert.deepEqual(await emit(ana, 'account:email', { email: 'ana2@exemplo.com', password: '1234' }), { ok: true, email: 'ana2@exemplo.com', emailVerified: false, sent: true });
+  assert.deepEqual(await emit(ana, 'account:email', { email: 'ana2@exemplo.com' }), { ok: true, email: 'ana2@exemplo.com', emailVerified: false, sent: true });
   const [first, second] = [await nextMail(), await nextMail()];
   const byTo = Object.fromEntries([first, second].map((m) => [m.to, m]));
   assert.match(byTo['ana@exemplo.com'].subject, /alterado/);
@@ -156,7 +155,7 @@ test('e-mail: Minha conta pede a senha atual e o endereço não vaza para ningu�
 
   assert.equal((await emit(ana, 'account:email:resend', {})).sent, true);
   await nextMail();
-  assert.deepEqual(await emit(ana, 'account:email', { email: '', password: '1234' }), { ok: true, email: null, emailVerified: false, sent: false });
+  assert.deepEqual(await emit(ana, 'account:email', { email: '' }), { ok: true, email: null, emailVerified: false, sent: false });
 
   await emit(ana, 'presence', { presence: 'idle' });
   await wait(200);
@@ -171,7 +170,7 @@ test('e-mail: sem SMTP configurado a recuperação fica desligada', async (t) =>
   assert.ok(!ana.res.error, ana.res.error);
   assert.equal(ana.res.email, null, 'o e-mail é ignorado quando o envio está desligado');
   assert.equal(ana.res.mailEnabled, false);
-  assert.match((await emit(ana, 'account:email', { email: 'ana@exemplo.com', password: '1234' })).error, /desligad/);
+  assert.match((await emit(ana, 'account:email', { email: 'ana@exemplo.com' })).error, /desligad/);
   const forgot = await post('/password/forgot', { email: 'ana@exemplo.com' });
   assert.equal(forgot.status, 404);
   assert.equal(mails.length, 0);

@@ -50,10 +50,10 @@ test('conta: troca a senha, mantém o nome e encerra as outras sessões', async 
   let ended = null;
   celular.on('session:ended', (reason) => { ended = reason; });
 
-  assert.match((await emit(ana, 'account:password', { current: '1234', next: 'ab', confirm: 'ab' })).error, /4 caracteres/);
-  assert.match((await emit(ana, 'account:password', { current: '1234', next: 'nova1', confirm: 'nova2' })).error, /não coincidem/);
-  assert.match((await emit(ana, 'account:password', { current: 'errada', next: 'nova1', confirm: 'nova1' })).error, /atual está incorreta/);
-  assert.deepEqual(await emit(ana, 'account:password', { current: '1234', next: 'nova1', confirm: 'nova1' }), { ok: true });
+  assert.match((await emit(ana, 'account:password', { next: 'ab', confirm: 'ab' })).error, /4 caracteres/);
+  assert.match((await emit(ana, 'account:password', { next: 'nova1', confirm: 'nova2' })).error, /não coincidem/);
+  // Quem esqueceu a senha consegue trocar estando conectado: a senha atual não é pedida.
+  assert.deepEqual(await emit(ana, 'account:password', { next: 'nova1', confirm: 'nova1' }), { ok: true });
   await wait(200);
 
   // O outro aparelho foi desconectado e o token dele não vale mais.

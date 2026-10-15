@@ -6479,7 +6479,6 @@
     accountPasswordStatus('');
     $('#account-email-user').value = username;
     $('#account-email-input').value = state.me?.email || '';
-    $('#account-email-password').value = '';
     accountEmailStatus('');
     renderAccountEmail();
   }
@@ -6515,48 +6514,35 @@
   }
   $('#account-password-form').onsubmit = async (event) => {
     event.preventDefault();
-    const current = $('#account-password-current').value;
     const next = $('#account-password-next').value;
     const confirm = $('#account-password-confirm').value;
-    if (!current) { accountPasswordStatus('Digite sua senha atual.', 'error'); return $('#account-password-current').focus(); }
     if (next.length < 4) { accountPasswordStatus('A nova senha precisa ter pelo menos 4 caracteres.', 'error'); return $('#account-password-next').focus(); }
     if (next !== confirm) { accountPasswordStatus('As senhas novas não coincidem.', 'error'); return $('#account-password-confirm').focus(); }
-    if (next === current) { accountPasswordStatus('A nova senha precisa ser diferente da atual.', 'error'); return $('#account-password-next').focus(); }
     const button = $('#account-password-save');
+    if (button.disabled) return;
     button.disabled = true;
     accountPasswordStatus('Trocando a senha…');
-    const result = await accountRequest('account:password', { current, next, confirm });
+    const result = await accountRequest('account:password', { next, confirm });
     button.disabled = false;
-    if (result?.error) {
-      accountPasswordStatus(result.error, 'error');
-      if (/atual/.test(result.error)) { $('#account-password-current').value = ''; $('#account-password-current').focus(); }
-      return;
-    }
+    if (result?.error) return accountPasswordStatus(result.error, 'error');
     $('#account-password-form').reset();
     $('#account-password-user').value = state.me?.name || '';
     accountPasswordStatus('Senha trocada. As outras sessões foram encerradas.', 'ok');
     toast('Senha trocada.', 'info');
   };
   async function saveAccountEmail(email) {
-    const password = $('#account-email-password').value;
     if (email && !EMAIL_PATTERN.test(email)) { accountEmailStatus('Digite um e-mail válido.', 'error'); return $('#account-email-input').focus(); }
-    if (!password) { accountEmailStatus('Digite sua senha atual.', 'error'); return $('#account-email-password').focus(); }
     const buttons = [$('#account-email-save'), $('#account-email-remove')];
     if (buttons[0].disabled) return;
     buttons.forEach((b) => { b.disabled = true; });
     accountEmailStatus(email ? 'Salvando…' : 'Removendo…');
     // O envio pelo Gmail pode levar alguns segundos.
-    const res = await accountRequest('account:email', { email, password }, 25000);
+    const res = await accountRequest('account:email', { email }, 25000);
     buttons.forEach((b) => { b.disabled = false; });
-    if (res?.error) {
-      accountEmailStatus(res.error, 'error');
-      if (/atual/.test(res.error)) { $('#account-email-password').value = ''; $('#account-email-password').focus(); }
-      return;
-    }
+    if (res?.error) return accountEmailStatus(res.error, 'error');
     state.me.email = res.email;
     state.me.emailVerified = res.emailVerified;
     $('#account-email-input').value = res.email || '';
-    $('#account-email-password').value = '';
     renderAccountEmail();
     if (!email) accountEmailStatus('E-mail removido.', 'ok');
     else if (res.emailVerified) accountEmailStatus('Esse e-mail já está confirmado.', 'ok');
