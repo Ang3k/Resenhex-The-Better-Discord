@@ -13,6 +13,7 @@ window.CHANGELOG = [
       ] },
       { kind: 'fixed', items: [
         'Entrar e criar conta: a tela usa sempre o roxo do Resenhex, e não mais um azul para quem chega por convite ou já tinha visitado o site. A cor de avatar sugerida também é roxa.',
+        'Página inicial: os títulos trocaram de fonte. A nova é tão larga e forte quanto a anterior, mas com letras normais, sem as pontas curvas no G, no E e no B.',
       ] },
     ],
   },
