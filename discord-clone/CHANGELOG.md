@@ -3,22 +3,6 @@
 Histórico de versões. A mesma lista aparece dentro do app em **Novidades** (menu do servidor ou rodapé das Configurações).
 O Resenhex chegou à versão 1.0 em 4 de outubro de 2026.
 
-## v1.6.1 — Trocar a senha e o e-mail sem a senha atual
-
-15 de outubro de 2026.
-
-Em Minha conta, trocar a senha e o e-mail de recuperação não pede mais a senha atual. Quem está conectado e esqueceu a senha consegue criar outra.
-
-### Melhorias
-
-- Trocar senha: basta digitar a senha nova e confirmar. Os outros aparelhos continuam saindo da conta.
-- E-mail de recuperação: adicionar, trocar ou remover o e-mail não pede a senha. Se já havia um e-mail confirmado, ele recebe um aviso da troca.
-
-### Correções
-
-- Entrar e criar conta: a tela usa sempre o roxo do Resenhex, e não mais um azul para quem chega por convite ou já tinha visitado o site. A cor de avatar sugerida também é roxa.
-- Página inicial: os títulos trocaram de fonte. A nova é tão larga e forte quanto a anterior, mas com letras normais, sem as pontas curvas no G, no E e no B.
-
 ## v1.6.0 — E-mail de recuperação e Esqueci a senha
 
 15 de outubro de 2026.
@@ -28,9 +12,18 @@ Agora dá para cadastrar um e-mail, que é opcional, e criar uma senha nova por 
 ### Novidades
 
 - Cadastro: campo de e-mail opcional. Sem e-mail, não dá para recuperar a conta se você esquecer a senha, e o aviso aparece logo abaixo do campo.
-- Minha conta: seção E-mail de recuperação para adicionar, trocar ou remover o e-mail. Pede a senha atual, e o e-mail só vale depois de confirmado pelo link que chega na caixa de entrada.
+- Minha conta: seção E-mail de recuperação para adicionar, trocar ou remover o e-mail. O e-mail só vale depois de confirmado pelo link que chega na caixa de entrada.
 - Esqueci a senha, na tela de login: digite o seu e-mail e receba um link para criar uma senha nova. O link vale por 1 hora e uma vez só, e os outros aparelhos saem da conta.
 - Ninguém mais vê o seu e-mail, nem os membros dos servidores nem os amigos.
+
+### Melhorias
+
+- Minha conta: trocar a senha e o e-mail não pede mais a senha atual. Quem está conectado e esqueceu a senha consegue criar outra, e os outros aparelhos continuam saindo da conta.
+
+### Correções
+
+- Entrar e criar conta: a tela usa sempre o roxo do Resenhex, e não mais um azul para quem chega por convite ou já tinha visitado o site. A cor de avatar sugerida também é roxa.
+- Página inicial: os títulos trocaram de fonte. A nova é tão larga e forte quanto a anterior, mas com letras normais, sem as pontas curvas no G, no E e no B.
 
 ## v1.5.1 — Transmissão a 60 fps segura o 1080p e Propor Melhorias no lugar certo
 

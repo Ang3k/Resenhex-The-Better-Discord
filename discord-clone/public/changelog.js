@@ -4,28 +4,21 @@
 // O título deve destacar as principais funcionalidades ou correções, com termos objetivos.
 window.CHANGELOG = [
   {
-    version: '1.6.1', date: '2026-10-15', name: 'Trocar a senha e o e-mail sem a senha atual',
-    summary: 'Em Minha conta, trocar a senha e o e-mail de recuperação não pede mais a senha atual. Quem está conectado e esqueceu a senha consegue criar outra.',
-    sections: [
-      { kind: 'improved', items: [
-        'Trocar senha: basta digitar a senha nova e confirmar. Os outros aparelhos continuam saindo da conta.',
-        'E-mail de recuperação: adicionar, trocar ou remover o e-mail não pede a senha. Se já havia um e-mail confirmado, ele recebe um aviso da troca.',
-      ] },
-      { kind: 'fixed', items: [
-        'Entrar e criar conta: a tela usa sempre o roxo do Resenhex, e não mais um azul para quem chega por convite ou já tinha visitado o site. A cor de avatar sugerida também é roxa.',
-        'Página inicial: os títulos trocaram de fonte. A nova é tão larga e forte quanto a anterior, mas com letras normais, sem as pontas curvas no G, no E e no B.',
-      ] },
-    ],
-  },
-  {
     version: '1.6.0', date: '2026-10-15', name: 'E-mail de recuperação e Esqueci a senha',
     summary: 'Agora dá para cadastrar um e-mail, que é opcional, e criar uma senha nova por ele se você esquecer a sua. Quem não quiser colocar e-mail continua entrando só com usuário e senha.',
     sections: [
       { kind: 'new', items: [
         'Cadastro: campo de e-mail opcional. Sem e-mail, não dá para recuperar a conta se você esquecer a senha, e o aviso aparece logo abaixo do campo.',
-        'Minha conta: seção E-mail de recuperação para adicionar, trocar ou remover o e-mail. Pede a senha atual, e o e-mail só vale depois de confirmado pelo link que chega na caixa de entrada.',
+        'Minha conta: seção E-mail de recuperação para adicionar, trocar ou remover o e-mail. O e-mail só vale depois de confirmado pelo link que chega na caixa de entrada.',
         'Esqueci a senha, na tela de login: digite o seu e-mail e receba um link para criar uma senha nova. O link vale por 1 hora e uma vez só, e os outros aparelhos saem da conta.',
         'Ninguém mais vê o seu e-mail, nem os membros dos servidores nem os amigos.',
+      ] },
+      { kind: 'improved', items: [
+        'Minha conta: trocar a senha e o e-mail não pede mais a senha atual. Quem está conectado e esqueceu a senha consegue criar outra, e os outros aparelhos continuam saindo da conta.',
+      ] },
+      { kind: 'fixed', items: [
+        'Entrar e criar conta: a tela usa sempre o roxo do Resenhex, e não mais um azul para quem chega por convite ou já tinha visitado o site. A cor de avatar sugerida também é roxa.',
+        'Página inicial: os títulos trocaram de fonte. A nova é tão larga e forte quanto a anterior, mas com letras normais, sem as pontas curvas no G, no E e no B.',
       ] },
     ],
   },
