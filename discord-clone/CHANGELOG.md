@@ -14,6 +14,10 @@ Em Minha conta, trocar a senha e o e-mail de recuperação não pede mais a senh
 - Trocar senha: basta digitar a senha nova e confirmar. Os outros aparelhos continuam saindo da conta.
 - E-mail de recuperação: adicionar, trocar ou remover o e-mail não pede a senha. Se já havia um e-mail confirmado, ele recebe um aviso da troca.
 
+### Correções
+
+- Entrar e criar conta: a tela usa sempre o roxo do Resenhex, e não mais um azul para quem chega por convite ou já tinha visitado o site. A cor de avatar sugerida também é roxa.
+
 ## v1.6.0 — E-mail de recuperação e Esqueci a senha
 
 15 de outubro de 2026.

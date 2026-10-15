@@ -11,6 +11,9 @@ window.CHANGELOG = [
         'Trocar senha: basta digitar a senha nova e confirmar. Os outros aparelhos continuam saindo da conta.',
         'E-mail de recuperação: adicionar, trocar ou remover o e-mail não pede a senha. Se já havia um e-mail confirmado, ele recebe um aviso da troca.',
       ] },
+      { kind: 'fixed', items: [
+        'Entrar e criar conta: a tela usa sempre o roxo do Resenhex, e não mais um azul para quem chega por convite ou já tinha visitado o site. A cor de avatar sugerida também é roxa.',
+      ] },
     ],
   },
   {
