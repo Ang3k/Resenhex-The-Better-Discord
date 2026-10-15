@@ -125,6 +125,11 @@ html.touch .mouse-only, html:not(.touch) .touch-only { display: none !important;
 .switch { font-size: 14px; text-align: left !important; color: var(--text-muted) !important; }
 .switch a { text-decoration: none; }
 .switch a:hover { text-decoration: underline; }
+.auth-forgot { align-self: flex-start; margin-top: -6px; font-size: 14px; text-decoration: none; }
+.auth-forgot:hover { text-decoration: underline; }
+.auth-card .optional { font-weight: 500; color: var(--text-muted); letter-spacing: 0; text-transform: none; }
+.auth-card .hint { font-weight: 400; font-size: 12px; line-height: 1.4; color: var(--text-muted); letter-spacing: 0; }
+.auth-card .notice { text-align: left; }
 .notice { background: rgba(240, 178, 50, .1); border: 1px solid var(--yellow); color: var(--yellow); border-radius: 4px; padding: 8px 12px; font-size: 14px; }
 
 /* ---------- Layout geral ---------- */

@@ -79,7 +79,7 @@ async function ui(t, invited = false, options = {}) {
   const configReady = options.deferConfig ? new Promise((resolve) => { releaseConfig = resolve; }) : Promise.resolve();
   w.fetch = async (url) => {
     if (url === '/config') await configReady;
-    return { json: async () => url === '/config' ? { hasOwner: options.hasOwner ?? true, passwordRequired: false, maxUploadMb: 25 } : { id: 'invited', name: 'Turma convidada', members: 3, icon: null } };
+    return { json: async () => url === '/config' ? { hasOwner: options.hasOwner ?? true, passwordRequired: false, maxUploadMb: 25, mailEnabled: options.mailEnabled ?? false } : { id: 'invited', name: 'Turma convidada', members: 3, icon: null } };
   };
   let copied = '';
   Object.defineProperty(w.navigator, 'clipboard', { value: { writeText: async (text) => { copied = text; } } });
@@ -1206,4 +1206,95 @@ test('Mudae no modo simplificado: o Salão vira chat com cards completos que esp
   assert.equal(app.w.localStorage.getItem('mudaeSimples'), '0');
   assert.equal(app.d.querySelector('#salon-view').classList.contains('hidden'), false);
   assert.ok(app.d.querySelector('[data-id="r1"] .mudae-roll-line'), 'no Salão o roll vira linha compacta');
+});
+
+// Respostas falsas para as rotas de recuperação; guarda o corpo de cada pedido.
+function recoveryFetch(replies) {
+  const requests = [];
+  return {
+    requests,
+    setup(w) {
+      const original = w.fetch;
+      w.fetch = async (url, request) => {
+        if (!replies[url]) return original(url, request);
+        requests.push({ url, body: JSON.parse(request.body) });
+        return { json: async () => replies[url] };
+      };
+    },
+  };
+}
+
+test('cadastro mostra o e-mail opcional com o aviso e envia o que foi digitado', async (t) => {
+  const app = await ui(t, false, { hash: '#criar-conta', mailEnabled: true });
+  const label = app.d.querySelector('#login-email-label');
+  assert.equal(label.classList.contains('hidden'), false);
+  assert.match(label.textContent, /opcional/);
+  assert.match(label.textContent, /não dá para recuperar a conta/);
+  assert.match(app.d.querySelector('#login-subtitle').textContent, /e-mail é opcional/);
+  assert.equal(app.d.querySelector('#login-forgot').classList.contains('hidden'), true);
+  app.d.querySelector('#login-email').value = ' ana@exemplo.com ';
+  await app.register();
+  assert.equal(app.events.find((e) => e.event === 'auth').payload.email, 'ana@exemplo.com');
+});
+
+test('sem envio de e-mail, o login não mostra o campo de e-mail nem o Esqueci a senha', async (t) => {
+  const app = await ui(t, false, { hash: '#criar-conta' });
+  assert.equal(app.d.querySelector('#login-email-label').classList.contains('hidden'), true);
+  app.d.querySelector('#login-switch').click(); await settle();
+  assert.equal(app.d.querySelector('#login-forgot').classList.contains('hidden'), true);
+});
+
+test('Esqueci a senha pede o e-mail, envia uma vez e mostra a mesma resposta para qualquer e-mail', async (t) => {
+  const fake = recoveryFetch({ '/password/forgot': { ok: true } });
+  const app = await ui(t, false, { hash: '#entrar', mailEnabled: true, setup: fake.setup });
+  const link = app.d.querySelector('#login-forgot');
+  assert.equal(link.classList.contains('hidden'), false);
+  assert.equal(link.getAttribute('href'), '#esqueci');
+  app.w.location.hash = '#esqueci'; await settle();
+  assert.equal(app.d.querySelector('#forgot-form').classList.contains('hidden'), false);
+  assert.equal(app.d.querySelector('#login-form').classList.contains('hidden'), true);
+  const form = app.d.querySelector('#forgot-form');
+  app.d.querySelector('#forgot-email').value = 'errado';
+  form.dispatchEvent(new app.w.Event('submit', { bubbles: true, cancelable: true })); await settle();
+  assert.match(app.d.querySelector('#forgot-status').textContent, /e-mail válido/);
+  assert.equal(fake.requests.length, 0);
+  app.d.querySelector('#forgot-email').value = ' ana@exemplo.com ';
+  form.dispatchEvent(new app.w.Event('submit', { bubbles: true, cancelable: true }));
+  form.dispatchEvent(new app.w.Event('submit', { bubbles: true, cancelable: true })); await settle();
+  assert.deepEqual(fake.requests, [{ url: '/password/forgot', body: { email: 'ana@exemplo.com' } }]);
+  assert.match(app.d.querySelector('#forgot-status').textContent, /Se houver uma conta com esse e-mail/);
+});
+
+test('link de senha nova abre Criar senha nova, tira o token do endereço e entra com a sessão nova', async (t) => {
+  const token = 'c'.repeat(64);
+  const fake = recoveryFetch({ '/password/reset': { ok: true, token: 'fake-ui-token', name: 'Ana' } });
+  const app = await ui(t, false, { hash: '#redefinir=' + token, token: 'sessao-antiga', mailEnabled: true, setup: fake.setup });
+  assert.equal(app.w.location.hash, '#nova-senha');
+  assert.equal(app.d.documentElement.classList.contains('show-landing'), false);
+  assert.equal(app.d.querySelector('#reset-form').classList.contains('hidden'), false);
+  assert.equal(app.events.some((e) => e.event === 'auth'), false, 'não entra com a sessão guardada antes de criar a senha');
+  const form = app.d.querySelector('#reset-form');
+  app.d.querySelector('#reset-password').value = 'nova1';
+  app.d.querySelector('#reset-confirm').value = 'nova2';
+  form.dispatchEvent(new app.w.Event('submit', { bubbles: true, cancelable: true })); await settle();
+  assert.match(app.d.querySelector('#reset-status').textContent, /não coincidem/);
+  assert.equal(fake.requests.length, 0);
+  app.d.querySelector('#reset-confirm').value = 'nova1';
+  form.dispatchEvent(new app.w.Event('submit', { bubbles: true, cancelable: true }));
+  form.dispatchEvent(new app.w.Event('submit', { bubbles: true, cancelable: true })); await settle();
+  assert.deepEqual(fake.requests, [{ url: '/password/reset', body: { token, next: 'nova1', confirm: 'nova1' } }]);
+  assert.deepEqual(app.events.find((e) => e.event === 'auth').payload.token, 'fake-ui-token');
+  assert.equal(app.d.querySelector('#app').classList.contains('hidden'), false);
+  assert.equal(app.w.location.hash, '');
+});
+
+test('link de confirmação confirma o e-mail e abre o login de quem não está conectado', async (t) => {
+  const token = 'd'.repeat(64);
+  const fake = recoveryFetch({ '/email/confirm': { ok: true } });
+  const app = await ui(t, false, { hash: '#confirmar=' + token, mailEnabled: true, setup: fake.setup });
+  await settle();
+  assert.deepEqual(fake.requests, [{ url: '/email/confirm', body: { token } }]);
+  assert.equal(app.w.location.hash, '#entrar');
+  assert.equal(app.d.documentElement.classList.contains('show-landing'), false);
+  assert.match(app.d.querySelector('#login-notice').textContent, /E-mail confirmado/);
 });

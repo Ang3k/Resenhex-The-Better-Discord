@@ -470,14 +470,33 @@
   let pendingInviteCode = new URLSearchParams(location.search).get('invite') || '';
   let pendingInvitePreview = null;
   let inviteShown = false;
+  // Links dos e-mails: #confirmar=TOKEN e #redefinir=TOKEN. O token fica só na memória e o endereço
+  // vira #nova-senha ou #entrar, para ele não ficar no histórico do navegador.
+  let resetToken = null;
+  let confirmToken = null;
+  {
+    const link = /^#(confirmar|redefinir)=([0-9a-f]{64})$/.exec(location.hash);
+    if (link) {
+      if (link[1] === 'redefinir') resetToken = link[2]; else confirmToken = link[2];
+      const next = resetToken ? '#nova-senha' : localStorage.getItem('token') ? '' : '#entrar';
+      history.replaceState(null, '', location.pathname + location.search + next);
+    }
+  }
+  const AUTH_HASHES = { '#criar-conta': 'register', '#entrar': 'login', '#esqueci': 'forgot', '#nova-senha': 'reset' };
+  const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
+  // Modos do cartão: 'login', 'register', 'forgot' (pedir o link) e 'reset' (criar a senha nova pelo link).
   function setLoginMode(mode) {
+    if (mode === 'reset' && !resetToken) mode = 'forgot';
+    if (mode === 'forgot' && !config.mailEnabled) mode = 'login';
     loginMode = mode;
+    const card = mode === 'forgot' ? '#forgot-form' : mode === 'reset' ? '#reset-form' : '#login-form';
+    for (const id of ['#login-form', '#forgot-form', '#reset-form']) $(id).classList.toggle('hidden', id !== card);
     const register = mode === 'register';
     $('#login-title').textContent = register ? 'Criar uma conta' : 'Bem-vindo de volta!';
-    $('#login-subtitle').textContent = register
-      ? 'Escolha seu nome de usuário, crie uma senha e confirme. Sem e-mail.'
-      : 'Entre com sua conta.';
+    $('#login-subtitle').textContent = !register ? 'Entre com sua conta.'
+      : config.mailEnabled ? 'Escolha seu nome de usuário e crie uma senha. O e-mail é opcional.'
+      : 'Escolha seu nome de usuário, crie uma senha e confirme. Sem e-mail.';
     $('#login-submit').textContent = register ? 'Criar conta' : 'Entrar';
     $('#login-switch-text').textContent = register ? 'Já tem uma conta?' : 'Precisa de uma conta?';
     $('#login-switch').textContent = register ? 'Entrar' : 'Registre-se';
@@ -485,6 +504,8 @@
     $('#confirm-password-label').classList.toggle('hidden', !register);
     $('#login-confirm-password').required = register;
     $('#login-password').autocomplete = register ? 'new-password' : 'current-password';
+    $('#login-email-label').classList.toggle('hidden', !register || !config.mailEnabled);
+    $('#login-forgot').classList.toggle('hidden', mode !== 'login' || !config.mailEnabled);
   }
 
   function showLogin(notice, mode = 'login') {
@@ -519,6 +540,7 @@
       password: $('#login-password').value,
       confirmPassword: $('#login-confirm-password').value,
       color: $('#login-color').value,
+      email: (loginMode === 'register' && $('#login-email').value.trim()) || undefined,
     });
   });
 
@@ -539,7 +561,8 @@
       sessionReady = true;
       localStorage.setItem('token', res.token);
       if (payload.name) localStorage.setItem('name', payload.name);
-      state.me = { accountId: res.accountId, sid: res.sid, name: res.name, since: res.since };
+      state.me = { accountId: res.accountId, sid: res.sid, name: res.name, since: res.since, email: res.email || null, emailVerified: !!res.emailVerified };
+      if (typeof res.mailEnabled === 'boolean') config.mailEnabled = res.mailEnabled;
       state.presence = res.presence || 'online';
       state.statusText = res.statusText || '';
       state.permNames = res.permNames;
@@ -551,11 +574,12 @@
       $('#update-banner').classList.toggle('hidden', !res.version || res.version === window.APP_VERSION);
       $('#login-password').value = '';
       $('#login-confirm-password').value = '';
+      $('#login-email').value = '';
       $('#login').classList.add('hidden');
       $('#app').classList.remove('hidden');
       document.documentElement.classList.remove('show-landing');
       delete document.documentElement.dataset.landing;
-      if (/^#(entrar|criar-conta)$/.test(location.hash)) history.replaceState(null, '', location.pathname + location.search);
+      if (/^#(entrar|criar-conta|esqueci|nova-senha)$/.test(location.hash)) history.replaceState(null, '', location.pathname + location.search);
       if (!opts.reconnect) setTimeout(showChangelogIfNew, 600);
       if (opts.reconnect) {
         // Descarta o histórico em cache: as mensagens perdidas vêm na próxima leitura.
@@ -584,10 +608,67 @@
     banner.classList.toggle('hidden', !text);
   }
 
+  // Pedidos antes do login (recuperação de senha), por HTTP.
+  async function postJson(url, body) {
+    try {
+      const response = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+      return await response.json();
+    } catch {
+      return { error: 'Não foi possível conectar. Confira a internet e tente de novo.' };
+    }
+  }
+  function authStatus(node, text, ok = false) {
+    node.textContent = text;
+    node.classList.toggle('hidden', !text);
+    node.classList.toggle('info', ok);
+  }
+
+  $('#forgot-form').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const button = $('#forgot-submit');
+    if (button.disabled) return;
+    const email = $('#forgot-email').value.trim();
+    if (!EMAIL_PATTERN.test(email)) { authStatus($('#forgot-status'), 'Digite um e-mail válido.'); return $('#forgot-email').focus(); }
+    button.disabled = true;
+    const res = await postJson('/password/forgot', { email });
+    button.disabled = false;
+    if (res.error) return authStatus($('#forgot-status'), res.error);
+    authStatus($('#forgot-status'), 'Se houver uma conta com esse e-mail confirmado, enviamos um link para criar uma senha nova. Confira também a caixa de spam.', true);
+  });
+
+  $('#reset-form').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const button = $('#reset-submit');
+    if (button.disabled) return;
+    const next = $('#reset-password').value;
+    const confirm = $('#reset-confirm').value;
+    if (next.length < 4) { authStatus($('#reset-status'), 'A nova senha precisa ter pelo menos 4 caracteres.'); return $('#reset-password').focus(); }
+    if (next !== confirm) { authStatus($('#reset-status'), 'As senhas não coincidem.'); return $('#reset-confirm').focus(); }
+    button.disabled = true;
+    const res = await postJson('/password/reset', { token: resetToken, next, confirm });
+    button.disabled = false;
+    if (res.error) return authStatus($('#reset-status'), res.error);
+    resetToken = null;
+    authStatus($('#reset-status'), '');
+    $('#reset-form').reset();
+    localStorage.setItem('name', res.name);
+    $('#login-name').value = res.name;
+    history.replaceState(null, '', location.pathname + location.search);
+    authenticate({ token: res.token });
+    toast('Senha nova salva. Os outros aparelhos saíram da conta.', 'info');
+  });
+
+  async function confirmEmail(token) {
+    const res = await postJson('/email/confirm', { token });
+    const text = res.error || 'E-mail confirmado. Se esquecer a senha, dá para criar uma nova por ele.';
+    toast(text, res.error ? undefined : 'info');
+    if (!localStorage.getItem('token')) authStatus($('#login-notice'), text, !res.error);
+  }
+
   Promise.all([fetch('/config').then((r) => r.json()), pendingInviteCode ? fetch('/invites/' + encodeURIComponent(pendingInviteCode)).then((r) => r.json()).catch(() => ({ error: 'Não foi possível consultar o convite. Tente novamente.' })) : null]).then(([c, invite]) => {
     config = c;
     pendingInvitePreview = invite && !invite.error ? invite : null;
-    const requestedMode = location.hash === '#criar-conta' ? 'register' : location.hash === '#entrar' ? 'login' : loginMode;
+    const requestedMode = AUTH_HASHES[location.hash] || loginMode;
     setLoginMode(c.hasOwner ? requestedMode : 'register');
     if (invite) {
       $('#login-notice').textContent = invite.error || `Convite para ${invite.name}. Entre ou crie sua conta para aceitar.`;
@@ -595,8 +676,11 @@
       $('#login-notice').classList.toggle('info', !invite.error);
     }
     $('#login-name').value = localStorage.getItem('name') || '';
+    if (confirmToken) confirmEmail(confirmToken);
+    confirmToken = null;
     const token = localStorage.getItem('token');
-    if (token) authenticate({ token });
+    // Quem abriu um link de senha nova cria a senha antes, mesmo com uma sessão guardada neste navegador.
+    if (token && !resetToken) authenticate({ token });
   }).catch(() => showLogin('Não foi possível conectar. Recarregue a página para tentar novamente.'));
 
   socket.on('removed', ({ reason }) => {

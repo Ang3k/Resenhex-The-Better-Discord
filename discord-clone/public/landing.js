@@ -3,7 +3,7 @@
 (() => {
   const root = document.documentElement;
   const landing = document.getElementById('landing');
-  const MODES = { '#entrar': 'login', '#criar-conta': 'register' };
+  const MODES = { '#entrar': 'login', '#criar-conta': 'register', '#esqueci': 'forgot', '#nova-senha': 'reset' };
   let lastTrigger = null;
 
   const ua = navigator.userAgent;

@@ -51,7 +51,7 @@
       const firstVisit = !installedApp &&!new URLSearchParams(location.search).has('invite') && !localStorage.getItem('token') && !localStorage.getItem('name');
       if (firstVisit) {
         document.documentElement.dataset.landing = 'on';
-        if (!/^#(entrar|criar-conta)$/.test(location.hash)) document.documentElement.classList.add('show-landing');
+        if (!/^#(entrar|criar-conta|esqueci|nova-senha)$|^#(confirmar|redefinir)=/.test(location.hash)) document.documentElement.classList.add('show-landing');
       }
     } catch {}
   </script>
@@ -260,10 +260,17 @@
 </span>
         <input id="login-password" type="password" required maxlength="128" autocomplete="current-password">
       </label>
+      <a href="#esqueci" id="login-forgot" class="auth-forgot hidden">Esqueci a senha</a>
       <label id="confirm-password-label" class="hidden">
 <span>CONFIRMAR SENHA <span class="req">*</span>
 </span>
         <input id="login-confirm-password" type="password" maxlength="128" autocomplete="new-password">
+      </label>
+      <label id="login-email-label" class="hidden">
+<span>E-MAIL <span class="optional">(opcional)</span>
+</span>
+        <input id="login-email" type="email" maxlength="254" autocomplete="email" inputmode="email">
+        <span class="hint">Serve só para recuperar a senha. Sem e-mail, não dá para recuperar a conta se você esquecer a senha.</span>
       </label>
       <label id="login-color-label" class="hidden">COR DO AVATAR
         <input id="login-color" type="color" value="#5865f2">
@@ -273,6 +280,47 @@
 <span id="login-switch-text">Precisa de uma conta?</span> <a href="#" id="login-switch">Registre-se</a>
 </p>
       <a href="/" class="auth-back" id="login-back"><span data-icon="chevronRight" data-size="16"></span>Voltar ao início</a>
+    </form>
+    <form id="forgot-form" class="auth-card hidden" novalidate>
+      <div class="brand">
+<span class="brand-mark" data-logo="30">
+</span>
+<span class="brand-name">Resenhex</span>
+</div>
+      <h1>Esqueceu a senha?</h1>
+      <p>Digite o e-mail cadastrado na sua conta. Enviamos um link para você criar uma senha nova.</p>
+      <p id="forgot-status" class="notice hidden" role="status" aria-live="polite"></p>
+      <label>
+<span>E-MAIL <span class="req">*</span>
+</span>
+        <input id="forgot-email" type="email" required maxlength="254" autocomplete="email" inputmode="email">
+      </label>
+      <button type="submit" id="forgot-submit" class="btn-primary">Enviar link</button>
+      <p class="switch"><a href="#entrar">Voltar para o login</a></p>
+    </form>
+    <form id="reset-form" class="auth-card hidden" novalidate>
+      <div class="brand">
+<span class="brand-mark" data-logo="30">
+</span>
+<span class="brand-name">Resenhex</span>
+</div>
+      <h1>Crie uma senha nova</h1>
+      <p>Depois de salvar, os outros aparelhos conectados na sua conta saem dela.</p>
+      <p id="reset-status" class="notice hidden" role="alert"></p>
+      <input type="text" id="reset-user" autocomplete="username" hidden>
+      <label>
+<span>NOVA SENHA <span class="req">*</span>
+</span>
+        <input id="reset-password" type="password" required minlength="4" maxlength="128" autocomplete="new-password">
+        <span class="hint">Pelo menos 4 caracteres.</span>
+      </label>
+      <label>
+<span>CONFIRMAR NOVA SENHA <span class="req">*</span>
+</span>
+        <input id="reset-confirm" type="password" required minlength="4" maxlength="128" autocomplete="new-password">
+      </label>
+      <button type="submit" id="reset-submit" class="btn-primary">Salvar senha nova</button>
+      <p class="switch"><a href="#esqueci">Pedir outro link</a> · <a href="#entrar">Voltar para o login</a></p>
     </form>
   </div>
 
