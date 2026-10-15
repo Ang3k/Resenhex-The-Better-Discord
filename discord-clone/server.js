@@ -1279,7 +1279,10 @@ io.on('connection', (socket) => {
         acc = { id: newId(), name, color: cleanColor(payload.color), createdAt: Date.now(), ...secret };
         db.accounts[acc.id] = acc;
         // E-mail opcional: fica gravado na hora, e o link de confirmação sai sem segurar o cadastro.
-        if (email) recovery.setEmail(acc, email).catch((error) => console.error('Falha ao gravar o e-mail:', error.message));
+        // Quando o envio termina, a sessão fica sabendo se o link saiu, para avisar a pessoa.
+        if (email) recovery.setEmail(acc, email)
+          .then((info) => socket.emit('account:email', { ...info, signup: true }))
+          .catch((error) => console.error('Falha ao gravar o e-mail:', error.message));
         // A primeira conta criada vira dona do servidor.
         const legacy = communities.root.servers[communities.root.defaultServerId];
         // Only the first account bootstraps a fresh installation. All later accounts

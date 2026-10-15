@@ -157,3 +157,41 @@ test('recuperação: prune apaga só os tokens vencidos', async () => {
   recovery.prune();
   assert.deepEqual(Object.values(db.mailTokens).map((e) => e.accountId), ['b']);
 });
+
+test('recuperação: recusa endereço com nome, vírgula ou ponto e vírgula, que mudariam quem recebe', () => {
+  for (const bad of ['ana<vitima@x.com>', 'a@b.c,d', 'a@b.co;c', '"a"@b.com', 'a@b.com>', 'a(b)@c.com']) assert.throws(() => normalizeEmail(bad), /e-mail válido/, bad);
+  for (const good of ['ana.silva+resenha@exemplo.com.br', 'a_b-c%d@sub.exemplo.io']) assert.equal(normalizeEmail(good), good);
+});
+
+test('recuperação: cada endereço recebe no máximo 5 e-mails por hora e 20 por dia, somando todos os tipos', async () => {
+  const { db, sent, recovery, tick } = setup();
+  await recovery.setEmail(db.accounts.a, 'alvo@exemplo.com');
+  for (let i = 0; i < 4; i++) assert.equal((await recovery.resend(db.accounts.a)).sent, true);
+  assert.equal((await recovery.setEmail(db.accounts.b, 'alvo@exemplo.com')).sent, false, 'o sexto e-mail na mesma hora não sai');
+  assert.equal((await recovery.resend(db.accounts.a)).sent, false);
+  assert.equal(sent.length, 5);
+  assert.equal(sent.every((m) => m.to === 'alvo@exemplo.com'), true);
+  assert.equal((await recovery.setEmail(db.accounts.b, 'outro@exemplo.com')).sent, true, 'outro endereço não é afetado');
+  tick(60 * 60 * 1000 + 1);
+  assert.equal((await recovery.resend(db.accounts.a)).sent, true, 'depois de uma hora libera');
+  for (let h = 0; h < 3; h++) {
+    for (let i = 0; i < 4 + (h > 0); i++) await recovery.resend(db.accounts.a);
+    tick(60 * 60 * 1000 + 1);
+  }
+  assert.equal(sent.filter((m) => m.to === 'alvo@exemplo.com').length, 20);
+  assert.equal((await recovery.resend(db.accounts.a)).sent, false, 'o limite do dia segura mesmo com a hora livre');
+  tick(24 * 60 * 60 * 1000);
+  assert.equal((await recovery.resend(db.accounts.a)).sent, true);
+});
+
+test('recuperação: o Resenhex inteiro manda no máximo 400 e-mails por dia', async () => {
+  const { db, sent, recovery } = setup();
+  for (let i = 0; i < 400; i++) {
+    db.accounts['x' + i] = { id: 'x' + i, name: 'X' + i };
+    assert.equal((await recovery.setEmail(db.accounts['x' + i], `p${i}@exemplo.com`)).sent, true);
+  }
+  db.accounts.z = { id: 'z', name: 'Zé' };
+  assert.equal((await recovery.setEmail(db.accounts.z, 'ze@exemplo.com')).sent, false);
+  assert.equal(sent.length, 400);
+  assert.equal(db.accounts.z.email, 'ze@exemplo.com', 'o e-mail fica salvo para reenviar depois');
+});

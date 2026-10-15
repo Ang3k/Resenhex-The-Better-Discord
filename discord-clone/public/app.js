@@ -483,7 +483,7 @@
     }
   }
   const AUTH_HASHES = { '#criar-conta': 'register', '#entrar': 'login', '#esqueci': 'forgot', '#nova-senha': 'reset' };
-  const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  const EMAIL_PATTERN = /^[a-z0-9._%+-]+@(?:[a-z0-9-]+\.)+[a-z0-9-]{2,}$/i;
 
   // Modos do cartão: 'login', 'register', 'forgot' (pedir o link) e 'reset' (criar a senha nova pelo link).
   function setLoginMode(mode) {
@@ -6492,7 +6492,7 @@
     $('#account-email-state-text').textContent = !email
       ? 'Sem e-mail, não dá para recuperar a conta se você esquecer a senha.'
       : verified ? `Confirmado: ${email}. Se esquecer a senha, use "Esqueci a senha" na tela de login.`
-      : `Não confirmado. Abra o link que enviamos para ${email}.`;
+      : `Não confirmado: ${email}. Confirme pelo link do e-mail; se ele não chegou, reenvie.`;
     $('#account-email-resend').classList.toggle('hidden', !email || verified);
     $('#account-email-remove').classList.toggle('hidden', !email);
   }
@@ -6580,6 +6580,9 @@
     state.me.email = info.email;
     state.me.emailVerified = info.emailVerified;
     renderAccountEmail();
+    if (info.signup) toast(info.sent
+      ? `Enviamos um link para ${info.email}. Confirme o e-mail para poder recuperar a senha se esquecer.`
+      : 'Não conseguimos enviar o e-mail de confirmação. Reenvie em Configurações > Minha conta.', info.sent ? 'info' : 'error');
   });
   $('#notification-permission').onclick = async () => { if ('Notification' in window) { await Notification.requestPermission(); notificationHelp(); } };
   $('#camera-test').onclick = async () => {

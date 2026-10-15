@@ -5,7 +5,14 @@ const crypto = require('node:crypto');
 
 const CONFIRM_MS = 7 * 24 * 60 * 60 * 1000;
 const RESET_MS = 60 * 60 * 1000;
-const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+// Só o básico de um endereço, sem nome, vírgula ou ponto e vírgula, que mudariam quem recebe.
+const EMAIL_PATTERN = /^[a-z0-9._%+-]+@(?:[a-z0-9-]+\.)+[a-z0-9-]{2,}$/;
+const HOUR = 60 * 60 * 1000;
+const DAY = 24 * HOUR;
+// Limites de envio, abaixo da cota diária do Gmail, para ninguém usar o Resenhex para mandar spam.
+const PER_ADDRESS_HOUR = 5;
+const PER_ADDRESS_DAY = 20;
+const TOTAL_DAY = 400;
 const TOKEN_PATTERN = /^[0-9a-f]{64}$/;
 
 const digest = (token) => crypto.createHash('sha256').update(token).digest('hex');
@@ -34,6 +41,8 @@ function message(to, subject, paragraphs) {
 function createRecovery({ db, save, mailer, publicUrl, now = Date.now, log = console.error }) {
   db.mailTokens ||= {};
   const base = String(publicUrl).replace(/\/+$/, '');
+  const sentAt = new Map(); // endereço → horários de envio nas últimas 24 h
+  let sentTotal = [];
   const view = (account) => ({ email: account.email || null, emailVerified: !!account.emailVerified });
 
   function issue(kind, account, ttl) {
@@ -60,7 +69,23 @@ function createRecovery({ db, save, mailer, publicUrl, now = Date.now, log = con
     if (entry.expires <= now() || !account || account.email !== entry.email) return null;
     return account;
   }
+  // Conta o envio antes de mandar; passou do limite, não manda e a pessoa vê o aviso para reenviar.
+  function withinLimits(to) {
+    const since = now() - DAY;
+    sentTotal = sentTotal.filter((t) => t > since);
+    const times = (sentAt.get(to) || []).filter((t) => t > since);
+    sentAt.set(to, times);
+    if (sentTotal.length >= TOTAL_DAY || times.length >= PER_ADDRESS_DAY
+      || times.filter((t) => t > now() - HOUR).length >= PER_ADDRESS_HOUR) return false;
+    times.push(now());
+    sentTotal.push(now());
+    return true;
+  }
   async function deliver(mail) {
+    if (!withinLimits(mail.to)) {
+      log('E-mail não enviado: limite de envios atingido.');
+      return false;
+    }
     try {
       await mailer.send(mail);
       return true;
@@ -150,6 +175,8 @@ function createRecovery({ db, save, mailer, publicUrl, now = Date.now, log = con
         if (entry.expires <= now()) { delete db.mailTokens[key]; changed = true; }
       }
       if (changed) save();
+      const since = now() - DAY;
+      for (const [to, times] of sentAt) if (!times.some((t) => t > since)) sentAt.delete(to);
     },
   };
 }

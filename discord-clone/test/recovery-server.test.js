@@ -176,3 +176,13 @@ test('e-mail: sem SMTP configurado a recuperação fica desligada', async (t) =>
   assert.equal(forgot.status, 404);
   assert.equal(mails.length, 0);
 });
+
+test('e-mail: no cadastro, a sessão fica sabendo se o link de confirmação saiu', async (t) => {
+  const { auth, nextMail } = await startServer(t);
+  const pushed = [];
+  const ana = await auth({ mode: 'register', name: 'Ana', password: '1234', confirmPassword: '1234', email: 'ana@exemplo.com' });
+  ana.on('account:email', (info) => pushed.push(info));
+  await nextMail();
+  for (let i = 0; i < 40 && !pushed.length; i++) await wait(50);
+  assert.deepEqual(pushed, [{ email: 'ana@exemplo.com', emailVerified: false, sent: true, signup: true }]);
+});

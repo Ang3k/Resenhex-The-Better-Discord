@@ -22,7 +22,9 @@
     const wasLanding = root.classList.contains('show-landing');
     const showLanding = root.dataset.landing === 'on' && !mode && !authenticated;
     root.classList.toggle('show-landing', showLanding);
-    if (mode && !authenticated) window.dispatchEvent(new CustomEvent('resenhex:auth-mode', { detail: mode }));
+    // Com sessão guardada, o cartão de login só aparece pelo link de senha nova; ali os links ainda trocam o cartão.
+    const loginShown = !document.getElementById('login').classList.contains('hidden');
+    if (mode && (!authenticated || loginShown)) window.dispatchEvent(new CustomEvent('resenhex:auth-mode', { detail: mode }));
     if (showLanding && !wasLanding) (lastTrigger || landing.querySelector('.ld-brand')).focus({ preventScroll: true });
   }
   window.addEventListener('popstate', route);

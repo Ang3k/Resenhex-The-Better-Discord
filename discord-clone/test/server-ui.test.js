@@ -1344,3 +1344,33 @@ test('Minha conta: sem envio de e-mail no servidor, a seção fica escondida', a
   app.d.querySelector('#tab-account').click(); await settle();
   assert.equal(app.d.querySelector('#account-email-form').classList.contains('hidden'), true);
 });
+
+test('cadastro com e-mail avisa se o link de confirmação saiu ou se é preciso reenviar', async (t) => {
+  const app = await ui(t, false, { hash: '#criar-conta', mailEnabled: true });
+  app.d.querySelector('#login-email').value = 'ana@exemplo.com';
+  await app.register();
+  app.deliver('account:email', { email: 'ana@exemplo.com', emailVerified: false, signup: true, sent: true });
+  await settle();
+  assert.match(app.d.querySelector('#toast').textContent, /Enviamos um link para ana@exemplo\.com/);
+  app.deliver('account:email', { email: 'ana@exemplo.com', emailVerified: false, signup: true, sent: false });
+  await settle();
+  assert.match(app.d.querySelector('#toast').textContent, /Não conseguimos enviar.*Minha conta/);
+  app.d.querySelector('#btn-settings').click(); await settle();
+  app.d.querySelector('#tab-account').click(); await settle();
+  const state = app.d.querySelector('#account-email-state').textContent;
+  assert.match(state, /Não confirmado/);
+  assert.doesNotMatch(state, /enviamos/i, 'não afirma que o e-mail saiu');
+});
+
+test('link de senha nova num navegador conectado: Pedir outro link e Voltar para o login trocam o cartão', async (t) => {
+  const fake = recoveryFetch({ '/password/reset': { error: 'Este link expirou ou já foi usado. Peça outro em Esqueci a senha.' } });
+  const app = await ui(t, false, { hash: '#redefinir=' + 'e'.repeat(64), token: 'sessao-antiga', mailEnabled: true, setup: fake.setup });
+  assert.equal(app.d.querySelector('#reset-form').classList.contains('hidden'), false);
+  app.w.location.hash = '#esqueci'; await settle();
+  assert.equal(app.d.querySelector('#forgot-form').classList.contains('hidden'), false);
+  assert.equal(app.d.querySelector('#reset-form').classList.contains('hidden'), true);
+  app.w.location.hash = '#entrar'; await settle();
+  assert.equal(app.d.querySelector('#login-form').classList.contains('hidden'), false);
+  assert.equal(app.d.querySelector('#forgot-form').classList.contains('hidden'), true);
+  assert.equal(app.events.some((e) => e.event === 'auth'), false);
+});
