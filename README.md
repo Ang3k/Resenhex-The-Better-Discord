@@ -10,6 +10,7 @@ Roda no navegador, como app para Windows (publicado na Microsoft Store) e como a
 [![Microsoft Store](https://img.shields.io/badge/Microsoft%20Store-Baixar-0078D4?style=for-the-badge&logo=microsoft&logoColor=white)](https://apps.microsoft.com/detail/9NG3QRZSB1LX)
 ![Versão](https://img.shields.io/badge/versão-1.6.0-7C3AED?style=for-the-badge)
 ![Node.js](https://img.shields.io/badge/Node.js-20%2B-339933?style=for-the-badge&logo=nodedotjs&logoColor=white)
+[![Licença](https://img.shields.io/badge/licença-AGPL--3.0-A42E2B?style=for-the-badge)](LICENSE)
 
 </div>
 
@@ -70,3 +71,11 @@ npm start
 ```
 
 O servidor sobe em `http://localhost:3000`. O passo a passo completo, incluindo o app desktop e o deploy, está no [README do app](discord-clone/README.md). O histórico de versões fica no [CHANGELOG](discord-clone/CHANGELOG.md).
+
+## Como contribuir
+
+Pull requests são bem-vindos: faça um fork, crie uma branch e abra o PR para a `main`. Cada contribuição é revisada antes de entrar. O passo a passo está no [guia de contribuição](CONTRIBUTING.md).
+
+## Licença
+
+O Resenhex é software livre, distribuído sob a [GNU AGPL-3.0](LICENSE). Você pode usar, estudar, modificar e redistribuir o código, desde que mantenha a mesma licença e publique o código-fonte das versões modificadas, inclusive quando elas rodam como site.
