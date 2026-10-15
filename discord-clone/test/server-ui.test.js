@@ -1298,3 +1298,49 @@ test('link de confirmação confirma o e-mail e abre o login de quem não está 
   assert.equal(app.d.documentElement.classList.contains('show-landing'), false);
   assert.match(app.d.querySelector('#login-notice').textContent, /E-mail confirmado/);
 });
+
+test('Minha conta: adicionar o e-mail pede a senha atual e mostra se está confirmado', async (t) => {
+  const app = await ui(t, false, { mailEnabled: true, reply: {
+    'account:email': (payload) => payload.email ? { ok: true, email: payload.email, emailVerified: false, sent: true } : { ok: true, email: null, emailVerified: false, sent: false },
+    'account:email:resend': () => ({ ok: true, email: 'ana@exemplo.com', emailVerified: false, sent: true }),
+  } });
+  await app.register();
+  app.d.querySelector('#btn-settings').click(); await settle();
+  app.d.querySelector('#tab-account').click(); await settle();
+  const form = app.d.querySelector('#account-email-form');
+  const state = app.d.querySelector('#account-email-state');
+  assert.equal(form.classList.contains('hidden'), false);
+  assert.match(state.textContent, /não dá para recuperar a conta/);
+  assert.equal(app.d.querySelector('#account-email-remove').classList.contains('hidden'), true);
+
+  app.d.querySelector('#account-email-input').value = 'ana@exemplo.com';
+  form.dispatchEvent(new app.w.Event('submit', { bubbles: true, cancelable: true })); await settle();
+  assert.match(app.d.querySelector('#account-email-status').textContent, /senha atual/);
+  assert.equal(app.events.some((e) => e.event === 'account:email'), false);
+
+  app.d.querySelector('#account-email-password').value = 'test-only';
+  form.dispatchEvent(new app.w.Event('submit', { bubbles: true, cancelable: true })); await settle();
+  assert.deepEqual(JSON.parse(JSON.stringify(app.events.find((e) => e.event === 'account:email').payload)), { email: 'ana@exemplo.com', password: 'test-only' });
+  assert.match(app.d.querySelector('#account-email-status').textContent, /link de confirmação/);
+  assert.match(state.textContent, /Não confirmado/);
+  assert.equal(app.d.querySelector('#account-email-password').value, '');
+  assert.equal(app.d.querySelector('#account-email-resend').classList.contains('hidden'), false);
+  assert.equal(app.d.querySelector('#account-email-remove').classList.contains('hidden'), false);
+
+  app.d.querySelector('#account-email-resend').click(); await settle();
+  assert.match(app.d.querySelector('#account-email-status').textContent, /outro link/);
+
+  // O link foi aberto em outro aparelho: o servidor avisa esta sessão.
+  app.deliver('account:email', { email: 'ana@exemplo.com', emailVerified: true });
+  await settle();
+  assert.match(state.textContent, /Confirmado/);
+  assert.equal(app.d.querySelector('#account-email-resend').classList.contains('hidden'), true);
+});
+
+test('Minha conta: sem envio de e-mail no servidor, a seção fica escondida', async (t) => {
+  const app = await ui(t);
+  await app.register();
+  app.d.querySelector('#btn-settings').click(); await settle();
+  app.d.querySelector('#tab-account').click(); await settle();
+  assert.equal(app.d.querySelector('#account-email-form').classList.contains('hidden'), true);
+});

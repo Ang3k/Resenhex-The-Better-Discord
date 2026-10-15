@@ -6477,11 +6477,41 @@
     $('#account-password-form').reset();
     $('#account-password-user').value = username;
     accountPasswordStatus('');
+    $('#account-email-user').value = username;
+    $('#account-email-input').value = state.me?.email || '';
+    $('#account-email-password').value = '';
+    accountEmailStatus('');
+    renderAccountEmail();
+  }
+  // Só a situação do e-mail: o aviso do servidor chega enquanto a pessoa digita e não pode apagar o campo.
+  function renderAccountEmail() {
+    $('#account-email-form').classList.toggle('hidden', !config.mailEnabled);
+    const email = state.me?.email || null;
+    const verified = !!state.me?.emailVerified;
+    $('#account-email-state').className = 'account-email-state ' + (!email ? 'missing' : verified ? 'verified' : 'pending');
+    $('#account-email-state-text').textContent = !email
+      ? 'Sem e-mail, não dá para recuperar a conta se você esquecer a senha.'
+      : verified ? `Confirmado: ${email}. Se esquecer a senha, use "Esqueci a senha" na tela de login.`
+      : `Não confirmado. Abra o link que enviamos para ${email}.`;
+    $('#account-email-resend').classList.toggle('hidden', !email || verified);
+    $('#account-email-remove').classList.toggle('hidden', !email);
   }
   function accountPasswordStatus(text, kind = '') {
     const node = $('#account-password-status');
     node.textContent = text;
     node.className = 'hint' + (kind ? ' ' + kind : '');
+  }
+  function accountEmailStatus(text, kind = '') {
+    const node = $('#account-email-status');
+    node.textContent = text;
+    node.className = 'hint' + (kind ? ' ' + kind : '');
+  }
+  // Pedido de Minha conta com a resposta na própria tela, e não num toast.
+  function accountRequest(event, payload, ms = 15000) {
+    return new Promise((resolve) => {
+      if (!socket.connected) return resolve({ error: 'Você está desconectado. Tente de novo quando a conexão voltar.' });
+      socket.timeout(ms).emit(event, payload, (error, res) => resolve(error ? { error: 'A operação demorou demais. Tente de novo.' } : res));
+    });
   }
   $('#account-password-form').onsubmit = async (event) => {
     event.preventDefault();
@@ -6495,10 +6525,7 @@
     const button = $('#account-password-save');
     button.disabled = true;
     accountPasswordStatus('Trocando a senha…');
-    const result = await new Promise((resolve) => {
-      if (!socket.connected) return resolve({ error: 'Você está desconectado. Tente de novo quando a conexão voltar.' });
-      socket.timeout(15000).emit('account:password', { current, next, confirm }, (error, res) => resolve(error ? { error: 'A operação demorou demais. Tente de novo.' } : res));
-    });
+    const result = await accountRequest('account:password', { current, next, confirm });
     button.disabled = false;
     if (result?.error) {
       accountPasswordStatus(result.error, 'error');
@@ -6510,6 +6537,50 @@
     accountPasswordStatus('Senha trocada. As outras sessões foram encerradas.', 'ok');
     toast('Senha trocada.', 'info');
   };
+  async function saveAccountEmail(email) {
+    const password = $('#account-email-password').value;
+    if (email && !EMAIL_PATTERN.test(email)) { accountEmailStatus('Digite um e-mail válido.', 'error'); return $('#account-email-input').focus(); }
+    if (!password) { accountEmailStatus('Digite sua senha atual.', 'error'); return $('#account-email-password').focus(); }
+    const buttons = [$('#account-email-save'), $('#account-email-remove')];
+    if (buttons[0].disabled) return;
+    buttons.forEach((b) => { b.disabled = true; });
+    accountEmailStatus(email ? 'Salvando…' : 'Removendo…');
+    // O envio pelo Gmail pode levar alguns segundos.
+    const res = await accountRequest('account:email', { email, password }, 25000);
+    buttons.forEach((b) => { b.disabled = false; });
+    if (res?.error) {
+      accountEmailStatus(res.error, 'error');
+      if (/atual/.test(res.error)) { $('#account-email-password').value = ''; $('#account-email-password').focus(); }
+      return;
+    }
+    state.me.email = res.email;
+    state.me.emailVerified = res.emailVerified;
+    $('#account-email-input').value = res.email || '';
+    $('#account-email-password').value = '';
+    renderAccountEmail();
+    if (!email) accountEmailStatus('E-mail removido.', 'ok');
+    else if (res.emailVerified) accountEmailStatus('Esse e-mail já está confirmado.', 'ok');
+    else if (res.sent) accountEmailStatus('Enviamos um link de confirmação para o seu e-mail. Confira também a caixa de spam.', 'ok');
+    else accountEmailStatus('E-mail salvo, mas não conseguimos enviar a confirmação agora. Tente reenviar daqui a pouco.', 'error');
+  }
+  $('#account-email-form').onsubmit = (event) => { event.preventDefault(); saveAccountEmail($('#account-email-input').value.trim()); };
+  $('#account-email-remove').onclick = () => saveAccountEmail('');
+  $('#account-email-resend').onclick = async () => {
+    const button = $('#account-email-resend');
+    if (button.disabled) return;
+    button.disabled = true;
+    const res = await accountRequest('account:email:resend', {}, 25000);
+    button.disabled = false;
+    if (res?.error) return accountEmailStatus(res.error, 'error');
+    accountEmailStatus(res.sent ? 'Enviamos outro link de confirmação.' : 'Não conseguimos enviar agora. Tente de novo em alguns minutos.', res.sent ? 'ok' : 'error');
+  };
+  // O link de confirmação foi aberto (talvez em outro aparelho): atualiza a situação sem mexer no que está sendo digitado.
+  socket.on('account:email', (info) => {
+    if (!state.me) return;
+    state.me.email = info.email;
+    state.me.emailVerified = info.emailVerified;
+    renderAccountEmail();
+  });
   $('#notification-permission').onclick = async () => { if ('Notification' in window) { await Notification.requestPermission(); notificationHelp(); } };
   $('#camera-test').onclick = async () => {
     if (cameraPreview) return stopCameraPreview();

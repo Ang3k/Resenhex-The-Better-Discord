@@ -83,10 +83,19 @@ button[hidden] { display: none !important; }
 .account-field { display: flex; flex-direction: column; gap: 6px; }
 .account-label { color: var(--text-muted); font-size: 12px; font-weight: 700; letter-spacing: .02em; }
 .account-field strong { color: var(--text-strong); font-size: 16px; }
-.account-actions { display: flex; justify-content: flex-end; }
+.account-actions { display: flex; justify-content: flex-end; gap: 8px; }
 #account-password-status:empty { display: none; }
 #account-password-status.error { color: var(--red); }
 #account-password-status.ok { color: var(--green); }
+.account-email-state { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 12px; font-size: 13px; line-height: 1.5; color: var(--text-muted); }
+.account-email-state.missing { color: var(--yellow); }
+.account-email-state.verified { color: var(--green); }
+.account-email-resend { background: none; border: 0; padding: 0; color: var(--text-link, var(--brand)); font: inherit; font-weight: 600; cursor: pointer; }
+.account-email-resend:hover { text-decoration: underline; }
+.account-email-resend:disabled { opacity: .6; cursor: default; text-decoration: none; }
+#account-email-status:empty { display: none; }
+#account-email-status.error { color: var(--red); }
+#account-email-status.ok { color: var(--green); }
 .settings-callout { display: flex; align-items: flex-start; gap: 14px; padding: 18px; background: #8277fa10; border: 1px solid #8277fa30; border-radius: 12px; }
 .settings-callout > span { color: #b6afff; }
 .settings-callout strong { font-size: 13px; }
