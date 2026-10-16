@@ -3,6 +3,20 @@
 Histórico de versões. A mesma lista aparece dentro do app em **Novidades** (menu do servidor ou rodapé das Configurações).
 O Resenhex chegou à versão 1.0 em 4 de outubro de 2026.
 
+## v1.6.1 — 60 fps mais fluido e Nitidez por padrão
+
+16 de outubro de 2026.
+
+No perfil de 60 fps, a resolução agora desce e sobe aos poucos para manter o jogo fluido, e volta para 1080p em segundos quando sobra folga. Quem ainda não escolheu começa a transmitir em Nitidez · 1080p / 30, com limite de upload de 50 Mbps.
+
+### Melhorias
+
+- Movimento · 1080p / 60: quando a fluidez cai, a resolução desce um degrau de cada vez (1080p, 900p, 720p, 540p, 360p) e confere o resultado antes de descer mais. Com o computador no limite e três pessoas assistindo, o bloco grande passou de 43 fps irregulares em 1080p para 55 fps estáveis em 900p.
+- Quando sobra folga, a resolução volta a subir em poucos segundos. O app confere o tempo de codificação e a banda antes de tentar, e uma tentativa que falha espera um pouco mais para a próxima. Antes, cada degrau levava pelo menos 20 s.
+- Perfil padrão da transmissão: Nitidez · 1080p / 30, no lugar de Automática.
+- Limite de upload padrão: 50 Mbps, no lugar de 10. Com várias pessoas assistindo, cada uma recebe mais banda. Se a sua internet envia menos que isso, escolha um valor menor em Configurações.
+- Quem já tinha salvo um perfil ou um limite de upload continua com o seu.
+
 ## v1.6.0 — E-mail de recuperação e Esqueci a senha
 
 15 de outubro de 2026.

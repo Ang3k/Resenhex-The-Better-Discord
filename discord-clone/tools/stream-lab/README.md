@@ -37,8 +37,9 @@ O terceiro argumento do `run.cjs` filtra cenários pelo nome (expressão regular
 | `matrices/sfu.cjs` | P2P × SFU com três espectadores, incluindo a configuração antiga do SFU |
 | `matrices/validacao.cjs` | O código do app antes (commit `15429b2`, versão 1.4.6) × agora, com e sem limite de banda |
 | `matrices/inicio.cjs` | Os primeiros 15 s de uma transmissão que começa no meio da chamada (`audioFirst`: a conexão leva só o microfone antes) |
+| `matrices/escada.cjs` | A escada de resolução do 1080p/60 com o processador no limite, e se ela volta para 1080p quando sobra folga (evento `demand`) |
 
-Nos cenários com `app`, quem transmite roda o `MediaSession`, o `MediaPolicy`, o `preferCodec` e o `MediaSfu` daquela versão, carregados do git ou da árvore de trabalho (`working`). Com `audioFirst` (ms), a conexão nasce só com o microfone, como numa chamada de verdade, e a medição começa quando a tela entra; cada espectador traz também `perSecond` (quadros entregues e PSNR em cada segundo).
+Nos cenários com `app`, quem transmite roda o `MediaSession`, o `MediaPolicy`, o `preferCodec` e o `MediaSfu` daquela versão, carregados do git ou da árvore de trabalho (`working`). Com `audioFirst` (ms), a conexão nasce só com o microfone, como numa chamada de verdade, e a medição começa quando a tela entra; cada espectador traz também `perSecond` (quadros entregues, PSNR e altura em cada segundo). Em `events`, `{ at, type: 'demand', viewers, demand }` muda o pedido de espectadores no meio da medição (por exemplo, `{ background: true }`).
 
 ## Limites
 

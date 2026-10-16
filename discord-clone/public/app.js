@@ -62,9 +62,9 @@
     deafened: false,
     micStream: null,
     local: { screen: null, camera: null }, // meus streams de vídeo
-    sharePreset: SHARE_PRESETS[localStorage.getItem('sharePreset')] ? localStorage.getItem('sharePreset') : 'auto',
+    sharePreset: SHARE_PRESETS[localStorage.getItem('sharePreset')] ? localStorage.getItem('sharePreset') : 'p1080',
     sharePaused: false,
-    uploadMbps: Math.min(100, Math.max(3, Number(localStorage.getItem('uploadMbps')) || 10)),
+    uploadMbps: Math.min(100, Math.max(3, Number(localStorage.getItem('uploadMbps')) || 50)),
     cameraDeviceId: localStorage.getItem('cameraDeviceId') || '',
     voiceFx: initialVoiceFx, // modificador de voz (voice-fx.js)
     voiceChatOpen: localStorage.getItem('voiceChatOpen') === '1', // chat da sala aberto ao lado da chamada

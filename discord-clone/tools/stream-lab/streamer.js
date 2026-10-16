@@ -102,7 +102,7 @@ function runStreamerRole() {
     });
     const session = window.MediaSession({ state, socket: { connected: true, on: (event, cb) => { handlers[event] = cb; } }, call: async () => ({}), el, toast: (m) => log('toast', m),
       voiceEntry: (sid) => entries[sid], member: () => ({ name: 'lab' }), render() {}, renderStage() {}, sendVoiceState() {}, preferCodec: window.preferCodec, ownAudio: null, sfu: null });
-    app = { session, state };
+    app = { session, state, handlers };
     window.appState = state;
     if (cfg.audioFirst) {
       while (st.connected.size < cfg.viewers) await sleep(100);
@@ -137,6 +137,9 @@ function runStreamerRole() {
       if (ev.type === 'encoding') for (const [i, s] of st.senders.entries()) { const p = s.getParameters(); Object.assign(p.encodings[0], ev.encoding, ev.viewerEncodings?.[i] || {}); await s.setParameters(p); }
       if (ev.type === 'codec') for (const s of st.senders) { const p = s.getParameters(); p.encodings[0].codec = p.codecs.find((c) => c.mimeType === ev.codec); await s.setParameters(p); }
       if (ev.type === 'hint') stream.getVideoTracks()[0].contentHint = ev.hint;
+      // Espectadores mudam o pedido no meio da medição (ex.: { background: true } libera o processador).
+      if (ev.type === 'demand') for (const i of ev.viewers) app?.handlers?.['screen:quality']?.({ viewer: 'v' + i,
+        demand: { ...window.MediaPolicy.viewerDemand({ width: Math.round(cfg.compareHeights[i] * 16 / 9), height: cfg.compareHeights[i] }), ...ev.demand } });
     } catch (e) { log('event error', String(e)); }
   }
   lab.onMessage(async (from, msg) => {

@@ -145,11 +145,16 @@ function runViewerRole(index, clip) {
   const timer = setInterval(collect, 1000);
 
   function perSecond(from, to) {
-    const out = Array.from({ length: Math.max(0, Math.ceil((to - from) / 1000)) }, () => ({ frames: 0, psnr: [] }));
+    const out = Array.from({ length: Math.max(0, Math.ceil((to - from) / 1000)) }, () => ({ frames: 0, psnr: [], heights: {} }));
     let prev = null;
-    for (const [at, idx] of v.frames) { const bucket = out[Math.floor((at - from) / 1000)]; if (bucket && idx !== prev) bucket.frames++; prev = idx; }
+    for (const [at, idx, height] of v.frames) {
+      const bucket = out[Math.floor((at - from) / 1000)];
+      if (bucket && idx !== prev) { bucket.frames++; bucket.heights[height] = (bucket.heights[height] || 0) + 1; }
+      prev = idx;
+    }
     for (const q of v.quality) out[Math.floor((q.at - from) / 1000)]?.psnr.push(q.psnr);
-    return out.map((b) => [b.frames, b.psnr.length ? +mean(b.psnr).toFixed(2) : null]);
+    // [quadros, PSNR, altura mais frequente naquele segundo]
+    return out.map((b) => [b.frames, b.psnr.length ? +mean(b.psnr).toFixed(2) : null, Number(Object.entries(b.heights).sort((x, y) => y[1] - x[1])[0]?.[0]) || null]);
   }
   function summary() {
     const w = measureWindow(), from = w.from, to = w.to, rs = v.stats;
@@ -167,7 +172,7 @@ function runViewerRole(index, clip) {
       heights: v.heights, badBarcodes: v.bad, latencyMs: mean(v.latency), latencyP95: pct(v.latency, 0.95), netLatencyMs: mean(v.net), netLatencyP95: pct(v.net, 0.95), spikes: v.spikes.slice(0, 20),
       displayP99: pct(v.display, 0.99), displayLong: v.display.filter((d) => d > nominal * 2.5).length / Math.max(1, v.display.length),
       decoder: rs.at(-1)?.impl, codec: rs.at(-1)?.codec, rtt: v.rtt, path: v.path,
-      // Por segundo desde o início da medição: quadros diferentes entregues e PSNR médio das amostras.
+      // Por segundo desde o início da medição: quadros diferentes entregues, PSNR médio e altura.
       perSecond: perSecond(from, to),
       timeline: rs.map((r) => ({ t: Math.round(r.t - from), fps: r.fps, h: r.h, bytes: r.bytes, freezes: r.freezeCount })) };
   }

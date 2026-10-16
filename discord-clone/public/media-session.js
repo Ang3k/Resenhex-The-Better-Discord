@@ -580,8 +580,13 @@ window.MediaSession = function ({ state, socket, call, el, toast, voiceEntry, me
             const demand = demands.get(sid), level = peer.adaptation.level || 0;
             const target = MediaPolicy.screenTarget(preset, demand, level);
             const source = outboundReport.get(r.mediaSourceId) || report.get(r.mediaSourceId);
-            if (preset.floorFps) {
-              peer.adaptation = MediaPolicy.ladder(peer.adaptation, { active: stats.screen.progressing, sentFps: r.framesPerSecond, sourceFps: source?.framesPerSecond, targetFps: target.fps, floorFps: preset.floorFps }, now);
+            if (preset.steps) {
+              // Escada fina do Movimento (MediaPolicy.ladder). Um espectador por vez tenta subir.
+              const heights = preset.steps.map((_, step) => MediaPolicy.screenTarget(preset, demand, step).height);
+              const estimate = peer.estimate && now - peer.estimate.at < 8000 ? peer.estimate.bitrate : null;
+              const probing = [...state.peers.values()].some((other) => other !== peer && other.adaptation?.probe && now - other.adaptation.probe.at < 10_000);
+              peer.adaptation = MediaPolicy.ladder(peer.adaptation, { active: stats.screen.progressing, sentFps: r.framesPerSecond, sourceFps: source?.framesPerSecond, targetFps: target.fps,
+                heights, encodeMs, available: estimate, upBitrate: level ? MediaPolicy.screenTarget(preset, demand, level - 1).bitrate : 0, canProbe: !probing }, now);
             } else {
               const strained = MediaPolicy.strained({ reason: r.qualityLimitationReason, sentFps: r.framesPerSecond, sourceFps: source?.framesPerSecond, targetFps: target.fps });
               const fresh = peer.estimate && now - peer.estimate.at < 8000 ? peer.estimate.bitrate : null;
