@@ -82,10 +82,18 @@ test('Movimento steps down gradually by smoothness: 900p first, two steps only w
   // 25 fps em 1080p: um degrau (1,44× os quadros) não basta; vai direto para 720p (2,25×).
   state = simulateLadder({}, { capacity: 25 }, 0, 3_000);
   assert.equal(STEPS_60[state.level], 720);
-  // Um tranco de uma amostra não derruba.
+  // Um tranco de uma amostra não derruba, nem por um instante.
   let steady = {};
-  for (let at = 0; at <= 30_000; at += 1500) steady = policy.ladder(steady, { active: true, sentFps: at === 15_000 ? 5 : 60, sourceFps: 60, targetFps: 60, heights: STEPS_60 }, at);
-  assert.equal(steady.level, 0);
+  for (let at = 0; at <= 30_000; at += 1500) {
+    steady = policy.ladder(steady, { active: true, sentFps: at === 15_000 ? 5 : 60, sourceFps: 60, targetFps: 60, heights: STEPS_60 }, at);
+    assert.equal(steady.level, 0, `level at ${at} ms`);
+  }
+  // Quem chama pode segurar a descida (outro espectador acabou de descer); a medição continua.
+  let held = simulateLadder({}, { capacity: 45 }, 0, 4_500);
+  held = policy.ladder(held, { active: true, sentFps: 45, sourceFps: 60, targetFps: 60, heights: STEPS_60, canStepDown: false }, 6_000);
+  assert.equal(held.level, 1, 'already stepped once (no caller limit in simulateLadder)');
+  const waiting = policy.ladder({ level: 0, fps: [45, 45], changedAt: -Infinity }, { active: true, sentFps: 45, sourceFps: 60, targetFps: 60, heights: STEPS_60, canStepDown: false }, 0);
+  assert.deepEqual([waiting.level, waiting.fps], [0, [45, 45, 45]]);
   // Jogo rodando a 40 fps e tela parada não são culpa da resolução.
   assert.equal(simulateLadder({}, { capacity: 40, sourceFps: 40 }, 0, 60_000).level, 0);
   assert.equal(simulateLadder({}, { capacity: 3, sourceFps: 3 }, 0, 60_000).level, 0);
@@ -292,15 +300,19 @@ function mediaHarness() {
   const stream = (tracks) => ({ id: `s${serial++}`, getTracks: () => [...tracks], getVideoTracks: () => tracks.filter((t) => t.kind === 'video'), getAudioTracks: () => tracks.filter((t) => t.kind === 'audio'), addTrack: (t) => tracks.push(t), removeTrack: (t) => tracks.splice(tracks.indexOf(t), 1) });
   const microphone = track('audio');
   const screen = stream([track('video'), track('audio')]);
-  const senders = [makeSender(microphone)];
-  const transceivers = [];
-  const peer = { sid: 'viewer', adaptation: {}, stats: {}, remote: {}, senders: { screen: [], camera: [] }, pc: {
-    signalingState: 'stable', connectionState: 'connected',
-    report: new Map(), async getStats() { return this.report; }, getReceivers: () => [],
-    getSenders: () => senders, getTransceivers: () => transceivers,
-    addTrack(t) { const sender = makeSender(t); sender.getStats = async () => this.report; senders.push(sender); transceivers.push({ sender, receiver: { track: { kind: t.kind } } }); return sender; },
-    removeTrack(sender) { sender.track = null; },
-  } };
+  // Um espectador com conexão própria (fake RTCPeerConnection), como o app cria para cada pessoa.
+  const makePeer = (sid) => {
+    const senders = [makeSender(microphone)];
+    const transceivers = [];
+    return { sid, adaptation: {}, stats: {}, remote: {}, senders: { screen: [], camera: [] }, pc: {
+      signalingState: 'stable', connectionState: 'connected',
+      report: new Map(), async getStats() { return this.report; }, getReceivers: () => [],
+      getSenders: () => senders, getTransceivers: () => transceivers,
+      addTrack(t) { const sender = makeSender(t); sender.getStats = async () => this.report; senders.push(sender); transceivers.push({ sender, receiver: { track: { kind: t.kind } } }); return sender; },
+      removeTrack(sender) { sender.track = null; },
+    } };
+  };
+  const peer = makePeer('viewer');
   const self = { viewers: [], sid: 'self' };
   const state = { me: { sid: 'self' }, local: { screen, camera: null }, sharePreset: 'auto', shareAudio: true, uploadMbps: 10, peers: new Map([['viewer', peer]]), voiceChannel: 'room', view: 'voice' };
   const notices = [];
@@ -312,7 +324,7 @@ function mediaHarness() {
   vm.runInContext(fs.readFileSync(path.join(__dirname, '../public/media-session.js'), 'utf8'), context);
   const ownAudio = { cleaned: [], synced: [], works: true, async clean(s) { this.cleaned.push(s); return this.works; }, sync(s) { this.synced.push(s); } };
   const media = context.window.MediaSession({ state, socket: { on: (event, handler) => events.set(event, handler) }, call: async (event, payload) => { calls.push({ event, payload }); return {}; }, el: () => domNode, toast: (msg) => notices.push(msg), voiceEntry: (sid) => sid === 'self' ? self : { channel: 'room' }, member: () => ({}), render() {}, renderStage() {}, sendVoiceState() {}, preferCodec() {}, ownAudio });
-  return { media, state, self, peer, screen, microphone, notices, context, events, calls, nodes, ownAudio, track, stream, listeners, clock: (value) => { clock = value; } };
+  return { media, state, self, peer, screen, microphone, notices, context, events, calls, nodes, ownAudio, track, stream, listeners, makePeer, clock: (value) => { clock = value; } };
 }
 
 async function settle(h) { for (let i = 0; i < 4; i++) { await h.peer.mediaQueue; await Promise.resolve(); } }
@@ -534,6 +546,32 @@ test('a screen joining a call that only carried audio tells the encoder where to
   warm.peer.pc.getTransceivers().find((t) => t.sender === screenSender).mid = '2';
   const plainAnswer = { type: 'answer', sdp: answerSdp };
   assert.equal(warm.media.remoteDescription(warm.peer, plainAnswer), plainAnswer, 'a camera already warmed the estimate');
+});
+
+test('Movimento with several viewers steps down one at a time, the largest first', async () => {
+  const h = mediaHarness();
+  h.state.sharePreset = 'p1080_60';
+  const small = h.makePeer('small');
+  h.state.peers.set('small', small);
+  h.self.viewers = ['viewer', 'small'];
+  h.events.get('screen:quality')({ viewer: 'viewer', demand: { mode: 'auto', maxHeight: 1080, background: false } });
+  h.events.get('screen:quality')({ viewer: 'small', demand: { mode: 'auto', maxHeight: 540, background: false } });
+  h.media.syncScreenSubscriptions(); await settle(h); await small.mediaQueue;
+  const screenTrack = h.screen.getVideoTracks()[0];
+  const report = (at) => new Map([
+    ['source', { id: 'source', type: 'media-source', trackIdentifier: screenTrack.id, framesPerSecond: 60 }],
+    ['codec', { id: 'codec', type: 'codec', mimeType: 'video/H264' }],
+    ['screen', { id: 'screen', type: 'outbound-rtp', kind: 'video', mediaSourceId: 'source', codecId: 'codec', bytesSent: at * 500, framesSent: at * 40 / 1000, framesPerSecond: 40, timestamp: at }],
+  ]);
+  // Os dois engasgam juntos (40 fps de 60): o processador é um só.
+  const levels = [];
+  for (let at = 1000; at <= 7000; at += 1500) {
+    h.clock(at); h.peer.pc.report = report(at); small.pc.report = report(at);
+    await h.media.updateStreamStats();
+    levels.push([h.peer.adaptation.level || 0, small.adaptation.level || 0]);
+  }
+  assert.deepEqual(levels[1], [1, 0], 'the 1080p viewer steps down first; the 540p one waits');
+  assert.ok(levels.slice(1, 3).every(([, l]) => l === 0), `no second step-down within 3 s (${JSON.stringify(levels)})`);
 });
 
 test('a connection that dropped and came back by itself still recovers the next time it fails', async () => {

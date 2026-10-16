@@ -545,6 +545,7 @@ window.MediaSession = function ({ state, socket, call, el, toast, voiceEntry, me
     return { width: r.frameWidth, height: r.frameHeight, fps: r.framesPerSecond, bitrate, progressing, codec: report.get(r.codecId)?.mimeType?.split('/')[1] || '' };
   }
 
+  let stepDownAt = -Infinity; // última descida da escada do Movimento, entre todos os espectadores
   async function updateStreamStats() {
     if (statsBusy) return;
     if (!state.voiceChannel) { samples.clear(); return; }
@@ -552,6 +553,7 @@ window.MediaSession = function ({ state, socket, call, el, toast, voiceEntry, me
     const now = performance.now();
     try {
       if (sfu?.active()) { await sfu.stats(); syncScreenSubscriptions(); if (!$('#settings')?.classList.contains('hidden')) renderDiagnostics(); return; }
+      const ladders = [];
       await Promise.allSettled([...state.peers].map(async ([sid, peer]) => {
         const report = await peer.pc.getStats();
         if (!active(peer)) return;
@@ -604,12 +606,11 @@ window.MediaSession = function ({ state, socket, call, el, toast, voiceEntry, me
             const target = MediaPolicy.screenTarget(preset, demand, level);
             const source = outboundReport.get(r.mediaSourceId) || report.get(r.mediaSourceId);
             if (preset.steps) {
-              // Escada fina do Movimento (MediaPolicy.ladder). Um espectador por vez tenta subir.
+              // Escada fina do Movimento (MediaPolicy.ladder), aplicada depois de medir todos (abaixo).
               const heights = preset.steps.map((_, step) => MediaPolicy.screenTarget(preset, demand, step).height);
               const estimate = peer.estimate && now - peer.estimate.at < 8000 ? peer.estimate.bitrate : null;
-              const probing = [...state.peers.values()].some((other) => other !== peer && other.adaptation?.probe && now - other.adaptation.probe.at < 10_000);
-              peer.adaptation = MediaPolicy.ladder(peer.adaptation, { active: stats.screen.progressing, sentFps: r.framesPerSecond, sourceFps: source?.framesPerSecond, targetFps: target.fps,
-                heights, encodeMs, available: estimate, upBitrate: level ? MediaPolicy.screenTarget(preset, demand, level - 1).bitrate : 0, canProbe: !probing }, now);
+              ladders.push({ peer, height: heights[level], sample: { active: stats.screen.progressing, sentFps: r.framesPerSecond, sourceFps: source?.framesPerSecond, targetFps: target.fps,
+                heights, encodeMs, available: estimate, upBitrate: level ? MediaPolicy.screenTarget(preset, demand, level - 1).bitrate : 0 } });
             } else {
               const strained = MediaPolicy.strained({ reason: r.qualityLimitationReason, sentFps: r.framesPerSecond, sourceFps: source?.framesPerSecond, targetFps: target.fps });
               const fresh = peer.estimate && now - peer.estimate.at < 8000 ? peer.estimate.bitrate : null;
@@ -635,6 +636,16 @@ window.MediaSession = function ({ state, socket, call, el, toast, voiceEntry, me
           }
         }
       }));
+      // O processador e a internet de envio são de todos os espectadores: quando vários engasgam juntos,
+      // baixar o de maior resolução costuma bastar. Desce um de cada vez, o maior primeiro, com ~3 s entre
+      // uma descida e outra; e só um tenta subir por vez.
+      ladders.sort((a, b) => b.height - a.height);
+      for (const { peer, sample } of ladders) {
+        const probing = [...state.peers.values()].some((other) => other !== peer && other.adaptation?.probe && now - other.adaptation.probe.at < 10_000);
+        const before = peer.adaptation.level || 0;
+        peer.adaptation = MediaPolicy.ladder(peer.adaptation, { ...sample, canProbe: !probing, canStepDown: !(now - stepDownAt < 3000) }, now);
+        if ((peer.adaptation.level || 0) > before) stepDownAt = now;
+      }
       const own = document.querySelector(`[data-key="screen-${state.me?.sid}"]`);
       if (own) {
         const connections = viewers().map((sid) => state.peers.get(sid)).filter(Boolean);

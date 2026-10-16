@@ -136,7 +136,7 @@
   // Escada do Movimento: fluidez primeiro, depois a maior resolução que a sustenta. A cada amostra
   // (~1,5 s) compara os quadros enviados com os que a fonte entrega ("heights" são os degraus deste
   // espectador, do maior para o menor):
-  // - abaixo de 85% por ~3 s, desce: um degrau, ou dois se pela conta dos pixels um não basta (os quadros
+  // - abaixo de 85% nas duas últimas amostras (~3 s), desce: um degrau, ou dois se pela conta dos pixels um não basta (os quadros
   //   por segundo sobem mais ou menos na proporção dos pixels a menos). Depois de mudar, espera ~3 s e confere;
   // - fluido (90% ou mais) há ~6 s, sobe um degrau se ele cabe: o tempo de codificação por quadro, previsto
   //   para o degrau de cima, não passa do tempo de um quadro, e a banda estimada comporta 75% da taxa do
@@ -145,10 +145,12 @@
   //   a fluidez. Só um espectador por vez tenta subir (canProbe), porque o processador é um só;
   // - uma subida que engasga em até 10 s volta, e aquele degrau espera 10, 20, 40 e até 60 s para outra
   //   tentativa. A espera cai quando a folga melhora: codificação 25% mais rápida ou banda 30% maior.
+  // Com vários espectadores, quem chama decide a vez (canStepDown): o processador e a internet de envio são
+  // de todos, então desce um de cada vez, o de maior resolução primeiro.
   // Jogo rodando abaixo do perfil não é culpa da resolução, e tela parada (menos de 20 fps na fonte) não conta.
   // O aviso do navegador (banda/processador) não entra: só os quadros que de fato saem.
   const LADDER = { window: 4, settle: 3_000, up: 6_000, keep: 10_000, retry: [10_000, 20_000, 40_000, 60_000] };
-  function ladder(previous = {}, { active, sentFps, sourceFps, targetFps, heights = [], encodeMs, available, upBitrate, canProbe = true } = {}, now) {
+  function ladder(previous = {}, { active, sentFps, sourceFps, targetFps, heights = [], encodeMs, available, upBitrate, canProbe = true, canStepDown = true } = {}, now) {
     const next = { level: 0, fps: [], changedAt: -Infinity, probe: null, failures: {}, ...previous };
     if (!active) return { ...next, fps: [] };
     let last = 0;
@@ -164,7 +166,7 @@
     const gain = (from, to) => (heights[from] / heights[to]) ** 2; // pixels de um degrau sobre o outro
     const change = (level, extra) => ({ ...next, level, fps: [], changedAt: now, probe: null, ...extra });
     const recent = next.fps.slice(-2);
-    if (recent.length === 2 && mean(recent) < expected * .85 && next.level < last) {
+    if (canStepDown && recent.length === 2 && Math.max(...recent) < expected * .85 && next.level < last) {
       const need = expected * .95 / Math.max(1, mean(recent));
       const steps = next.level + 2 <= last && gain(next.level, next.level + 1) < need ? 2 : 1;
       const failures = { ...next.failures }, failed = next.probe?.level;
