@@ -254,6 +254,54 @@ test('quem entra logo depois conecta: a oferta que chega enquanto ainda entramos
   assert.deepEqual(answers.map((e) => e.payload.data.description?.type), ['answer']);
 });
 
+test('som da tela de quem transmite em estéreo: a resposta pede stereo=1 só na seção dele, e a voz fica mono', async (t) => {
+  const pcs = [];
+  const audio = (mid, msid) => [`m=audio 9 UDP/TLS/RTP/SAVPF 111`, `a=mid:${mid}`, ...(msid ? [`a=msid:${msid}`] : []), 'a=rtpmap:111 opus/48000/2', 'a=fmtp:111 minptime=10;useinbandfec=1'];
+  const sdp = (...sections) => ['v=0', 'o=- 1 2 IN IP4 127.0.0.1', 's=-', 't=0 0', ...sections.flat(), ''].join('\r\n');
+  let refuseMunging = false;
+  const app = await voicePreviewApp(t, {
+    setup(w) {
+      w.RTCPeerConnection = class {
+        constructor() { this.signalingState = 'stable'; this.connectionState = 'new'; this.senders = []; this.local = []; pcs.push(this); }
+        addTrack(track) { const sender = { track }; this.senders.push(sender); return sender; }
+        getTransceivers() { return []; } getSenders() { return this.senders; } getReceivers() { return []; }
+        async setRemoteDescription(d) { this.remoteDescription = d; this.signalingState = d.type === 'offer' ? 'have-remote-offer' : 'stable'; }
+        async createAnswer() { return { type: 'answer', sdp: sdp(audio('0', 'my-mic t'), audio('1')) }; }
+        async createOffer() { return { type: 'offer', sdp: sdp(audio('0', 'my-mic t'), audio('1')) }; }
+        async setLocalDescription(d) {
+          if (d && refuseMunging && d.sdp.includes('stereo')) throw Object.assign(new Error('munging'), { name: 'InvalidModificationError' });
+          d ||= await (this.signalingState === 'have-remote-offer' ? this.createAnswer() : this.createOffer());
+          this.local.push(d.sdp); this.localDescription = d; this.signalingState = 'stable';
+        }
+        async addIceCandidate() {} async getStats() { return new Map(); } close() { this.signalingState = 'closed'; } restartIce() {}
+      };
+    },
+  });
+  await settle();
+  // B transmite a tela com som: a oferta traz a voz dele (mid 0) e o som da tela (mid 1).
+  const offer = { type: 'offer', sdp: sdp(audio('0', 'b-mic m'), audio('1', 'b-screen s')) };
+  app.deliver('signal', { from: 'peer-b', data: { description: offer, video: { screen: 'b-screen' } } });
+  await settle(); await settle();
+  const [voice, screen] = pcs[0].local.at(-1).split('\r\nm=').slice(1);
+  assert.match(screen, /a=fmtp:111 minptime=10;useinbandfec=1;stereo=1/);
+  assert.doesNotMatch(voice, /stereo/);
+  const sent = app.events.filter((e) => e.event === 'signal' && e.payload.to === 'peer-b').at(-1);
+  assert.match(sent.payload.data.description.sdp, /stereo=1/, 'the answer that goes to B asks for stereo, so B encodes in stereo');
+  // A nossa própria renegociação (câmera, recuperação) mantém o pedido.
+  await pcs[0].onnegotiationneeded();
+  assert.match(pcs[0].local.at(-1).split('\r\nm=')[2], /stereo=1/);
+  // Sem tela com som: a descrição fica como o navegador fez.
+  app.deliver('signal', { from: 'peer-c', data: { description: { type: 'offer', sdp: sdp(audio('0', 'c-mic m')) }, video: {} } });
+  await settle(); await settle();
+  assert.doesNotMatch(pcs[1].local.at(-1), /stereo/);
+  // Navegador que recusa a descrição alterada: responde do jeito de antes, em mono.
+  refuseMunging = true;
+  app.deliver('signal', { from: 'peer-b', data: { description: offer, video: { screen: 'b-screen' } } });
+  await settle(); await settle();
+  assert.doesNotMatch(pcs[0].local.at(-1), /stereo/);
+  assert.equal(app.events.filter((e) => e.event === 'signal' && e.payload.to === 'peer-b' && e.payload.data.description?.type === 'answer').length, 2, 'still answered');
+});
+
 test('servidor de mídia que falha depois de entrar: a conexão direta liga com quem já estava na sala', async (t) => {
   const pcs = [], errors = [];
   let mediaCalls = 0;

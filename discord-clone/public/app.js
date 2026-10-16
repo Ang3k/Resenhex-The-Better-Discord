@@ -5177,7 +5177,7 @@
     pc.onnegotiationneeded = async () => {
       try {
         peer.makingOffer = true;
-        await pc.setLocalDescription();
+        await applyLocalDescription(peer);
         socket.emit('signal', { to: sid, data: { description: pc.localDescription, video: videoIds() } });
       } catch (err) {
         console.error(err);
@@ -5229,6 +5229,22 @@
     return peer;
   }
 
+  // Descrição local com o som da tela da outra pessoa em estéreo (MediaPolicy.opusStereo); a voz
+  // continua mono. Sem som de tela chegando, fica como sempre foi. Um navegador que não aceita a
+  // descrição alterada segue em mono; se a negociação mudou no meio, quem chamou trata como antes.
+  async function applyLocalDescription(peer) {
+    const { pc } = peer;
+    const mids = MediaPolicy.audioMids(pc.remoteDescription?.sdp, peer.remoteIds.screen);
+    if (!mids.size) return pc.setLocalDescription();
+    const answering = pc.signalingState === 'have-remote-offer';
+    const description = await (answering ? pc.createAnswer() : pc.createOffer());
+    try { await pc.setLocalDescription({ type: description.type, sdp: MediaPolicy.opusStereo(description.sdp, mids) }); }
+    catch (error) {
+      if (pc.signalingState !== (answering ? 'have-remote-offer' : 'stable')) throw error;
+      await pc.setLocalDescription();
+    }
+  }
+
   function closePeer(sid) {
     const peer = state.peers.get(sid);
     if (!peer) return;
@@ -5263,7 +5279,7 @@
           peer.settingRemoteAnswer = false;
         }
         if (data.description.type === 'offer') {
-          await pc.setLocalDescription();
+          await applyLocalDescription(peer);
           socket.emit('signal', { to: from, data: { description: pc.localDescription, video: videoIds() } });
         }
         tuneSenders();

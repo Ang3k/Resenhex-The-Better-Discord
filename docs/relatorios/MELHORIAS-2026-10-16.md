@@ -47,7 +47,7 @@ Evidências: [`melhorias-2026-10-16/padroes.jsonl`](melhorias-2026-10-16/padroes
 
 Com isso, `npm test` passou duas vezes seguidas com 337 de 338. A única falha é `desktop/test/lib.test.js`, que precisa do módulo nativo `uiohook-napi` (`npm install` em `desktop/`). Numa terceira rodada, `test/servers.test.js` ("moderation affects only that membership") falhou uma vez: sozinho, passou 5 de 5 vezes, também no `main`. É outra corrida de teste com a suíte em paralelo e ficou como estava.
 
-Com os testes da seção 4, `npm test` fica em 345 de 346, com a mesma falha do `desktop/`.
+Com os testes das seções 4 e 5, `npm test` fica em 347 de 348, com a mesma falha do `desktop/`.
 
 ## 4. Defeitos de chamada encontrados numa revisão do código
 
@@ -64,6 +64,38 @@ Uma revisão do código de chamada e transmissão levantou oito suspeitas. Cada 
 | Em Automática e Economia, a volta da resolução demorava mais que o necessário | O nível descia até o 4º degrau mesmo quando o espectador já estava no menor tamanho, e cada degrau a mais custava 12 s na volta | O nível para no último degrau que ainda reduz a resolução daquele espectador (`MediaPolicy.stepHeights`) | `media.test.js`, "automatic quality stops at the last step". Economia depois de 30 s de aperto: volta para 720p em 24 s (antes, 36 s). Miniatura de 360p: não desce degraus que não existem |
 
 **Examinado e sem mudança:** um `media:switch` (o servidor de mídia caiu) que chega enquanto a pessoa ainda entra é ignorado. Mas, nesse caso, a entrada pelo SFU falha e já cai para a conexão direta sozinha, então não deu para montar um caso em que a pessoa ficasse sem chamada.
+
+## 5. Som da tela em estéreo no P2P
+
+**O defeito.** Na conexão direta (P2P, o modo sem o LiveKit e o modo de reserva quando ele cai), o som da tela chegava mono: jogo, música e vídeo perdiam o lado de cada som. O Chrome só decodifica Opus em estéreo quando a descrição **local** de quem recebe pede (`stereo=1`), e só codifica em estéreo quando a descrição **remota** de quem envia pede. O app não pedia em nenhuma das duas. No SFU, o SDK do LiveKit já pede (`forceStereo`), e lá o som chegava estéreo.
+
+**Como foi medido** (`tools/stream-lab/estereo.cjs`, Electron 44): 440 Hz só no canal esquerdo e 1000 Hz só no direito. Quem recebe separa os canais e mede cada tom. Em mono, os dois canais trazem os dois tons.
+
+| Onde está `stereo=1` | Canal esquerdo (440 / 1000 Hz) | Canal direito (440 / 1000 Hz) | Resultado |
+|---|---|---|---|
+| Em nenhum lugar (como era) | −32 / −32 dB | −32 / −32 dB | mono |
+| Só na descrição remota de quem envia | −32 / −32 dB | −32 / −32 dB | mono |
+| Só na descrição local de quem recebe | −32 / −32 dB | −32 / −32 dB | mono |
+| Só nas duas descrições remotas | −32 / −32 dB | −32 / −32 dB | mono |
+| Na local de quem recebe e na remota de quem envia | −26 / −128 dB | −82 / −30 dB | **estéreo** |
+| SFU (LiveKit 1.13.8, opções do `media-sfu.js`) | −26 / −121 dB | −82 / −30 dB | estéreo |
+
+A taxa ficou em ~96 kbps nos dois modos, o limite que o app já põe no som da tela.
+
+**A correção** (`applyLocalDescription` no `public/app.js`, `MediaPolicy.audioMids` e `opusStereo`): quem assiste pede `stereo=1` na própria descrição local, só nas seções de áudio que trazem a transmissão da outra pessoa (pelo id da transmissão no `a=msid`). Essa descrição vai pela sinalização e vira a remota de quem transmite, então um pedido cobre os dois lados. A voz continua mono. Sem som de tela chegando, a negociação segue como antes. Um navegador que não aceite a descrição alterada segue em mono, como antes.
+
+**Medição com o código do app** (P2P, conexão aberta pela pessoa que entra, depois a tela com som):
+
+| Momento | Antes | Agora |
+|---|---|---|
+| A tela com som entra | mono (−32 / −32 · −32 / −32) | estéreo (−26 / −118 · −84 / −26) |
+| Quem assiste liga a câmera (a renegociação é dele) | mono | estéreo (−26 / −115 · −76 / −26) |
+| Quem assiste reinicia o ICE (recuperação) | mono | estéreo (−26 / −115 · −76 / −30) |
+| Voz | mono | mono |
+
+A conexão ficou conectada do começo ao fim nos dois casos. Testes: `test/media.test.js` ("screen audio asks for Opus stereo only in its own section") e `test/server-ui.test.js` ("som da tela de quem transmite em estéreo", com a resposta enviada, a renegociação própria, a conexão sem tela e o navegador que recusa a descrição alterada). Sem a mudança no `app.js`, o teste de interface falha.
+
+Evidências: [`melhorias-2026-10-16/estereo.jsonl`](melhorias-2026-10-16/estereo.jsonl).
 
 ## Testado e descartado
 

@@ -16,6 +16,7 @@ No perfil de 60 fps, a resolução agora desce e sobe aos poucos para manter o j
 - Perfil padrão da transmissão: Nitidez · 1080p / 30, no lugar de Automática.
 - Limite de upload padrão: 50 Mbps, no lugar de 10. Com várias pessoas assistindo, cada uma recebe mais banda. Se a sua internet envia menos que isso, escolha um valor menor em Configurações.
 - Quem já tinha salvo um perfil ou um limite de upload continua com o seu.
+- Conexão direta (P2P, sem o servidor de mídia): o som da tela agora chega em estéreo. Antes chegava mono, e jogo, música e vídeo perdiam o lado de cada som. A voz continua mono, e no servidor de mídia o som da tela já era estéreo.
 
 ### Correções
 

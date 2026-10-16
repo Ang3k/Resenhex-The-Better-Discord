@@ -254,6 +254,35 @@
       return lines.map((line) => types.has(/^a=fmtp:(\d+) /.exec(line)?.[1]) && !line.includes('x-google-start-bitrate') ? `${line};x-google-start-bitrate=${kbps}` : line).join(eol);
     }).join(eol + 'm=');
   }
+  // Som da tela em estéreo no P2P. O Chrome só decodifica Opus em estéreo quando a descrição LOCAL de
+  // quem recebe pede (stereo=1), e só codifica em estéreo quando a REMOTA de quem envia pede. Sem isso o
+  // som do jogo ou da música chega mono. A local de quem assiste vira a remota de quem transmite, então
+  // basta quem assiste pedir, nas seções de áudio que trazem a trilha da transmissão (a=msid).
+  function audioMids(sdp, streamId) {
+    const mids = new Set();
+    if (typeof sdp !== 'string' || !streamId) return mids;
+    const eol = sdp.includes('\r\n') ? '\r\n' : '\n';
+    for (const section of sdp.split(eol + 'm=').slice(1)) {
+      if (!section.startsWith('audio')) continue;
+      const lines = section.split(eol), mid = lines.find((line) => line.startsWith('a=mid:'))?.slice(6);
+      if (mid != null && lines.some((line) => line.startsWith(`a=msid:${streamId} `))) mids.add(mid);
+    }
+    return mids;
+  }
+  function opusStereo(sdp, mids) {
+    if (typeof sdp !== 'string' || !mids?.size) return sdp;
+    const eol = sdp.includes('\r\n') ? '\r\n' : '\n';
+    return sdp.split(eol + 'm=').map((section, index) => {
+      if (!index || !section.startsWith('audio')) return section;
+      const lines = section.split(eol);
+      if (!mids.has(lines.find((line) => line.startsWith('a=mid:'))?.slice(6))) return section;
+      const opus = new Set(lines.map((line) => /^a=rtpmap:(\d+) opus\/48000\/2/i.exec(line)?.[1]).filter(Boolean));
+      return lines.map((line) => {
+        const fmtp = /^a=fmtp:(\d+) (.*)$/.exec(line);
+        return fmtp && opus.has(fmtp[1]) && !/(^|;)\s*stereo=/.test(fmtp[2]) ? `${line};stereo=1` : line;
+      }).join(eol);
+    }).join(eol + 'm=');
+  }
   function formatVideoStats(measurements, total = false) {
     if (!measurements.length) return 'Medindo qualidade…';
     const range = (key) => {
@@ -268,5 +297,5 @@
     const codecs = [...new Set(measurements.map((item) => item.codec).filter(Boolean))].join('/');
     return [size, `${range('fps')} fps`, rate, codecs].filter(Boolean).join(' · ');
   }
-  return { presets, watchModes, CODECS, viewerDemand, screenTarget, stepHeights, allocate, screenEncoding, screenCodecs, cpuFallback, cpuStrain, sustained, encoderLoad, strained, adapt, ladder, encoding, enqueue, startBitrate, formatVideoStats };
+  return { presets, watchModes, CODECS, viewerDemand, screenTarget, stepHeights, allocate, screenEncoding, screenCodecs, cpuFallback, cpuStrain, sustained, encoderLoad, strained, adapt, ladder, encoding, enqueue, startBitrate, audioMids, opusStereo, formatVideoStats };
 });

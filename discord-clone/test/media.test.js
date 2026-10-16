@@ -304,6 +304,30 @@ test('the start bitrate goes only on the H.264 payloads of the chosen video sect
   assert.equal(policy.startBitrate(answerSdp.replace(/\r\n/g, '\n'), { 2: 5400 }), sdp.replace(/\r\n/g, '\n'));
 });
 
+// Oferta de quem transmite como o Chrome gera: voz (mid 0), tela (mid 1) e som da tela (mid 2), com RED.
+const shareOffer = ['v=0', 'o=- 1 2 IN IP4 127.0.0.1', 's=-', 't=0 0',
+  'm=audio 9 UDP/TLS/RTP/SAVPF 63 111', 'a=mid:0', 'a=msid:mic-stream mic-track', 'a=rtpmap:63 red/48000/2', 'a=fmtp:63 111/111', 'a=rtpmap:111 opus/48000/2', 'a=fmtp:111 minptime=10;useinbandfec=1',
+  'm=video 9 UDP/TLS/RTP/SAVPF 96', 'a=mid:1', 'a=msid:screen-stream video-track', 'a=rtpmap:96 VP8/90000',
+  'm=audio 9 UDP/TLS/RTP/SAVPF 63 111', 'a=mid:2', 'a=msid:screen-stream audio-track', 'a=rtpmap:63 red/48000/2', 'a=fmtp:63 111/111', 'a=rtpmap:111 opus/48000/2', 'a=fmtp:111 minptime=10;useinbandfec=1', ''].join('\r\n');
+
+test('screen audio asks for Opus stereo only in its own section, never on the voice', () => {
+  // Medido no Electron 44: sem stereo=1 na descrição local de quem recebe, o som da tela chegava mono.
+  const mids = policy.audioMids(shareOffer, 'screen-stream');
+  assert.deepEqual([...mids], ['2'], 'the video section and the voice are not screen audio');
+  assert.deepEqual([...policy.audioMids(shareOffer, 'other')], []);
+  assert.deepEqual([...policy.audioMids(shareOffer, null)], []);
+  // A resposta de quem assiste usa os mesmos mids.
+  const answer = shareOffer.replace(/a=msid:[^\r]*\r\n/g, '');
+  const stereo = policy.opusStereo(answer, mids);
+  const sections = stereo.split('\r\nm=');
+  assert.match(sections[3], /a=fmtp:111 minptime=10;useinbandfec=1;stereo=1\r\n/);
+  assert.match(sections[3], /a=fmtp:63 111\/111\r\n/, 'RED untouched');
+  assert.equal(sections[0] + sections[1] + sections[2], answer.split('\r\nm=').slice(0, 3).join(''), 'voice and video untouched');
+  assert.equal(policy.opusStereo(stereo, mids), stereo, 'idempotent');
+  assert.equal(policy.opusStereo(answer, new Set()), answer);
+  assert.equal(policy.opusStereo(answer.replace(/\r\n/g, '\n'), mids), stereo.replace(/\r\n/g, '\n'));
+});
+
 test('sender mutation queue preserves order after a rejected operation', async () => {
   const peer = {}, order = [];
   const first = policy.enqueue(peer, async () => { await new Promise((r) => setTimeout(r, 10)); order.push('first'); throw Error('unsupported'); });

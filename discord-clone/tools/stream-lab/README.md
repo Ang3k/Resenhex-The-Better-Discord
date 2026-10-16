@@ -41,6 +41,8 @@ O terceiro argumento do `run.cjs` filtra cenários pelo nome (expressão regular
 | `matrices/queda.cjs` | Quedas de rede de quem transmite: a transmissão volta quando a rede volta? (estados da conexão em `streamer.connection`) |
 | `matrices/escada.cjs` | A escada de resolução do 1080p/60 com o processador no limite, e se ela volta para 1080p quando sobra folga (evento `demand`) |
 
+Fora das matrizes, `node tools/stream-lab/estereo.cjs` confere se o som da tela chega em estéreo: um tom só no canal esquerdo e outro só no direito, medidos em cada canal de quem recebe. Ele compara o P2P como era, o P2P com a `applyLocalDescription` do `public/app.js` (na entrada da tela, depois de quem assiste renegociar e depois de um reinício do ICE) e o SFU com as opções do `public/media-sfu.js`, este quando o LiveKit do laboratório já foi baixado.
+
 Nos cenários com `app`, quem transmite roda o `MediaSession`, o `MediaPolicy`, o `preferCodec` e o `MediaSfu` daquela versão, carregados do git ou da árvore de trabalho (`working`). Com `audioFirst` (ms), a conexão nasce só com o microfone, como numa chamada de verdade, e a medição começa quando a tela entra; cada espectador traz também `perSecond` (quadros entregues, PSNR e altura em cada segundo). Em `events`, `{ at, type: 'demand', viewers, demand }` muda o pedido de espectadores no meio da medição (por exemplo, `{ background: true }`).
 
 ## Limites
