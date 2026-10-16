@@ -43,9 +43,11 @@ async function startServer(t, env = { MAIL_DEV: 'console' }) {
     await exited;
     fs.rmSync(dir, { recursive: true, force: true });
   });
-  const auth = async (payload) => {
+  // listeners entram antes do auth, como no app: o servidor pode avisar logo depois de cadastrar.
+  const auth = async (payload, listeners = {}) => {
     const socket = io(base, { forceNew: true, transports: ['websocket'] });
     clients.push(socket);
+    for (const [event, handler] of Object.entries(listeners)) socket.on(event, handler);
     socket.res = await new Promise((resolve) => socket.emit('auth', payload, resolve));
     return socket;
   };
@@ -180,8 +182,7 @@ test('e-mail: sem SMTP configurado a recuperação fica desligada', async (t) =>
 test('e-mail: no cadastro, a sessão fica sabendo se o link de confirmação saiu', async (t) => {
   const { auth, nextMail } = await startServer(t);
   const pushed = [];
-  const ana = await auth({ mode: 'register', name: 'Ana', password: '1234', confirmPassword: '1234', email: 'ana@exemplo.com' });
-  ana.on('account:email', (info) => pushed.push(info));
+  await auth({ mode: 'register', name: 'Ana', password: '1234', confirmPassword: '1234', email: 'ana@exemplo.com' }, { 'account:email': (info) => pushed.push(info) });
   await nextMail();
   for (let i = 0; i < 40 && !pushed.length; i++) await wait(50);
   assert.deepEqual(pushed, [{ email: 'ana@exemplo.com', emailVerified: false, sent: true, signup: true }]);

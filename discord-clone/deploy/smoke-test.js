@@ -61,7 +61,10 @@ async function register(name, confirmPassword) {
 })().catch((error) => {
   console.error(error);
   process.exitCode = 1;
-}).finally(() => {
+}).finally(async () => {
+  // Espera o servidor sair: ainda escrevendo os dados, ele deixava a pasta "não vazia" para o rmSync.
+  const exited = child.exitCode !== null || child.signalCode !== null ? Promise.resolve() : new Promise((resolve) => child.once('exit', resolve));
   child.kill();
-  fs.rmSync(temp, { recursive: true, force: true });
+  await exited;
+  fs.rmSync(temp, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 });
 });
