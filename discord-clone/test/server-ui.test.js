@@ -180,7 +180,7 @@ async function voicePreviewApp(t, options = {}) {
   }
   const node = () => ({ gain: { value: 1 }, connect(next) { return next; }, disconnect() {} });
   const app = await ui(t, false, {
-    storage: { noiseMode: 'off', ...options.storage }, reply: { 'voice:join': () => ({ peers: [] }) },
+    storage: { noiseMode: 'off', ...options.storage }, reply: { 'voice:join': () => ({ peers: [] }), ...options.reply },
     setup(w) {
       capture = async () => { const stream = new Stream(); captures.push(stream); return stream; };
       Object.defineProperty(w.navigator, 'mediaDevices', { value: {
@@ -218,6 +218,80 @@ async function voicePreviewApp(t, options = {}) {
   app.d.querySelector('[data-channel-id="room-1"] .channel-entry').click(); await settle();
   return { ...app, captures, played, effects, destinations, Stream, setCapture(fn) { capture = fn; } };
 }
+
+test('quem entra logo depois conecta: a oferta que chega enquanto ainda entramos é respondida', async (t) => {
+  let releaseMedia;
+  const pcs = [];
+  const app = await voicePreviewApp(t, {
+    // O voice:join já respondeu (estamos na sala para o servidor); o voice:media ainda não.
+    reply: { 'voice:media': () => new Promise((resolve) => { releaseMedia = resolve; }) },
+    setup(w) {
+      w.RTCPeerConnection = class {
+        constructor() { this.signalingState = 'stable'; this.connectionState = 'new'; this.senders = []; this.remote = []; this.candidates = []; pcs.push(this); }
+        addTrack(track) { const sender = { track }; this.senders.push(sender); return sender; }
+        getTransceivers() { return []; } getSenders() { return this.senders; } getReceivers() { return []; }
+        async setRemoteDescription(d) { this.remote.push(d.type); this.signalingState = d.type === 'offer' ? 'have-remote-offer' : 'stable'; }
+        async setLocalDescription() { this.localDescription = { type: 'answer', sdp: 'local' }; this.signalingState = 'stable'; }
+        async addIceCandidate(c) { this.candidates.push(c.candidate); } async getStats() { return new Map(); } close() { this.signalingState = 'closed'; } restartIce() {}
+      };
+    },
+  });
+  await settle();
+  // B entrou logo depois de nós e já mandou a oferta e um candidato.
+  app.deliver('signal', { from: 'peer-b', data: { description: { type: 'offer', sdp: 'remote-offer' } } });
+  app.deliver('signal', { from: 'peer-b', data: { candidate: { candidate: 'c1' } } });
+  // C também ofereceu, mas saiu antes de a chamada começar aqui: nada de conexão com quem já foi.
+  app.deliver('signal', { from: 'peer-c', data: { description: { type: 'offer', sdp: 'remote-offer' } } });
+  app.deliver('voice:peer-left', { id: 'peer-c' });
+  await settle();
+  assert.equal(pcs.length, 0, 'nothing connects before the call starts');
+  releaseMedia({ transport: 'p2p' });
+  await settle(); await settle();
+  assert.equal(pcs.length, 1);
+  assert.deepEqual(pcs[0].remote, ['offer']);
+  assert.deepEqual(pcs[0].candidates, ['c1']);
+  const answers = app.events.filter((e) => e.event === 'signal' && e.payload.to === 'peer-b');
+  assert.deepEqual(answers.map((e) => e.payload.data.description?.type), ['answer']);
+});
+
+test('servidor de mídia que falha depois de entrar: a conexão direta liga com quem já estava na sala', async (t) => {
+  const pcs = [], errors = [];
+  let mediaCalls = 0;
+  const app = await voicePreviewApp(t, {
+    reply: {
+      'voice:join': () => ({ peers: ['peer-b'] }),
+      'voice:media': () => (++mediaCalls === 1 ? { transport: 'sfu', url: 'wss://sfu.test', token: 't' } : { transport: 'p2p' }),
+    },
+    setup(w) {
+      w.RTCPeerConnection = class {
+        constructor() { this.signalingState = 'stable'; this.connectionState = 'new'; this.senders = []; this.remote = []; pcs.push(this); }
+        addTrack(track) { const sender = { track }; this.senders.push(sender); return sender; }
+        getTransceivers() { return []; } getSenders() { return this.senders; } getReceivers() { return []; }
+        async setRemoteDescription(d) { this.remote.push(d.type); } async setLocalDescription() { this.localDescription = { type: 'answer', sdp: 'local' }; }
+        async addIceCandidate() {} async getStats() { return new Map(); } close() { this.signalingState = 'closed'; } restartIce() {}
+      };
+      // O SFU aceita a sala (B já estava lá), mas o microfone não sai: a entrada cai para P2P.
+      class Room {
+        constructor() {
+          this.state = 'connected'; this.engine = { serverVersion: '1.13.8' };
+          this.remoteParticipants = new Map([['peer-b', { identity: 'peer-b', trackPublications: new Map() }]]);
+          this.localParticipant = { permissions: { canPublish: true, canPublishSources: [] }, trackPublications: new Map(), videoTrackPublications: new Map(),
+            async publishTrack() { throw new Error('publication of local track timed out, no response from server'); }, async unpublishTrack() {} };
+        }
+        on() {} async connect() {} async disconnect() {}
+      }
+      w.LivekitClient = { Room, VideoPreset: class {}, Track: { Source: { Microphone: 'microphone', Camera: 'camera', ScreenShare: 'screen_share', ScreenShareAudio: 'screen_share_audio' } }, RoomEvent: {}, DisconnectReason: {} };
+      w.console.error = (...args) => errors.push(args.map(String).join(' '));
+    },
+  });
+  await settle(); await settle(); await settle();
+  assert.equal(mediaCalls, 2, 'fell back to direct connections');
+  assert.equal(pcs.length, 1, 'a real connection to the person already in the room');
+  app.deliver('signal', { from: 'peer-b', data: { description: { type: 'offer', sdp: 'remote-offer' } } });
+  await settle(); await settle();
+  assert.deepEqual(pcs[0].remote, ['offer']);
+  assert.deepEqual(errors.filter((e) => /sinaliza/.test(e)), []);
+});
 
 test('chosen effects appear in the call menu and swap the musical voices without replacing capture', async (t) => {
   const app = await voicePreviewApp(t), d = app.d;

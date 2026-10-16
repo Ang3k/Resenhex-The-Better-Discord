@@ -103,11 +103,17 @@ window.MediaSession = function ({ state, socket, call, el, toast, voiceEntry, me
   const screenCodecs = (sid) => MediaPolicy.screenCodecs(presets[state.sharePreset], demands.get(sid)?.codecs, state.screenCodecFallback);
   // Jogo ou vídeo detectado num perfil de texto: cada espectador volta a receber o tamanho do seu bloco.
   const activePreset = () => state.screenMotion ? { ...presets[state.sharePreset], motion: true } : presets[state.sharePreset];
+  // Tipo do que um sender leva (audio/video), mesmo parado em replaceTrack(null).
+  const senderKind = (peer, sender) => sender.track?.kind || peer.pc.getTransceivers().find((t) => t.sender === sender)?.receiver.track.kind;
+  // Adiciona as trilhas que ainda não têm sender nesta conexão: uma tela que ganhou áudio numa troca
+  // de fonte chega com o som para quem volta a assistir.
   function addVideoTracks(peer, kind) {
     if (sfu?.active()) return;
     const stream = state.local[kind];
     if (!stream || !active(peer)) return;
+    const sending = new Set(peer.senders[kind].map((sender) => senderKind(peer, sender)));
     for (const track of stream.getTracks()) {
+      if (sending.has(track.kind)) continue;
       const sender = peer.pc.addTrack(track, stream);
       peer.senders[kind].push(sender);
       if (track.kind === 'video') preferCodec(peer.pc, sender, kind === 'screen' ? screenCodecs(peer.sid) : ['video/VP8']);
@@ -166,13 +172,15 @@ window.MediaSession = function ({ state, socket, call, el, toast, voiceEntry, me
           peer.senders.screen = [];
           peer.screenStream = current;
         }
-        if (watching && !peer.senders.screen.length) addVideoTracks(peer, 'screen');
+        if (watching) addVideoTracks(peer, 'screen');
         for (const sender of peer.senders.screen) {
-          const kind = sender.track?.kind || peer.pc.getTransceivers().find((t) => t.sender === sender)?.receiver.track.kind;
+          const kind = senderKind(peer, sender);
           const track = watching ? current.getTracks().find((t) => t.kind === kind) || null : null;
           if (sender.track !== track) await sender.replaceTrack(track);
         }
-        if (!watching) { peer.adaptation = {}; peer.estimate = null; }
+        // Quem para de assistir zera as medições: as contagens de 5 s (processador, conteúdo pesado)
+        // recomeçam quando a pessoa volta, em vez de somar o tempo em que ela não estava assistindo.
+        if (!watching) { peer.adaptation = {}; peer.estimate = null; peer.cpu = {}; peer.heavy = {}; peer.encodeSample = null; }
       }).then(tuneSenders).catch(() => {
         peer.screenKey = null;
         if (active(peer)) mediaNotice('Não foi possível atualizar um espectador. Tentaremos novamente.');
@@ -428,7 +436,7 @@ window.MediaSession = function ({ state, socket, call, el, toast, voiceEntry, me
           if (!active(peer) || !viewers().includes(peer.sid)) return;
           for (const kind of ['video', 'audio']) {
             const track = next.getTracks().find((t) => t.kind === kind) || null;
-            const sender = peer.senders.screen.find((s) => (s.track?.kind || peer.pc.getTransceivers().find((t) => t.sender === s)?.receiver.track.kind) === kind);
+            const sender = peer.senders.screen.find((s) => senderKind(peer, s) === kind);
             if (sender) { const old = sender.track; await sender.replaceTrack(track); changed.push({ peer, sender, old }); }
             else if (track) { const added = peer.pc.addTrack(track, current); peer.senders.screen.push(added); changed.push({ peer, sender: added, added: true }); }
           }
@@ -438,6 +446,10 @@ window.MediaSession = function ({ state, socket, call, el, toast, voiceEntry, me
       current.desktopAudioCleanup?.();
       current.getTracks().forEach((track) => { track.onended = track.onmute = track.onunmute = null; current.removeTrack(track); track.stop(); });
       next.getTracks().forEach((track) => current.addTrack(track));
+      // Quem começou a assistir enquanto a troca percorria as conexões recebeu as trilhas antigas,
+      // que acabaram de parar: confere todo mundo de novo com as novas.
+      for (const peer of state.peers.values()) peer.screenKey = null;
+      syncScreenSubscriptions();
       current.desktopAudioCleanup = next.desktopAudioCleanup;
       current.desktopAudioMode = next.desktopAudioMode;
       watchScreenTrack(current.getVideoTracks()[0]);
@@ -607,7 +619,7 @@ window.MediaSession = function ({ state, socket, call, el, toast, voiceEntry, me
             const source = outboundReport.get(r.mediaSourceId) || report.get(r.mediaSourceId);
             if (preset.steps) {
               // Escada fina do Movimento (MediaPolicy.ladder), aplicada depois de medir todos (abaixo).
-              const heights = preset.steps.map((_, step) => MediaPolicy.screenTarget(preset, demand, step).height);
+              const heights = MediaPolicy.stepHeights(preset, demand);
               const estimate = peer.estimate && now - peer.estimate.at < 8000 ? peer.estimate.bitrate : null;
               ladders.push({ peer, height: heights[level], sample: { active: stats.screen.progressing, sentFps: r.framesPerSecond, sourceFps: source?.framesPerSecond, targetFps: target.fps,
                 heights, encodeMs, available: estimate, upBitrate: level ? MediaPolicy.screenTarget(preset, demand, level - 1).bitrate : 0 } });
@@ -616,7 +628,7 @@ window.MediaSession = function ({ state, socket, call, el, toast, voiceEntry, me
               const fresh = peer.estimate && now - peer.estimate.at < 8000 ? peer.estimate.bitrate : null;
               const upper = level ? MediaPolicy.screenTarget(preset, demand, level - 1).bitrate : 0;
               const headroom = level && fresh != null ? fresh - 176_000 >= upper * 1.25 : undefined;
-              peer.adaptation = MediaPolicy.adapt(peer.adaptation, { active: stats.screen.progressing, strained, headroom }, now);
+              peer.adaptation = MediaPolicy.adapt(peer.adaptation, { active: stats.screen.progressing, strained, headroom, heights: MediaPolicy.stepHeights(preset, demand) }, now);
             }
           } else if (!preset.adaptive) peer.adaptation = {};
         }

@@ -63,6 +63,9 @@
     return { height, fps, bitrate };
   }
 
+  // Altura de cada degrau para um espectador, do maior para o menor (os últimos podem se repetir).
+  const stepHeights = (preset, demand) => (preset.steps || STEPS).map((_, level) => screenTarget(preset, demand, level).height);
+
   // Divisão max-min: atende primeiro quem precisa de pouco e redistribui o que sobra.
   function distribute(pool, caps) {
     const rates = caps.map(() => 0);
@@ -110,13 +113,18 @@
 
   // Desce um degrau após 4 s de engasgo (no máximo a cada 6 s) e sobe um degrau após 12 s bons,
   // se a conexão comporta o degrau acima (headroom false bloqueia; sem estimativa, só o tempo decide).
+  // Para no último degrau que ainda reduz a resolução deste espectador ("heights", de stepHeights):
+  // um degrau a mais seria a mesma imagem e só atrasaria a volta em 12 s.
   function adapt(previous = {}, sample, now) {
     const next = { level: 0, badSince: null, goodSince: null, changedAt: -Infinity, ...previous };
+    let last = MAX_LEVEL;
+    if (sample.heights?.length) { last = 0; for (let k = 1; k < sample.heights.length; k++) if (sample.heights[k] < sample.heights[last]) last = k; }
+    next.level = Math.min(next.level, last);
     if (!sample.active) return { ...next, badSince: null, goodSince: null };
     if (sample.strained) {
       next.goodSince = null;
       next.badSince ??= now;
-      if (now - next.badSince >= 4_000 && now - next.changedAt >= 6_000 && next.level < MAX_LEVEL) {
+      if (now - next.badSince >= 4_000 && now - next.changedAt >= 6_000 && next.level < last) {
         next.level++;
         next.changedAt = now;
         next.badSince = now;
@@ -260,5 +268,5 @@
     const codecs = [...new Set(measurements.map((item) => item.codec).filter(Boolean))].join('/');
     return [size, `${range('fps')} fps`, rate, codecs].filter(Boolean).join(' · ');
   }
-  return { presets, watchModes, CODECS, viewerDemand, screenTarget, allocate, screenEncoding, screenCodecs, cpuFallback, cpuStrain, sustained, encoderLoad, strained, adapt, ladder, encoding, enqueue, startBitrate, formatVideoStats };
+  return { presets, watchModes, CODECS, viewerDemand, screenTarget, stepHeights, allocate, screenEncoding, screenCodecs, cpuFallback, cpuStrain, sustained, encoderLoad, strained, adapt, ladder, encoding, enqueue, startBitrate, formatVideoStats };
 });

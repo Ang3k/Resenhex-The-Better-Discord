@@ -15,7 +15,7 @@ const chromeCodecs = [{ mimeType: 'video/VP8' }, { mimeType: 'video/rtx', sdpFmt
   { mimeType: 'video/H264', sdpFmtpLine: 'level-asymmetry-allowed=1;packetization-mode=1;profile-level-id=42e01f' },
   { mimeType: 'video/AV1', sdpFmtpLine: 'level-idx=5;profile=0;tier=0' }];
 function harness({ serverVersion = '1.13.8', codecs = ['video/VP8', 'video/VP9', 'video/AV1', 'video/H264'], sharePreset = 'auto' } = {}) {
-  const published = [], transceivers = [];
+  const published = [], transceivers = [], handlers = {}, sinks = [];
   class RTCRtpTransceiver { setCodecPreferences(list) { this.preferences = list; } }
   class RTCPeerConnection { addTransceiver(track) { const t = new RTCRtpTransceiver(); t.track = track; transceivers.push(t); return t; } }
   const addTransceiver = RTCPeerConnection.prototype.addTransceiver;
@@ -40,18 +40,21 @@ function harness({ serverVersion = '1.13.8', codecs = ['video/VP8', 'video/VP9',
         async unpublishTrack() {},
       };
     }
-    on() {} async connect() {} async disconnect() {}
+    on(event, fn) { handlers[event] = fn; } async connect() {} async disconnect() {}
   }
   const track = (kind, width, height) => ({ id: `${kind}-${width}`, kind, getSettings: () => ({ width, height }) });
   const stream = (...tracks) => ({ getTracks: () => tracks, getAudioTracks: () => tracks.filter((t) => t.kind === 'audio'), getVideoTracks: () => tracks.filter((t) => t.kind === 'video') });
   const state = { sharePreset, uploadMbps: 10, local: { screen: null, camera: null }, peers: new Map(), micStream: stream(track('audio', 0, 0)) };
-  const context = { window: { LivekitClient: { Room, VideoPreset, Track: { Source }, RoomEvent: {}, DisconnectReason: {} } }, MediaPolicy: policy, structuredClone,
+  class Audio { setSinkId(id) { sinks.push(id); return Promise.resolve(); } play() { return Promise.resolve(); } }
+  class MediaStream { constructor(tracks = []) { this.tracks = tracks; } addTrack(t) { this.tracks.push(t); } getTracks() { return this.tracks; } }
+  const RoomEvent = { TrackSubscribed: 'trackSubscribed', TrackUnsubscribed: 'trackUnsubscribed' };
+  const context = { window: { LivekitClient: { Room, VideoPreset, Track: { Source }, RoomEvent, DisconnectReason: {} } }, MediaPolicy: policy, structuredClone, Audio, MediaStream,
     RTCRtpSender: { getCapabilities: () => ({ codecs: codecs.map((mimeType) => ({ mimeType })) }) }, RTCRtpReceiver: { getCapabilities: () => ({ codecs: chromeCodecs }) },
     RTCPeerConnection, RTCRtpTransceiver, document: { querySelector: () => null }, console };
   vm.createContext(context);
   vm.runInContext(fs.readFileSync(path.join(__dirname, '../public/media-sfu.js'), 'utf8'), context);
   const sfu = context.window.MediaSfu({ state, renderStage() {}, applyAudio() {}, watchSpeaking() {}, unwatchSpeaking() {}, closePeer() {}, notice() {} });
-  return { sfu, state, published, track, stream, transceivers, patched: () => RTCPeerConnection.prototype.addTransceiver !== addTransceiver };
+  return { sfu, state, published, track, stream, transceivers, handlers, sinks, patched: () => RTCPeerConnection.prototype.addTransceiver !== addTransceiver };
 }
 
 test('SFU text shares publish one full-resolution AV1 layer with screen tools and a VP8 backup', async () => {
@@ -117,4 +120,16 @@ test('an H.264 screen offers 42e01f first, so the SDK start bitrate lands on the
   await text.sfu.connect({ url: 'wss://sfu.test', token: 't' });
   await text.sfu.publish('screen', text.stream(text.track('video', 1920, 1080)));
   assert.equal(text.transceivers.find((t) => t.track.id === 'video-1920').preferences, undefined, 'AV1/VP8 publishes are left alone');
+});
+
+test('SFU voices play on the chosen speaker as soon as they arrive', async () => {
+  const h = harness();
+  h.state.speakerDeviceId = 'headset';
+  await h.sfu.connect({ url: 'wss://sfu.test', token: 't' });
+  h.handlers.trackSubscribed({ mediaStreamTrack: { kind: 'audio' } }, { source: 'microphone' }, { identity: 'ana' });
+  assert.deepEqual(h.sinks, ['headset']);
+  const fallback = harness();
+  await fallback.sfu.connect({ url: 'wss://sfu.test', token: 't' });
+  fallback.handlers.trackSubscribed({ mediaStreamTrack: { kind: 'audio' } }, { source: 'microphone' }, { identity: 'ana' });
+  assert.deepEqual(fallback.sinks, [], 'no speaker chosen: the system default stays');
 });

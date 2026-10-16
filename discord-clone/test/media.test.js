@@ -27,6 +27,30 @@ test('upload budget counts actual viewers, reserves voice, and stays within the 
   assert.ok([...low.values()].every((rate) => rate.screen === 0 && rate.camera === 0));
 });
 
+test('automatic quality stops at the last step that still lowers the resolution, so it comes back sooner', () => {
+  // Economia (720p): 720 → 540 → 360. Um quarto degrau seria 360 de novo e só atrasaria a volta.
+  const heights = policy.stepHeights(policy.presets.p720, {});
+  assert.deepEqual(heights, [720, 540, 360, 360]);
+  let state = {};
+  for (let at = 0; at <= 30_000; at += 1500) state = policy.adapt(state, { active: true, strained: true, heights }, at);
+  assert.equal(state.level, 2, 'stays on 360p instead of counting phantom steps');
+  let back = null;
+  for (let at = 31_500; at <= 120_000 && back == null; at += 1500) {
+    state = policy.adapt(state, { active: true, strained: false, heights }, at);
+    if (state.level === 0) back = at;
+  }
+  assert.ok(back - 31_500 <= 24_000, `720p again ${back - 31_500} ms after the strain ended (two real steps)`);
+  // Uma miniatura de 360p não tem para onde descer.
+  const thumb = policy.stepHeights(policy.presets.auto, { maxHeight: 360 });
+  state = {};
+  for (let at = 0; at <= 30_000; at += 1500) state = policy.adapt(state, { active: true, strained: true, heights: thumb }, at);
+  assert.equal(state.level || 0, 0);
+  // Sem degraus informados, segue como antes.
+  state = {};
+  for (let at = 0; at <= 30_000; at += 1500) state = policy.adapt(state, { active: true, strained: true }, at);
+  assert.equal(state.level, 3);
+});
+
 test('automatic quality steps resolution down after persistent strain and back up only with headroom', () => {
   let state = policy.adapt({}, { active: true, strained: true }, 0);
   state = policy.adapt(state, { active: true, strained: true }, 3999);
@@ -478,6 +502,30 @@ test('a CPU-bound AV1 screen switches viewers to VP8 without renegotiating, befo
   assert.equal(h.state.screenCodecFallback, null, 'a new preset tries the sharper codec again');
 });
 
+test('a viewer who comes back starts the 5 s CPU and heavy-content counts over', async () => {
+  const h = mediaHarness();
+  h.self.viewers = ['viewer']; h.media.syncScreenSubscriptions(); await settle(h);
+  const video = h.peer.senders.screen.find((s) => s.track.kind === 'video');
+  video.params.codecs = [{ mimeType: 'video/AV1', clockRate: 90000 }, { mimeType: 'video/VP8', clockRate: 90000 }];
+  const screenTrack = h.screen.getVideoTracks()[0];
+  const report = (at) => new Map([
+    ['source', { id: 'source', type: 'media-source', trackIdentifier: screenTrack.id, framesPerSecond: 30 }],
+    ['codec', { id: 'codec', type: 'codec', mimeType: 'video/AV1' }],
+    ['screen', { id: 'screen', type: 'outbound-rtp', kind: 'video', mediaSourceId: 'source', codecId: 'codec', bytesSent: at * 100, framesSent: at, framesPerSecond: 30, timestamp: at, qualityLimitationReason: 'cpu' }],
+  ]);
+  const sample = async (at) => { h.clock(at); h.peer.pc.report = report(at); await h.media.updateStreamStats(); await settle(h); };
+  await sample(1000); // engasgou por um instante e o espectador fechou a transmissão
+  h.self.viewers = []; h.media.syncScreenSubscriptions(); await settle(h);
+  h.self.viewers = ['viewer']; h.media.syncScreenSubscriptions(); await settle(h);
+  await sample(600_000); // dez minutos depois, volta a assistir: o primeiro quadro-chave pesa
+  assert.ok(!h.state.screenCodecFallback, 'one CPU-limited sample after coming back is not 5 s of strain');
+  assert.ok(!h.state.screenMotion, 'nor 5 s of heavy content');
+  for (const at of [601_500, 603_000, 604_500]) await sample(at);
+  assert.ok(!h.state.screenCodecFallback);
+  await sample(605_000);
+  assert.equal(h.state.screenCodecFallback, 'video/VP8', 'a real 5 s strain still switches the codec');
+});
+
 test('a text preset sends full resolution to small tiles until the content turns out to be heavy', async () => {
   const h = mediaHarness();
   h.self.viewers = ['viewer']; h.media.syncScreenSubscriptions(); await settle(h);
@@ -641,6 +689,37 @@ test('watch/unwatch suspends both screen tracks while preserving the microphone'
   assert.equal(h.microphone.readyState, 'live');
   h.self.viewers = ['viewer']; h.media.syncScreenSubscriptions(); await h.peer.mediaQueue;
   assert.equal(h.peer.senders.screen.filter((s) => s.track).length, 2);
+});
+
+test('a viewer who comes back after a switch to a source with sound also gets the sound', async () => {
+  const h = mediaHarness();
+  h.state.local.screen = h.stream([h.track('video')]); // uma janela, sem áudio
+  h.self.viewers = ['viewer']; h.media.syncScreenSubscriptions(); await settle(h);
+  h.self.viewers = []; h.media.syncScreenSubscriptions(); await settle(h);
+  h.context.navigator.mediaDevices.getDisplayMedia = async () => h.stream([h.track('video'), h.track('audio')]);
+  await h.media.switchScreen(); // a tela inteira, com o som do computador
+  h.self.viewers = ['viewer']; h.media.syncScreenSubscriptions(); await settle(h);
+  const sent = h.peer.senders.screen.map((s) => s.track);
+  assert.deepEqual([...sent.map((t) => t?.kind)].sort(), ['audio', 'video']);
+  assert.ok(sent.every((t) => h.state.local.screen.getTracks().includes(t) && t.readyState === 'live'));
+});
+
+test('someone who starts watching during a source switch gets the new source, not the stopped one', async () => {
+  const h = mediaHarness();
+  const other = h.makePeer('viewer2');
+  h.state.peers.set('viewer2', other);
+  h.self.viewers = ['viewer2']; h.media.syncScreenSubscriptions(); await settle(h); await other.mediaQueue;
+  let release;
+  policy.enqueue(other, () => new Promise((resolve) => { release = resolve; })); // viewer2 ainda ajustando o envio
+  const switching = h.media.switchScreen();
+  await new Promise((resolve) => setTimeout(resolve, 10));
+  h.self.viewers = ['viewer', 'viewer2']; h.media.syncScreenSubscriptions(); await settle(h); // a troca já passou por "viewer"
+  release(); await switching; await settle(h); await other.mediaQueue;
+  for (const peer of [h.peer, other]) {
+    const sent = peer.senders.screen.map((s) => s.track);
+    assert.deepEqual([...sent.map((t) => `${t?.kind}:${t?.readyState}`)].sort(), ['audio:live', 'video:live'], peer.sid);
+    assert.ok(sent.every((t) => h.state.local.screen.getTracks().includes(t)), peer.sid);
+  }
 });
 
 test('source-switch failure keeps previous tracks alive and reports failure', async () => {

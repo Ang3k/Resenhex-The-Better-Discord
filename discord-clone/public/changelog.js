@@ -16,6 +16,13 @@ window.CHANGELOG = [
       ] },
       { kind: 'fixed', items: [
         'Chamadas voltam sozinhas depois de uma queda de rede. Antes, depois da primeira queda curta, a reconexão automática parava de funcionar com aquela pessoa, e uma queda de mais de uns 20 s só voltava clicando em Reconectar. Agora o app segue tentando enquanto a pessoa estiver na chamada, e a imagem volta em 1 a 2 s depois que a rede volta.',
+        'Duas pessoas que entram na sala quase ao mesmo tempo agora se conectam. Antes, se a primeira tinha internet mais lenta (no celular, por exemplo), o pedido de conexão da segunda chegava antes de a chamada começar do lado dela e se perdia. As duas ficavam na sala sem se ouvir até alguém sair e entrar de novo. Isso podia acontecer, por exemplo, quando todo mundo volta junto depois de uma queda do servidor.',
+        'Se o servidor de mídia falha logo depois da entrada e a chamada passa para conexão direta, a conexão com quem já estava na sala agora acontece. Antes, essas pessoas ficavam sem áudio até alguém sair e entrar de novo.',
+        'Chamadas pelo servidor de mídia: as vozes saem no fone ou alto-falante escolhido em Configurações desde a entrada. Antes, iam para a saída padrão do sistema até a saída ser escolhida de novo.',
+        'Trocar tela/aplicativo para uma fonte com som: quem não estava assistindo na hora da troca agora ouve o som quando volta a assistir.',
+        'Quem começa a assistir no meio de uma troca de tela recebe a fonte nova. Antes, podia ficar com a imagem parada.',
+        'Quem volta a assistir não faz mais a transmissão trocar para o codec mais leve, ou para o modo de movimento, por causa de um pico de um instante. A troca só acontece depois de 5 s seguidos de aperto, como já devia ser.',
+        'Economia · 720p / 30: depois de um aperto longo, a imagem volta para 720p em 24 s, e não mais em 36 s. O app contava um degrau abaixo de 360p que não mudava nada.',
       ] },
     ],
   },

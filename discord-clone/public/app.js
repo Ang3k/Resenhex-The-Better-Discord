@@ -4756,6 +4756,9 @@
 
   // ---------------- voz (WebRTC) ----------------
   let joining = false;
+  // Sinais que chegam depois que o servidor nos pôs na sala e antes de a chamada começar aqui (quem
+  // entrou logo depois de nós já mandou a oferta). Ficam guardados e são aplicados ao começar.
+  let earlySignals = null;
   let callTimeTimer = null;
 
   function callElapsed() {
@@ -4885,10 +4888,14 @@
       const res = await call('voice:join', isDm(channel) ? { dm: channel, silent: !!opts.silent, mediaVersion: 1 } : { channel, serverId: opts.serverId ?? state.server.serverId, mediaVersion: 1 });
       if (abandoned() || dropped() || !res) return;
       joined = true;
+      earlySignals = [];
       const media = await call('voice:media');
       if (abandoned() || dropped() || !media) return;
       state.mediaTransport = media.transport;
       startVoice(channel, media.transport === 'sfu' ? [] : res.peers, opts);
+      const early = earlySignals;
+      earlySignals = null;
+      if (media.transport !== 'sfu') for (const signal of early) onSignal(signal);
       if (media.transport === 'sfu') {
         try { await sfu.connect(media); }
         catch (error) {
@@ -4904,6 +4911,7 @@
       if (opts.video) startVideo('camera');
     } finally {
       joining = false;
+      earlySignals = null;
       if (!state.voiceChannel) {
         if (state.micStream === mic) state.micStream = null;
         if (!abandoned() && dropped()) {
@@ -5233,9 +5241,10 @@
     state.peers.delete(sid);
   }
 
-  socket.on('signal', async ({ from, data }) => {
+  socket.on('signal', (signal) => onSignal(signal));
+  async function onSignal({ from, data }) {
     if (sfu.active()) return;
-    if (!state.voiceChannel) return;
+    if (!state.voiceChannel) { earlySignals?.push({ from, data }); return; }
     const peer = getPeer(from);
     const { pc } = peer;
     try {
@@ -5268,7 +5277,7 @@
     } catch (err) {
       console.error('Erro de sinalização:', err);
     }
-  });
+  }
 
   socket.on('sound', ({ sound, from }) => {
     if (!state.voiceChannel || state.deafened || callMe()?.serverDeafened || state.sbMuted || state.localMuted.has(from)) return;
@@ -5475,6 +5484,7 @@
   }
 
   socket.on('voice:peer-left', ({ id }) => {
+    if (earlySignals) earlySignals = earlySignals.filter((signal) => signal.from !== id); // saiu antes de a chamada começar aqui
     closePeer(id);
     if (state.view === 'voice') renderStage();
   });

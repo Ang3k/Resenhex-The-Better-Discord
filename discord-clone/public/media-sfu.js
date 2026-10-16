@@ -35,7 +35,7 @@ window.MediaSfu = function ({ state, renderStage, applyAudio, watchSpeaking, unw
     if (publication.source === sdk().Track.Source.Microphone) {
       p.micStream = new MediaStream([native]);
       p.audioEl ||= new Audio(); p.audioEl.autoplay = true; p.audioEl.srcObject = p.micStream;
-      if (state.outputDeviceId && p.audioEl.setSinkId) p.audioEl.setSinkId(state.outputDeviceId).catch(() => {});
+      if (state.speakerDeviceId && p.audioEl.setSinkId) p.audioEl.setSinkId(state.speakerDeviceId).catch(() => {});
       p.audioEl.play().catch(() => {});
       unwatchSpeaking(p.sid); watchSpeaking(p.sid, p.micStream);
     } else {
@@ -127,6 +127,9 @@ window.MediaSfu = function ({ state, renderStage, applyAudio, watchSpeaking, unw
   function disconnect() {
     generation++; profile = ''; state.sfuPath = null;
     const previous = room; room = null; queues.clear(); samples.clear(); layouts.clear();
+    // As pessoas que vieram do SFU saem junto. Se a sala seguir por conexão direta, cada uma ganha uma
+    // conexão de verdade (getPeer), em vez de ficar com a de mentira do SFU.
+    for (const [sid, p] of state.peers) if (p.participant) closePeer(sid);
     previous?.disconnect(false).catch(() => {});
   }
   function enqueue(kind, task) {
