@@ -4,8 +4,8 @@
 // O título deve destacar as principais funcionalidades ou correções, com termos objetivos.
 window.CHANGELOG = [
   {
-    version: '1.6.1', date: '2026-10-16', name: '60 fps mais fluido e Nitidez por padrão',
-    summary: 'No perfil de 60 fps, a resolução agora desce e sobe aos poucos para manter o jogo fluido, e volta para 1080p em segundos quando sobra folga. Quem ainda não escolheu começa a transmitir em Nitidez · 1080p / 30, com limite de upload de 50 Mbps.',
+    version: '1.6.1', date: '2026-10-16', name: '1080p a 60 fps por padrão e mais fluido',
+    summary: 'No perfil de 60 fps, a resolução agora desce e sobe aos poucos para manter o jogo fluido, e volta para 1080p em segundos quando sobra folga. Quem ainda não escolheu começa a transmitir em Movimento · 1080p / 60, com limite de upload de 50 Mbps.',
     sections: [
       { kind: 'improved', items: [
         'Movimento · 1080p / 60: o 1080p é o alvo e fica o máximo possível. A resolução só desce quando a transmissão fica abaixo de 25 fps por uns 6 s: primeiro para 900p, que confere o resultado, e se ainda não der conta para 720p. Uma engasgada isolada ou uma oscilação curta da internet não trocam a resolução.',
@@ -14,7 +14,7 @@ window.CHANGELOG = [
         'Com várias pessoas assistindo pela conexão direta, quem está em tela cheia tem prioridade. Quando falta processador ou internet, as miniaturas baixam primeiro, e o 1080p é o primeiro a voltar.',
         'Quem assiste: a transmissão ganhou ~0,1 s de folga para absorver o quadro-chave do 1080p e a variação da internet, com menos engasgos. Antes isso valia só no celular.',
         'Movimento · 1080p / 60: até 8 Mbps por espectador, no lugar de 6, para a imagem ficar mais limpa em jogos com muito movimento. Os degraus de baixo acompanham (900p ~6,1 Mbps, 720p ~4,4 Mbps). Quem tem menos internet não perde nada: o navegador se ajusta à internet de verdade, e a volta para o 1080p continua pedindo só ~4,5 Mbps.',
-        'Perfil padrão da transmissão: Nitidez · 1080p / 30, no lugar de Automática.',
+        'Perfil padrão da transmissão: Movimento · 1080p / 60, no lugar de Automática. Para textos, código e apresentações, Nitidez · 1080p / 30 continua deixando as letras mais nítidas.',
         'Limite de upload padrão: 50 Mbps, no lugar de 10. Com várias pessoas assistindo, cada uma recebe mais banda. Se a sua internet envia menos que isso, escolha um valor menor em Configurações.',
         'Quem já tinha salvo um perfil ou um limite de upload continua com o seu.',
         'Conexão direta (P2P, sem o servidor de mídia): o som da tela agora chega em estéreo. Antes chegava mono, e jogo, música e vídeo perdiam o lado de cada som. A voz continua mono, e no servidor de mídia o som da tela já era estéreo.',

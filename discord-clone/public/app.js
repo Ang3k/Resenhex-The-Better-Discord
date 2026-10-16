@@ -62,7 +62,7 @@
     deafened: false,
     micStream: null,
     local: { screen: null, camera: null }, // meus streams de vídeo
-    sharePreset: SHARE_PRESETS[localStorage.getItem('sharePreset')] ? localStorage.getItem('sharePreset') : 'p1080',
+    sharePreset: SHARE_PRESETS[localStorage.getItem('sharePreset')] ? localStorage.getItem('sharePreset') : 'p1080_60',
     sharePaused: false,
     uploadMbps: Math.min(100, Math.max(3, Number(localStorage.getItem('uploadMbps')) || 50)),
     cameraDeviceId: localStorage.getItem('cameraDeviceId') || '',

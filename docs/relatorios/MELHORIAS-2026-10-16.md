@@ -26,7 +26,7 @@ Evidências: [`melhorias-2026-10-16/quedas.jsonl`](melhorias-2026-10-16/quedas.j
 
 ## 2. Os padrões novos (Nitidez e 50 Mbps) não pioram quem tem menos internet
 
-O perfil padrão passou a ser Nitidez · 1080p / 30 e o upload padrão, 50 Mbps. O risco seria quem envia menos que isso, transmitindo para várias pessoas no P2P: o app planejaria mais banda do que a conexão comporta. O teste limitou o envio de verdade com `tc`:
+O perfil padrão passou a ser Nitidez · 1080p / 30 e o upload padrão, 50 Mbps. (Depois, a pedido, o perfil padrão passou a ser Movimento · 1080p / 60; o upload continuou em 50 Mbps.) O risco seria quem envia menos que isso, transmitindo para várias pessoas no P2P: o app planejaria mais banda do que a conexão comporta. O teste limitou o envio de verdade com `tc`:
 
 | Envio real | Cenário | Declarando o valor real | Declarando 50 Mbps |
 |---|---|---|---|
