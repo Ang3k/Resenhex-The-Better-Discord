@@ -244,9 +244,10 @@ test('adaptive steps descend from the viewer request through 720/540/360 and onl
   assert.deepEqual(heights(policy.presets.auto, { mode: 'economy', maxHeight: 720 }), [720, 540, 360, 360, 360]);
   assert.deepEqual(heights(policy.presets.p720, { maxHeight: 1080 }), [720, 540, 360, 360, 360]);
   assert.deepEqual(heights(policy.presets.p1080, { maxHeight: 1080 }), [1080, 1080, 1080, 1080, 1080]);
-  // Movimento: mantém 1080p60 até os quadros caírem; então desce em degraus finos e cada bloco segue seu tamanho.
-  assert.deepEqual(heights(policy.presets.p1080_60, { maxHeight: 1080 }), [1080, 900, 720, 540, 360]);
-  assert.deepEqual(heights(policy.presets.p1080_60, { maxHeight: 540 }), [540, 360, 360, 360, 360]);
+  // Movimento: 1080p é o alvo; quando os quadros caem, 900p e depois 720p, o último degrau. Cada bloco segue seu tamanho.
+  assert.deepEqual(heights(policy.presets.p1080_60, { maxHeight: 1080 }), [1080, 900, 720, 720, 720]);
+  assert.deepEqual(heights(policy.presets.p1080_60, { maxHeight: 720 }), [720, 720, 720, 720, 720]);
+  assert.deepEqual(heights(policy.presets.p1080_60, { maxHeight: 540 }), [540, 540, 540, 540, 540]);
   assert.equal(policy.presets.p1080_60.degradation, 'maintain-framerate-and-resolution');
   for (const level of [0, 1, 2, 3]) assert.equal(policy.screenTarget(policy.presets.auto, { maxHeight: 1080 }, level).fps, 30);
   for (const level of [0, 1, 2, 3]) assert.equal(policy.screenTarget(policy.presets.p1080_60, { maxHeight: 1080 }, level).fps, 60);
