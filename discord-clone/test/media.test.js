@@ -304,14 +304,15 @@ function mediaHarness() {
   const self = { viewers: [], sid: 'self' };
   const state = { me: { sid: 'self' }, local: { screen, camera: null }, sharePreset: 'auto', shareAudio: true, uploadMbps: 10, peers: new Map([['viewer', peer]]), voiceChannel: 'room', view: 'voice' };
   const notices = [];
-  const domNode = { textContent: '', classList: { contains: () => true }, replaceChildren() {} };
-  const context = { window: {}, MediaPolicy: policy, document: { querySelector: (selector) => selector.startsWith('[data-key') ? nodes.get(selector) || null : domNode }, performance: { now: () => clock }, localStorage: { setItem() {} }, setInterval() {}, setTimeout(fn, delay) { const timer = setTimeout(fn, delay); timer.unref(); return timer; }, clearTimeout, console,
+  const domNode = { textContent: '', classList: { contains: () => true }, replaceChildren() {}, append() {} };
+  const listeners = {};
+  const context = { window: { addEventListener: (type, fn) => { listeners[type] = fn; } }, MediaPolicy: policy, document: { querySelector: (selector) => selector.startsWith('[data-key') ? nodes.get(selector) || null : domNode }, performance: { now: () => clock }, localStorage: { setItem() {} }, setInterval() {}, setTimeout(fn, delay) { const timer = setTimeout(fn, delay); timer.unref(); return timer; }, clearTimeout, console,
     navigator: { mediaDevices: { getDisplayMedia: async () => stream([track('video'), track('audio')]) } }, Sounds: { play() {} } };
   vm.createContext(context);
   vm.runInContext(fs.readFileSync(path.join(__dirname, '../public/media-session.js'), 'utf8'), context);
   const ownAudio = { cleaned: [], synced: [], works: true, async clean(s) { this.cleaned.push(s); return this.works; }, sync(s) { this.synced.push(s); } };
   const media = context.window.MediaSession({ state, socket: { on: (event, handler) => events.set(event, handler) }, call: async (event, payload) => { calls.push({ event, payload }); return {}; }, el: () => domNode, toast: (msg) => notices.push(msg), voiceEntry: (sid) => sid === 'self' ? self : { channel: 'room' }, member: () => ({}), render() {}, renderStage() {}, sendVoiceState() {}, preferCodec() {}, ownAudio });
-  return { media, state, self, peer, screen, microphone, notices, context, events, calls, nodes, ownAudio, track, stream, clock: (value) => { clock = value; } };
+  return { media, state, self, peer, screen, microphone, notices, context, events, calls, nodes, ownAudio, track, stream, listeners, clock: (value) => { clock = value; } };
 }
 
 async function settle(h) { for (let i = 0; i < 4; i++) { await h.peer.mediaQueue; await Promise.resolve(); } }
@@ -533,6 +534,32 @@ test('a screen joining a call that only carried audio tells the encoder where to
   warm.peer.pc.getTransceivers().find((t) => t.sender === screenSender).mid = '2';
   const plainAnswer = { type: 'answer', sdp: answerSdp };
   assert.equal(warm.media.remoteDescription(warm.peer, plainAnswer), plainAnswer, 'a camera already warmed the estimate');
+});
+
+test('a connection that dropped and came back by itself still recovers the next time it fails', async () => {
+  const h = mediaHarness();
+  const pc = h.peer.pc;
+  pc.restarts = 0;
+  pc.restartIce = () => { pc.restarts++; };
+  // Queda curta: "disconnected" agenda uma tentativa; a conexão volta sozinha antes dela.
+  pc.connectionState = 'disconnected'; h.media.connectionChanged(h.peer);
+  assert.ok(h.peer.recoveryTimer, 'a recovery is scheduled');
+  pc.connectionState = 'connected'; h.media.connectionChanged(h.peer);
+  assert.equal(h.peer.recoveryTimer, null, 'the cancelled timer does not stay behind');
+  // Queda longa depois: antes da correção, o timer cancelado bloqueava esta tentativa para sempre.
+  pc.connectionState = 'failed'; h.media.connectionChanged(h.peer);
+  assert.ok(h.peer.recoveryTimer);
+  await new Promise((r) => setTimeout(r, 2200));
+  assert.equal(pc.restarts, 1, 'ICE restarted 2 s after failing');
+  assert.equal(h.peer.recoveryAttempts, 1);
+  assert.ok(h.peer.recoveryTimer, 'keeps trying while the person is in the call');
+  // A internet voltou: tenta na hora.
+  h.listeners.online();
+  assert.equal(pc.restarts, 2);
+  pc.connectionState = 'connected'; h.media.connectionChanged(h.peer);
+  assert.deepEqual([h.peer.recoveryTimer, h.peer.recoveryAttempts], [null, 0]);
+  h.listeners.online();
+  assert.equal(pc.restarts, 2, 'connected peers are left alone');
 });
 
 test('viewer resize and background requests are coalesced without stopping the subscribed audio', async () => {

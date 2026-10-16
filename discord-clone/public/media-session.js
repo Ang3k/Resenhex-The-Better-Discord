@@ -483,19 +483,42 @@ window.MediaSession = function ({ state, socket, call, el, toast, voiceEntry, me
     render();
   }
 
+  // Conexão com alguém caiu. De "disconnected" o navegador volta sozinho quando a rede volta; de
+  // "failed", só reiniciando o ICE. Tenta 5 s depois de cair (2 s se já falhou) e segue tentando enquanto
+  // a pessoa estiver na chamada: a cada 5 s no primeiro minuto, depois a cada 15 s, por até 5 minutos.
+  // Assim a rede que volta depois de 30 s ou mais encontra uma tentativa em andamento. A partir da
+  // terceira tentativa, avisa e mostra "Reconectar".
   function scheduleRecovery(peer) {
-    if (sfu?.active()) return;
-    if (peer.recoveryTimer || peer.recoveryAttempts >= 3) return;
+    if (sfu?.active() || peer.recoveryTimer || (peer.recoveryAttempts || 0) >= 28) return;
+    const attempts = peer.recoveryAttempts || 0;
+    const delay = !attempts && peer.pc.connectionState === 'failed' ? 2000 : attempts < 12 ? 5000 : 15000;
     peer.recoveryTimer = setTimeout(() => {
       peer.recoveryTimer = null;
       if (!active(peer) || peer.pc.connectionState === 'connected') return;
-      peer.recoveryAttempts++;
+      peer.recoveryAttempts = (peer.recoveryAttempts || 0) + 1;
       peer.pc.restartIce();
-      if (peer.recoveryAttempts < 3) scheduleRecovery(peer);
-      else mediaNotice('Uma conexão não se recuperou. Use Reconectar em Conexão e diagnóstico.');
+      if (peer.recoveryAttempts === 3) mediaNotice('Uma conexão não se recuperou. Use Reconectar em Conexão e diagnóstico.');
+      scheduleRecovery(peer);
       renderDiagnostics();
-    }, peer.pc.connectionState === 'failed' ? 2000 : 5000);
+    }, delay);
   }
+  // Chamado a cada mudança de estado da conexão (public/app.js). Quando ela volta, a espera é
+  // apagada de verdade: um timer cancelado que continuasse em peer.recoveryTimer bloquearia todas
+  // as recuperações seguintes com essa pessoa.
+  function connectionChanged(peer) {
+    if (sfu?.active()) return;
+    if (peer.pc.connectionState === 'connected') { clearTimeout(peer.recoveryTimer); peer.recoveryTimer = null; peer.recoveryAttempts = 0; }
+    else if (['failed', 'disconnected'].includes(peer.pc.connectionState)) scheduleRecovery(peer);
+  }
+  // A internet voltou (o sistema avisa): tenta já, sem esperar a próxima tentativa.
+  window.addEventListener?.('online', () => {
+    for (const peer of state.peers.values()) {
+      if (!active(peer) || !['failed', 'disconnected'].includes(peer.pc.connectionState)) continue;
+      clearTimeout(peer.recoveryTimer); peer.recoveryTimer = null;
+      peer.pc.restartIce();
+      scheduleRecovery(peer);
+    }
+  });
 
   function renderDiagnostics() {
     const root = $('#diagnostics-peers');
@@ -628,5 +651,5 @@ window.MediaSession = function ({ state, socket, call, el, toast, voiceEntry, me
     } finally { statsBusy = false; }
   }
   setInterval(updateStreamStats, 1500);
-  return { isWatching, setWatching, getWatchQuality, setWatchQuality, syncViewerQuality, addVideoTracks, syncScreenSubscriptions, videoBitrates, remoteDescription, tuneSenders, applySharePreset, setSharePreset, captureScreen, watchScreenTrack, switchScreen, startVideo, stopVideo, scheduleRecovery, renderDiagnostics, updateStreamStats, mediaNotice };
+  return { isWatching, setWatching, getWatchQuality, setWatchQuality, syncViewerQuality, addVideoTracks, syncScreenSubscriptions, videoBitrates, remoteDescription, tuneSenders, applySharePreset, setSharePreset, captureScreen, watchScreenTrack, switchScreen, startVideo, stopVideo, scheduleRecovery, connectionChanged, renderDiagnostics, updateStreamStats, mediaNotice };
 };

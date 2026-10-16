@@ -17,6 +17,10 @@ No perfil de 60 fps, a resolução agora desce e sobe aos poucos para manter o j
 - Limite de upload padrão: 50 Mbps, no lugar de 10. Com várias pessoas assistindo, cada uma recebe mais banda. Se a sua internet envia menos que isso, escolha um valor menor em Configurações.
 - Quem já tinha salvo um perfil ou um limite de upload continua com o seu.
 
+### Correções
+
+- Chamadas voltam sozinhas depois de uma queda de rede. Antes, depois da primeira queda curta, a reconexão automática parava de funcionar com aquela pessoa, e uma queda de mais de uns 20 s só voltava clicando em Reconectar. Agora o app segue tentando enquanto a pessoa estiver na chamada, e a imagem volta em 1 a 2 s depois que a rede volta.
+
 ## v1.6.0 — E-mail de recuperação e Esqueci a senha
 
 15 de outubro de 2026.

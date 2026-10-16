@@ -5183,8 +5183,8 @@
     };
 
     pc.onconnectionstatechange = () => {
-      if (pc.connectionState === 'connected') { peer.recoveryAttempts = 0; clearTimeout(peer.recoveryTimer); tuneSenders(); }
-      else if (['failed', 'disconnected'].includes(pc.connectionState)) scheduleRecovery(peer);
+      connectionChanged(peer);
+      if (pc.connectionState === 'connected') tuneSenders();
       renderDiagnostics();
     };
 
@@ -5528,7 +5528,7 @@
     joinVoice(state.voiceChannel, { keepView: state.view !== 'voice', serverId: callInfo()?.serverId, startedAt: state.callStartedAt, silent: true });
   }
   const sfu = MediaSfu({ state, renderStage, applyAudio, watchSpeaking, unwatchSpeaking, closePeer, notice: (message) => mediaNotice(message), onLost: recoverMedia });
-  const { isWatching, setWatching, getWatchQuality, setWatchQuality, syncViewerQuality, addVideoTracks, syncScreenSubscriptions, videoBitrates, remoteDescription, tuneSenders, applySharePreset, setSharePreset, captureScreen, watchScreenTrack, switchScreen, startVideo, stopVideo, scheduleRecovery, renderDiagnostics, updateStreamStats, mediaNotice } = MediaSession({ state, socket, call, el, toast, voiceEntry, member: callMember, render, renderStage, sendVoiceState, preferCodec, ownAudio, sfu });
+  const { isWatching, setWatching, getWatchQuality, setWatchQuality, syncViewerQuality, addVideoTracks, syncScreenSubscriptions, videoBitrates, remoteDescription, tuneSenders, applySharePreset, setSharePreset, captureScreen, watchScreenTrack, switchScreen, startVideo, stopVideo, connectionChanged, renderDiagnostics, updateStreamStats, mediaNotice } = MediaSession({ state, socket, call, el, toast, voiceEntry, member: callMember, render, renderStage, sendVoiceState, preferCodec, ownAudio, sfu });
   const streamZoom = StreamZoom({ el, Icon, syncViewerQuality });
   const mobileStream = MobileStream({ state, el, Icon, toast, member: callMember, voiceEntry, syncViewerQuality, openWatchQualityMenu, toggleStreamMute, togglePip });
 

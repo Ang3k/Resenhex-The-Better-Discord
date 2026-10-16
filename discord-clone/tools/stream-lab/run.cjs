@@ -1,6 +1,8 @@
 // Roda uma matriz de cenários: node tools/stream-lab/run.cjs tools/stream-lab/matrices/validacao.cjs [saida.jsonl] [filtro]
 // cfg.net = { up: kbps de tudo o que quem transmite envia, down: [kbps de cada espectador], queueMs } (precisa de root: tc/HTB)
-// cfg.netEvents = [{ at: segundos depois do início, up?, down? }]
+// cfg.netEvents = [{ at: segundos depois do início, up?, down?, loss? }]
+// cfg.loss / ev.loss: % de pacotes UDP de quem transmite descartados, nos dois sentidos (100 = rede caiu).
+// Usa o nftables (root); só a faixa de portas do WebRTC de quem transmite é afetada.
 const { execFileSync, spawn } = require('node:child_process');
 const fs = require('node:fs');
 const path = require('node:path');
@@ -34,6 +36,17 @@ function shape(net, viewers) {
   }
 }
 
+const nft = (...args) => { try { execFileSync('nft', args, { stdio: 'pipe' }); } catch (e) { if (args[0] !== 'delete') console.log('nft:', args.join(' '), String(e.stderr || e).trim()); } };
+function setLoss(percent) {
+  nft('delete', 'table', 'inet', 'streamlab');
+  if (!(percent > 0)) return;
+  if (process.getuid?.() !== 0) throw new Error('Descartar pacotes (cfg.loss) precisa de root, por causa do nftables.');
+  nft('add', 'table', 'inet', 'streamlab');
+  nft('add', 'chain', 'inet', 'streamlab', 'out', '{ type filter hook output priority 0; }');
+  const ports = `${PORT_BASE}-${PORT_BASE + BLOCK - 1}`, drop = percent >= 100 ? ['drop'] : ['numgen', 'random', 'mod', '100', '<', String(Math.round(percent)), 'drop'];
+  for (const dir of ['sport', 'dport']) nft('add', 'rule', 'inet', 'streamlab', 'out', 'udp', dir, ports, ...drop);
+}
+
 let livekit = null;
 // Um LiveKit novo a cada cenário: as janelas reutilizam as mesmas portas UDP, e o LiveKit mandaria
 // os pacotes para a sessão do cenário anterior, ainda aberta.
@@ -56,9 +69,14 @@ async function runOne(cfg, port) {
   execFileSync('cat', [cfg.clipFile], { stdio: ['ignore', 'ignore', 'ignore'] }); // clipe no cache de disco antes de medir
   if (cfg.mode === 'sfu') await freshLivekit();
   shape(cfg.net, cfg.viewers);
+  setLoss(cfg.loss);
   server.setConfig(cfg);
   const timers = [];
-  server.onGo(() => { for (const ev of cfg.netEvents || []) timers.push(setTimeout(() => { if (ev.up) classRate(20, ev.up, cfg.net?.queueMs); ev.down?.forEach((kbps, i) => kbps && classRate(30 + i, kbps, cfg.net?.queueMs)); }, ev.at * 1000)); });
+  server.onGo(() => { for (const ev of cfg.netEvents || []) timers.push(setTimeout(() => {
+    if (ev.up) classRate(20, ev.up, cfg.net?.queueMs);
+    ev.down?.forEach((kbps, i) => kbps && classRate(30 + i, kbps, cfg.net?.queueMs));
+    if ('loss' in ev) setLoss(ev.loss);
+  }, ev.at * 1000)); });
   const waiting = server.waitParts(1 + cfg.viewers, (cfg.warmup + cfg.duration + 90) * 1000);
   const child = spawn('xvfb-run', ['-a', '-s', '-screen 0 1920x1080x24', electronPath(), '--no-sandbox', path.join(__dirname, 'run-main.cjs')],
     { env: { ...process.env, LAB_CONFIG: JSON.stringify(cfg) }, stdio: ['ignore', 'pipe', 'pipe'], detached: true });
@@ -74,6 +92,7 @@ async function runOne(cfg, port) {
   await new Promise((r) => setTimeout(r, 1500));
   try { process.kill(-child.pid, 'SIGKILL'); } catch {}
   shape(null);
+  setLoss(0);
   return result;
 }
 
@@ -93,6 +112,6 @@ async function runOne(cfg, port) {
       const v = result.viewers?.map((x) => `${x.psnr?.toFixed(1)} dB/${x.deliveredFps?.toFixed(0)} fps/${x.kbps?.toFixed(0)} kbps`).join(' | ');
       console.log(cfg.name, result.error ? 'ERRO ' + result.error : `CPU ${JSON.stringify(result.streamer?.cpu)} → ${v}`);
     }
-  } finally { shape(null); livekit?.kill('SIGKILL'); server.stop(); }
+  } finally { shape(null); setLoss(0); livekit?.kill('SIGKILL'); server.stop(); }
   process.exit(0);
 })();
