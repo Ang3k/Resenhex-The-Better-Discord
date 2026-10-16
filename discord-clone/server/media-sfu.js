@@ -109,7 +109,9 @@ function mediaSfu({ env = process.env, membership, service, onSwitch = () => {},
     const sid = event.participant?.identity, room = event.room?.name;
     if (!sid || !room) return;
     const member = membership(sid);
-    if (!member || roomName(member.server, member.channel) !== room) {
+    // Também sai quem chegou ao SFU depois de a sala passar para P2P: o app dele perde a conexão de
+    // mídia e volta pela conexão direta, em vez de ficar sozinho no SFU sem ouvir ninguém.
+    if (!member || roomName(member.server, member.channel) !== room || !isSfu(room)) {
       await enqueue(room, sid, () => client.removeParticipant(room, sid));
     } else await sync(sid, true);
   }

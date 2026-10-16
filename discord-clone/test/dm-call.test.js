@@ -78,6 +78,24 @@ async function friends(t) {
 const callMessage = (socket, dm) => socket.messages.filter((m) => m.channel === dm && m.msg.call).at(-1)?.msg;
 const lastUpdate = (socket, dm) => socket.updates.filter((m) => m.channel === dm && m.msg.call).at(-1)?.msg;
 
+test('um sinal malformado, mesmo de quem nunca entrou, não derruba o servidor nem a chamada', async (t) => {
+  const { ana, beto, dm } = await friends(t);
+  await ana.call('voice:join', { dm });
+  await beto.call('voice:join', { dm });
+  await wait();
+  const port = new URL(ana.io.uri).port;
+  const stranger = io('http://127.0.0.1:' + port, { forceNew: true, transports: ['websocket'], reconnection: false });
+  t.after(() => stranger.disconnect());
+  await new Promise((resolve) => stranger.on('connect', resolve));
+  for (const payload of [null, 5, 'x', { to: null }, { to: ana.sid_ }]) stranger.emit('signal', payload);
+  beto.emit('signal', null);
+  await wait(300);
+  beto.emit('signal', { to: ana.sid_, data: { sdp: 'oferta' } });
+  await wait();
+  assert.deepEqual(ana.signals.map((s) => [s.from, s.data.sdp]), [[beto.sid_, 'oferta']], 'the server is up and still relays');
+  assert.ok(ana.connected && beto.connected);
+});
+
 test('chamada privada: só entre amigos, toca para o outro e fica fora do estado do servidor', async (t) => {
   const { connect, ana, beto, dm } = await friends(t);
   const carla = await connect('Carla');

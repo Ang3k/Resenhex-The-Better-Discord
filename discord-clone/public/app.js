@@ -4759,6 +4759,8 @@
   // Sinais que chegam depois que o servidor nos pôs na sala e antes de a chamada começar aqui (quem
   // entrou logo depois de nós já mandou a oferta). Ficam guardados e são aplicados ao começar.
   let earlySignals = null;
+  // Troca de transporte da sala (media:switch) que chegou no meio de uma entrada: vale quando ela termina.
+  let switchAfterJoin = null;
   let callTimeTimer = null;
 
   function callElapsed() {
@@ -4925,6 +4927,11 @@
           if (!abandoned()) endCall(); // não deu para entrar: a chamada acabou
         }
       }
+      // A entrada pode ter conectado ao SFU mesmo com a sala já em P2P (quem não alcançou o SFU foi
+      // outra pessoa): sem isso, a pessoa ficava sozinha no SFU, sem ouvir ninguém.
+      const pending = switchAfterJoin;
+      switchAfterJoin = null;
+      if (pending && state.voiceChannel === channel) switchMedia(pending);
     }
   }
 
@@ -5121,10 +5128,14 @@
 
   // O servidor de mídia caiu: a sala inteira passa para conexão direta (P2P) e cada um reconecta.
   socket.on('media:switch', ({ transport }) => {
+    if (joining) switchAfterJoin = transport;
+    else switchMedia(transport);
+  });
+  function switchMedia(transport) {
     if (!state.voiceChannel || joining || state.mediaTransport === transport) return;
     mediaNotice('O servidor de mídia caiu. Passando a chamada para conexão direta…');
     joinVoice(state.voiceChannel, { keepView: state.view !== 'voice', serverId: callInfo()?.serverId, startedAt: state.callStartedAt, silent: true });
-  });
+  }
 
   socket.on('voice:force-leave', ({ reason }) => {
     leaveVoice(false);

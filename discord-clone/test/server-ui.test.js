@@ -171,7 +171,7 @@ async function voicePreviewApp(t, options = {}) {
   let capture;
   let sequence = 0;
   const track = () => ({ kind: 'audio', enabled: true, readyState: 'live', id: 'track-' + ++sequence,
-    stop() { this.readyState = 'ended'; }, clone() { return track(); } });
+    stop() { this.readyState = 'ended'; }, clone() { return track(); }, getSettings: () => ({}) });
   class Stream {
     constructor(tracks = [track()]) { this.tracks = tracks; this.id = 'stream-' + ++sequence; }
     getTracks() { return this.tracks; }
@@ -300,6 +300,45 @@ test('som da tela de quem transmite em estéreo: a resposta pede stereo=1 só na
   await settle(); await settle();
   assert.doesNotMatch(pcs[0].local.at(-1), /stereo/);
   assert.equal(app.events.filter((e) => e.event === 'signal' && e.payload.to === 'peer-b' && e.payload.data.description?.type === 'answer').length, 2, 'still answered');
+});
+
+test('a sala passa para conexão direta enquanto ainda entramos pelo SFU: a troca vale quando a entrada termina', async (t) => {
+  const pcs = [], rooms = [];
+  let releaseMedia, mediaCalls = 0;
+  const app = await voicePreviewApp(t, {
+    reply: {
+      'voice:join': () => ({ peers: ['peer-b'] }),
+      // A primeira entrada recebe o SFU; quando ela volta, a sala já é P2P.
+      'voice:media': () => (++mediaCalls === 1 ? new Promise((resolve) => { releaseMedia = resolve; }) : { transport: 'p2p' }),
+    },
+    setup(w) {
+      w.RTCPeerConnection = class {
+        constructor() { this.signalingState = 'stable'; this.connectionState = 'new'; this.senders = []; pcs.push(this); }
+        addTrack(track) { const sender = { track }; this.senders.push(sender); return sender; }
+        getTransceivers() { return []; } getSenders() { return this.senders; } getReceivers() { return []; }
+        async setRemoteDescription() {} async setLocalDescription() { this.localDescription = { type: 'offer', sdp: 'local' }; }
+        async addIceCandidate() {} async getStats() { return new Map(); } close() { this.signalingState = 'closed'; } restartIce() {}
+      };
+      // O LiveKit está de pé (quem não o alcançou foi outra pessoa): a entrada pelo SFU dá certo.
+      class Room {
+        constructor() {
+          rooms.push(this); this.state = 'connected'; this.engine = { serverVersion: '1.13.8' }; this.remoteParticipants = new Map();
+          this.localParticipant = { permissions: { canPublish: true, canPublishSources: [] }, trackPublications: new Map(), videoTrackPublications: new Map(),
+            async publishTrack(track, options) { return { source: options.source, track: { mediaStreamTrack: track } }; }, async unpublishTrack() {} };
+        }
+        on() {} async connect() {} async disconnect() { this.disconnected = true; }
+      }
+      w.LivekitClient = { Room, VideoPreset: class {}, Track: { Source: { Microphone: 'microphone', Camera: 'camera', ScreenShare: 'screen_share', ScreenShareAudio: 'screen_share_audio' } }, RoomEvent: {}, DisconnectReason: {} };
+    },
+  });
+  await settle();
+  app.deliver('media:switch', { transport: 'p2p' }); // chega enquanto o voice:media ainda não respondeu
+  releaseMedia({ transport: 'sfu', url: 'wss://sfu.test', token: 't' });
+  await settle(); await settle(); await settle();
+  assert.equal(app.events.filter((e) => e.event === 'voice:join').length, 2, 'joined again once the first join finished');
+  assert.equal(mediaCalls, 2);
+  assert.ok(rooms[0].disconnected, 'left the SFU');
+  assert.equal(pcs.length, 1, 'a direct connection to the person in the room');
 });
 
 test('servidor de mídia que falha depois de entrar: a conexão direta liga com quem já estava na sala', async (t) => {
