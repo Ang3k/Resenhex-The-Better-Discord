@@ -92,35 +92,40 @@ function simulateLadder(state, { capacity, encode1080 = 1000 / capacity, availab
   return state;
 }
 
-test('Movimento keeps 1080p at 45–60 fps and steps down one step at a time: 900p, then 720p', () => {
+test('Movimento keeps 1080p down to 25 fps and steps down one step at a time: 900p, then 720p', () => {
   assert.deepEqual(policy.presets.p1080_60.steps, STEPS_60);
-  // 59 e 50 fps em 1080p ficam em 1080p: o alvo é 45–60 fps.
-  assert.equal(simulateLadder({}, { capacity: 59 }, 0, 60_000).level, 0);
-  assert.equal(simulateLadder({}, { capacity: 50 }, 0, 60_000).level, 0);
-  // 38 fps em 1080p: desce para 900p (≈55 fps) depois de três amostras (~4,5 s) e fica, porque o 1080p
-  // previsto não chega a 52 fps.
+  // 59, 50, 30 e 26 fps em 1080p ficam em 1080p: o Full HD vale mais.
+  for (const capacity of [59, 50, 30, 26]) assert.equal(simulateLadder({}, { capacity }, 0, 60_000).level, 0, `${capacity} fps`);
+  // 22 fps em 1080p: desce para 900p (≈32 fps) quando a média de ~6 s fica abaixo de 25, e fica, porque
+  // o 1080p previsto não chega a 35 fps.
   const trace = [];
-  let state = simulateLadder({}, { capacity: 38 }, 0, 120_000, trace);
-  assert.deepEqual(trace.slice(0, 3), [1080, 1080, 900], 'three samples below 45 fps');
+  let state = simulateLadder({}, { capacity: 22 }, 0, 120_000, trace);
+  assert.deepEqual(trace.slice(0, 4), [1080, 1080, 1080, 900], 'four samples (~6 s) averaging below 25 fps');
   assert.equal(state.level, 1);
-  assert.ok(!trace.slice(2).includes(1080), 'no futile climbs');
-  // 25 fps em 1080p: primeiro 900p (36 fps, ainda pouco), confere, e então 720p.
+  assert.ok(!trace.slice(3).includes(1080), 'no futile climbs');
+  // 15 fps em 1080p: primeiro 900p (22 fps, ainda pouco), confere, e então 720p.
   const steps = [];
-  state = simulateLadder({}, { capacity: 25 }, 0, 9_000, steps);
+  state = simulateLadder({}, { capacity: 15 }, 0, 12_000, steps);
   assert.equal(STEPS_60[state.level], 720);
   assert.ok(steps.indexOf(900) < steps.indexOf(720), `one step at a time (${steps.join(' ')})`);
-  assert.equal(simulateLadder({}, { capacity: 10 }, 0, 60_000).level, 2, '720p is the last step');
-  // Um tranco de uma ou duas amostras não derruba.
-  let steady = {};
-  for (let at = 0; at <= 30_000; at += 1500) {
-    steady = policy.ladder(steady, { active: true, sentFps: at === 15_000 || at === 16_500 ? 5 : 60, sourceFps: 60, targetFps: 60, heights: STEPS_60 }, at);
-    assert.equal(steady.level, 0, `level at ${at} ms`);
-  }
+  assert.equal(simulateLadder({}, { capacity: 5 }, 0, 60_000).level, 2, '720p is the last step');
+  // As duas sequências do teste combinado: a internet oscila e volta (fica), ou cai de vez (troca no
+  // quarto valor ruim, ~6 s depois de começar a cair).
+  const run = (values) => { let st = {}; return values.map((fps, i) => (st = policy.ladder(st, { active: true, sentFps: fps, sourceFps: 60, targetFps: 60, heights: STEPS_60 }, i * 1500)).level || 0); };
+  assert.ok(run([50, 53, 54, 55, 45, 31, 33, 32, 31, 22, 15, 27, 45, 50]).every((level) => level === 0), 'a dip that comes back keeps 1080p');
+  assert.deepEqual(run([50, 53, 54, 55, 45, 31, 33, 32, 31, 22, 15, 27, 22]).slice(-2), [0, 1], 'a real drop goes to 900p');
+  // Um tranco de uma ou duas amostras não derruba, uma engasgada isolada a 1 fps também não (a mediana a
+  // ignora; a média trocaria), e quando o FPS já está voltando não troca.
+  assert.ok(run([60, 60, 60, 5, 5, 60, 60, 60]).every((level) => level === 0));
+  assert.ok(run([60, 60, 60, 30, 28, 26, 1, 30, 31]).every((level) => level === 0), 'one reading at 1 fps');
+  assert.ok(run([60, 60, 60, 30, 20, 18, 26, 40, 50]).every((level) => level === 0), 'already recovering');
+  // Engasgos repetidos descem.
+  assert.equal(run([60, 60, 60, 30, 1, 28, 1]).at(-1), 1, 'repeated freezes');
   // Quem chama pode segurar a descida (outro espectador acabou de descer); a medição continua.
-  const waiting = policy.ladder({ level: 0, fps: [40, 40], changedAt: -Infinity }, { active: true, sentFps: 40, sourceFps: 60, targetFps: 60, heights: STEPS_60, canStepDown: false }, 0);
-  assert.deepEqual([waiting.level, waiting.fps], [0, [40, 40, 40]]);
-  // Jogo rodando a 40 fps e tela parada não são culpa da resolução.
-  assert.equal(simulateLadder({}, { capacity: 40, sourceFps: 40 }, 0, 60_000).level, 0);
+  const waiting = policy.ladder({ level: 0, fps: [20, 20, 20], changedAt: -Infinity }, { active: true, sentFps: 20, sourceFps: 60, targetFps: 60, heights: STEPS_60, canStepDown: false }, 0);
+  assert.deepEqual([waiting.level, waiting.fps], [0, [20, 20, 20, 20]]);
+  // Jogo rodando a 22 fps e tela parada não são culpa da resolução.
+  assert.equal(simulateLadder({}, { capacity: 22, sourceFps: 22 }, 0, 60_000).level, 0);
   assert.equal(simulateLadder({}, { capacity: 3, sourceFps: 3 }, 0, 60_000).level, 0);
   // Bloco de 540p: não há degrau abaixo dele.
   assert.equal(policy.ladder({ level: 2 }, { active: true, sentFps: 60, sourceFps: 60, targetFps: 60, heights: [540, 540, 540] }, 0).level, 0);
@@ -136,13 +141,13 @@ test('Movimento climbs back when the upper step fits, and backs off from a faile
   assert.equal(simulateLadder({ level: 1 }, { capacity: 600, encode1080: 6.75, available: 3e6 }, 0, 60_000).level, 1);
   // Outro espectador já está tentando subir: espera a vez.
   assert.equal(simulateLadder({ level: 1 }, { capacity: 600, encode1080: 6.75, canProbe: false }, 0, 60_000).level, 1);
-  // A previsão diz que cabe, mas 1080p só faz 38 fps (por exemplo, a banda real é menor): volta para 900p
+  // A previsão diz que cabe, mas 1080p só faz 20 fps (por exemplo, a banda real é menor): volta para 900p
   // e espera 15 s para tentar de novo; na segunda falha, 30 s.
   const climbs = [];
   state = { level: 1 };
   for (let at = 0; at <= 120_000; at += 1500) {
     const before = state.level;
-    state = policy.ladder(state, { active: true, sentFps: state.level === 0 ? 38 : 60, sourceFps: 60, targetFps: 60, heights: STEPS_60, encodeMs: 6 }, at);
+    state = policy.ladder(state, { active: true, sentFps: state.level === 0 ? 20 : 60, sourceFps: 60, targetFps: 60, heights: STEPS_60, encodeMs: 6 }, at);
     if (before === 1 && state.level === 0) climbs.push(at);
   }
   assert.equal(state.level, 1);
@@ -153,7 +158,7 @@ test('Movimento climbs back when the upper step fits, and backs off from a faile
   const waiting = { ...state, fps: [60, 60, 60, 60], changedAt: 112_500, probe: null };
   const retried = policy.ladder(waiting, { active: true, sentFps: 60, sourceFps: 60, targetFps: 60, heights: STEPS_60, encodeMs: 4 }, 121_500);
   assert.equal(retried.level, 0);
-  // Firme no degrau de cima por 10 s: a falha é esquecida.
+  // Firme no degrau de cima por 15 s: a falha é esquecida.
   let kept = retried;
   for (let at = 123_000; at <= 136_500; at += 1500) kept = policy.ladder(kept, { active: true, sentFps: 60, sourceFps: 60, targetFps: 60, heights: STEPS_60, encodeMs: 4 }, at);
   assert.equal(kept.level, 0);
@@ -480,7 +485,7 @@ test('stats use the selected ICE path and do not downgrade a static screen from 
   assert.equal(video.maxFramerate, 30);
 });
 
-test('Movimento in the stats loop: 1080p holds at 45 fps, and at 38 fps goes to 900p at 60', async () => {
+test('Movimento in the stats loop: 1080p holds at 30 fps, and at 20 fps goes to 900p at 60', async () => {
   const h = mediaHarness();
   h.state.sharePreset = 'p1080_60';
   h.self.viewers = ['viewer']; h.media.syncScreenSubscriptions(); await settle(h);
@@ -494,10 +499,10 @@ test('Movimento in the stats loop: 1080p holds at 45 fps, and at 38 fps goes to 
   const tick = async (from, to, fps) => { for (let at = from; at <= to; at += 1500) { h.clock(at); h.peer.pc.report = report(at, fps); await h.media.updateStreamStats(); } };
   await tick(1000, 40_000, 59);
   assert.equal(h.peer.adaptation.level, 0, '59 fps with the browser reporting a bandwidth limit keeps 1080p');
-  await tick(41_500, 70_000, 45);
-  assert.equal(h.peer.adaptation.level, 0, '45 fps is still inside the 45–60 fps target');
-  await tick(71_500, 74_500, 38);
-  assert.equal(h.peer.adaptation.level, 1, 'three samples at 38 fps step down one step');
+  await tick(41_500, 70_000, 30);
+  assert.equal(h.peer.adaptation.level, 0, '30 fps keeps 1080p');
+  await tick(71_500, 76_000, 20);
+  assert.equal(h.peer.adaptation.level, 1, '~6 s at 20 fps steps down one step');
   h.media.tuneSenders(); await settle(h);
   const video = h.peer.senders.screen.find((s) => s.track.kind === 'video').params.encodings[0];
   assert.equal(video.scaleResolutionDownBy, 1.2, '1080p → 900p');
@@ -636,16 +641,16 @@ test('Movimento with several viewers: a tile without steps goes to 30 fps first,
   const report = (at) => new Map([
     ['source', { id: 'source', type: 'media-source', trackIdentifier: screenTrack.id, framesPerSecond: 60 }],
     ['codec', { id: 'codec', type: 'codec', mimeType: 'video/H264' }],
-    ['screen', { id: 'screen', type: 'outbound-rtp', kind: 'video', mediaSourceId: 'source', codecId: 'codec', bytesSent: at * 500, framesSent: at * 40 / 1000, framesPerSecond: 40, timestamp: at }],
+    ['screen', { id: 'screen', type: 'outbound-rtp', kind: 'video', mediaSourceId: 'source', codecId: 'codec', bytesSent: at * 500, framesSent: at * 20 / 1000, framesPerSecond: 20, timestamp: at }],
   ]);
-  // Os dois engasgam juntos (40 fps de 60): o processador é um só.
+  // Os dois engasgam juntos (20 fps de 60): o processador é um só.
   const levels = [];
-  for (let at = 1000; at <= 11_500; at += 1500) {
+  for (let at = 1000; at <= 13_000; at += 1500) {
     h.clock(at); h.peer.pc.report = report(at); small.pc.report = report(at);
     await h.media.updateStreamStats();
     levels.push([h.peer.adaptation.level || 0, !!small.adaptation.half]);
   }
-  assert.deepEqual(levels[2], [0, true], 'the 540p tile (no steps below it) goes to 30 fps; 1080p stays');
+  assert.deepEqual(levels[3], [0, true], 'the 540p tile (no steps below it) goes to 30 fps; 1080p stays');
   await settle(h); await small.mediaQueue;
   assert.equal(small.senders.screen.find((s) => s.track?.kind === 'video').params.encodings[0].maxFramerate, 30);
   assert.deepEqual(levels.at(-1), [1, true], `still strained: only then 1080p goes to 900p (${JSON.stringify(levels)})`);

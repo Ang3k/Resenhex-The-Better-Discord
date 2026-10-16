@@ -4,26 +4,27 @@ O perfil de 60 fps tinha só quatro degraus (1080p, 720p, 540p, 360p). Ele só d
 
 ## Como ficou (`MediaPolicy.ladder`)
 
-O alvo é 1080p a 45–60 fps, com 3 a 5 espectadores. Os degraus de baixo só entram quando faltam.
+O 1080p é o alvo e fica o máximo possível, com o máximo de FPS que der: o "Full HD" vale mais para quem assiste do que a diferença de imagem para o 900p. Os degraus de baixo só entram quando a transmissão trava de verdade.
 
 - **Degraus:** 1080p, 900p e 720p.
-- **Fluidez primeiro.** A cada ~1,5 s, o app compara os quadros enviados com os que o jogo entrega:
-  - Enquanto a transmissão faz 45 fps ou mais (75% de 60), o 1080p fica.
-  - Abaixo disso em três amostras seguidas (~4,5 s), desce um degrau, para 900p, e confere de novo. Se o 900p ainda não der conta, vai para 720p. Um degrau por vez; uma ou duas amostras ruins não bastam.
-  - Depois de cada troca, espera ~3 s para assentar.
-- **Subida com previsão:** fluido (90% ou mais) por ~8 s, sobe um degrau se ele cabe.
-  - O tempo de codificação previsto para o degrau de cima precisa manter pelo menos 52 fps, com folga sobre os 45 fps. A previsão usa pixels^0,6, porque o tempo cresce menos que os pixels: no H.264 em software foram 11 ms em 720p, 13 ms em 900p e 15–16 ms em 1080p.
+- **Quando desce.** A cada ~1,5 s, o app compara os quadros enviados com os que o jogo entrega:
+  - Desce um degrau quando a **mediana** das últimas 4 leituras (~6 s) fica abaixo de 25 fps **e** a leitura mais recente também. A mediana ignora uma engasgada isolada: 30, 28, 26 e 1 fps não trocam (a média, 21, trocaria). Engasgos repetidos trocam: com 30, 1, 28 e 1, a mediana é 14,5.
+  - Uma queda curta da internet que volta sozinha não troca: 22, 15, 27 e depois 45 fica em 1080p. Uma queda que fica troca: 22, 15, 27 e 22 vai para 900p no último 22, ~6 s depois de começar a cair.
+  - Um degrau por vez: 900p, confere de novo, e só então 720p. Depois de cada troca, espera ~3 s para assentar.
+- **Quando volta.** As últimas 4 leituras acima de 25 fps, ~8 s desde a última troca, e o degrau de cima cabendo:
+  - O tempo de codificação previsto para o degrau de cima precisa manter pelo menos 35 fps. A previsão usa pixels^0,6, porque o tempo cresce menos que os pixels: no H.264 em software foram 11 ms em 720p, 13 ms em 900p e 15–16 ms em 1080p.
   - A banda estimada precisa comportar 75% da taxa do degrau de cima.
   - Só um espectador tenta subir por vez, porque o processador é um só.
+- **Jogo abaixo de 60 fps:** os 25 e 35 fps viram 80% e 90% do FPS do jogo. Tela parada (menos de 20 fps na fonte) não conta.
 - **Vários espectadores:** o processador e a internet de envio são de todos. Quando vários engasgam juntos, desce um de cada vez, com ~3 s entre uma descida e outra. Sem isso, no começo de uma transmissão com três espectadores os três desciam juntos, e os blocos pequenos perdiam 4 dB à toa.
   - A primeira versão baixava primeiro o bloco de maior resolução. Agora o bloco menor desce primeiro e o maior volta primeiro: a prioridade é o 1080p de quem assiste em tela cheia manter os quadros. Quem está em segundo plano ou com a tela parada não segura a volta dos outros.
-- **Subida que falha:** se engasga em até 10 s, volta. Aquele degrau espera 15, 30, 60 e até 120 s para a próxima tentativa, para não ficar trocando de resolução. A espera cai quando a folga melhora (codificação 25% mais rápida ou banda 30% maior).
+- **Subida que falha:** se volta a cair em até 15 s, desce de novo. Aquele degrau espera 15, 30, 60 e até 120 s para a próxima tentativa, para não ficar trocando de resolução. A espera cai quando a folga melhora (codificação 25% mais rápida ou banda 30% maior).
 - **Blocos sem degraus** (720p ou menos, no P2P): quando o 1080p de alguém engasga, eles passam antes a 30 fps, e só depois o 1080p desce. Voltam a 60 fps com todos no seu tamanho e 30 s sem aperto.
 - Jogo rodando abaixo de 60 fps, tela parada e o aviso de banda/processador do navegador, sozinhos, não mexem na resolução.
 
 ## Medições (laboratório, código real do app)
 
-As medições abaixo são da primeira versão da escada: descida abaixo de 85% em duas amostras, até dois degraus de uma vez e cinco degraus (1080p a 360p). A versão atual segura o 1080p até 45 fps e desce um degrau por vez; ela não foi medida de novo no laboratório.
+As medições abaixo são da primeira versão da escada: descida abaixo de 85% em duas amostras, até dois degraus de uma vez e cinco degraus (1080p a 360p). A versão atual segura o 1080p até 25 fps (mediana de ~6 s) e desce um degrau por vez; ela não foi medida de novo no laboratório. Com ela, o caso de 42,7 fps em 1080p da tabela abaixo ficaria em 1080p.
 
 `tools/stream-lab`, matriz `escada.cjs`: Electron 44, H.264 em software, 4 núcleos. "Antes" é a 1.6.0 (commit `83b3a38`). Bloco grande = espectador em 1080p.
 

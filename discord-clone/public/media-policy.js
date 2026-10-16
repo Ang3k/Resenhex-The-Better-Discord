@@ -142,22 +142,25 @@
     return next;
   }
 
-  // Escada do Movimento: o 1080p é o alvo, a 45–60 fps, com 3 a 5 espectadores. A cada amostra (~1,5 s)
-  // compara os quadros enviados com os que a fonte entrega ("heights" são os degraus deste espectador,
-  // do maior para o menor):
-  // - abaixo de 75% (45 de 60 fps) em três amostras seguidas (~4,5 s), desce um degrau: 1080p → 900p, e
-  //   lá confere de novo; se ainda não der, 900p → 720p. Um degrau por vez, com ~3 s para assentar;
-  // - fluido (90% ou mais) há ~8 s, sobe um degrau se ele cabe: o tempo de codificação previsto para o
-  //   degrau de cima mantém pelo menos 52 fps, e a banda estimada comporta 75% da taxa dele. O tempo de
-  //   codificação cresce menos que os pixels (H.264 em software, medido: 720p 11 ms, 900p 13 ms, 1080p
-  //   15–16 ms), por isso a previsão usa pixels^0,6. Só um espectador por vez tenta subir (canProbe);
-  // - uma subida que engasga em até 10 s volta, e aquele degrau espera 15, 30, 60 e até 120 s para outra
-  //   tentativa, para não ficar trocando de resolução. A espera cai quando a folga melhora: codificação
-  //   25% mais rápida ou banda 30% maior.
-  // Com vários espectadores, quem chama decide a vez (canStepDown e canProbe).
-  // Jogo rodando abaixo do perfil não é culpa da resolução, e tela parada (menos de 20 fps na fonte) não conta.
-  // O aviso do navegador (banda/processador) não entra: só os quadros que de fato saem.
-  const LADDER = { window: 4, down: 3, floor: .75, climb: .87, settle: 3_000, up: 8_000, keep: 10_000, retry: [15_000, 30_000, 60_000, 120_000] };
+  // Escada do Movimento: o 1080p é o alvo e fica o máximo possível, com o máximo de FPS que der. A cada
+  // amostra (~1,5 s) compara os quadros enviados com os que a fonte entrega ("heights" são os degraus
+  // deste espectador, do maior para o menor):
+  // - desce um degrau (1080p → 900p → 720p) quando a mediana das últimas 4 amostras (~6 s) fica abaixo
+  //   de 25 fps e a mais recente também. A mediana ignora uma engasgada isolada (uma amostra a 1 fps não
+  //   derruba), mas engasgos repetidos descem. Uma queda curta da internet, que volta sozinha, não troca.
+  //   Depois de mudar, espera ~3 s para assentar;
+  // - sobe um degrau quando as últimas 4 amostras ficaram acima desse piso, há ~8 s da última troca, e o
+  //   degrau de cima cabe: o tempo de codificação previsto mantém pelo menos 35 fps e a banda estimada
+  //   comporta 75% da taxa dele. O tempo de codificação cresce menos que os pixels (H.264 em software,
+  //   medido: 720p 11 ms, 900p 13 ms, 1080p 15–16 ms), por isso a previsão usa pixels^0,6. Só um
+  //   espectador por vez tenta subir (canProbe);
+  // - uma subida que volta a cair em até 15 s desce de novo, e aquele degrau espera 15, 30, 60 e até
+  //   120 s para outra tentativa. A espera cai quando a folga melhora: codificação 25% mais rápida ou
+  //   banda 30% maior.
+  // Os 25 e 35 fps valem para fonte a 60 fps; com o jogo rodando abaixo disso, valem 80% e 90% do FPS
+  // dele. Tela parada (menos de 20 fps na fonte) não conta, e o aviso do navegador (banda/processador)
+  // não entra: só os quadros que de fato saem. Com vários espectadores, quem chama decide a vez.
+  const LADDER = { window: 4, floor: 25, climb: 35, settle: 3_000, up: 8_000, keep: 15_000, retry: [15_000, 30_000, 60_000, 120_000] };
   function ladder(previous = {}, { active, sentFps, sourceFps, targetFps, heights = [], encodeMs, available, upBitrate, canProbe = true, canStepDown = true } = {}, now) {
     const next = { level: 0, fps: [], changedAt: -Infinity, probe: null, failures: {}, ...previous };
     if (!active) return { ...next, fps: [] };
@@ -170,11 +173,12 @@
     const target = Number(targetFps) || 0;
     const expected = Math.min(Number.isFinite(sourceFps) && sourceFps > 0 ? sourceFps : target, target);
     if (expected < 20) return next;
-    const mean = (values) => values.reduce((a, b) => a + b, 0) / values.length;
+    const floor = Math.min(LADDER.floor, expected * .8), climbFps = Math.min(LADDER.climb, expected * .9);
+    const median = (values) => { const sorted = [...values].sort((a, b) => a - b), mid = sorted.length >> 1; return sorted.length % 2 ? sorted[mid] : (sorted[mid - 1] + sorted[mid]) / 2; };
     const gain = (from, to) => (heights[from] / heights[to]) ** 2; // pixels de um degrau sobre o outro
     const change = (level, extra) => ({ ...next, level, fps: [], changedAt: now, probe: null, ...extra });
-    const recent = next.fps.slice(-LADDER.down);
-    if (canStepDown && recent.length === LADDER.down && Math.max(...recent) < expected * LADDER.floor && next.level < last) {
+    const full = next.fps.length === LADDER.window, latest = next.fps[next.fps.length - 1];
+    if (canStepDown && full && median(next.fps) < floor && latest < floor && next.level < last) {
       const failures = { ...next.failures }, failed = next.probe?.level;
       if (failed != null) {
         const count = (failures[failed]?.count || 0) + 1;
@@ -182,8 +186,8 @@
       }
       return change(next.level + 1, { failures });
     }
-    if (next.level > 0 && canProbe && next.fps.length === LADDER.window && mean(next.fps) >= expected * .9 && now - next.changedAt >= LADDER.up) {
-      const up = next.level - 1, budget = 1000 / (expected * LADDER.climb), failed = next.failures[up];
+    if (next.level > 0 && canProbe && full && Math.min(...next.fps) >= floor && now - next.changedAt >= LADDER.up) {
+      const up = next.level - 1, budget = 1000 / climbFps, failed = next.failures[up];
       const cpuFits = !Number.isFinite(encodeMs) || encodeMs * gain(up, next.level) ** .6 <= budget;
       const bandFits = !(available > 0) || !(upBitrate > 0) || available >= upBitrate * .75;
       const better = failed && ((Number.isFinite(encodeMs) && failed.encodeMs > 0 && encodeMs < failed.encodeMs * .75) || (available > 0 && failed.available > 0 && available > failed.available * 1.3));
