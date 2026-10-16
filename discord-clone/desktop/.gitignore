@@ -8,3 +8,4 @@ voice-engine/__pycache__/
 tools/rvc-export/__pycache__/
 tools/__pycache__/
 .voice-build/
+native/*/build/

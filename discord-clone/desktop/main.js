@@ -18,6 +18,7 @@ const { execFile } = require('node:child_process');
 const { systemAudioDevice, appAudioSupported, appAudioDevice, AUDIO_APPS_SCRIPT, encodeScript, parseAudioApps, windowHandle } = require('./lib/system-audio');
 const { AppAudioPlans, selectedAudioApps, MAX_AUDIO_APPS } = require('./lib/app-audio');
 const { createOverlay } = require('./lib/overlay');
+const { tuneCapture, captureStats } = require('./lib/capture-tuning');
 if (!app.isPackaged && process.env.RESENHEX_USER_DATA_DIR) app.setPath('userData', path.resolve(process.env.RESENHEX_USER_DATA_DIR));
 
 const APP_URL = new URL(process.env.RESENHEX_URL || 'https://resenhex.duckdns.org/');
@@ -421,6 +422,7 @@ async function appIcon(item, sources) {
 
 async function pickDisplayMedia(request, callback) {
   if (!site || !isAppUrl(request.securityOrigin) || !request.videoRequested) return deny(callback);
+  tuneCapture(log);
   const contents = site.webContents;
   try {
     const extra = appAudioPlans.consume(contents, request.frame);
@@ -666,6 +668,8 @@ app.on('second-instance', () => { if (!quitting) showWindow(); });
 app.on('before-quit', () => { quitting = true; saveBounds(); });
 app.on('will-quit', () => {
   overlay?.destroy();
+  const capture = captureStats();
+  if (capture?.sessions) log.info('Capturas de tela:', capture);
   log.info('Encerrando');
   try { hook?.stop(); } catch { /* já parado */ }
 });
