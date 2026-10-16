@@ -24,13 +24,28 @@ Teste: `test/media.test.js` cobre a sequência que disparava o defeito (cai, vol
 
 Evidências: [`melhorias-2026-10-16/quedas.jsonl`](melhorias-2026-10-16/quedas.jsonl), com os estados da conexão (`streamer.connection`) e os quadros por segundo de cada espectador.
 
-## 2. Testes que falhavam sem defeito no app
+## 2. Os padrões novos (Nitidez e 50 Mbps) não pioram quem tem menos internet
+
+O perfil padrão passou a ser Nitidez · 1080p / 30 e o upload padrão, 50 Mbps. O risco seria quem envia menos que isso, transmitindo para várias pessoas no P2P: o app planejaria mais banda do que a conexão comporta. O teste limitou o envio de verdade com `tc`:
+
+| Envio real | Cenário | Declarando o valor real | Declarando 50 Mbps |
+|---|---|---|---|
+| 10 Mbps | jogo 60 fps, 3 espectadores | 8,1 Mbps enviados · 32,2 / 35,4 / 34,3 dB · 55–59 fps · 0 travadas | 7,9 Mbps · 32,8 / 34,1 / 33,9 dB · 55–59 fps · 0 travadas |
+| 5 Mbps | texto (Nitidez), 3 espectadores | 2,0 Mbps · 46–50 dB · 26–29 fps | 2,0 Mbps · 42–50 dB · 26–28 fps |
+
+O estimador de banda de cada conexão já se ajusta à internet de verdade: declarar 50 Mbps não piorou nada que desse para medir. A variação entre as duas colunas é da ordem da variação entre rodadas.
+
+Nitidez × Automática com envio real de 5 Mbps e 3 espectadores, em texto: no bloco grande, Nitidez deu 48,8 dB, 27 fps e 21 travadas. Automática reduziu a resolução e ficou pior: 37,4 dB, 18 fps e 41 travadas, com 1,4 s de atraso. Nos blocos pequenos os dois perfis empataram.
+
+Evidências: [`melhorias-2026-10-16/padroes.jsonl`](melhorias-2026-10-16/padroes.jsonl).
+
+## 3. Testes que falhavam sem defeito no app
 
 - `test/recovery-server.test.js`, "cadastro, confirmação e senha nova pelo link": o teste entrava na conta sem senha, a sessão não existia e o aviso de senha trocada nunca chegava. Falhava sempre, também no `main`. Com a senha, passa e confirma que trocar a senha pelo link encerra as outras sessões.
 - `test/recovery-server.test.js`, "a sessão fica sabendo se o link de confirmação saiu": o ouvinte do evento entrava depois do login, e com a suíte rodando em paralelo o evento chegava antes. O app registra os ouvintes antes, então só o teste tinha esse problema.
 - `deploy/smoke-test.js`: apagava a pasta temporária enquanto o servidor ainda escrevia nela (ENOTEMPTY). Agora espera o servidor sair.
 
-Com isso, `npm test` passou duas vezes seguidas com 337 de 338. A única falha é `desktop/test/lib.test.js`, que precisa do módulo nativo `uiohook-napi` (`npm install` em `desktop/`).
+Com isso, `npm test` passou duas vezes seguidas com 337 de 338. A única falha é `desktop/test/lib.test.js`, que precisa do módulo nativo `uiohook-napi` (`npm install` em `desktop/`). Numa terceira rodada, `test/servers.test.js` ("moderation affects only that membership") falhou uma vez: sozinho, passou 5 de 5 vezes, também no `main`. É outra corrida de teste com a suíte em paralelo e ficou como estava.
 
 ## Testado e descartado
 
