@@ -620,7 +620,7 @@ test('a screen joining a call that only carried audio tells the encoder where to
   assert.equal(warm.media.remoteDescription(warm.peer, plainAnswer), plainAnswer, 'a camera already warmed the estimate');
 });
 
-test('Movimento with several viewers steps down one at a time, the largest first', async () => {
+test('Movimento with several viewers steps down one at a time, the smallest first, so 1080p keeps its frames', async () => {
   const h = mediaHarness();
   h.state.sharePreset = 'p1080_60';
   const small = h.makePeer('small');
@@ -642,8 +642,8 @@ test('Movimento with several viewers steps down one at a time, the largest first
     await h.media.updateStreamStats();
     levels.push([h.peer.adaptation.level || 0, small.adaptation.level || 0]);
   }
-  assert.deepEqual(levels[1], [1, 0], 'the 1080p viewer steps down first; the 540p one waits');
-  assert.ok(levels.slice(1, 3).every(([, l]) => l === 0), `no second step-down within 3 s (${JSON.stringify(levels)})`);
+  assert.deepEqual(levels[1], [0, 1], 'the 540p viewer steps down first; the 1080p one keeps its resolution');
+  assert.ok(levels.slice(1, 3).every(([l]) => l === 0), `no second step-down within 3 s (${JSON.stringify(levels)})`);
 });
 
 test('a connection that dropped and came back by itself still recovers the next time it fails', async () => {

@@ -13,7 +13,8 @@ O perfil de 60 fps tinha só quatro degraus (1080p, 720p, 540p, 360p). Ele só d
   - O tempo de codificação previsto não passa do tempo de um quadro. A previsão usa pixels^0,6, porque o tempo cresce menos que os pixels: no H.264 em software foram 11 ms em 720p, 13 ms em 900p e 15–16 ms em 1080p.
   - A banda estimada precisa comportar 75% da taxa do degrau de cima.
   - Só um espectador tenta subir por vez, porque o processador é um só.
-- **Vários espectadores:** o processador e a internet de envio são de todos. Quando vários engasgam juntos, desce um de cada vez, o de maior resolução primeiro, com ~3 s entre uma descida e outra. Sem isso, no começo de uma transmissão com três espectadores os três desciam juntos, e os blocos pequenos perdiam 4 dB à toa.
+- **Vários espectadores:** o processador e a internet de envio são de todos. Quando vários engasgam juntos, desce um de cada vez, com ~3 s entre uma descida e outra. Sem isso, no começo de uma transmissão com três espectadores os três desciam juntos, e os blocos pequenos perdiam 4 dB à toa.
+  - A primeira versão baixava primeiro o bloco de maior resolução. Agora o bloco menor desce primeiro e o maior volta primeiro: a prioridade é o 1080p de quem assiste em tela cheia manter os quadros. Quem está em segundo plano ou com a tela parada não segura a volta dos outros.
 - **Subida que falha:** se engasga em até 10 s, volta. Aquele degrau espera 10, 20, 40 e até 60 s para a próxima tentativa. A espera cai quando a folga melhora (codificação 25% mais rápida ou banda 30% maior).
 - Jogo rodando abaixo de 60 fps, tela parada e o aviso de banda/processador do navegador, sozinhos, não mexem na resolução.
 
@@ -42,9 +43,17 @@ O custo: na troca de resolução do bloco grande, o codificador recomeça com um
 
 Os testes `test/media.test.js` simulam um codificador no limite e cobrem descer, subir, falhar e esperar, e também dois espectadores engasgando juntos (só o de 1080p desce; sem a coordenação, o teste falha).
 
+## No servidor de mídia (SFU) e para quem assiste
+
+- **A camada de 1080p60 do SFU** segue a mesma escada (`climbTopLayer` no `public/media-sfu.js`): 1080p, 900p e 720p. A camada de 540p, que é a das miniaturas e de quem tem pouca banda, não muda de tamanho. Antes, a de cima ficava fixa em 1080p, e o laboratório mediu 38 fps num codificador que não dava conta das duas camadas.
+- **Processador no limite:** no codificador em software, as duas camadas dividem o tempo de cada quadro (~15,5 ms do 1080p mais ~6,5 ms do 540p, para 16,7 ms a 60 fps). Por isso, antes de baixar o 1080p, a camada de 540p passa a 30 fps. Ela volta a 60 fps com o 1080p de volta e folga para as duas camadas (o tempo previsto cabe em 90% do quadro, depois de pelo menos 10 s).
+- **Quem assiste:** a tela recebida ganhou uma folga de reprodução de 120 ms em qualquer aparelho, no P2P e no SFU (antes, só no celular e só no P2P). O quadro-chave do 1080p e a variação da internet chegam dentro dela, em vez de virar engasgo. O custo é ~0,1 s a mais de atraso.
+
+Essas três mudanças não foram medidas no laboratório: ele não tem atraso nem variação de rede, e a escada do SFU depende do codificador de cada máquina.
+
 ## Limites
 
 - Medido com H.264 em software. Com codificação na placa de vídeo, o tempo por quadro é bem menor, e a previsão deixa subir mais cedo.
-- O SFU continua com as duas camadas (1080p e 540p) e o LiveKit escolhe entre elas. A escada vale para o P2P.
+- No SFU, o LiveKit continua escolhendo a camada de cada espectador (1080p ou 540p). A escada muda só o tamanho da de cima.
 
 Evidências: [`escada-movimento-2026-10-16/resultados.jsonl`](escada-movimento-2026-10-16/resultados.jsonl), com FPS, PSNR e altura por segundo de cada espectador.

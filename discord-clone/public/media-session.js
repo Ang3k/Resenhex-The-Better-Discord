@@ -648,14 +648,19 @@ window.MediaSession = function ({ state, socket, call, el, toast, voiceEntry, me
           }
         }
       }));
-      // O processador e a internet de envio são de todos os espectadores: quando vários engasgam juntos,
-      // baixar o de maior resolução costuma bastar. Desce um de cada vez, o maior primeiro, com ~3 s entre
-      // uma descida e outra; e só um tenta subir por vez.
-      ladders.sort((a, b) => b.height - a.height);
-      for (const { peer, sample } of ladders) {
+      // O processador e a internet de envio são de todos os espectadores. Quando vários engasgam juntos,
+      // desce primeiro o bloco menor, que libera processador e banda com a menor perda visível; um de cada
+      // vez, com ~3 s entre uma descida e outra. Assim o 1080p só desce se ainda faltar. Na volta, o maior
+      // sobe primeiro (quem está em segundo plano ou com a tela parada não segura os outros), e só um
+      // tenta subir por vez.
+      ladders.sort((a, b) => a.height - b.height);
+      const climbing = (o) => (o.peer.adaptation.level || 0) > 0 && o.sample.targetFps >= 20 && !(o.sample.sourceFps < 20)
+        && !(o.peer.adaptation.failures?.[(o.peer.adaptation.level || 0) - 1]?.until > now);
+      for (const { peer, height, sample } of ladders) {
         const probing = [...state.peers.values()].some((other) => other !== peer && other.adaptation?.probe && now - other.adaptation.probe.at < 10_000);
+        const bigger = ladders.some((o) => o.peer !== peer && o.height > height && climbing(o));
         const before = peer.adaptation.level || 0;
-        peer.adaptation = MediaPolicy.ladder(peer.adaptation, { ...sample, canProbe: !probing, canStepDown: !(now - stepDownAt < 3000) }, now);
+        peer.adaptation = MediaPolicy.ladder(peer.adaptation, { ...sample, canProbe: !probing && !bigger, canStepDown: !(now - stepDownAt < 3000) }, now);
         if ((peer.adaptation.level || 0) > before) stepDownAt = now;
       }
       const own = document.querySelector(`[data-key="screen-${state.me?.sid}"]`);

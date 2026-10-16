@@ -13,6 +13,9 @@ No perfil de 60 fps, a resolução agora desce e sobe aos poucos para manter o j
 
 - Movimento · 1080p / 60: quando a fluidez cai, a resolução desce um degrau de cada vez (1080p, 900p, 720p, 540p, 360p) e confere o resultado antes de descer mais. Com o computador no limite e três pessoas assistindo, o bloco grande passou de 43 fps irregulares em 1080p para 55 fps estáveis em 900p.
 - Quando sobra folga, a resolução volta a subir em poucos segundos. O app confere o tempo de codificação e a banda antes de tentar, e uma tentativa que falha espera um pouco mais para a próxima. Antes, cada degrau levava pelo menos 20 s.
+- Movimento · 1080p / 60 pelo servidor de mídia: a camada de 1080p agora também desce aos poucos (900p, 720p) quando os quadros caem, e volta sozinha. Antes ela ficava em 1080p a ~38 fps quando o computador não dava conta. Com o processador no limite, a camada das miniaturas passa antes para 30 fps, para o 1080p manter os quadros.
+- Com várias pessoas assistindo pela conexão direta, quem está em tela cheia tem prioridade. Quando falta processador ou internet, as miniaturas baixam primeiro, e o 1080p é o primeiro a voltar.
+- Quem assiste: a transmissão ganhou ~0,1 s de folga para absorver o quadro-chave do 1080p e a variação da internet, com menos engasgos. Antes isso valia só no celular.
 - Perfil padrão da transmissão: Nitidez · 1080p / 30, no lugar de Automática.
 - Limite de upload padrão: 50 Mbps, no lugar de 10. Com várias pessoas assistindo, cada uma recebe mais banda. Se a sua internet envia menos que isso, escolha um valor menor em Configurações.
 - Quem já tinha salvo um perfil ou um limite de upload continua com o seu.

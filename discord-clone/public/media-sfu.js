@@ -1,5 +1,5 @@
-window.MediaSfu = function ({ state, renderStage, applyAudio, watchSpeaking, unwatchSpeaking, closePeer, notice, onLost }) {
-  let room = null, generation = 0, profile = '';
+window.MediaSfu = function ({ state, renderStage, applyAudio, watchSpeaking, unwatchSpeaking, closePeer, notice, onLost, tuneReceiver }) {
+  let room = null, generation = 0, profile = '', topLadder = null;
   const queues = new Map(), samples = new Map(), layouts = new Map();
   const active = () => state.mediaTransport === 'sfu';
   const sdk = () => window.LivekitClient;
@@ -40,6 +40,7 @@ window.MediaSfu = function ({ state, renderStage, applyAudio, watchSpeaking, unw
       unwatchSpeaking(p.sid); watchSpeaking(p.sid, p.micStream);
     } else {
       const kind = isScreen(publication) ? 'screen' : 'camera';
+      if (kind === 'screen' && native.kind === 'video') tuneReceiver?.(track.receiver);
       p.remote[kind] ||= new MediaStream();
       p.remote[kind].addTrack(native);
       p.remoteIds[kind] = p.remote[kind].id;
@@ -125,7 +126,7 @@ window.MediaSfu = function ({ state, renderStage, applyAudio, watchSpeaking, unw
     renderStage(); applyAudio();
   }
   function disconnect() {
-    generation++; profile = ''; state.sfuPath = null;
+    generation++; profile = ''; state.sfuPath = null; topLadder = null;
     const previous = room; room = null; queues.clear(); samples.clear(); layouts.clear();
     // As pessoas que vieram do SFU saem junto. Se a sala seguir por conexão direta, cada uma ganha uma
     // conexão de verdade (getPeer), em vez de ficar com a de mentira do SFU.
@@ -282,6 +283,64 @@ window.MediaSfu = function ({ state, renderStage, applyAudio, watchSpeaking, unw
     samples.set(r.id, { bytes, timestamp: r.timestamp });
     return { width: r.frameWidth, height: r.frameHeight, fps: r.framesPerSecond, bitrate: old && r.timestamp > old.timestamp ? (bytes - old.bytes) * 8000 / (r.timestamp - old.timestamp) : null, codec: report.get(r.codecId)?.mimeType?.split('/')[1] || '' };
   }
+  // Escada do Movimento no SFU: a camada de cima (1080p60) desce para 900p e 720p quando os quadros
+  // caem (processador ou banda) e volta quando há folga, com a regra do P2P (MediaPolicy.ladder). A de
+  // 540p fica como está: é a das miniaturas e de quem tem pouca banda. Sem isso, o 1080p60 do SFU
+  // ficava a ~38 fps num codificador que não dá conta das duas camadas.
+  async function climbTopLayer(track, report) {
+    const preset = MediaPolicy.presets[state.sharePreset], sender = track?.sender, source = track?.mediaStreamTrack?.getSettings?.().height;
+    if (!preset?.steps || !sender || !(source > 0)) { topLadder = null; return; }
+    const params = sender.getParameters(), encodings = params.encodings || [];
+    if (encodings.length < 2) return;
+    const scale = (e) => e.scaleResolutionDownBy || 1;
+    const top = encodings.reduce((best, e, i) => (scale(e) < scale(encodings[best]) ? i : best), 0);
+    const lowest = Math.max(...encodings.map((e) => source / scale(e)).filter((h, i) => i !== top));
+    const heights = preset.steps.map((h) => Math.min(source, h)).filter((h) => h > lowest + 1);
+    if (heights.length < 2) return;
+    if (topLadder?.sender !== sender) topLadder = { sender, state: {}, encode: {}, lowHalf: false, changedAt: -Infinity };
+    const low = encodings.findIndex((e, i) => i !== top && source / scale(e) === lowest);
+    const layer = (index) => { let found = null; report.forEach((s) => { if (s.type === 'outbound-rtp' && s.kind === 'video' && (encodings[index].rid ? s.rid === encodings[index].rid : !found)) found = s; }); return found; };
+    // Tempo de codificação por quadro de uma camada, entre esta amostra e a anterior.
+    const encodeTime = (key, s) => {
+      const previous = topLadder.encode[key];
+      topLadder.encode[key] = s && { time: s.totalEncodeTime, frames: s.framesEncoded };
+      return s && previous && s.framesEncoded > previous.frames ? (s.totalEncodeTime - previous.time) / (s.framesEncoded - previous.frames) * 1000 : null;
+    };
+    const r = layer(top), lowStats = low >= 0 ? layer(low) : null;
+    if (!r) return;
+    const encodeMs = encodeTime('top', r), lowMs = encodeTime('low', lowStats);
+    let available = null;
+    report.forEach((s) => { if (s.type === 'candidate-pair' && s.nominated && s.state === 'succeeded' && Number.isFinite(s.availableOutgoingBitrate)) available = s.availableOutgoingBitrate; });
+    const now = performance.now(), before = topLadder.state, level = before.level || 0;
+    const others = encodings.reduce((sum, e, i) => sum + (i === top || e.active === false ? 0 : e.maxBitrate || 0), 0);
+    const upBitrate = level ? MediaPolicy.screenTarget(preset, {}, level - 1).bitrate + others : 0;
+    // As camadas dividem o mesmo tempo por quadro no codificador em software. O custo previsto do 1080p
+    // inclui o 540p (pela metade quando ele está a 30 fps), e a escada decide com esse total.
+    const share = Number.isFinite(lowMs) && encodings[low]?.active !== false ? lowMs * (topLadder.lowHalf ? .5 : 1) : 0;
+    let next = MediaPolicy.ladder(before, { active: encodings[top].active !== false && Number.isFinite(r.framesPerSecond),
+      sentFps: r.framesPerSecond, sourceFps: report.get(r.mediaSourceId)?.framesPerSecond, targetFps: preset.fps, heights,
+      encodeMs: Number.isFinite(encodeMs) ? encodeMs + share : encodeMs, available, upBitrate }, now);
+    // Antes de baixar o 1080p, o 540p vai a 30 fps quando o limite é o processador (ele custa ~1/3 do
+    // tempo de cada quadro). Ele volta a 60 fps com o 1080p de volta e folga para as duas camadas.
+    const cpu = r.qualityLimitationReason === 'cpu' || (Number.isFinite(encodeMs) && encodeMs + share >= 800 / preset.fps);
+    let lowHalf = topLadder.lowHalf;
+    if ((next.level || 0) > level && !lowHalf && low >= 0 && cpu) { next = { ...before, fps: [], changedAt: now }; lowHalf = true; }
+    else if (lowHalf && !(next.level || 0) && now - topLadder.changedAt >= 10_000 && Number.isFinite(encodeMs) && Number.isFinite(lowMs) && encodeMs + lowMs <= 900 / preset.fps) lowHalf = false;
+    topLadder.state = next;
+    const wanted = Math.ceil(source / heights[Math.min(next.level || 0, heights.length - 1)] * 100) / 100;
+    const lowFps = lowHalf ? Math.round(preset.fps / 2) : preset.fps;
+    if (Math.abs(scale(encodings[top]) - wanted) < .01 && (low < 0 || (encodings[low].maxFramerate || preset.fps) === lowFps)) return;
+    if (lowHalf !== topLadder.lowHalf) topLadder.changedAt = now;
+    topLadder.lowHalf = lowHalf;
+    const unlock = await track.senderLock?.lock?.();
+    try {
+      const params = sender.getParameters();
+      if (!params.encodings?.[top]) return;
+      params.encodings[top].scaleResolutionDownBy = wanted;
+      if (low >= 0 && params.encodings[low]) params.encodings[low].maxFramerate = lowFps;
+      await sender.setParameters(params);
+    } finally { unlock?.(); }
+  }
   async function stats({ render = true } = {}) {
     const current = room;
     if (!current) return;
@@ -308,6 +367,7 @@ window.MediaSfu = function ({ state, renderStage, applyAudio, watchSpeaking, unw
           if (r.qualityLimitationReason === 'cpu') state.videoEncoder += ' · limitado pelo processador';
         }
       });
+      if (report) await climbTopLayer(p.track, report).catch(() => {});
     }
     if (current !== room) return;
     state.sfuVideoStats = own;
