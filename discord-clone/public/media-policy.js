@@ -8,8 +8,8 @@
   // e a conexão dão conta (maintain-framerate-and-resolution) e desce degraus só quando os quadros
   // começam a cair: o ajuste do navegador (maintain-framerate) baixava para 540p ou 360p mesmo com
   // banda sobrando, e a mesma taxa rendeu ~3 dB a mais mantendo a resolução.
-  // "steps" (só no Movimento): degraus finos, 1080p → 900p → 720p → 540p → 360p, escolhidos pela
-  // fluidez (ladder, abaixo): a maior resolução que mantém o FPS que o jogo entrega.
+  // "steps" (só no Movimento): 1080p → 900p → 720p, escolhidos pela fluidez (ladder, abaixo). O 1080p é
+  // o alvo: fica enquanto a transmissão mantém 45–60 fps, e os degraus de baixo só entram quando faltam.
   // Telas com texto ("detail") vão em AV1: com as ferramentas de conteúdo de tela ele deixa o texto
   // bem mais nítido que o VP8 gastando menos internet (docs/relatorios/TRANSMISSAO-2026-10-14.md).
   // Quem não decodifica AV1 negocia o próximo da lista; processador no limite passa para o VP8.
@@ -18,7 +18,7 @@
     auto: { label: 'Automática', desc: 'Fluida para cada espectador: reduz a resolução antes do FPS', width: 1920, height: 1080, fps: 30, hint: 'detail', degradation: 'maintain-resolution', adaptive: true, bitrate: 4_000_000, codecs: TEXT_CODECS },
     p720: { label: 'Economia · 720p / 30', desc: 'Menor uso de internet e processamento', width: 1280, height: 720, fps: 30, hint: 'detail', degradation: 'maintain-resolution', adaptive: true, bitrate: 2_500_000, codecs: TEXT_CODECS },
     p1080: { label: 'Nitidez · 1080p / 30', desc: 'Textos, trabalho e apresentações', width: 1920, height: 1080, fps: 30, hint: 'detail', degradation: 'maintain-resolution', adaptive: false, bitrate: 4_000_000, codecs: TEXT_CODECS },
-    p1080_60: { label: 'Movimento · 1080p / 60', desc: 'Jogos e vídeos; exige mais do computador', width: 1920, height: 1080, fps: 60, hint: 'motion', degradation: 'maintain-framerate-and-resolution', adaptive: true, steps: [1080, 900, 720, 540, 360], bitrate: 6_000_000, codecs: ['video/H264', 'video/VP8'] },
+    p1080_60: { label: 'Movimento · 1080p / 60', desc: 'Jogos e vídeos; exige mais do computador', width: 1920, height: 1080, fps: 60, hint: 'motion', degradation: 'maintain-framerate-and-resolution', adaptive: true, steps: [1080, 900, 720], bitrate: 6_000_000, codecs: ['video/H264', 'video/VP8'] },
   };
 
   const watchModes = {
@@ -58,6 +58,7 @@
     let fps = preset.fps;
     if (demand.mode === 'economy') { height = Math.min(720, height); fps = Math.min(15, fps); }
     if (demand.background) { height = Math.min(360, height); fps = Math.min(5, fps); }
+    if (demand.fps > 0) fps = Math.min(fps, demand.fps); // bloco sem degraus a 30 fps para o 1080p manter os quadros
     if (level && preset.adaptive) height = stepHeight(height, level, preset.steps);
     const bitrate = Math.max(150_000, Math.round(preset.bitrate * (height / preset.height) ** 1.5 * (fps / preset.fps) ** .7));
     return { height, fps, bitrate };
@@ -141,23 +142,22 @@
     return next;
   }
 
-  // Escada do Movimento: fluidez primeiro, depois a maior resolução que a sustenta. A cada amostra
-  // (~1,5 s) compara os quadros enviados com os que a fonte entrega ("heights" são os degraus deste
-  // espectador, do maior para o menor):
-  // - abaixo de 85% nas duas últimas amostras (~3 s), desce: um degrau, ou dois se pela conta dos pixels um não basta (os quadros
-  //   por segundo sobem mais ou menos na proporção dos pixels a menos). Depois de mudar, espera ~3 s e confere;
-  // - fluido (90% ou mais) há ~6 s, sobe um degrau se ele cabe: o tempo de codificação por quadro, previsto
-  //   para o degrau de cima, não passa do tempo de um quadro, e a banda estimada comporta 75% da taxa do
-  //   degrau de cima. O tempo de codificação cresce menos que os pixels (H.264 em software, medido: 720p
-  //   11 ms, 900p 13 ms, 1080p 15–16 ms), por isso a previsão usa pixels^0,6. A própria tentativa confere
-  //   a fluidez. Só um espectador por vez tenta subir (canProbe), porque o processador é um só;
-  // - uma subida que engasga em até 10 s volta, e aquele degrau espera 10, 20, 40 e até 60 s para outra
-  //   tentativa. A espera cai quando a folga melhora: codificação 25% mais rápida ou banda 30% maior.
-  // Com vários espectadores, quem chama decide a vez (canStepDown): o processador e a internet de envio são
-  // de todos, então desce um de cada vez, o de maior resolução primeiro.
+  // Escada do Movimento: o 1080p é o alvo, a 45–60 fps, com 3 a 5 espectadores. A cada amostra (~1,5 s)
+  // compara os quadros enviados com os que a fonte entrega ("heights" são os degraus deste espectador,
+  // do maior para o menor):
+  // - abaixo de 75% (45 de 60 fps) em três amostras seguidas (~4,5 s), desce um degrau: 1080p → 900p, e
+  //   lá confere de novo; se ainda não der, 900p → 720p. Um degrau por vez, com ~3 s para assentar;
+  // - fluido (90% ou mais) há ~8 s, sobe um degrau se ele cabe: o tempo de codificação previsto para o
+  //   degrau de cima mantém pelo menos 52 fps, e a banda estimada comporta 75% da taxa dele. O tempo de
+  //   codificação cresce menos que os pixels (H.264 em software, medido: 720p 11 ms, 900p 13 ms, 1080p
+  //   15–16 ms), por isso a previsão usa pixels^0,6. Só um espectador por vez tenta subir (canProbe);
+  // - uma subida que engasga em até 10 s volta, e aquele degrau espera 15, 30, 60 e até 120 s para outra
+  //   tentativa, para não ficar trocando de resolução. A espera cai quando a folga melhora: codificação
+  //   25% mais rápida ou banda 30% maior.
+  // Com vários espectadores, quem chama decide a vez (canStepDown e canProbe).
   // Jogo rodando abaixo do perfil não é culpa da resolução, e tela parada (menos de 20 fps na fonte) não conta.
   // O aviso do navegador (banda/processador) não entra: só os quadros que de fato saem.
-  const LADDER = { window: 4, settle: 3_000, up: 6_000, keep: 10_000, retry: [10_000, 20_000, 40_000, 60_000] };
+  const LADDER = { window: 4, down: 3, floor: .75, climb: .87, settle: 3_000, up: 8_000, keep: 10_000, retry: [15_000, 30_000, 60_000, 120_000] };
   function ladder(previous = {}, { active, sentFps, sourceFps, targetFps, heights = [], encodeMs, available, upBitrate, canProbe = true, canStepDown = true } = {}, now) {
     const next = { level: 0, fps: [], changedAt: -Infinity, probe: null, failures: {}, ...previous };
     if (!active) return { ...next, fps: [] };
@@ -173,19 +173,17 @@
     const mean = (values) => values.reduce((a, b) => a + b, 0) / values.length;
     const gain = (from, to) => (heights[from] / heights[to]) ** 2; // pixels de um degrau sobre o outro
     const change = (level, extra) => ({ ...next, level, fps: [], changedAt: now, probe: null, ...extra });
-    const recent = next.fps.slice(-2);
-    if (canStepDown && recent.length === 2 && Math.max(...recent) < expected * .85 && next.level < last) {
-      const need = expected * .95 / Math.max(1, mean(recent));
-      const steps = next.level + 2 <= last && gain(next.level, next.level + 1) < need ? 2 : 1;
+    const recent = next.fps.slice(-LADDER.down);
+    if (canStepDown && recent.length === LADDER.down && Math.max(...recent) < expected * LADDER.floor && next.level < last) {
       const failures = { ...next.failures }, failed = next.probe?.level;
       if (failed != null) {
         const count = (failures[failed]?.count || 0) + 1;
         failures[failed] = { count, until: now + LADDER.retry[Math.min(count, LADDER.retry.length) - 1], encodeMs: next.probe.encodeMs, available: next.probe.available };
       }
-      return change(next.level + steps, { failures });
+      return change(next.level + 1, { failures });
     }
     if (next.level > 0 && canProbe && next.fps.length === LADDER.window && mean(next.fps) >= expected * .9 && now - next.changedAt >= LADDER.up) {
-      const up = next.level - 1, budget = 1000 / expected, failed = next.failures[up];
+      const up = next.level - 1, budget = 1000 / (expected * LADDER.climb), failed = next.failures[up];
       const cpuFits = !Number.isFinite(encodeMs) || encodeMs * gain(up, next.level) ** .6 <= budget;
       const bandFits = !(available > 0) || !(upBitrate > 0) || available >= upBitrate * .75;
       const better = failed && ((Number.isFinite(encodeMs) && failed.encodeMs > 0 && encodeMs < failed.encodeMs * .75) || (available > 0 && failed.available > 0 && available > failed.available * 1.3));

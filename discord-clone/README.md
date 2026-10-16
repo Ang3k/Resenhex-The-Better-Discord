@@ -232,7 +232,7 @@ Ao clicar em 🖥️, você escolhe um perfil. Dá para trocar a qualidade no me
 | Automática | Até 1080p · 30 fps, adaptada a cada espectador; texto nítido em AV1 |
 | 720p · 30 fps | Leve, bom para internet fraca |
 | Nitidez · 1080p / 30 (padrão) | Textos, trabalho e apresentações |
-| 1080p · 60 fps | Fluido, para jogos (usa mais internet; H.264). Mantém 1080p e 60 fps; quando os quadros caem, desce aos poucos (900p, 720p…) e volta a subir quando sobra folga |
+| 1080p · 60 fps | Fluido, para jogos (usa mais internet; H.264). O 1080p é o alvo e fica enquanto a transmissão mantém 45–60 fps; abaixo disso desce um degrau por vez (900p, depois 720p) e volta para 1080p quando sobra folga |
 
 **Controles da transmissão** (como no Discord). Passe o mouse sobre uma transmissão para ver:
 

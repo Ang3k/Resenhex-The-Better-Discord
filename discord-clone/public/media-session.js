@@ -101,6 +101,8 @@ window.MediaSession = function ({ state, socket, call, el, toast, voiceEntry, me
   }
 
   const screenCodecs = (sid) => MediaPolicy.screenCodecs(presets[state.sharePreset], demands.get(sid)?.codecs, state.screenCodecFallback);
+  // O pedido do espectador, a 30 fps quando a escada do Movimento precisou liberar processador para o 1080p.
+  const demandOf = (sid) => state.peers.get(sid)?.adaptation?.half ? { ...demands.get(sid), fps: 30 } : demands.get(sid);
   // Jogo ou vídeo detectado num perfil de texto: cada espectador volta a receber o tamanho do seu bloco.
   const activePreset = () => state.screenMotion ? { ...presets[state.sharePreset], motion: true } : presets[state.sharePreset];
   // Tipo do que um sender leva (audio/video), mesmo parado em replaceTrack(null).
@@ -192,7 +194,7 @@ window.MediaSession = function ({ state, socket, call, el, toast, voiceEntry, me
 
   function videoBitrates() {
     return MediaPolicy.allocate(state.uploadMbps, [...state.peers].map(([sid, peer]) => ({ sid, watching: viewers().includes(sid),
-      demand: demands.get(sid), level: peer.adaptation.level || 0 })),
+      demand: demandOf(sid), level: peer.adaptation.level || 0 })),
     { screen: !!state.local.screen, screenAudio: !!state.local.screen?.getAudioTracks().length, camera: !!state.local.camera, preset: activePreset() });
   }
   // Resposta do espectador com a taxa inicial da tela em H.264 (MediaPolicy.startBitrate): 90% do que
@@ -267,7 +269,7 @@ window.MediaSession = function ({ state, socket, call, el, toast, voiceEntry, me
               if (sender.track?.kind === 'audio' && kind === 'screen') { await setEncoding(sender, { maxBitrate: 96000, priority: 'high' }); continue; }
               if (sender.track?.kind !== 'video') continue;
               if (kind === 'screen') await setCodec(sender, screenCodecs(peer.sid));
-              const encoding = kind === 'screen' ? MediaPolicy.screenEncoding(preset, rates.screen, demands.get(peer.sid), sender.track.getSettings?.(), peer.adaptation.level || 0)
+              const encoding = kind === 'screen' ? MediaPolicy.screenEncoding(preset, rates.screen, demandOf(peer.sid), sender.track.getSettings?.(), peer.adaptation.level || 0)
                 : MediaPolicy.encoding({ fps: 30 }, rates.camera);
               await setEncoding(sender, encoding, kind === 'screen' ? preset.degradation : 'balanced');
             }
@@ -603,7 +605,7 @@ window.MediaSession = function ({ state, socket, call, el, toast, voiceEntry, me
           const previous = peer.encodeSample;
           peer.encodeSample = { time: r.totalEncodeTime, frames: r.framesEncoded };
           const encodeMs = previous && r.framesEncoded > previous.frames ? (r.totalEncodeTime - previous.time) / (r.framesEncoded - previous.frames) * 1000 : null;
-          const load = MediaPolicy.encoderLoad({ reason: r.qualityLimitationReason, encodeMs, fps: MediaPolicy.screenTarget(preset, demands.get(sid), peer.adaptation.level || 0).fps,
+          const load = MediaPolicy.encoderLoad({ reason: r.qualityLimitationReason, encodeMs, fps: MediaPolicy.screenTarget(preset, demandOf(sid), peer.adaptation.level || 0).fps,
             bitrate: stats.screen.bitrate, target: r.targetBitrate });
           state.videoEncoder = [r.powerEfficientEncoder === true ? 'Codificação por hardware' : r.encoderImplementation ? `Codificador: ${r.encoderImplementation}` : '',
             codec?.split('/')[1], load.cpu ? 'limitado pelo processador' : ''].filter(Boolean).join(' · ');
@@ -614,7 +616,7 @@ window.MediaSession = function ({ state, socket, call, el, toast, voiceEntry, me
           if (peer.heavy.reached) heavyContent();
           const awaitingCodec = peer.cpu.since != null;
           if (preset.adaptive && !awaitingCodec) {
-            const demand = demands.get(sid), level = peer.adaptation.level || 0;
+            const demand = demandOf(sid), level = peer.adaptation.level || 0;
             const target = MediaPolicy.screenTarget(preset, demand, level);
             const source = outboundReport.get(r.mediaSourceId) || report.get(r.mediaSourceId);
             if (preset.steps) {
@@ -656,12 +658,27 @@ window.MediaSession = function ({ state, socket, call, el, toast, voiceEntry, me
       ladders.sort((a, b) => a.height - b.height);
       const climbing = (o) => (o.peer.adaptation.level || 0) > 0 && o.sample.targetFps >= 20 && !(o.sample.sourceFps < 20)
         && !(o.peer.adaptation.failures?.[(o.peer.adaptation.level || 0) - 1]?.until > now);
+      // Blocos sem degraus (720p ou menos) vão antes a 30 fps: liberam processador e banda para o 1080p,
+      // como a camada de miniaturas do SFU. Só depois disso o 1080p desce para 900p.
+      const stepless = ladders.filter((o) => new Set(o.sample.heights).size === 1);
       for (const { peer, height, sample } of ladders) {
         const probing = [...state.peers.values()].some((other) => other !== peer && other.adaptation?.probe && now - other.adaptation.probe.at < 10_000);
         const bigger = ladders.some((o) => o.peer !== peer && o.height > height && climbing(o));
-        const before = peer.adaptation.level || 0;
-        peer.adaptation = MediaPolicy.ladder(peer.adaptation, { ...sample, canProbe: !probing && !bigger, canStepDown: !(now - stepDownAt < 3000) }, now);
-        if ((peer.adaptation.level || 0) > before) stepDownAt = now;
+        const before = peer.adaptation, level = before.level || 0;
+        let next = MediaPolicy.ladder(before, { ...sample, canProbe: !probing && !bigger, canStepDown: !(now - stepDownAt < 3000) }, now);
+        if ((next.level || 0) > level) {
+          const full = stepless.filter((o) => o.peer !== peer && !o.peer.adaptation.half && o.sample.targetFps >= 40);
+          if (full.length) {
+            next = { ...before, fps: [], changedAt: now };
+            for (const o of full) o.peer.adaptation = { ...o.peer.adaptation, half: true };
+          }
+          stepDownAt = now;
+        }
+        peer.adaptation = next;
+      }
+      // Os blocos voltam a 60 fps com todos de volta ao seu tamanho e 30 s sem aperto.
+      if (now - stepDownAt >= 30_000 && ladders.every((o) => !(o.peer.adaptation.level > 0))) {
+        for (const o of stepless) if (o.peer.adaptation.half) o.peer.adaptation = { ...o.peer.adaptation, half: false };
       }
       const own = document.querySelector(`[data-key="screen-${state.me?.sid}"]`);
       if (own) {
