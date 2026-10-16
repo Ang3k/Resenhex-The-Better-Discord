@@ -24,9 +24,9 @@ function harness(progressive = true, autoStart = true) {
   const messages = [], callbacks = [], handlers = new Map();
   const video = deferred(), previews = deferred(), audio = deferred(), icons = deferred();
   const requests = [];
-  let audioCalls = 0, elapsed = 0;
+  let audioCalls = 0, elapsed = 0, tuned = 0;
   const contents = { send: (...args) => messages.push(args), isDestroyed: () => false };
-  const context = { site: { webContents: contents }, win: { getMediaSourceId: () => 'window:99:0' },
+  const context = { site: { webContents: contents }, win: { getMediaSourceId: () => 'window:99:0' }, tuneCapture: () => { tuned++; return { ok: true }; },
     ipcMain: { on: (name, handler) => handlers.set(name, handler), handle: (name, handler) => handlers.set(name, handler) }, fromSite: () => true, isAppUrl: () => true, fromVoiceSite: () => true,
     AppAudioPlans, selectedAudioApps, MAX_AUDIO_APPS, Date: { now: () => Date.now() + elapsed },
     desktopCapturer: { getSources: (options) => {
@@ -50,11 +50,12 @@ function harness(progressive = true, autoStart = true) {
   const chooseLatest = choice => handlers.get('desktop:pick-source:result')({ sender: contents }, messages.findLast(message => message[0] === 'desktop:pick-source')[1], choice);
   const prepare = () => handlers.get('desktop:pick-source:prepare')({ sender: contents });
   return { messages, callbacks, video, previews, audio, icons, pending, choose, chooseLatest, reopen, requests,
-    audioCalls: () => audioCalls, prepare, advance: ms => { elapsed += ms; } };
+    audioCalls: () => audioCalls, tuned: () => tuned, prepare, advance: ms => { elapsed += ms; } };
 }
 
 test('picker opens before sources and audio; video selection never waits for audio discovery', async () => {
   const h = harness();
+  assert.equal(h.tuned(), 1, 'o ajuste da captura do Windows entra antes de qualquer captura');
   assert.equal(h.messages[0][0], 'desktop:pick-source');
   assert.equal(h.messages[0][2].length, 0);
   assert.equal(h.messages[0][3].loading, true);
