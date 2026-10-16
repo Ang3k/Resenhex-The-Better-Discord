@@ -13,6 +13,7 @@ window.CHANGELOG = [
         'Movimento · 1080p / 60 pelo servidor de mídia: a camada de 1080p agora também desce aos poucos (900p, 720p) quando os quadros caem, e volta sozinha. Antes ela ficava em 1080p a ~38 fps quando o computador não dava conta. Com o processador no limite, a camada das miniaturas passa antes para 30 fps, para o 1080p manter os quadros.',
         'Com várias pessoas assistindo pela conexão direta, quem está em tela cheia tem prioridade. Quando falta processador ou internet, as miniaturas baixam primeiro, e o 1080p é o primeiro a voltar.',
         'Quem assiste: a transmissão ganhou ~0,1 s de folga para absorver o quadro-chave do 1080p e a variação da internet, com menos engasgos. Antes isso valia só no celular.',
+        'Movimento · 1080p / 60: até 7 Mbps por espectador, no lugar de 6, para a imagem ficar mais limpa em jogos com muito movimento. Os degraus de baixo acompanham (900p ~5,3 Mbps, 720p ~3,8 Mbps). Quem tem menos internet não perde nada: o navegador se ajusta à internet de verdade.',
         'Perfil padrão da transmissão: Nitidez · 1080p / 30, no lugar de Automática.',
         'Limite de upload padrão: 50 Mbps, no lugar de 10. Com várias pessoas assistindo, cada uma recebe mais banda. Se a sua internet envia menos que isso, escolha um valor menor em Configurações.',
         'Quem já tinha salvo um perfil ou um limite de upload continua com o seu.',

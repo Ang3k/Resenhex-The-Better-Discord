@@ -137,7 +137,7 @@ test('Movimento climbs back when the upper step fits, and backs off from a faile
   let state = simulateLadder({ level: 2 }, { capacity: 600, encode1080: 6.75, available: 20e6 }, 0, 40_000, trace);
   assert.equal(state.level, 0);
   assert.ok(trace.indexOf(1080) <= 10, `1080p again within ~15 s (${trace.join(' ')})`);
-  // Sem banda para o degrau de cima (6 Mbps em 1080p60), não tenta.
+  // Sem banda para o degrau de cima (7 Mbps em 1080p60), não tenta.
   assert.equal(simulateLadder({ level: 1 }, { capacity: 600, encode1080: 6.75, available: 3e6 }, 0, 60_000).level, 1);
   // Outro espectador já está tentando subir: espera a vez.
   assert.equal(simulateLadder({ level: 1 }, { capacity: 600, encode1080: 6.75, canProbe: false }, 0, 60_000).level, 1);

@@ -88,7 +88,7 @@ test('SFU motion shares keep 1080p60 with a usable 540p60 layer, never the starv
   await h.sfu.publish('screen', h.stream(h.track('video', 1920, 1080)));
   const { options } = h.published.find((p) => p.kind === 'video');
   assert.equal(options.videoCodec, 'h264');
-  assert.deepEqual(plain(options.screenShareEncoding), { maxBitrate: 6_000_000, maxFramerate: 60 });
+  assert.deepEqual(plain(options.screenShareEncoding), { maxBitrate: 7_000_000, maxFramerate: 60 });
   assert.deepEqual(plain(options.screenShareSimulcastLayers.map((l) => [l.height, l.encoding.maxBitrate, l.encoding.maxFramerate])), [[540, 1_500_000, 60]]);
   assert.equal(options.degradationPreference, 'maintain-framerate-and-resolution');
   const vp8 = harness({ sharePreset: 'p1080_60', codecs: ['video/VP8', 'video/VP9'] });
