@@ -27,6 +27,30 @@ test('upload budget counts actual viewers, reserves voice, and stays within the 
   assert.ok([...low.values()].every((rate) => rate.screen === 0 && rate.camera === 0));
 });
 
+test('automatic quality stops at the last step that still lowers the resolution, so it comes back sooner', () => {
+  // Economia (720p): 720 → 540 → 360. Um quarto degrau seria 360 de novo e só atrasaria a volta.
+  const heights = policy.stepHeights(policy.presets.p720, {});
+  assert.deepEqual(heights, [720, 540, 360, 360]);
+  let state = {};
+  for (let at = 0; at <= 30_000; at += 1500) state = policy.adapt(state, { active: true, strained: true, heights }, at);
+  assert.equal(state.level, 2, 'stays on 360p instead of counting phantom steps');
+  let back = null;
+  for (let at = 31_500; at <= 120_000 && back == null; at += 1500) {
+    state = policy.adapt(state, { active: true, strained: false, heights }, at);
+    if (state.level === 0) back = at;
+  }
+  assert.ok(back - 31_500 <= 24_000, `720p again ${back - 31_500} ms after the strain ended (two real steps)`);
+  // Uma miniatura de 360p não tem para onde descer.
+  const thumb = policy.stepHeights(policy.presets.auto, { maxHeight: 360 });
+  state = {};
+  for (let at = 0; at <= 30_000; at += 1500) state = policy.adapt(state, { active: true, strained: true, heights: thumb }, at);
+  assert.equal(state.level || 0, 0);
+  // Sem degraus informados, segue como antes.
+  state = {};
+  for (let at = 0; at <= 30_000; at += 1500) state = policy.adapt(state, { active: true, strained: true }, at);
+  assert.equal(state.level, 3);
+});
+
 test('automatic quality steps resolution down after persistent strain and back up only with headroom', () => {
   let state = policy.adapt({}, { active: true, strained: true }, 0);
   state = policy.adapt(state, { active: true, strained: true }, 3999);
@@ -54,68 +78,94 @@ test('automatic quality steps resolution down after persistent strain and back u
   assert.equal(policy.encoding(policy.presets.auto, 2e6, 1).scaleResolutionDownBy, 1.5);
 });
 
-test('Movimento holds each resolution down to 30 fps, then steps down trying 60 again', () => {
-  const sixty = { sourceFps: 60, targetFps: 60, floorFps: policy.presets.p1080_60.floorFps };
-  const run = (state, fps, from, to) => { for (let at = from; at <= to; at += 1500) state = policy.ladder(state, { active: true, sentFps: fps, ...sixty }, at); return state; };
-  assert.equal(policy.presets.p1080_60.floorFps, 30);
-  // 59 e 45 fps por um minuto: segura 1080p, mesmo com o aviso de banda do navegador ligado.
-  let state = run({}, 59, 0, 60_000);
-  state = run(state, 45, 61_500, 120_000);
-  assert.equal(state.level, 0);
-  // 31 fps ainda segura; abaixo de 30 por 5 s desce para 720p.
-  state = run(state, 31, 121_500, 150_000);
-  assert.equal(state.level, 0);
-  state = run(state, 25, 151_500, 154_500);
-  assert.equal(state.level, 0, 'a short dip does not change the resolution');
-  state = run(state, 25, 156_000, 160_000);
+// Escada do Movimento numa simulação: o FPS enviado e o tempo de codificação acompanham os pixels do
+// degrau atual, como num codificador no limite. capacity = FPS que ele faz em 1080p.
+const STEPS_60 = [1080, 900, 720];
+function simulateLadder(state, { capacity, encode1080 = 1000 / capacity, available, canProbe = true, sourceFps = 60 }, from, to, trace = []) {
+  for (let at = from; at <= to; at += 1500) {
+    const pixels = (1080 / STEPS_60[state.level || 0]) ** 2;
+    const level = state.level || 0;
+    state = policy.ladder(state, { active: true, sentFps: Math.min(sourceFps, capacity * pixels), sourceFps, targetFps: 60, heights: STEPS_60,
+      encodeMs: encode1080 / pixels, available, upBitrate: level ? policy.screenTarget(policy.presets.p1080_60, { maxHeight: 1080 }, level - 1).bitrate : 0, canProbe }, at);
+    trace.push(STEPS_60[state.level]);
+  }
+  return state;
+}
+
+test('Movimento keeps 1080p down to 25 fps and steps down one step at a time: 900p, then 720p', () => {
+  assert.deepEqual(policy.presets.p1080_60.steps, STEPS_60);
+  // 59, 50, 30 e 26 fps em 1080p ficam em 1080p: o Full HD vale mais.
+  for (const capacity of [59, 50, 30, 26]) assert.equal(simulateLadder({}, { capacity }, 0, 60_000).level, 0, `${capacity} fps`);
+  // 22 fps em 1080p: desce para 900p (≈32 fps) quando a média de ~6 s fica abaixo de 25, e fica, porque
+  // o 1080p previsto não chega a 35 fps.
+  const trace = [];
+  let state = simulateLadder({}, { capacity: 22 }, 0, 120_000, trace);
+  assert.deepEqual(trace.slice(0, 4), [1080, 1080, 1080, 900], 'four samples (~6 s) averaging below 25 fps');
   assert.equal(state.level, 1);
-  // 720p sem dar conta também desce, até o último degrau, e para lá.
-  state = run(state, 20, 161_500, 200_000);
-  assert.equal(state.level, 3);
-  // Um tranco curto no meio dos 60 fps não derruba: a média dos últimos segundos decide.
-  let steady = run({}, 60, 0, 6_000);
-  steady = policy.ladder(steady, { active: true, sentFps: 5, ...sixty }, 7_500);
-  steady = run(steady, 60, 9_000, 30_000);
-  assert.equal(steady.level, 0);
-  // Tela parada (captura abaixo do piso) e jogo rodando a 25 fps não descem.
-  let still = {};
-  for (let at = 0; at <= 30_000; at += 1500) still = policy.ladder(still, { active: true, sentFps: 2, sourceFps: 2, targetFps: 60, floorFps: 30 }, at);
-  assert.equal(still.level, 0);
-  let slowGame = {};
-  for (let at = 0; at <= 30_000; at += 1500) slowGame = policy.ladder(slowGame, { active: true, sentFps: 25, sourceFps: 25, targetFps: 60, floorFps: 30 }, at);
-  assert.equal(slowGame.level, 0);
+  assert.ok(!trace.slice(3).includes(1080), 'no futile climbs');
+  // 15 fps em 1080p: primeiro 900p (22 fps, ainda pouco), confere, e então 720p.
+  const steps = [];
+  state = simulateLadder({}, { capacity: 15 }, 0, 12_000, steps);
+  assert.equal(STEPS_60[state.level], 720);
+  assert.ok(steps.indexOf(900) < steps.indexOf(720), `one step at a time (${steps.join(' ')})`);
+  assert.equal(simulateLadder({}, { capacity: 5 }, 0, 60_000).level, 2, '720p is the last step');
+  // As duas sequências do teste combinado: a internet oscila e volta (fica), ou cai de vez (troca no
+  // quarto valor ruim, ~6 s depois de começar a cair).
+  const run = (values) => { let st = {}; return values.map((fps, i) => (st = policy.ladder(st, { active: true, sentFps: fps, sourceFps: 60, targetFps: 60, heights: STEPS_60 }, i * 1500)).level || 0); };
+  assert.ok(run([50, 53, 54, 55, 45, 31, 33, 32, 31, 22, 15, 27, 45, 50]).every((level) => level === 0), 'a dip that comes back keeps 1080p');
+  assert.deepEqual(run([50, 53, 54, 55, 45, 31, 33, 32, 31, 22, 15, 27, 22]).slice(-2), [0, 1], 'a real drop goes to 900p');
+  // Um tranco de uma ou duas amostras não derruba, uma engasgada isolada a 1 fps também não (a mediana a
+  // ignora; a média trocaria), e quando o FPS já está voltando não troca.
+  assert.ok(run([60, 60, 60, 5, 5, 60, 60, 60]).every((level) => level === 0));
+  assert.ok(run([60, 60, 60, 30, 28, 26, 1, 30, 31]).every((level) => level === 0), 'one reading at 1 fps');
+  assert.ok(run([60, 60, 60, 30, 20, 18, 26, 40, 50]).every((level) => level === 0), 'already recovering');
+  // Engasgos repetidos descem.
+  assert.equal(run([60, 60, 60, 30, 1, 28, 1]).at(-1), 1, 'repeated freezes');
+  // Quem chama pode segurar a descida (outro espectador acabou de descer); a medição continua.
+  const waiting = policy.ladder({ level: 0, fps: [20, 20, 20], changedAt: -Infinity }, { active: true, sentFps: 20, sourceFps: 60, targetFps: 60, heights: STEPS_60, canStepDown: false }, 0);
+  assert.deepEqual([waiting.level, waiting.fps], [0, [20, 20, 20, 20]]);
+  // Jogo rodando a 22 fps e tela parada não são culpa da resolução.
+  assert.equal(simulateLadder({}, { capacity: 22, sourceFps: 22 }, 0, 60_000).level, 0);
+  assert.equal(simulateLadder({}, { capacity: 3, sourceFps: 3 }, 0, 60_000).level, 0);
+  // Bloco de 540p: não há degrau abaixo dele.
+  assert.equal(policy.ladder({ level: 2 }, { active: true, sentFps: 60, sourceFps: 60, targetFps: 60, heights: [540, 540, 540] }, 0).level, 0);
 });
 
-test('Movimento climbs back after 20 s near 60 fps and backs off after a failed climb', () => {
-  const sixty = { sourceFps: 60, targetFps: 60, floorFps: 30 };
-  const run = (state, fps, from, to) => { for (let at = from; at <= to; at += 1500) state = policy.ladder(state, { active: true, sentFps: fps, ...sixty }, at); return state; };
-  let state = run({}, 20, 0, 7_500);
-  assert.equal(state.level, 1);
-  // 720p a 45 fps: segura, mas não sobe (não está perto de 60).
-  state = run(state, 45, 9_000, 60_000);
-  assert.equal(state.level, 1);
-  // 720p a 58 fps por 20 s (contados depois que a média dos últimos segundos chega lá): tenta 1080p.
-  state = run(state, 58, 61_500, 84_000);
-  assert.equal(state.level, 1);
-  state = run(state, 58, 85_500, 88_500);
+test('Movimento climbs back when the upper step fits, and backs off from a failed climb', () => {
+  // O jogo ficou leve (codificador de placa de vídeo: 3 ms em 720p) e há banda: 720p → 900p → 1080p em ~15 s.
+  const trace = [];
+  let state = simulateLadder({ level: 2 }, { capacity: 600, encode1080: 6.75, available: 20e6 }, 0, 40_000, trace);
   assert.equal(state.level, 0);
-  const upAt = state.changedAt;
-  // 1080p engasga logo: volta para 720p e a próxima tentativa espera 40 s.
-  state = run(state, 20, upAt + 1500, upAt + 10_500);
+  assert.ok(trace.indexOf(1080) <= 10, `1080p again within ~15 s (${trace.join(' ')})`);
+  // Sem banda para o degrau de cima (4,5 Mbps para voltar ao 1080p60), não tenta.
+  assert.equal(simulateLadder({ level: 1 }, { capacity: 600, encode1080: 6.75, available: 3e6 }, 0, 60_000).level, 1);
+  // Outro espectador já está tentando subir: espera a vez.
+  assert.equal(simulateLadder({ level: 1 }, { capacity: 600, encode1080: 6.75, canProbe: false }, 0, 60_000).level, 1);
+  // A previsão diz que cabe, mas 1080p só faz 20 fps (por exemplo, a banda real é menor): volta para 900p
+  // e espera 15 s para tentar de novo; na segunda falha, 30 s.
+  const climbs = [];
+  state = { level: 1 };
+  for (let at = 0; at <= 120_000; at += 1500) {
+    const before = state.level;
+    state = policy.ladder(state, { active: true, sentFps: state.level === 0 ? 20 : 60, sourceFps: 60, targetFps: 60, heights: STEPS_60, encodeMs: 6 }, at);
+    if (before === 1 && state.level === 0) climbs.push(at);
+  }
   assert.equal(state.level, 1);
-  assert.equal(state.failures, 1);
-  const down = state.changedAt;
-  state = run(state, 60, down + 1500, down + 36_000);
-  assert.equal(state.level, 1, 'waits 40 s after one failed climb');
-  state = run(state, 60, down + 37_500, down + 43_500);
-  assert.equal(state.level, 0);
-  // Firme em 1080p por 60 s: a espera volta ao normal.
-  state = run(state, 60, state.changedAt + 1500, state.changedAt + 61_500);
-  assert.equal(state.failures, 0);
-  assert.equal(state.level, 0);
+  assert.ok(climbs.length >= 3, `retries (${climbs.join(', ')})`);
+  assert.ok(climbs[1] - climbs[0] < climbs[2] - climbs[1], 'the wait grows after each failure');
+  assert.equal(state.failures[0].count, climbs.length);
+  // A folga melhorou (codificação 25% mais rápida): tenta de novo sem esperar.
+  const waiting = { ...state, fps: [60, 60, 60, 60], changedAt: 112_500, probe: null };
+  const retried = policy.ladder(waiting, { active: true, sentFps: 60, sourceFps: 60, targetFps: 60, heights: STEPS_60, encodeMs: 4 }, 121_500);
+  assert.equal(retried.level, 0);
+  // Firme no degrau de cima por 15 s: a falha é esquecida.
+  let kept = retried;
+  for (let at = 123_000; at <= 136_500; at += 1500) kept = policy.ladder(kept, { active: true, sentFps: 60, sourceFps: 60, targetFps: 60, heights: STEPS_60, encodeMs: 4 }, at);
+  assert.equal(kept.level, 0);
+  assert.equal(kept.failures[0], undefined);
   // Parar de enviar limpa a medição, sem mudar o degrau.
-  const paused = policy.ladder({ ...state, level: 2 }, { active: false }, 1e6);
-  assert.deepEqual([paused.level, paused.fps, paused.badSince], [2, [], null]);
+  const paused = policy.ladder({ ...kept, level: 2 }, { active: false, heights: STEPS_60 }, 1e6);
+  assert.deepEqual([paused.level, paused.fps], [2, []]);
 });
 
 test('mobile viewers get a hardware-decodable screen codec unless the preset already offers one', () => {
@@ -199,9 +249,10 @@ test('adaptive steps descend from the viewer request through 720/540/360 and onl
   assert.deepEqual(heights(policy.presets.auto, { mode: 'economy', maxHeight: 720 }), [720, 540, 360, 360, 360]);
   assert.deepEqual(heights(policy.presets.p720, { maxHeight: 1080 }), [720, 540, 360, 360, 360]);
   assert.deepEqual(heights(policy.presets.p1080, { maxHeight: 1080 }), [1080, 1080, 1080, 1080, 1080]);
-  // Movimento: mantém 1080p60 até os quadros caírem; então desce degraus e cada bloco segue seu tamanho.
-  assert.deepEqual(heights(policy.presets.p1080_60, { maxHeight: 1080 }), [1080, 720, 540, 360, 360]);
-  assert.deepEqual(heights(policy.presets.p1080_60, { maxHeight: 540 }), [540, 360, 360, 360, 360]);
+  // Movimento: 1080p é o alvo; quando os quadros caem, 900p e depois 720p, o último degrau. Cada bloco segue seu tamanho.
+  assert.deepEqual(heights(policy.presets.p1080_60, { maxHeight: 1080 }), [1080, 900, 720, 720, 720]);
+  assert.deepEqual(heights(policy.presets.p1080_60, { maxHeight: 720 }), [720, 720, 720, 720, 720]);
+  assert.deepEqual(heights(policy.presets.p1080_60, { maxHeight: 540 }), [540, 540, 540, 540, 540]);
   assert.equal(policy.presets.p1080_60.degradation, 'maintain-framerate-and-resolution');
   for (const level of [0, 1, 2, 3]) assert.equal(policy.screenTarget(policy.presets.auto, { maxHeight: 1080 }, level).fps, 30);
   for (const level of [0, 1, 2, 3]) assert.equal(policy.screenTarget(policy.presets.p1080_60, { maxHeight: 1080 }, level).fps, 60);
@@ -259,6 +310,30 @@ test('the start bitrate goes only on the H.264 payloads of the chosen video sect
   assert.equal(policy.startBitrate(answerSdp.replace(/\r\n/g, '\n'), { 2: 5400 }), sdp.replace(/\r\n/g, '\n'));
 });
 
+// Oferta de quem transmite como o Chrome gera: voz (mid 0), tela (mid 1) e som da tela (mid 2), com RED.
+const shareOffer = ['v=0', 'o=- 1 2 IN IP4 127.0.0.1', 's=-', 't=0 0',
+  'm=audio 9 UDP/TLS/RTP/SAVPF 63 111', 'a=mid:0', 'a=msid:mic-stream mic-track', 'a=rtpmap:63 red/48000/2', 'a=fmtp:63 111/111', 'a=rtpmap:111 opus/48000/2', 'a=fmtp:111 minptime=10;useinbandfec=1',
+  'm=video 9 UDP/TLS/RTP/SAVPF 96', 'a=mid:1', 'a=msid:screen-stream video-track', 'a=rtpmap:96 VP8/90000',
+  'm=audio 9 UDP/TLS/RTP/SAVPF 63 111', 'a=mid:2', 'a=msid:screen-stream audio-track', 'a=rtpmap:63 red/48000/2', 'a=fmtp:63 111/111', 'a=rtpmap:111 opus/48000/2', 'a=fmtp:111 minptime=10;useinbandfec=1', ''].join('\r\n');
+
+test('screen audio asks for Opus stereo only in its own section, never on the voice', () => {
+  // Medido no Electron 44: sem stereo=1 na descrição local de quem recebe, o som da tela chegava mono.
+  const mids = policy.audioMids(shareOffer, 'screen-stream');
+  assert.deepEqual([...mids], ['2'], 'the video section and the voice are not screen audio');
+  assert.deepEqual([...policy.audioMids(shareOffer, 'other')], []);
+  assert.deepEqual([...policy.audioMids(shareOffer, null)], []);
+  // A resposta de quem assiste usa os mesmos mids.
+  const answer = shareOffer.replace(/a=msid:[^\r]*\r\n/g, '');
+  const stereo = policy.opusStereo(answer, mids);
+  const sections = stereo.split('\r\nm=');
+  assert.match(sections[3], /a=fmtp:111 minptime=10;useinbandfec=1;stereo=1\r\n/);
+  assert.match(sections[3], /a=fmtp:63 111\/111\r\n/, 'RED untouched');
+  assert.equal(sections[0] + sections[1] + sections[2], answer.split('\r\nm=').slice(0, 3).join(''), 'voice and video untouched');
+  assert.equal(policy.opusStereo(stereo, mids), stereo, 'idempotent');
+  assert.equal(policy.opusStereo(answer, new Set()), answer);
+  assert.equal(policy.opusStereo(answer.replace(/\r\n/g, '\n'), mids), stereo.replace(/\r\n/g, '\n'));
+});
+
 test('sender mutation queue preserves order after a rejected operation', async () => {
   const peer = {}, order = [];
   const first = policy.enqueue(peer, async () => { await new Promise((r) => setTimeout(r, 10)); order.push('first'); throw Error('unsupported'); });
@@ -279,26 +354,31 @@ function mediaHarness() {
   const stream = (tracks) => ({ id: `s${serial++}`, getTracks: () => [...tracks], getVideoTracks: () => tracks.filter((t) => t.kind === 'video'), getAudioTracks: () => tracks.filter((t) => t.kind === 'audio'), addTrack: (t) => tracks.push(t), removeTrack: (t) => tracks.splice(tracks.indexOf(t), 1) });
   const microphone = track('audio');
   const screen = stream([track('video'), track('audio')]);
-  const senders = [makeSender(microphone)];
-  const transceivers = [];
-  const peer = { sid: 'viewer', adaptation: {}, stats: {}, remote: {}, senders: { screen: [], camera: [] }, pc: {
-    signalingState: 'stable', connectionState: 'connected',
-    report: new Map(), async getStats() { return this.report; }, getReceivers: () => [],
-    getSenders: () => senders, getTransceivers: () => transceivers,
-    addTrack(t) { const sender = makeSender(t); sender.getStats = async () => this.report; senders.push(sender); transceivers.push({ sender, receiver: { track: { kind: t.kind } } }); return sender; },
-    removeTrack(sender) { sender.track = null; },
-  } };
+  // Um espectador com conexão própria (fake RTCPeerConnection), como o app cria para cada pessoa.
+  const makePeer = (sid) => {
+    const senders = [makeSender(microphone)];
+    const transceivers = [];
+    return { sid, adaptation: {}, stats: {}, remote: {}, senders: { screen: [], camera: [] }, pc: {
+      signalingState: 'stable', connectionState: 'connected',
+      report: new Map(), async getStats() { return this.report; }, getReceivers: () => [],
+      getSenders: () => senders, getTransceivers: () => transceivers,
+      addTrack(t) { const sender = makeSender(t); sender.getStats = async () => this.report; senders.push(sender); transceivers.push({ sender, receiver: { track: { kind: t.kind } } }); return sender; },
+      removeTrack(sender) { sender.track = null; },
+    } };
+  };
+  const peer = makePeer('viewer');
   const self = { viewers: [], sid: 'self' };
   const state = { me: { sid: 'self' }, local: { screen, camera: null }, sharePreset: 'auto', shareAudio: true, uploadMbps: 10, peers: new Map([['viewer', peer]]), voiceChannel: 'room', view: 'voice' };
   const notices = [];
-  const domNode = { textContent: '', classList: { contains: () => true }, replaceChildren() {} };
-  const context = { window: {}, MediaPolicy: policy, document: { querySelector: (selector) => selector.startsWith('[data-key') ? nodes.get(selector) || null : domNode }, performance: { now: () => clock }, localStorage: { setItem() {} }, setInterval() {}, setTimeout(fn, delay) { const timer = setTimeout(fn, delay); timer.unref(); return timer; }, clearTimeout, console,
+  const domNode = { textContent: '', classList: { contains: () => true }, replaceChildren() {}, append() {} };
+  const listeners = {};
+  const context = { window: { addEventListener: (type, fn) => { listeners[type] = fn; } }, MediaPolicy: policy, document: { querySelector: (selector) => selector.startsWith('[data-key') ? nodes.get(selector) || null : domNode }, performance: { now: () => clock }, localStorage: { setItem() {} }, setInterval() {}, setTimeout(fn, delay) { const timer = setTimeout(fn, delay); timer.unref(); return timer; }, clearTimeout, console,
     navigator: { mediaDevices: { getDisplayMedia: async () => stream([track('video'), track('audio')]) } }, Sounds: { play() {} } };
   vm.createContext(context);
   vm.runInContext(fs.readFileSync(path.join(__dirname, '../public/media-session.js'), 'utf8'), context);
   const ownAudio = { cleaned: [], synced: [], works: true, async clean(s) { this.cleaned.push(s); return this.works; }, sync(s) { this.synced.push(s); } };
   const media = context.window.MediaSession({ state, socket: { on: (event, handler) => events.set(event, handler) }, call: async (event, payload) => { calls.push({ event, payload }); return {}; }, el: () => domNode, toast: (msg) => notices.push(msg), voiceEntry: (sid) => sid === 'self' ? self : { channel: 'room' }, member: () => ({}), render() {}, renderStage() {}, sendVoiceState() {}, preferCodec() {}, ownAudio });
-  return { media, state, self, peer, screen, microphone, notices, context, events, calls, nodes, ownAudio, track, stream, clock: (value) => { clock = value; } };
+  return { media, state, self, peer, screen, microphone, notices, context, events, calls, nodes, ownAudio, track, stream, listeners, makePeer, clock: (value) => { clock = value; } };
 }
 
 async function settle(h) { for (let i = 0; i < 4; i++) { await h.peer.mediaQueue; await Promise.resolve(); } }
@@ -405,7 +485,7 @@ test('stats use the selected ICE path and do not downgrade a static screen from 
   assert.equal(video.maxFramerate, 30);
 });
 
-test('Movimento in the stats loop: 1080p at 45 fps with a bandwidth warning stays, below 30 fps steps to 720p at 60', async () => {
+test('Movimento in the stats loop: 1080p holds at 30 fps, and at 20 fps goes to 900p at 60', async () => {
   const h = mediaHarness();
   h.state.sharePreset = 'p1080_60';
   h.self.viewers = ['viewer']; h.media.syncScreenSubscriptions(); await settle(h);
@@ -417,14 +497,16 @@ test('Movimento in the stats loop: 1080p at 45 fps with a bandwidth warning stay
       framesPerSecond: fps, timestamp: at, qualityLimitationReason: 'bandwidth' }],
   ]);
   const tick = async (from, to, fps) => { for (let at = from; at <= to; at += 1500) { h.clock(at); h.peer.pc.report = report(at, fps); await h.media.updateStreamStats(); } };
-  await tick(1000, 40_000, 45);
-  assert.equal(h.peer.adaptation.level, 0, '45 fps with the browser reporting a bandwidth limit keeps 1080p');
-  await tick(41_500, 50_500, 22);
-  assert.equal(h.peer.adaptation.level, 1);
+  await tick(1000, 40_000, 59);
+  assert.equal(h.peer.adaptation.level, 0, '59 fps with the browser reporting a bandwidth limit keeps 1080p');
+  await tick(41_500, 70_000, 30);
+  assert.equal(h.peer.adaptation.level, 0, '30 fps keeps 1080p');
+  await tick(71_500, 76_000, 20);
+  assert.equal(h.peer.adaptation.level, 1, '~6 s at 20 fps steps down one step');
   h.media.tuneSenders(); await settle(h);
   const video = h.peer.senders.screen.find((s) => s.track.kind === 'video').params.encodings[0];
-  assert.equal(video.scaleResolutionDownBy, 1.5);
-  assert.equal(video.maxFramerate, 60, '720p goes back to trying 60 fps');
+  assert.equal(video.scaleResolutionDownBy, 1.2, '1080p → 900p');
+  assert.equal(video.maxFramerate, 60, '900p keeps trying 60 fps');
 });
 
 test('a CPU-bound AV1 screen switches viewers to VP8 without renegotiating, before reducing resolution', async () => {
@@ -450,6 +532,30 @@ test('a CPU-bound AV1 screen switches viewers to VP8 without renegotiating, befo
   assert.match(h.state.mediaHealth, /mais leve/);
   h.media.setSharePreset('p1080');
   assert.equal(h.state.screenCodecFallback, null, 'a new preset tries the sharper codec again');
+});
+
+test('a viewer who comes back starts the 5 s CPU and heavy-content counts over', async () => {
+  const h = mediaHarness();
+  h.self.viewers = ['viewer']; h.media.syncScreenSubscriptions(); await settle(h);
+  const video = h.peer.senders.screen.find((s) => s.track.kind === 'video');
+  video.params.codecs = [{ mimeType: 'video/AV1', clockRate: 90000 }, { mimeType: 'video/VP8', clockRate: 90000 }];
+  const screenTrack = h.screen.getVideoTracks()[0];
+  const report = (at) => new Map([
+    ['source', { id: 'source', type: 'media-source', trackIdentifier: screenTrack.id, framesPerSecond: 30 }],
+    ['codec', { id: 'codec', type: 'codec', mimeType: 'video/AV1' }],
+    ['screen', { id: 'screen', type: 'outbound-rtp', kind: 'video', mediaSourceId: 'source', codecId: 'codec', bytesSent: at * 100, framesSent: at, framesPerSecond: 30, timestamp: at, qualityLimitationReason: 'cpu' }],
+  ]);
+  const sample = async (at) => { h.clock(at); h.peer.pc.report = report(at); await h.media.updateStreamStats(); await settle(h); };
+  await sample(1000); // engasgou por um instante e o espectador fechou a transmissão
+  h.self.viewers = []; h.media.syncScreenSubscriptions(); await settle(h);
+  h.self.viewers = ['viewer']; h.media.syncScreenSubscriptions(); await settle(h);
+  await sample(600_000); // dez minutos depois, volta a assistir: o primeiro quadro-chave pesa
+  assert.ok(!h.state.screenCodecFallback, 'one CPU-limited sample after coming back is not 5 s of strain');
+  assert.ok(!h.state.screenMotion, 'nor 5 s of heavy content');
+  for (const at of [601_500, 603_000, 604_500]) await sample(at);
+  assert.ok(!h.state.screenCodecFallback);
+  await sample(605_000);
+  assert.equal(h.state.screenCodecFallback, 'video/VP8', 'a real 5 s strain still switches the codec');
 });
 
 test('a text preset sends full resolution to small tiles until the content turns out to be heavy', async () => {
@@ -522,6 +628,60 @@ test('a screen joining a call that only carried audio tells the encoder where to
   assert.equal(warm.media.remoteDescription(warm.peer, plainAnswer), plainAnswer, 'a camera already warmed the estimate');
 });
 
+test('Movimento with several viewers: a tile without steps goes to 30 fps first, so 1080p keeps its resolution', async () => {
+  const h = mediaHarness();
+  h.state.sharePreset = 'p1080_60';
+  const small = h.makePeer('small');
+  h.state.peers.set('small', small);
+  h.self.viewers = ['viewer', 'small'];
+  h.events.get('screen:quality')({ viewer: 'viewer', demand: { mode: 'auto', maxHeight: 1080, background: false } });
+  h.events.get('screen:quality')({ viewer: 'small', demand: { mode: 'auto', maxHeight: 540, background: false } });
+  h.media.syncScreenSubscriptions(); await settle(h); await small.mediaQueue;
+  const screenTrack = h.screen.getVideoTracks()[0];
+  const report = (at) => new Map([
+    ['source', { id: 'source', type: 'media-source', trackIdentifier: screenTrack.id, framesPerSecond: 60 }],
+    ['codec', { id: 'codec', type: 'codec', mimeType: 'video/H264' }],
+    ['screen', { id: 'screen', type: 'outbound-rtp', kind: 'video', mediaSourceId: 'source', codecId: 'codec', bytesSent: at * 500, framesSent: at * 20 / 1000, framesPerSecond: 20, timestamp: at }],
+  ]);
+  // Os dois engasgam juntos (20 fps de 60): o processador é um só.
+  const levels = [];
+  for (let at = 1000; at <= 13_000; at += 1500) {
+    h.clock(at); h.peer.pc.report = report(at); small.pc.report = report(at);
+    await h.media.updateStreamStats();
+    levels.push([h.peer.adaptation.level || 0, !!small.adaptation.half]);
+  }
+  assert.deepEqual(levels[3], [0, true], 'the 540p tile (no steps below it) goes to 30 fps; 1080p stays');
+  await settle(h); await small.mediaQueue;
+  assert.equal(small.senders.screen.find((s) => s.track?.kind === 'video').params.encodings[0].maxFramerate, 30);
+  assert.deepEqual(levels.at(-1), [1, true], `still strained: only then 1080p goes to 900p (${JSON.stringify(levels)})`);
+});
+
+test('a connection that dropped and came back by itself still recovers the next time it fails', async () => {
+  const h = mediaHarness();
+  const pc = h.peer.pc;
+  pc.restarts = 0;
+  pc.restartIce = () => { pc.restarts++; };
+  // Queda curta: "disconnected" agenda uma tentativa; a conexão volta sozinha antes dela.
+  pc.connectionState = 'disconnected'; h.media.connectionChanged(h.peer);
+  assert.ok(h.peer.recoveryTimer, 'a recovery is scheduled');
+  pc.connectionState = 'connected'; h.media.connectionChanged(h.peer);
+  assert.equal(h.peer.recoveryTimer, null, 'the cancelled timer does not stay behind');
+  // Queda longa depois: antes da correção, o timer cancelado bloqueava esta tentativa para sempre.
+  pc.connectionState = 'failed'; h.media.connectionChanged(h.peer);
+  assert.ok(h.peer.recoveryTimer);
+  await new Promise((r) => setTimeout(r, 2200));
+  assert.equal(pc.restarts, 1, 'ICE restarted 2 s after failing');
+  assert.equal(h.peer.recoveryAttempts, 1);
+  assert.ok(h.peer.recoveryTimer, 'keeps trying while the person is in the call');
+  // A internet voltou: tenta na hora.
+  h.listeners.online();
+  assert.equal(pc.restarts, 2);
+  pc.connectionState = 'connected'; h.media.connectionChanged(h.peer);
+  assert.deepEqual([h.peer.recoveryTimer, h.peer.recoveryAttempts], [null, 0]);
+  h.listeners.online();
+  assert.equal(pc.restarts, 2, 'connected peers are left alone');
+});
+
 test('viewer resize and background requests are coalesced without stopping the subscribed audio', async () => {
   const h = mediaHarness();
   let width = 320;
@@ -563,6 +723,37 @@ test('watch/unwatch suspends both screen tracks while preserving the microphone'
   assert.equal(h.microphone.readyState, 'live');
   h.self.viewers = ['viewer']; h.media.syncScreenSubscriptions(); await h.peer.mediaQueue;
   assert.equal(h.peer.senders.screen.filter((s) => s.track).length, 2);
+});
+
+test('a viewer who comes back after a switch to a source with sound also gets the sound', async () => {
+  const h = mediaHarness();
+  h.state.local.screen = h.stream([h.track('video')]); // uma janela, sem áudio
+  h.self.viewers = ['viewer']; h.media.syncScreenSubscriptions(); await settle(h);
+  h.self.viewers = []; h.media.syncScreenSubscriptions(); await settle(h);
+  h.context.navigator.mediaDevices.getDisplayMedia = async () => h.stream([h.track('video'), h.track('audio')]);
+  await h.media.switchScreen(); // a tela inteira, com o som do computador
+  h.self.viewers = ['viewer']; h.media.syncScreenSubscriptions(); await settle(h);
+  const sent = h.peer.senders.screen.map((s) => s.track);
+  assert.deepEqual([...sent.map((t) => t?.kind)].sort(), ['audio', 'video']);
+  assert.ok(sent.every((t) => h.state.local.screen.getTracks().includes(t) && t.readyState === 'live'));
+});
+
+test('someone who starts watching during a source switch gets the new source, not the stopped one', async () => {
+  const h = mediaHarness();
+  const other = h.makePeer('viewer2');
+  h.state.peers.set('viewer2', other);
+  h.self.viewers = ['viewer2']; h.media.syncScreenSubscriptions(); await settle(h); await other.mediaQueue;
+  let release;
+  policy.enqueue(other, () => new Promise((resolve) => { release = resolve; })); // viewer2 ainda ajustando o envio
+  const switching = h.media.switchScreen();
+  await new Promise((resolve) => setTimeout(resolve, 10));
+  h.self.viewers = ['viewer', 'viewer2']; h.media.syncScreenSubscriptions(); await settle(h); // a troca já passou por "viewer"
+  release(); await switching; await settle(h); await other.mediaQueue;
+  for (const peer of [h.peer, other]) {
+    const sent = peer.senders.screen.map((s) => s.track);
+    assert.deepEqual([...sent.map((t) => `${t?.kind}:${t?.readyState}`)].sort(), ['audio:live', 'video:live'], peer.sid);
+    assert.ok(sent.every((t) => h.state.local.screen.getTracks().includes(t)), peer.sid);
+  }
 });
 
 test('source-switch failure keeps previous tracks alive and reports failure', async () => {

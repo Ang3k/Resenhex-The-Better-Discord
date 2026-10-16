@@ -62,9 +62,9 @@
     deafened: false,
     micStream: null,
     local: { screen: null, camera: null }, // meus streams de vídeo
-    sharePreset: SHARE_PRESETS[localStorage.getItem('sharePreset')] ? localStorage.getItem('sharePreset') : 'auto',
+    sharePreset: SHARE_PRESETS[localStorage.getItem('sharePreset')] ? localStorage.getItem('sharePreset') : 'p1080_60',
     sharePaused: false,
-    uploadMbps: Math.min(100, Math.max(3, Number(localStorage.getItem('uploadMbps')) || 10)),
+    uploadMbps: Math.min(100, Math.max(3, Number(localStorage.getItem('uploadMbps')) || 50)),
     cameraDeviceId: localStorage.getItem('cameraDeviceId') || '',
     voiceFx: initialVoiceFx, // modificador de voz (voice-fx.js)
     voiceChatOpen: localStorage.getItem('voiceChatOpen') === '1', // chat da sala aberto ao lado da chamada
@@ -4756,6 +4756,11 @@
 
   // ---------------- voz (WebRTC) ----------------
   let joining = false;
+  // Sinais que chegam depois que o servidor nos pôs na sala e antes de a chamada começar aqui (quem
+  // entrou logo depois de nós já mandou a oferta). Ficam guardados e são aplicados ao começar.
+  let earlySignals = null;
+  // Troca de transporte da sala (media:switch) que chegou no meio de uma entrada: vale quando ela termina.
+  let switchAfterJoin = null;
   let callTimeTimer = null;
 
   function callElapsed() {
@@ -4885,10 +4890,14 @@
       const res = await call('voice:join', isDm(channel) ? { dm: channel, silent: !!opts.silent, mediaVersion: 1 } : { channel, serverId: opts.serverId ?? state.server.serverId, mediaVersion: 1 });
       if (abandoned() || dropped() || !res) return;
       joined = true;
+      earlySignals = [];
       const media = await call('voice:media');
       if (abandoned() || dropped() || !media) return;
       state.mediaTransport = media.transport;
       startVoice(channel, media.transport === 'sfu' ? [] : res.peers, opts);
+      const early = earlySignals;
+      earlySignals = null;
+      if (media.transport !== 'sfu') for (const signal of early) onSignal(signal);
       if (media.transport === 'sfu') {
         try { await sfu.connect(media); }
         catch (error) {
@@ -4904,6 +4913,7 @@
       if (opts.video) startVideo('camera');
     } finally {
       joining = false;
+      earlySignals = null;
       if (!state.voiceChannel) {
         if (state.micStream === mic) state.micStream = null;
         if (!abandoned() && dropped()) {
@@ -4917,6 +4927,11 @@
           if (!abandoned()) endCall(); // não deu para entrar: a chamada acabou
         }
       }
+      // A entrada pode ter conectado ao SFU mesmo com a sala já em P2P (quem não alcançou o SFU foi
+      // outra pessoa): sem isso, a pessoa ficava sozinha no SFU, sem ouvir ninguém.
+      const pending = switchAfterJoin;
+      switchAfterJoin = null;
+      if (pending && state.voiceChannel === channel) switchMedia(pending);
     }
   }
 
@@ -5113,10 +5128,14 @@
 
   // O servidor de mídia caiu: a sala inteira passa para conexão direta (P2P) e cada um reconecta.
   socket.on('media:switch', ({ transport }) => {
+    if (joining) switchAfterJoin = transport;
+    else switchMedia(transport);
+  });
+  function switchMedia(transport) {
     if (!state.voiceChannel || joining || state.mediaTransport === transport) return;
     mediaNotice('O servidor de mídia caiu. Passando a chamada para conexão direta…');
     joinVoice(state.voiceChannel, { keepView: state.view !== 'voice', serverId: callInfo()?.serverId, startedAt: state.callStartedAt, silent: true });
-  });
+  }
 
   socket.on('voice:force-leave', ({ reason }) => {
     leaveVoice(false);
@@ -5169,7 +5188,7 @@
     pc.onnegotiationneeded = async () => {
       try {
         peer.makingOffer = true;
-        await pc.setLocalDescription();
+        await applyLocalDescription(peer);
         socket.emit('signal', { to: sid, data: { description: pc.localDescription, video: videoIds() } });
       } catch (err) {
         console.error(err);
@@ -5183,8 +5202,8 @@
     };
 
     pc.onconnectionstatechange = () => {
-      if (pc.connectionState === 'connected') { peer.recoveryAttempts = 0; clearTimeout(peer.recoveryTimer); tuneSenders(); }
-      else if (['failed', 'disconnected'].includes(pc.connectionState)) scheduleRecovery(peer);
+      connectionChanged(peer);
+      if (pc.connectionState === 'connected') tuneSenders();
       renderDiagnostics();
     };
 
@@ -5221,6 +5240,22 @@
     return peer;
   }
 
+  // Descrição local com o som da tela da outra pessoa em estéreo (MediaPolicy.opusStereo); a voz
+  // continua mono. Sem som de tela chegando, fica como sempre foi. Um navegador que não aceita a
+  // descrição alterada segue em mono; se a negociação mudou no meio, quem chamou trata como antes.
+  async function applyLocalDescription(peer) {
+    const { pc } = peer;
+    const mids = MediaPolicy.audioMids(pc.remoteDescription?.sdp, peer.remoteIds.screen);
+    if (!mids.size) return pc.setLocalDescription();
+    const answering = pc.signalingState === 'have-remote-offer';
+    const description = await (answering ? pc.createAnswer() : pc.createOffer());
+    try { await pc.setLocalDescription({ type: description.type, sdp: MediaPolicy.opusStereo(description.sdp, mids) }); }
+    catch (error) {
+      if (pc.signalingState !== (answering ? 'have-remote-offer' : 'stable')) throw error;
+      await pc.setLocalDescription();
+    }
+  }
+
   function closePeer(sid) {
     const peer = state.peers.get(sid);
     if (!peer) return;
@@ -5233,9 +5268,10 @@
     state.peers.delete(sid);
   }
 
-  socket.on('signal', async ({ from, data }) => {
+  socket.on('signal', (signal) => onSignal(signal));
+  async function onSignal({ from, data }) {
     if (sfu.active()) return;
-    if (!state.voiceChannel) return;
+    if (!state.voiceChannel) { earlySignals?.push({ from, data }); return; }
     const peer = getPeer(from);
     const { pc } = peer;
     try {
@@ -5254,7 +5290,7 @@
           peer.settingRemoteAnswer = false;
         }
         if (data.description.type === 'offer') {
-          await pc.setLocalDescription();
+          await applyLocalDescription(peer);
           socket.emit('signal', { to: from, data: { description: pc.localDescription, video: videoIds() } });
         }
         tuneSenders();
@@ -5268,7 +5304,7 @@
     } catch (err) {
       console.error('Erro de sinalização:', err);
     }
-  });
+  }
 
   socket.on('sound', ({ sound, from }) => {
     if (!state.voiceChannel || state.deafened || callMe()?.serverDeafened || state.sbMuted || state.localMuted.has(from)) return;
@@ -5475,6 +5511,7 @@
   }
 
   socket.on('voice:peer-left', ({ id }) => {
+    if (earlySignals) earlySignals = earlySignals.filter((signal) => signal.from !== id); // saiu antes de a chamada começar aqui
     closePeer(id);
     if (state.view === 'voice') renderStage();
   });
@@ -5527,8 +5564,8 @@
     mediaNotice('A conexão com a chamada caiu. Reconectando…');
     joinVoice(state.voiceChannel, { keepView: state.view !== 'voice', serverId: callInfo()?.serverId, startedAt: state.callStartedAt, silent: true });
   }
-  const sfu = MediaSfu({ state, renderStage, applyAudio, watchSpeaking, unwatchSpeaking, closePeer, notice: (message) => mediaNotice(message), onLost: recoverMedia });
-  const { isWatching, setWatching, getWatchQuality, setWatchQuality, syncViewerQuality, addVideoTracks, syncScreenSubscriptions, videoBitrates, remoteDescription, tuneSenders, applySharePreset, setSharePreset, captureScreen, watchScreenTrack, switchScreen, startVideo, stopVideo, scheduleRecovery, renderDiagnostics, updateStreamStats, mediaNotice } = MediaSession({ state, socket, call, el, toast, voiceEntry, member: callMember, render, renderStage, sendVoiceState, preferCodec, ownAudio, sfu });
+  const sfu = MediaSfu({ state, renderStage, applyAudio, watchSpeaking, unwatchSpeaking, closePeer, notice: (message) => mediaNotice(message), onLost: recoverMedia, tuneReceiver: (receiver) => mobileStream.tuneReceiver(receiver) });
+  const { isWatching, setWatching, getWatchQuality, setWatchQuality, syncViewerQuality, addVideoTracks, syncScreenSubscriptions, videoBitrates, remoteDescription, tuneSenders, applySharePreset, setSharePreset, captureScreen, watchScreenTrack, switchScreen, startVideo, stopVideo, connectionChanged, renderDiagnostics, updateStreamStats, mediaNotice } = MediaSession({ state, socket, call, el, toast, voiceEntry, member: callMember, render, renderStage, sendVoiceState, preferCodec, ownAudio, sfu });
   const streamZoom = StreamZoom({ el, Icon, syncViewerQuality });
   const mobileStream = MobileStream({ state, el, Icon, toast, member: callMember, voiceEntry, syncViewerQuality, openWatchQualityMenu, toggleStreamMute, togglePip });
 

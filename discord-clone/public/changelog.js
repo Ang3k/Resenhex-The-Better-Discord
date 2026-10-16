@@ -4,6 +4,34 @@
 // O título deve destacar as principais funcionalidades ou correções, com termos objetivos.
 window.CHANGELOG = [
   {
+    version: '1.6.1', date: '2026-10-16', name: '1080p a 60 fps por padrão e mais fluido',
+    summary: 'No perfil de 60 fps, a resolução agora desce e sobe aos poucos para manter o jogo fluido, e volta para 1080p em segundos quando sobra folga. Quem ainda não escolheu começa a transmitir em Movimento · 1080p / 60, com limite de upload de 50 Mbps.',
+    sections: [
+      { kind: 'improved', items: [
+        'Movimento · 1080p / 60: o 1080p é o alvo e fica o máximo possível. A resolução só desce quando a transmissão fica abaixo de 25 fps por uns 6 s: primeiro para 900p, que confere o resultado, e se ainda não der conta para 720p. Uma engasgada isolada ou uma oscilação curta da internet não trocam a resolução.',
+        'Quando sobra folga, a resolução volta a subir em poucos segundos, assim que o app prevê pelo menos 35 fps no degrau de cima (tempo de codificação e banda). Uma tentativa que falha espera um pouco mais para a próxima. Antes, cada degrau levava pelo menos 20 s.',
+        'Movimento · 1080p / 60 pelo servidor de mídia: a camada de 1080p agora também desce aos poucos (900p, 720p) quando os quadros caem, e volta sozinha. Antes ela ficava em 1080p a ~38 fps quando o computador não dava conta. Com o processador no limite, a camada das miniaturas passa antes para 30 fps, para o 1080p manter os quadros.',
+        'Com várias pessoas assistindo pela conexão direta, quem está em tela cheia tem prioridade. Quando falta processador ou internet, as miniaturas baixam primeiro, e o 1080p é o primeiro a voltar.',
+        'Quem assiste: a transmissão ganhou ~0,1 s de folga para absorver o quadro-chave do 1080p e a variação da internet, com menos engasgos. Antes isso valia só no celular.',
+        'Movimento · 1080p / 60: até 8 Mbps por espectador, no lugar de 6, para a imagem ficar mais limpa em jogos com muito movimento. Os degraus de baixo acompanham (900p ~6,1 Mbps, 720p ~4,4 Mbps). Quem tem menos internet não perde nada: o navegador se ajusta à internet de verdade, e a volta para o 1080p continua pedindo só ~4,5 Mbps.',
+        'Perfil padrão da transmissão: Movimento · 1080p / 60, no lugar de Automática. Para textos, código e apresentações, Nitidez · 1080p / 30 continua deixando as letras mais nítidas.',
+        'Limite de upload padrão: 50 Mbps, no lugar de 10. Com várias pessoas assistindo, cada uma recebe mais banda. Se a sua internet envia menos que isso, escolha um valor menor em Configurações.',
+        'Quem já tinha salvo um perfil ou um limite de upload continua com o seu.',
+        'Conexão direta (P2P, sem o servidor de mídia): o som da tela agora chega em estéreo. Antes chegava mono, e jogo, música e vídeo perdiam o lado de cada som. A voz continua mono, e no servidor de mídia o som da tela já era estéreo.',
+      ] },
+      { kind: 'fixed', items: [
+        'Chamadas voltam sozinhas depois de uma queda de rede. Antes, depois da primeira queda curta, a reconexão automática parava de funcionar com aquela pessoa, e uma queda de mais de uns 20 s só voltava clicando em Reconectar. Agora o app segue tentando enquanto a pessoa estiver na chamada, e a imagem volta em 1 a 2 s depois que a rede volta.',
+        'Duas pessoas que entram na sala quase ao mesmo tempo agora se conectam. Antes, se a primeira tinha internet mais lenta (no celular, por exemplo), o pedido de conexão da segunda chegava antes de a chamada começar do lado dela e se perdia. As duas ficavam na sala sem se ouvir até alguém sair e entrar de novo. Isso podia acontecer, por exemplo, quando todo mundo volta junto depois de uma queda do servidor.',
+        'Se o servidor de mídia falha logo depois da entrada e a chamada passa para conexão direta, a conexão com quem já estava na sala agora acontece. Antes, essas pessoas ficavam sem áudio até alguém sair e entrar de novo.',
+        'Chamadas pelo servidor de mídia: as vozes saem no fone ou alto-falante escolhido em Configurações desde a entrada. Antes, iam para a saída padrão do sistema até a saída ser escolhida de novo.',
+        'Trocar tela/aplicativo para uma fonte com som: quem não estava assistindo na hora da troca agora ouve o som quando volta a assistir.',
+        'Quem começa a assistir no meio de uma troca de tela recebe a fonte nova. Antes, podia ficar com a imagem parada.',
+        'Quem volta a assistir não faz mais a transmissão trocar para o codec mais leve, ou para o modo de movimento, por causa de um pico de um instante. A troca só acontece depois de 5 s seguidos de aperto, como já devia ser.',
+        'Economia · 720p / 30: depois de um aperto longo, a imagem volta para 720p em 24 s, e não mais em 36 s. O app contava um degrau abaixo de 360p que não mudava nada.',
+      ] },
+    ],
+  },
+  {
     version: '1.6.0', date: '2026-10-15', name: 'E-mail de recuperação e Esqueci a senha',
     summary: 'Agora dá para cadastrar um e-mail, que é opcional, e criar uma senha nova por ele se você esquecer a sua. Quem não quiser colocar e-mail continua entrando só com usuário e senha.',
     sections: [

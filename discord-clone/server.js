@@ -2075,7 +2075,9 @@ io.on('connection', (socket) => {
   }, { voice: true });
 
   // Repassa ofertas/respostas/ICE entre dois participantes da mesma sala.
-  socket.on('signal', ({ to, data } = {}) => {
+  // Fora do on(): um pacote sem objeto (null) não pode derrubar o servidor.
+  socket.on('signal', (payload) => {
+    const { to, data } = payload && typeof payload === 'object' ? payload : {};
     const from = online.get(socket.id);
     const target = online.get(to);
     if (!from || !target || !from.voice || from.voice !== target.voice || from.voiceServerId !== target.voiceServerId) return;

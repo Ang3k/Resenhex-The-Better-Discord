@@ -101,6 +101,29 @@ test('a failed room creation falls back to P2P immediately instead of blocking t
   assert.equal(media.allowsP2p('b', 'voice'), true);
 });
 
+test('someone who reaches the SFU after the room moved to P2P is removed there, so the app reconnects by P2P', async () => {
+  const removed = [], synced = [];
+  const members = { late: { server: 'a', channel: 'voice', speak: true, stream: true }, other: { server: 'a', channel: 'voice', speak: true, stream: true }, elsewhere: { server: 'b', channel: 'voice', speak: true, stream: true } };
+  const service = { async createRoom() {}, async removeParticipant(...args) { removed.push(args); }, async updateParticipant(room, sid) { synced.push([room, sid]); return { tracks: [] }; } };
+  const media = mediaSfu({ env: { ...env, LIVEKIT_HEALTH_MS: '0' }, service, membership: (sid) => members[sid], log: () => {} });
+  const event = async (name, room, identity) => {
+    const body = JSON.stringify({ event: name, room: { name: room }, participant: { identity } });
+    const token = new AccessToken(env.LIVEKIT_API_KEY, env.LIVEKIT_API_SECRET);
+    token.sha256 = createHash('sha256').update(body).digest('base64');
+    await media.webhook(body, await token.toJwt());
+  };
+  // "late" recebe o token do SFU e ainda está conectando quando outra pessoa não alcança o SFU.
+  assert.equal((await media.credentials('late')).transport, 'sfu');
+  assert.equal((await media.credentials('other', { fallback: true })).transport, 'p2p');
+  await event('participant_joined', roomName('a', 'voice'), 'late');
+  assert.deepEqual(removed, [[roomName('a', 'voice'), 'late']], 'the room is P2P now: the SFU connection ends and the app falls back');
+  // Numa sala que segue no SFU, quem pertence a ela fica.
+  assert.equal((await media.credentials('elsewhere')).transport, 'sfu');
+  await event('participant_joined', roomName('b', 'voice'), 'elsewhere');
+  assert.equal(removed.length, 1);
+  assert.deepEqual(synced, [[roomName('b', 'voice'), 'elsewhere']]);
+});
+
 test('a client that cannot reach the SFU moves only its own room to P2P', async () => {
   const switched = [];
   const members = { one: { server: 'a', channel: 'voice', speak: true, stream: true }, other: { server: 'a', channel: 'other', speak: true, stream: true } };

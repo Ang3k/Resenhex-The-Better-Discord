@@ -21,7 +21,7 @@ function oscillator() {
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 function runStreamerRole() {
-  const st = { senders: [], series: [], enc: [], cpu: [], pcs: new Map(), ready: new Set(), connected: new Set(), finished: false, waitScreen: !!cfg.audioFirst };
+  const st = { senders: [], series: [], enc: [], cpu: [], pcs: new Map(), ready: new Set(), connected: new Set(), finished: false, waitScreen: !!cfg.audioFirst, states: [] };
   let stream, readyAll;
   const allReady = new Promise((resolve) => { readyAll = resolve; });
   async function capture() {
@@ -98,11 +98,22 @@ function runStreamerRole() {
       st.pcs.set(i, { pc, pending: [] });
       pc.onicecandidate = (e) => e.candidate && lab.send(i, { type: 'candidate', c: e.candidate.toJSON() });
       pc.onnegotiationneeded = async () => { await pc.setLocalDescription(); lab.send(i, { type: 'offer', sdp: pc.localDescription.sdp }); };
-      pc.onconnectionstatechange = () => { if (pc.connectionState === 'connected') { st.connected.add(i); maybeGo(); } };
+      const restartIce = pc.restartIce.bind(pc);
+      pc.restartIce = () => { st.states.push([labNow(), i, 'restartIce']); restartIce(); };
+      // Como o public/app.js: o MediaSession cuida da recuperação (versões antigas: o código que estava no app.js).
+      pc.onconnectionstatechange = () => {
+        st.states.push([labNow(), i, pc.connectionState]);
+        if (pc.connectionState === 'connected') { st.connected.add(i); maybeGo(); }
+        const peer = state.peers.get(sid);
+        if (!app || !peer) return;
+        if (app.session.connectionChanged) app.session.connectionChanged(peer);
+        else if (pc.connectionState === 'connected') { peer.recoveryAttempts = 0; clearTimeout(peer.recoveryTimer); }
+        else if (['failed', 'disconnected'].includes(pc.connectionState)) app.session.scheduleRecovery(peer);
+      };
     });
     const session = window.MediaSession({ state, socket: { connected: true, on: (event, cb) => { handlers[event] = cb; } }, call: async () => ({}), el, toast: (m) => log('toast', m),
       voiceEntry: (sid) => entries[sid], member: () => ({ name: 'lab' }), render() {}, renderStage() {}, sendVoiceState() {}, preferCodec: window.preferCodec, ownAudio: null, sfu: null });
-    app = { session, state };
+    app = { session, state, handlers };
     window.appState = state;
     if (cfg.audioFirst) {
       while (st.connected.size < cfg.viewers) await sleep(100);
@@ -137,6 +148,9 @@ function runStreamerRole() {
       if (ev.type === 'encoding') for (const [i, s] of st.senders.entries()) { const p = s.getParameters(); Object.assign(p.encodings[0], ev.encoding, ev.viewerEncodings?.[i] || {}); await s.setParameters(p); }
       if (ev.type === 'codec') for (const s of st.senders) { const p = s.getParameters(); p.encodings[0].codec = p.codecs.find((c) => c.mimeType === ev.codec); await s.setParameters(p); }
       if (ev.type === 'hint') stream.getVideoTracks()[0].contentHint = ev.hint;
+      // Espectadores mudam o pedido no meio da medição (ex.: { background: true } libera o processador).
+      if (ev.type === 'demand') for (const i of ev.viewers) app?.handlers?.['screen:quality']?.({ viewer: 'v' + i,
+        demand: { ...window.MediaPolicy.viewerDemand({ width: Math.round(cfg.compareHeights[i] * 16 / 9), height: cfg.compareHeights[i] }), ...ev.demand } });
     } catch (e) { log('event error', String(e)); }
   }
   lab.onMessage(async (from, msg) => {
@@ -239,6 +253,7 @@ function runStreamerRole() {
       out.cpu = by;
     }
     if (st.enc.length) { const per = st.enc.map((e) => e[2]); out.encode = { p50: pct(per, .5), p95: pct(per, .95), max: pct(per, 1), top: [...st.enc].sort((x, y) => y[2] - x[2]).slice(0, 10) }; }
+    out.connection = st.states.map(([t, i, s]) => [Math.round(t - w.from), i, s]);
     out.timeline = st.series.map((x) => ({ t: Math.round(x.t - w.from), i: x.i, aob: x.aob, src: x.src?.fps, layers: x.outs.map((o) => ({ rid: o.rid, fps: o.fps, h: o.h, bytes: o.bytesSent, qlr: o.qlr, target: o.target, codec: o.codec })) }));
     return out;
   }

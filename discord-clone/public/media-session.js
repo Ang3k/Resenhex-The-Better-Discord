@@ -101,13 +101,21 @@ window.MediaSession = function ({ state, socket, call, el, toast, voiceEntry, me
   }
 
   const screenCodecs = (sid) => MediaPolicy.screenCodecs(presets[state.sharePreset], demands.get(sid)?.codecs, state.screenCodecFallback);
+  // O pedido do espectador, a 30 fps quando a escada do Movimento precisou liberar processador para o 1080p.
+  const demandOf = (sid) => state.peers.get(sid)?.adaptation?.half ? { ...demands.get(sid), fps: 30 } : demands.get(sid);
   // Jogo ou vídeo detectado num perfil de texto: cada espectador volta a receber o tamanho do seu bloco.
   const activePreset = () => state.screenMotion ? { ...presets[state.sharePreset], motion: true } : presets[state.sharePreset];
+  // Tipo do que um sender leva (audio/video), mesmo parado em replaceTrack(null).
+  const senderKind = (peer, sender) => sender.track?.kind || peer.pc.getTransceivers().find((t) => t.sender === sender)?.receiver.track.kind;
+  // Adiciona as trilhas que ainda não têm sender nesta conexão: uma tela que ganhou áudio numa troca
+  // de fonte chega com o som para quem volta a assistir.
   function addVideoTracks(peer, kind) {
     if (sfu?.active()) return;
     const stream = state.local[kind];
     if (!stream || !active(peer)) return;
+    const sending = new Set(peer.senders[kind].map((sender) => senderKind(peer, sender)));
     for (const track of stream.getTracks()) {
+      if (sending.has(track.kind)) continue;
       const sender = peer.pc.addTrack(track, stream);
       peer.senders[kind].push(sender);
       if (track.kind === 'video') preferCodec(peer.pc, sender, kind === 'screen' ? screenCodecs(peer.sid) : ['video/VP8']);
@@ -166,13 +174,15 @@ window.MediaSession = function ({ state, socket, call, el, toast, voiceEntry, me
           peer.senders.screen = [];
           peer.screenStream = current;
         }
-        if (watching && !peer.senders.screen.length) addVideoTracks(peer, 'screen');
+        if (watching) addVideoTracks(peer, 'screen');
         for (const sender of peer.senders.screen) {
-          const kind = sender.track?.kind || peer.pc.getTransceivers().find((t) => t.sender === sender)?.receiver.track.kind;
+          const kind = senderKind(peer, sender);
           const track = watching ? current.getTracks().find((t) => t.kind === kind) || null : null;
           if (sender.track !== track) await sender.replaceTrack(track);
         }
-        if (!watching) { peer.adaptation = {}; peer.estimate = null; }
+        // Quem para de assistir zera as medições: as contagens de 5 s (processador, conteúdo pesado)
+        // recomeçam quando a pessoa volta, em vez de somar o tempo em que ela não estava assistindo.
+        if (!watching) { peer.adaptation = {}; peer.estimate = null; peer.cpu = {}; peer.heavy = {}; peer.encodeSample = null; }
       }).then(tuneSenders).catch(() => {
         peer.screenKey = null;
         if (active(peer)) mediaNotice('Não foi possível atualizar um espectador. Tentaremos novamente.');
@@ -184,7 +194,7 @@ window.MediaSession = function ({ state, socket, call, el, toast, voiceEntry, me
 
   function videoBitrates() {
     return MediaPolicy.allocate(state.uploadMbps, [...state.peers].map(([sid, peer]) => ({ sid, watching: viewers().includes(sid),
-      demand: demands.get(sid), level: peer.adaptation.level || 0 })),
+      demand: demandOf(sid), level: peer.adaptation.level || 0 })),
     { screen: !!state.local.screen, screenAudio: !!state.local.screen?.getAudioTracks().length, camera: !!state.local.camera, preset: activePreset() });
   }
   // Resposta do espectador com a taxa inicial da tela em H.264 (MediaPolicy.startBitrate): 90% do que
@@ -259,7 +269,7 @@ window.MediaSession = function ({ state, socket, call, el, toast, voiceEntry, me
               if (sender.track?.kind === 'audio' && kind === 'screen') { await setEncoding(sender, { maxBitrate: 96000, priority: 'high' }); continue; }
               if (sender.track?.kind !== 'video') continue;
               if (kind === 'screen') await setCodec(sender, screenCodecs(peer.sid));
-              const encoding = kind === 'screen' ? MediaPolicy.screenEncoding(preset, rates.screen, demands.get(peer.sid), sender.track.getSettings?.(), peer.adaptation.level || 0)
+              const encoding = kind === 'screen' ? MediaPolicy.screenEncoding(preset, rates.screen, demandOf(peer.sid), sender.track.getSettings?.(), peer.adaptation.level || 0)
                 : MediaPolicy.encoding({ fps: 30 }, rates.camera);
               await setEncoding(sender, encoding, kind === 'screen' ? preset.degradation : 'balanced');
             }
@@ -428,7 +438,7 @@ window.MediaSession = function ({ state, socket, call, el, toast, voiceEntry, me
           if (!active(peer) || !viewers().includes(peer.sid)) return;
           for (const kind of ['video', 'audio']) {
             const track = next.getTracks().find((t) => t.kind === kind) || null;
-            const sender = peer.senders.screen.find((s) => (s.track?.kind || peer.pc.getTransceivers().find((t) => t.sender === s)?.receiver.track.kind) === kind);
+            const sender = peer.senders.screen.find((s) => senderKind(peer, s) === kind);
             if (sender) { const old = sender.track; await sender.replaceTrack(track); changed.push({ peer, sender, old }); }
             else if (track) { const added = peer.pc.addTrack(track, current); peer.senders.screen.push(added); changed.push({ peer, sender: added, added: true }); }
           }
@@ -438,6 +448,10 @@ window.MediaSession = function ({ state, socket, call, el, toast, voiceEntry, me
       current.desktopAudioCleanup?.();
       current.getTracks().forEach((track) => { track.onended = track.onmute = track.onunmute = null; current.removeTrack(track); track.stop(); });
       next.getTracks().forEach((track) => current.addTrack(track));
+      // Quem começou a assistir enquanto a troca percorria as conexões recebeu as trilhas antigas,
+      // que acabaram de parar: confere todo mundo de novo com as novas.
+      for (const peer of state.peers.values()) peer.screenKey = null;
+      syncScreenSubscriptions();
       current.desktopAudioCleanup = next.desktopAudioCleanup;
       current.desktopAudioMode = next.desktopAudioMode;
       watchScreenTrack(current.getVideoTracks()[0]);
@@ -483,19 +497,42 @@ window.MediaSession = function ({ state, socket, call, el, toast, voiceEntry, me
     render();
   }
 
+  // Conexão com alguém caiu. De "disconnected" o navegador volta sozinho quando a rede volta; de
+  // "failed", só reiniciando o ICE. Tenta 5 s depois de cair (2 s se já falhou) e segue tentando enquanto
+  // a pessoa estiver na chamada: a cada 5 s no primeiro minuto, depois a cada 15 s, por até 5 minutos.
+  // Assim a rede que volta depois de 30 s ou mais encontra uma tentativa em andamento. A partir da
+  // terceira tentativa, avisa e mostra "Reconectar".
   function scheduleRecovery(peer) {
-    if (sfu?.active()) return;
-    if (peer.recoveryTimer || peer.recoveryAttempts >= 3) return;
+    if (sfu?.active() || peer.recoveryTimer || (peer.recoveryAttempts || 0) >= 28) return;
+    const attempts = peer.recoveryAttempts || 0;
+    const delay = !attempts && peer.pc.connectionState === 'failed' ? 2000 : attempts < 12 ? 5000 : 15000;
     peer.recoveryTimer = setTimeout(() => {
       peer.recoveryTimer = null;
       if (!active(peer) || peer.pc.connectionState === 'connected') return;
-      peer.recoveryAttempts++;
+      peer.recoveryAttempts = (peer.recoveryAttempts || 0) + 1;
       peer.pc.restartIce();
-      if (peer.recoveryAttempts < 3) scheduleRecovery(peer);
-      else mediaNotice('Uma conexão não se recuperou. Use Reconectar em Conexão e diagnóstico.');
+      if (peer.recoveryAttempts === 3) mediaNotice('Uma conexão não se recuperou. Use Reconectar em Conexão e diagnóstico.');
+      scheduleRecovery(peer);
       renderDiagnostics();
-    }, peer.pc.connectionState === 'failed' ? 2000 : 5000);
+    }, delay);
   }
+  // Chamado a cada mudança de estado da conexão (public/app.js). Quando ela volta, a espera é
+  // apagada de verdade: um timer cancelado que continuasse em peer.recoveryTimer bloquearia todas
+  // as recuperações seguintes com essa pessoa.
+  function connectionChanged(peer) {
+    if (sfu?.active()) return;
+    if (peer.pc.connectionState === 'connected') { clearTimeout(peer.recoveryTimer); peer.recoveryTimer = null; peer.recoveryAttempts = 0; }
+    else if (['failed', 'disconnected'].includes(peer.pc.connectionState)) scheduleRecovery(peer);
+  }
+  // A internet voltou (o sistema avisa): tenta já, sem esperar a próxima tentativa.
+  window.addEventListener?.('online', () => {
+    for (const peer of state.peers.values()) {
+      if (!active(peer) || !['failed', 'disconnected'].includes(peer.pc.connectionState)) continue;
+      clearTimeout(peer.recoveryTimer); peer.recoveryTimer = null;
+      peer.pc.restartIce();
+      scheduleRecovery(peer);
+    }
+  });
 
   function renderDiagnostics() {
     const root = $('#diagnostics-peers');
@@ -522,6 +559,7 @@ window.MediaSession = function ({ state, socket, call, el, toast, voiceEntry, me
     return { width: r.frameWidth, height: r.frameHeight, fps: r.framesPerSecond, bitrate, progressing, codec: report.get(r.codecId)?.mimeType?.split('/')[1] || '' };
   }
 
+  let stepDownAt = -Infinity; // última descida da escada do Movimento, entre todos os espectadores
   async function updateStreamStats() {
     if (statsBusy) return;
     if (!state.voiceChannel) { samples.clear(); return; }
@@ -529,6 +567,7 @@ window.MediaSession = function ({ state, socket, call, el, toast, voiceEntry, me
     const now = performance.now();
     try {
       if (sfu?.active()) { await sfu.stats(); syncScreenSubscriptions(); if (!$('#settings')?.classList.contains('hidden')) renderDiagnostics(); return; }
+      const ladders = [];
       await Promise.allSettled([...state.peers].map(async ([sid, peer]) => {
         const report = await peer.pc.getStats();
         if (!active(peer)) return;
@@ -566,7 +605,7 @@ window.MediaSession = function ({ state, socket, call, el, toast, voiceEntry, me
           const previous = peer.encodeSample;
           peer.encodeSample = { time: r.totalEncodeTime, frames: r.framesEncoded };
           const encodeMs = previous && r.framesEncoded > previous.frames ? (r.totalEncodeTime - previous.time) / (r.framesEncoded - previous.frames) * 1000 : null;
-          const load = MediaPolicy.encoderLoad({ reason: r.qualityLimitationReason, encodeMs, fps: MediaPolicy.screenTarget(preset, demands.get(sid), peer.adaptation.level || 0).fps,
+          const load = MediaPolicy.encoderLoad({ reason: r.qualityLimitationReason, encodeMs, fps: MediaPolicy.screenTarget(preset, demandOf(sid), peer.adaptation.level || 0).fps,
             bitrate: stats.screen.bitrate, target: r.targetBitrate });
           state.videoEncoder = [r.powerEfficientEncoder === true ? 'Codificação por hardware' : r.encoderImplementation ? `Codificador: ${r.encoderImplementation}` : '',
             codec?.split('/')[1], load.cpu ? 'limitado pelo processador' : ''].filter(Boolean).join(' · ');
@@ -577,17 +616,21 @@ window.MediaSession = function ({ state, socket, call, el, toast, voiceEntry, me
           if (peer.heavy.reached) heavyContent();
           const awaitingCodec = peer.cpu.since != null;
           if (preset.adaptive && !awaitingCodec) {
-            const demand = demands.get(sid), level = peer.adaptation.level || 0;
+            const demand = demandOf(sid), level = peer.adaptation.level || 0;
             const target = MediaPolicy.screenTarget(preset, demand, level);
             const source = outboundReport.get(r.mediaSourceId) || report.get(r.mediaSourceId);
-            if (preset.floorFps) {
-              peer.adaptation = MediaPolicy.ladder(peer.adaptation, { active: stats.screen.progressing, sentFps: r.framesPerSecond, sourceFps: source?.framesPerSecond, targetFps: target.fps, floorFps: preset.floorFps }, now);
+            if (preset.steps) {
+              // Escada fina do Movimento (MediaPolicy.ladder), aplicada depois de medir todos (abaixo).
+              const heights = MediaPolicy.stepHeights(preset, demand);
+              const estimate = peer.estimate && now - peer.estimate.at < 8000 ? peer.estimate.bitrate : null;
+              ladders.push({ peer, height: heights[level], sample: { active: stats.screen.progressing, sentFps: r.framesPerSecond, sourceFps: source?.framesPerSecond, targetFps: target.fps,
+                heights, encodeMs, available: estimate, upBitrate: level ? MediaPolicy.screenTarget(preset, demand, level - 1).bitrate : 0 } });
             } else {
               const strained = MediaPolicy.strained({ reason: r.qualityLimitationReason, sentFps: r.framesPerSecond, sourceFps: source?.framesPerSecond, targetFps: target.fps });
               const fresh = peer.estimate && now - peer.estimate.at < 8000 ? peer.estimate.bitrate : null;
               const upper = level ? MediaPolicy.screenTarget(preset, demand, level - 1).bitrate : 0;
               const headroom = level && fresh != null ? fresh - 176_000 >= upper * 1.25 : undefined;
-              peer.adaptation = MediaPolicy.adapt(peer.adaptation, { active: stats.screen.progressing, strained, headroom }, now);
+              peer.adaptation = MediaPolicy.adapt(peer.adaptation, { active: stats.screen.progressing, strained, headroom, heights: MediaPolicy.stepHeights(preset, demand) }, now);
             }
           } else if (!preset.adaptive) peer.adaptation = {};
         }
@@ -607,6 +650,36 @@ window.MediaSession = function ({ state, socket, call, el, toast, voiceEntry, me
           }
         }
       }));
+      // O processador e a internet de envio são de todos os espectadores. Quando vários engasgam juntos,
+      // desce primeiro o bloco menor, que libera processador e banda com a menor perda visível; um de cada
+      // vez, com ~3 s entre uma descida e outra. Assim o 1080p só desce se ainda faltar. Na volta, o maior
+      // sobe primeiro (quem está em segundo plano ou com a tela parada não segura os outros), e só um
+      // tenta subir por vez.
+      ladders.sort((a, b) => a.height - b.height);
+      const climbing = (o) => (o.peer.adaptation.level || 0) > 0 && o.sample.targetFps >= 20 && !(o.sample.sourceFps < 20)
+        && !(o.peer.adaptation.failures?.[(o.peer.adaptation.level || 0) - 1]?.until > now);
+      // Blocos sem degraus (720p ou menos) vão antes a 30 fps: liberam processador e banda para o 1080p,
+      // como a camada de miniaturas do SFU. Só depois disso o 1080p desce para 900p.
+      const stepless = ladders.filter((o) => new Set(o.sample.heights).size === 1);
+      for (const { peer, height, sample } of ladders) {
+        const probing = [...state.peers.values()].some((other) => other !== peer && other.adaptation?.probe && now - other.adaptation.probe.at < 10_000);
+        const bigger = ladders.some((o) => o.peer !== peer && o.height > height && climbing(o));
+        const before = peer.adaptation, level = before.level || 0;
+        let next = MediaPolicy.ladder(before, { ...sample, canProbe: !probing && !bigger, canStepDown: !(now - stepDownAt < 3000) }, now);
+        if ((next.level || 0) > level) {
+          const full = stepless.filter((o) => o.peer !== peer && !o.peer.adaptation.half && o.sample.targetFps >= 40);
+          if (full.length) {
+            next = { ...before, fps: [], changedAt: now };
+            for (const o of full) o.peer.adaptation = { ...o.peer.adaptation, half: true };
+          }
+          stepDownAt = now;
+        }
+        peer.adaptation = next;
+      }
+      // Os blocos voltam a 60 fps com todos de volta ao seu tamanho e 30 s sem aperto.
+      if (now - stepDownAt >= 30_000 && ladders.every((o) => !(o.peer.adaptation.level > 0))) {
+        for (const o of stepless) if (o.peer.adaptation.half) o.peer.adaptation = { ...o.peer.adaptation, half: false };
+      }
       const own = document.querySelector(`[data-key="screen-${state.me?.sid}"]`);
       if (own) {
         const connections = viewers().map((sid) => state.peers.get(sid)).filter(Boolean);
@@ -623,5 +696,5 @@ window.MediaSession = function ({ state, socket, call, el, toast, voiceEntry, me
     } finally { statsBusy = false; }
   }
   setInterval(updateStreamStats, 1500);
-  return { isWatching, setWatching, getWatchQuality, setWatchQuality, syncViewerQuality, addVideoTracks, syncScreenSubscriptions, videoBitrates, remoteDescription, tuneSenders, applySharePreset, setSharePreset, captureScreen, watchScreenTrack, switchScreen, startVideo, stopVideo, scheduleRecovery, renderDiagnostics, updateStreamStats, mediaNotice };
+  return { isWatching, setWatching, getWatchQuality, setWatchQuality, syncViewerQuality, addVideoTracks, syncScreenSubscriptions, videoBitrates, remoteDescription, tuneSenders, applySharePreset, setSharePreset, captureScreen, watchScreenTrack, switchScreen, startVideo, stopVideo, scheduleRecovery, connectionChanged, renderDiagnostics, updateStreamStats, mediaNotice };
 };

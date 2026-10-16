@@ -17,6 +17,7 @@ Cada cenário abre uma janela para quem transmite e uma para cada espectador. A 
 - Electron do app de Windows: `npm install` em `desktop/` (ou `ELECTRON_PATH` apontando para um Electron 44).
 - `npm install` na raiz do `discord-clone/` (LiveKit SDK e Three.js).
 - Para limitar a banda (`net` nos cenários): root, porque usa `tc` (HTB) no loopback. Só o UDP do WebRTC de cada janela passa pelos limites.
+- Para perder pacotes ou derrubar a rede (`loss`, ou `netEvents` com `loss`, em %; 100 = nenhum pacote passa): root, porque usa o `nftables`. Vale para o UDP de quem transmite, nos dois sentidos.
 - Cenários com SFU baixam o LiveKit 1.13.8 (o mesmo do `deploy/instalar-sfu.sh`) na primeira vez, conferindo o checksum.
 
 Clipes, resultados e o LiveKit ficam em `~/.cache/resenhex-stream-lab` (ou em `STREAM_LAB_DIR`).
@@ -37,12 +38,16 @@ O terceiro argumento do `run.cjs` filtra cenários pelo nome (expressão regular
 | `matrices/sfu.cjs` | P2P × SFU com três espectadores, incluindo a configuração antiga do SFU |
 | `matrices/validacao.cjs` | O código do app antes (commit `15429b2`, versão 1.4.6) × agora, com e sem limite de banda |
 | `matrices/inicio.cjs` | Os primeiros 15 s de uma transmissão que começa no meio da chamada (`audioFirst`: a conexão leva só o microfone antes) |
+| `matrices/queda.cjs` | Quedas de rede de quem transmite: a transmissão volta quando a rede volta? (estados da conexão em `streamer.connection`) |
+| `matrices/escada.cjs` | A escada de resolução do 1080p/60 com o processador no limite, e se ela volta para 1080p quando sobra folga (evento `demand`) |
 
-Nos cenários com `app`, quem transmite roda o `MediaSession`, o `MediaPolicy`, o `preferCodec` e o `MediaSfu` daquela versão, carregados do git ou da árvore de trabalho (`working`). Com `audioFirst` (ms), a conexão nasce só com o microfone, como numa chamada de verdade, e a medição começa quando a tela entra; cada espectador traz também `perSecond` (quadros entregues e PSNR em cada segundo).
+Fora das matrizes, `node tools/stream-lab/estereo.cjs` confere se o som da tela chega em estéreo: um tom só no canal esquerdo e outro só no direito, medidos em cada canal de quem recebe. Ele compara o P2P como era, o P2P com a `applyLocalDescription` do `public/app.js` (na entrada da tela, depois de quem assiste renegociar e depois de um reinício do ICE) e o SFU com as opções do `public/media-sfu.js`, este quando o LiveKit do laboratório já foi baixado.
+
+Nos cenários com `app`, quem transmite roda o `MediaSession`, o `MediaPolicy`, o `preferCodec` e o `MediaSfu` daquela versão, carregados do git ou da árvore de trabalho (`working`). Com `audioFirst` (ms), a conexão nasce só com o microfone, como numa chamada de verdade, e a medição começa quando a tela entra; cada espectador traz também `perSecond` (quadros entregues, PSNR e altura em cada segundo). Em `events`, `{ at, type: 'demand', viewers, demand }` muda o pedido de espectadores no meio da medição (por exemplo, `{ background: true }`).
 
 ## Limites
 
 - Sem aceleração por hardware: no Windows o H.264 costuma ir para a placa de vídeo e custa bem menos processador do que aqui.
 - A máquina de teste tem 4 núcleos e roda quem transmite e todos os espectadores ao mesmo tempo; com três espectadores ela fica no limite, o que exagera o custo de processador.
-- O loopback não tem atraso nem perda: o `tc` desta máquina não tem `netem`. Os limites de banda são reais (HTB com fila), mas o tempo de ida e volta é quase zero.
+- O loopback não tem atraso: o `tc` desta máquina não tem `netem`. Os limites de banda são reais (HTB com fila) e a perda também (`nftables`), mas o tempo de ida e volta é quase zero, então reenvios de pacote perdidos (NACK) saem melhores do que numa rede de verdade.
 - Os clipes são sintéticos. O de jogo usa texturas fractais; `gamehard60` usa ruído branco, bem mais difícil de comprimir do que um jogo de verdade.

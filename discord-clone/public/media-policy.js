@@ -8,8 +8,8 @@
   // e a conexão dão conta (maintain-framerate-and-resolution) e desce degraus só quando os quadros
   // começam a cair: o ajuste do navegador (maintain-framerate) baixava para 540p ou 360p mesmo com
   // banda sobrando, e a mesma taxa rendeu ~3 dB a mais mantendo a resolução.
-  // "floorFps" (só no Movimento): a resolução fica enquanto a média dos quadros enviados não cair
-  // abaixo desse piso. 1080p a 45 fps fica em 1080p; abaixo de 30 desce para 720p tentando 60 de novo.
+  // "steps" (só no Movimento): 1080p → 900p → 720p, escolhidos pela fluidez (ladder, abaixo). O 1080p é
+  // o alvo: fica enquanto a transmissão mantém 45–60 fps, e os degraus de baixo só entram quando faltam.
   // Telas com texto ("detail") vão em AV1: com as ferramentas de conteúdo de tela ele deixa o texto
   // bem mais nítido que o VP8 gastando menos internet (docs/relatorios/TRANSMISSAO-2026-10-14.md).
   // Quem não decodifica AV1 negocia o próximo da lista; processador no limite passa para o VP8.
@@ -18,7 +18,7 @@
     auto: { label: 'Automática', desc: 'Fluida para cada espectador: reduz a resolução antes do FPS', width: 1920, height: 1080, fps: 30, hint: 'detail', degradation: 'maintain-resolution', adaptive: true, bitrate: 4_000_000, codecs: TEXT_CODECS },
     p720: { label: 'Economia · 720p / 30', desc: 'Menor uso de internet e processamento', width: 1280, height: 720, fps: 30, hint: 'detail', degradation: 'maintain-resolution', adaptive: true, bitrate: 2_500_000, codecs: TEXT_CODECS },
     p1080: { label: 'Nitidez · 1080p / 30', desc: 'Textos, trabalho e apresentações', width: 1920, height: 1080, fps: 30, hint: 'detail', degradation: 'maintain-resolution', adaptive: false, bitrate: 4_000_000, codecs: TEXT_CODECS },
-    p1080_60: { label: 'Movimento · 1080p / 60', desc: 'Jogos e vídeos; exige mais do computador', width: 1920, height: 1080, fps: 60, hint: 'motion', degradation: 'maintain-framerate-and-resolution', adaptive: true, floorFps: 30, bitrate: 6_000_000, codecs: ['video/H264', 'video/VP8'] },
+    p1080_60: { label: 'Movimento · 1080p / 60', desc: 'Jogos e vídeos; exige mais do computador', width: 1920, height: 1080, fps: 60, hint: 'motion', degradation: 'maintain-framerate-and-resolution', adaptive: true, steps: [1080, 900, 720], bitrate: 8_000_000, codecs: ['video/H264', 'video/VP8'] },
   };
 
   const watchModes = {
@@ -42,9 +42,9 @@
   }
 
   // Desce "level" degraus a partir do primeiro degrau que cabe na altura pedida.
-  function stepHeight(height, level) {
-    const start = STEPS.findIndex((h) => h <= height);
-    return Math.min(height, STEPS[Math.min(MAX_LEVEL, (start < 0 ? MAX_LEVEL : start) + level)]);
+  function stepHeight(height, level, steps = STEPS) {
+    const start = steps.findIndex((h) => h <= height), last = steps.length - 1;
+    return Math.min(height, steps[Math.min(last, (start < 0 ? last : start) + level)]);
   }
 
   // Meta de um espectador. O pedido dele é um teto; a adaptação (level) só reduz resolução.
@@ -58,10 +58,14 @@
     let fps = preset.fps;
     if (demand.mode === 'economy') { height = Math.min(720, height); fps = Math.min(15, fps); }
     if (demand.background) { height = Math.min(360, height); fps = Math.min(5, fps); }
-    if (level && preset.adaptive) height = stepHeight(height, level);
+    if (demand.fps > 0) fps = Math.min(fps, demand.fps); // bloco sem degraus a 30 fps para o 1080p manter os quadros
+    if (level && preset.adaptive) height = stepHeight(height, level, preset.steps);
     const bitrate = Math.max(150_000, Math.round(preset.bitrate * (height / preset.height) ** 1.5 * (fps / preset.fps) ** .7));
     return { height, fps, bitrate };
   }
+
+  // Altura de cada degrau para um espectador, do maior para o menor (os últimos podem se repetir).
+  const stepHeights = (preset, demand) => (preset.steps || STEPS).map((_, level) => screenTarget(preset, demand, level).height);
 
   // Divisão max-min: atende primeiro quem precisa de pouco e redistribui o que sobra.
   function distribute(pool, caps) {
@@ -110,13 +114,18 @@
 
   // Desce um degrau após 4 s de engasgo (no máximo a cada 6 s) e sobe um degrau após 12 s bons,
   // se a conexão comporta o degrau acima (headroom false bloqueia; sem estimativa, só o tempo decide).
+  // Para no último degrau que ainda reduz a resolução deste espectador ("heights", de stepHeights):
+  // um degrau a mais seria a mesma imagem e só atrasaria a volta em 12 s.
   function adapt(previous = {}, sample, now) {
     const next = { level: 0, badSince: null, goodSince: null, changedAt: -Infinity, ...previous };
+    let last = MAX_LEVEL;
+    if (sample.heights?.length) { last = 0; for (let k = 1; k < sample.heights.length; k++) if (sample.heights[k] < sample.heights[last]) last = k; }
+    next.level = Math.min(next.level, last);
     if (!sample.active) return { ...next, badSince: null, goodSince: null };
     if (sample.strained) {
       next.goodSince = null;
       next.badSince ??= now;
-      if (now - next.badSince >= 4_000 && now - next.changedAt >= 6_000 && next.level < MAX_LEVEL) {
+      if (now - next.badSince >= 4_000 && now - next.changedAt >= 6_000 && next.level < last) {
         next.level++;
         next.changedAt = now;
         next.badSince = now;
@@ -133,35 +142,57 @@
     return next;
   }
 
-  // Escada do Movimento: cada degrau (1080p, 720p, 540p, 360p) tenta o FPS do perfil e o navegador
-  // derruba quadros quando não dá conta. Desce um degrau quando a média dos últimos ~6 s fica abaixo do
-  // piso por 5 s; entre o piso e 90% do esperado, segura a resolução. Sobe depois de 20 s perto do FPS
-  // esperado. Uma subida que engasga em menos de 30 s conta como falha e dobra a espera da próxima
-  // (20, 40, 80, até 160 s); depois de 60 s firme no degrau de cima, a espera volta a 20 s.
-  // O aviso do navegador (banda/processador) não entra: com ele ligado a 59 fps a imagem está ótima.
-  const LADDER = { window: 4, down: 5_000, up: 20_000, maxUp: 160_000, failed: 30_000, settled: 60_000 };
-  function ladder(previous = {}, { active, sentFps, sourceFps, targetFps, floorFps = 30 } = {}, now) {
-    const next = { level: 0, fps: [], badSince: null, goodSince: null, changedAt: -Infinity, upAt: null, failures: 0, ...previous };
-    if (!active) return { ...next, fps: [], badSince: null, goodSince: null };
+  // Escada do Movimento: o 1080p é o alvo e fica o máximo possível, com o máximo de FPS que der. A cada
+  // amostra (~1,5 s) compara os quadros enviados com os que a fonte entrega ("heights" são os degraus
+  // deste espectador, do maior para o menor):
+  // - desce um degrau (1080p → 900p → 720p) quando a mediana das últimas 4 amostras (~6 s) fica abaixo
+  //   de 25 fps e a mais recente também. A mediana ignora uma engasgada isolada (uma amostra a 1 fps não
+  //   derruba), mas engasgos repetidos descem. Uma queda curta da internet, que volta sozinha, não troca.
+  //   Depois de mudar, espera ~3 s para assentar;
+  // - sobe um degrau quando as últimas 4 amostras ficaram acima desse piso, há ~8 s da última troca, e o
+  //   degrau de cima cabe: o tempo de codificação previsto mantém pelo menos 35 fps e a banda estimada
+  //   comporta 75% da taxa dele, sem passar de 4,5 Mbps (uma taxa máxima maior não dificulta a volta). O tempo de codificação cresce menos que os pixels (H.264 em software,
+  //   medido: 720p 11 ms, 900p 13 ms, 1080p 15–16 ms), por isso a previsão usa pixels^0,6. Só um
+  //   espectador por vez tenta subir (canProbe);
+  // - uma subida que volta a cair em até 15 s desce de novo, e aquele degrau espera 15, 30, 60 e até
+  //   120 s para outra tentativa. A espera cai quando a folga melhora: codificação 25% mais rápida ou
+  //   banda 30% maior.
+  // Os 25 e 35 fps valem para fonte a 60 fps; com o jogo rodando abaixo disso, valem 80% e 90% do FPS
+  // dele. Tela parada (menos de 20 fps na fonte) não conta, e o aviso do navegador (banda/processador)
+  // não entra: só os quadros que de fato saem. Com vários espectadores, quem chama decide a vez.
+  const LADDER = { window: 4, floor: 25, climb: 35, band: 4_500_000, settle: 3_000, up: 8_000, keep: 15_000, retry: [15_000, 30_000, 60_000, 120_000] };
+  function ladder(previous = {}, { active, sentFps, sourceFps, targetFps, heights = [], encodeMs, available, upBitrate, canProbe = true, canStepDown = true } = {}, now) {
+    const next = { level: 0, fps: [], changedAt: -Infinity, probe: null, failures: {}, ...previous };
+    if (!active) return { ...next, fps: [] };
+    let last = 0;
+    for (let k = 1; k < heights.length; k++) if (heights[k] < heights[last]) last = k;
+    next.level = Math.min(next.level, last);
+    if (now - next.changedAt < LADDER.settle) return next;
+    if (next.probe && now - next.probe.at >= LADDER.keep) { next.failures = { ...next.failures }; delete next.failures[next.probe.level]; next.probe = null; }
     next.fps = [...next.fps, Number.isFinite(sentFps) ? sentFps : 0].slice(-LADDER.window);
-    if (next.upAt != null && now - next.upAt >= LADDER.settled) { next.upAt = null; next.failures = 0; }
     const target = Number(targetFps) || 0;
-    // Tela parada ou jogo rodando abaixo do piso não é culpa da resolução: baixar não ajudaria.
     const expected = Math.min(Number.isFinite(sourceFps) && sourceFps > 0 ? sourceFps : target, target);
-    const floor = Math.min(floorFps, target / 2);
-    const average = next.fps.reduce((a, b) => a + b, 0) / next.fps.length;
-    const measured = next.fps.length >= 2;
-    const strained = measured && expected >= floor && average < floor;
-    const good = measured && !strained && average >= expected * .9;
-    next.badSince = strained ? next.badSince ?? now : null;
-    next.goodSince = good && next.level > 0 ? next.goodSince ?? now : null;
-    const change = (level) => ({ ...next, level, fps: [], badSince: null, goodSince: null, changedAt: now });
-    if (strained && now - next.badSince >= LADDER.down && now - next.changedAt >= LADDER.down && next.level < MAX_LEVEL) {
-      const failed = next.upAt != null && now - next.upAt < LADDER.failed;
-      return { ...change(next.level + 1), upAt: null, failures: failed ? next.failures + 1 : next.failures };
+    if (expected < 20) return next;
+    const floor = Math.min(LADDER.floor, expected * .8), climbFps = Math.min(LADDER.climb, expected * .9);
+    const median = (values) => { const sorted = [...values].sort((a, b) => a - b), mid = sorted.length >> 1; return sorted.length % 2 ? sorted[mid] : (sorted[mid - 1] + sorted[mid]) / 2; };
+    const gain = (from, to) => (heights[from] / heights[to]) ** 2; // pixels de um degrau sobre o outro
+    const change = (level, extra) => ({ ...next, level, fps: [], changedAt: now, probe: null, ...extra });
+    const full = next.fps.length === LADDER.window, latest = next.fps[next.fps.length - 1];
+    if (canStepDown && full && median(next.fps) < floor && latest < floor && next.level < last) {
+      const failures = { ...next.failures }, failed = next.probe?.level;
+      if (failed != null) {
+        const count = (failures[failed]?.count || 0) + 1;
+        failures[failed] = { count, until: now + LADDER.retry[Math.min(count, LADDER.retry.length) - 1], encodeMs: next.probe.encodeMs, available: next.probe.available };
+      }
+      return change(next.level + 1, { failures });
     }
-    const wait = Math.min(LADDER.maxUp, LADDER.up * 2 ** next.failures);
-    if (good && next.level > 0 && now - next.goodSince >= wait && now - next.changedAt >= wait) return { ...change(next.level - 1), upAt: now };
+    if (next.level > 0 && canProbe && full && Math.min(...next.fps) >= floor && now - next.changedAt >= LADDER.up) {
+      const up = next.level - 1, budget = 1000 / climbFps, failed = next.failures[up];
+      const cpuFits = !Number.isFinite(encodeMs) || encodeMs * gain(up, next.level) ** .6 <= budget;
+      const bandFits = !(available > 0) || !(upBitrate > 0) || available >= Math.min(upBitrate * .75, LADDER.band);
+      const better = failed && ((Number.isFinite(encodeMs) && failed.encodeMs > 0 && encodeMs < failed.encodeMs * .75) || (available > 0 && failed.available > 0 && available > failed.available * 1.3));
+      if (cpuFits && bandFits && (!failed || now >= failed.until || better)) return change(up, { probe: { level: up, at: now, encodeMs, available } });
+    }
     return next;
   }
 
@@ -225,6 +256,35 @@
       return lines.map((line) => types.has(/^a=fmtp:(\d+) /.exec(line)?.[1]) && !line.includes('x-google-start-bitrate') ? `${line};x-google-start-bitrate=${kbps}` : line).join(eol);
     }).join(eol + 'm=');
   }
+  // Som da tela em estéreo no P2P. O Chrome só decodifica Opus em estéreo quando a descrição LOCAL de
+  // quem recebe pede (stereo=1), e só codifica em estéreo quando a REMOTA de quem envia pede. Sem isso o
+  // som do jogo ou da música chega mono. A local de quem assiste vira a remota de quem transmite, então
+  // basta quem assiste pedir, nas seções de áudio que trazem a trilha da transmissão (a=msid).
+  function audioMids(sdp, streamId) {
+    const mids = new Set();
+    if (typeof sdp !== 'string' || !streamId) return mids;
+    const eol = sdp.includes('\r\n') ? '\r\n' : '\n';
+    for (const section of sdp.split(eol + 'm=').slice(1)) {
+      if (!section.startsWith('audio')) continue;
+      const lines = section.split(eol), mid = lines.find((line) => line.startsWith('a=mid:'))?.slice(6);
+      if (mid != null && lines.some((line) => line.startsWith(`a=msid:${streamId} `))) mids.add(mid);
+    }
+    return mids;
+  }
+  function opusStereo(sdp, mids) {
+    if (typeof sdp !== 'string' || !mids?.size) return sdp;
+    const eol = sdp.includes('\r\n') ? '\r\n' : '\n';
+    return sdp.split(eol + 'm=').map((section, index) => {
+      if (!index || !section.startsWith('audio')) return section;
+      const lines = section.split(eol);
+      if (!mids.has(lines.find((line) => line.startsWith('a=mid:'))?.slice(6))) return section;
+      const opus = new Set(lines.map((line) => /^a=rtpmap:(\d+) opus\/48000\/2/i.exec(line)?.[1]).filter(Boolean));
+      return lines.map((line) => {
+        const fmtp = /^a=fmtp:(\d+) (.*)$/.exec(line);
+        return fmtp && opus.has(fmtp[1]) && !/(^|;)\s*stereo=/.test(fmtp[2]) ? `${line};stereo=1` : line;
+      }).join(eol);
+    }).join(eol + 'm=');
+  }
   function formatVideoStats(measurements, total = false) {
     if (!measurements.length) return 'Medindo qualidade…';
     const range = (key) => {
@@ -239,5 +299,5 @@
     const codecs = [...new Set(measurements.map((item) => item.codec).filter(Boolean))].join('/');
     return [size, `${range('fps')} fps`, rate, codecs].filter(Boolean).join(' · ');
   }
-  return { presets, watchModes, CODECS, viewerDemand, screenTarget, allocate, screenEncoding, screenCodecs, cpuFallback, cpuStrain, sustained, encoderLoad, strained, adapt, ladder, encoding, enqueue, startBitrate, formatVideoStats };
+  return { presets, watchModes, CODECS, viewerDemand, screenTarget, stepHeights, allocate, screenEncoding, screenCodecs, cpuFallback, cpuStrain, sustained, encoderLoad, strained, adapt, ladder, encoding, enqueue, startBitrate, audioMids, opusStereo, formatVideoStats };
 });

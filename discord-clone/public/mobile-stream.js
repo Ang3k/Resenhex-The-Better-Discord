@@ -24,8 +24,10 @@ window.MobileStream = function ({ state, el, Icon, toast, member, voiceEntry, sy
     })).then((found) => { state.decodeCodecs = found.filter(Boolean); });
   }
 
+  // Folga de reprodução da tela de quem transmite, em qualquer aparelho: o quadro-chave do 1080p e
+  // a variação da rede chegam dentro dela em vez de virar engasgo (troca ~0,1 s de atraso por fluidez).
   function tuneReceiver(receiver) {
-    if (!touch || receiver?.track?.kind !== 'video') return;
+    if (receiver?.track?.kind !== 'video') return;
     try {
       if ('jitterBufferTarget' in receiver) receiver.jitterBufferTarget = JITTER_MS;
       else if ('playoutDelayHint' in receiver) receiver.playoutDelayHint = JITTER_MS / 1000;

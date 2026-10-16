@@ -229,10 +229,10 @@ Ao clicar em 🖥️, você escolhe um perfil. Dá para trocar a qualidade no me
 
 | Perfil | Para quê |
 |---|---|
-| Automática (padrão) | Até 1080p · 30 fps, adaptada a cada espectador; texto nítido em AV1 |
+| Automática | Até 1080p · 30 fps, adaptada a cada espectador; texto nítido em AV1 |
 | 720p · 30 fps | Leve, bom para internet fraca |
-| 1080p · 30 fps | Textos, trabalho e apresentações |
-| 1080p · 60 fps | Fluido, para jogos (usa mais internet; H.264). Mantém 1080p e 60 fps e só desce para 720p/540p quando os quadros caem |
+| Nitidez · 1080p / 30 | Textos, trabalho e apresentações |
+| 1080p · 60 fps (padrão) | Fluido, para jogos (usa mais internet; H.264). O 1080p é o alvo e fica enquanto a transmissão mantém 25 fps ou mais; abaixo disso por uns 6 s desce um degrau por vez (900p, depois 720p) e volta para 1080p quando a previsão garante 35 fps |
 
 **Controles da transmissão** (como no Discord). Passe o mouse sobre uma transmissão para ver:
 
@@ -260,7 +260,7 @@ Você está compartilhando **uma janela** e ela foi minimizada: o navegador para
 Jogos em *tela cheia exclusiva* não podem ser capturados como janela. Coloque o jogo em **"janela sem bordas"** (borderless) e compartilhe a **Tela inteira**.
 
 **Trava quando mais gente assiste.**
-Como a chamada é direta entre os navegadores, quem transmite envia **uma cópia para cada pessoa**. Em ⚙️ Configurações, escolha em **"Upload da sua internet"** o valor do seu teste de velocidade. O app distribui a banda entre os espectadores conforme suas necessidades e recupera qualidade gradualmente. Esse valor continua sendo um teto configurado, não um teste de velocidade automático. Se ainda travar, use o perfil **720p · 30 fps**, que gasta menos.
+Como a chamada é direta entre os navegadores, quem transmite envia **uma cópia para cada pessoa**. Em ⚙️ Configurações, escolha em **"Limite de upload disponível"** o valor do seu teste de velocidade. O padrão é 50 Mbps; se a sua internet envia menos que isso, escolha um valor menor. O app distribui a banda entre os espectadores conforme suas necessidades e recupera qualidade gradualmente. Esse valor continua sendo um teto configurado, não um teste de velocidade automático. Se ainda travar, use o perfil **720p · 30 fps**, que gasta menos.
 
 **Aparece "limitado pelo processador".**
 Nos perfis de texto o app já troca o AV1/VP9 pelo VP8, mais leve. Se continuar, use o perfil **720p · 30 fps**, que exige menos do processador. Fechar outros programas pesados também ajuda. Em Conexão e diagnóstico, "Codificação por hardware" indica que a placa de vídeo está codificando.
