@@ -84,7 +84,8 @@ test('e-mail: cadastro, confirmação e senha nova pelo link encerram as sessõe
   assert.equal(again.status, 400);
   assert.match(again.body.error, /expirou ou já foi usado/);
 
-  const celular = await auth({ mode: 'login', name: 'Ana' });
+  const celular = await auth({ mode: 'login', name: 'Ana', password: '1234' });
+  assert.ok(!celular.res.error, celular.res.error);
   let ended = null;
   celular.on('session:ended', (reason) => { ended = reason; });
 
