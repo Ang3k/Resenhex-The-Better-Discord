@@ -123,13 +123,16 @@ window.MediaSession = function ({ state, socket, call, el, toast, voiceEntry, me
   }
 
   // Troca o codec de envio sem renegociar (encodings[0].codec), entre os que a conexão já negociou:
-  // o espectador informou outro codec preferido ou o processador não deu conta do AV1/VP9.
+  // o espectador informou outro codec preferido, o processador não deu conta do AV1/VP9 ou o H.264 pode
+  // ir para um perfil que a placa de vídeo codifica (MediaPolicy.pickCodec). Fora do H.264, o perfil
+  // do codec não muda (o VP9 de 10 bits, por exemplo, nunca entra no lugar do perfil 0).
   async function setCodec(sender, wanted) {
     const params = sender.getParameters();
     if (!params.codecs?.length || !params.encodings?.length) return;
-    const codec = wanted.map((mime) => params.codecs.find((c) => c.mimeType.toLowerCase() === mime.toLowerCase())).find(Boolean);
-    const current = params.encodings[0].codec?.mimeType || params.codecs[0]?.mimeType;
-    if (!codec || current?.toLowerCase() === codec.mimeType.toLowerCase()) return;
+    const codec = MediaPolicy.pickCodec(params.codecs, wanted, sender.softwareH264);
+    const current = params.encodings[0].codec || params.codecs[0];
+    const mime = codec?.mimeType.toLowerCase();
+    if (!codec || (current?.mimeType.toLowerCase() === mime && (mime !== 'video/h264' || current.sdpFmtpLine === codec.sdpFmtpLine))) return;
     params.encodings[0].codec = codec;
     try { await sender.setParameters(params); }
     catch (error) { if (!['NotSupportedError', 'TypeError', 'InvalidModificationError'].includes(error.name)) throw error; }
@@ -182,7 +185,7 @@ window.MediaSession = function ({ state, socket, call, el, toast, voiceEntry, me
         }
         // Quem para de assistir zera as medições: as contagens de 5 s (processador, conteúdo pesado)
         // recomeçam quando a pessoa volta, em vez de somar o tempo em que ela não estava assistindo.
-        if (!watching) { peer.adaptation = {}; peer.estimate = null; peer.cpu = {}; peer.heavy = {}; peer.encodeSample = null; }
+        if (!watching) { peer.adaptation = {}; peer.estimate = null; peer.cpu = {}; peer.heavy = {}; peer.encodeSample = null; peer.softwareSamples = 0; }
       }).then(tuneSenders).catch(() => {
         peer.screenKey = null;
         if (active(peer)) mediaNotice('Não foi possível atualizar um espectador. Tentaremos novamente.');
@@ -304,7 +307,7 @@ window.MediaSession = function ({ state, socket, call, el, toast, voiceEntry, me
       const height = Math.max(2, Math.floor(Math.min(preset.height, preset.width / aspect)));
       const width = Math.max(2, Math.round(height * aspect));
       track.contentHint = preset.hint;
-      const fps = sfu?.active() && !viewers().length ? 5 : preset.fps;
+      const fps = MediaPolicy.captureFps(sfu?.active() && !viewers().length ? 5 : preset.fps);
       try { await track.applyConstraints({ width: { ideal: width, max: width }, height: { ideal: height, max: height }, frameRate: { ideal: fps, max: fps } }); }
       catch { if (track.readyState !== 'ended') mediaNotice('A captura manteve a qualidade disponível. O navegador não aceitou o perfil completo.'); }
       tuneSenders();
@@ -329,8 +332,9 @@ window.MediaSession = function ({ state, socket, call, el, toast, voiceEntry, me
   async function captureScreen() {
     const preset = presets[state.sharePreset];
     if (!navigator.mediaDevices?.getDisplayMedia) throw new Error('Seu navegador não oferece captura de tela.');
+    const fps = MediaPolicy.captureFps(preset.fps);
     const capture = () => navigator.mediaDevices.getDisplayMedia({
-      video: { width: { ideal: preset.width }, height: { ideal: preset.height }, frameRate: { ideal: preset.fps, max: preset.fps } },
+      video: { width: { ideal: preset.width }, height: { ideal: preset.height }, frameRate: { ideal: fps, max: fps } },
       // restrictOwnAudio: o som do computador vai sem as vozes da própria chamada (evita eco para quem assiste).
       audio: state.shareAudio ? { echoCancellation: false, noiseSuppression: false, autoGainControl: false, restrictOwnAudio: true } : false,
       selfBrowserSurface: 'exclude', surfaceSwitching: 'include', systemAudio: state.shareAudio ? 'include' : 'exclude',
@@ -340,7 +344,8 @@ window.MediaSession = function ({ state, socket, call, el, toast, voiceEntry, me
     try {
       const chosen = presets[state.sharePreset];
       if (chosen !== preset) {
-        try { await stream.getVideoTracks()[0]?.applyConstraints({ width: { ideal: chosen.width }, height: { ideal: chosen.height }, frameRate: { ideal: chosen.fps, max: chosen.fps } }); }
+        const chosenFps = MediaPolicy.captureFps(chosen.fps);
+        try { await stream.getVideoTracks()[0]?.applyConstraints({ width: { ideal: chosen.width }, height: { ideal: chosen.height }, frameRate: { ideal: chosenFps, max: chosenFps } }); }
         catch { /* o perfil completo é aplicado de novo quando a transmissão começa */ }
       }
       stream.audioMode = await audioMode(stream);
@@ -559,6 +564,20 @@ window.MediaSession = function ({ state, socket, call, el, toast, voiceEntry, me
     return { width: r.frameWidth, height: r.frameHeight, fps: r.framesPerSecond, bitrate, progressing, codec: report.get(r.codecId)?.mimeType?.split('/')[1] || '' };
   }
 
+  // H.264 no processador (OpenH264) em vez da placa de vídeo: o perfil não tem codificador de hardware
+  // (42e01f) ou a placa não abriu mais uma sessão de codificação naquele momento. Troca, sem
+  // renegociar, para outro perfil negociado que a placa codifica; no máximo duas trocas por conexão.
+  // Vale para NVIDIA, AMD e Intel: no Windows todas passam pelo Media Foundation do Chromium.
+  function escapeSoftwareH264(peer, sender, fmtp) {
+    peer.softwareSamples = 0;
+    const avoid = sender.softwareH264 ||= [];
+    if (!fmtp || avoid.length >= 2 || avoid.includes(fmtp)) return;
+    const next = MediaPolicy.pickCodec(sender.getParameters().codecs, screenCodecs(peer.sid), [...avoid, fmtp]);
+    if (!MediaPolicy.hardwareH264(next) || next.sdpFmtpLine === fmtp) return;
+    avoid.push(fmtp);
+    tuneSenders(peer);
+  }
+
   let stepDownAt = -Infinity; // última descida da escada do Movimento, entre todos os espectadores
   async function updateStreamStats() {
     if (statsBusy) return;
@@ -598,10 +617,12 @@ window.MediaSession = function ({ state, socket, call, el, toast, voiceEntry, me
         }
         if (outbound && viewers().includes(sid)) {
           const r = outbound;
-          stats.screen = videoMeasurement(sid, outboundReport, r, r.bytesSent);
+          const source = outboundReport.get(r.mediaSourceId) || report.get(r.mediaSourceId);
+          stats.screen = { ...videoMeasurement(sid, outboundReport, r, r.bytesSent), sourceFps: source?.framesPerSecond };
           stats.video = MediaPolicy.formatVideoStats([stats.screen]);
           const preset = activePreset();
-          const codec = (outboundReport.get(r.codecId) || report.get(r.codecId))?.mimeType;
+          const codecStats = outboundReport.get(r.codecId) || report.get(r.codecId);
+          const codec = codecStats?.mimeType;
           const previous = peer.encodeSample;
           peer.encodeSample = { time: r.totalEncodeTime, frames: r.framesEncoded };
           const encodeMs = previous && r.framesEncoded > previous.frames ? (r.totalEncodeTime - previous.time) / (r.framesEncoded - previous.frames) * 1000 : null;
@@ -609,6 +630,12 @@ window.MediaSession = function ({ state, socket, call, el, toast, voiceEntry, me
             bitrate: stats.screen.bitrate, target: r.targetBitrate });
           state.videoEncoder = [r.powerEfficientEncoder === true ? 'Codificação por hardware' : r.encoderImplementation ? `Codificador: ${r.encoderImplementation}` : '',
             codec?.split('/')[1], load.cpu ? 'limitado pelo processador' : ''].filter(Boolean).join(' · ');
+          // H.264 no processador em vez da placa de vídeo, por duas amostras seguidas do perfil pedido
+          // (logo depois de uma troca, a amostra ainda pode ser do codificador anterior).
+          const asked = screenSender.getParameters().encodings?.[0]?.codec?.sdpFmtpLine;
+          const software = codec === 'video/H264' && r.powerEfficientEncoder === false && (!asked || asked === codecStats?.sdpFmtpLine);
+          peer.softwareSamples = software ? (peer.softwareSamples || 0) + 1 : 0;
+          if (peer.softwareSamples >= 2) escapeSoftwareH264(peer, screenSender, codecStats.sdpFmtpLine);
           // Processador no limite com AV1/VP9: primeiro troca para o codec leve, mantendo a resolução.
           peer.cpu = MediaPolicy.cpuStrain(peer.cpu, { limited: load.cpu && !state.screenCodecFallback, codec }, now);
           if (peer.cpu.fallback) lighterCodec(codec);
@@ -618,7 +645,6 @@ window.MediaSession = function ({ state, socket, call, el, toast, voiceEntry, me
           if (preset.adaptive && !awaitingCodec) {
             const demand = demandOf(sid), level = peer.adaptation.level || 0;
             const target = MediaPolicy.screenTarget(preset, demand, level);
-            const source = outboundReport.get(r.mediaSourceId) || report.get(r.mediaSourceId);
             if (preset.steps) {
               // Escada fina do Movimento (MediaPolicy.ladder), aplicada depois de medir todos (abaixo).
               const heights = MediaPolicy.stepHeights(preset, demand);

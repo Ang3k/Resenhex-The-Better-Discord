@@ -21,6 +21,13 @@
     p1080_60: { label: 'Movimento · 1080p / 60', desc: 'Jogos e vídeos; exige mais do computador', width: 1920, height: 1080, fps: 60, hint: 'motion', degradation: 'maintain-framerate-and-resolution', adaptive: true, steps: [1080, 900, 720], bitrate: 8_000_000, codecs: ['video/H264', 'video/VP8'] },
   };
 
+  // Quadros por segundo pedidos à captura de tela. O Chromium agenda cada quadro da captura só depois
+  // de terminar o anterior, com timer em milissegundos, e perde um pouco em cada um: pedindo 60, a
+  // captura do app entregou 55,8 fps; pedindo 64, 59 (docs/relatorios/CAPTURA-60FPS-2026-10-16.md). No
+  // perfil de 60 a captura pede 64 e o codificador continua limitado a 60 (maxFramerate). Nos de 30 a
+  // perda é pequena (29,4 fps), e pedir 32 entregou 31,2: o codificador descartaria a sobra.
+  const captureFps = (fps) => (fps >= 60 ? fps + 4 : fps);
+
   const watchModes = {
     auto: { label: 'Automática', desc: 'Acompanha o tamanho do vídeo e sua conexão' },
     economy: { label: 'Economia', desc: 'Até 720p e 15 fps, para gastar menos internet' },
@@ -211,6 +218,28 @@
     return [first, ...list.filter((c) => c !== first)];
   }
 
+  // H.264 no Windows: o Chromium só tem codificador de hardware (NVIDIA, AMD ou Intel, pelo Media
+  // Foundation) para Baseline (42 00), Main (4d) e High (64). O Constrained Baseline (42e0) vai sempre
+  // para o OpenH264, no processador: 36,4 dB com 81% de CPU contra 40,2 dB e 24% do Main na RTX 4060 Ti
+  // (1080p60 a 6 Mbps). O Main rendeu +0,8 dB sobre o Baseline, empatou com o High e, se faltar a
+  // placa, ainda tem o OpenH264 de reserva (o High não tem). packetization-mode=0 fica por último.
+  const H264_HARDWARE = ['4d00', '4200', '6400'];
+  function h264Rank(codec = {}) {
+    if (String(codec.mimeType).toLowerCase() !== 'video/h264') return 0;
+    const fmtp = codec.sdpFmtpLine || '';
+    const index = H264_HARDWARE.indexOf(/profile-level-id=([0-9a-f]{4})/i.exec(fmtp)?.[1].toLowerCase());
+    return (index < 0 ? H264_HARDWARE.length : index) + (/packetization-mode=1/.test(fmtp) ? 0 : H264_HARDWARE.length + 1);
+  }
+  const hardwareH264 = (codec) => String(codec?.mimeType).toLowerCase() === 'video/h264' && h264Rank(codec) < H264_HARDWARE.length;
+  // Codec de envio entre os negociados (encodings[0].codec): o primeiro tipo pedido que a conexão tem;
+  // no H.264, o perfil mais bem colocado que ainda não caiu no processador nesta conexão (avoid: fmtp).
+  function pickCodec(codecs = [], wanted = [], avoid = []) {
+    for (const mime of wanted) {
+      const matches = codecs.filter((c) => c.mimeType?.toLowerCase() === mime.toLowerCase()).sort((a, b) => h264Rank(a) - h264Rank(b));
+      if (matches.length) return matches.find((c) => !avoid?.includes(c.sdpFmtpLine)) || matches[0];
+    }
+  }
+
   // AV1 e VP9 deixam o texto mais nítido, mas custam mais processador em cenas com movimento.
   // Se o codificador ficar limitado pelo processador, a transmissão troca para o VP8 (sem renegociar),
   // antes de baixar a resolução.
@@ -297,7 +326,9 @@
     const bitrates = measurements.map((item) => item.bitrate).filter(Number.isFinite);
     const rate = bitrates.length === measurements.length ? `${(bitrates.reduce((sum, value) => sum + value, 0) / 1e6).toFixed(1).replace('.', ',')} Mbps${total ? ' total' : ''}` : 'Medindo Mbps…';
     const codecs = [...new Set(measurements.map((item) => item.codec).filter(Boolean))].join('/');
-    return [size, `${range('fps')} fps`, rate, codecs].filter(Boolean).join(' · ');
+    // No envio, também os quadros que a captura entregou ao codificador (sourceFps).
+    const captured = measurements.some((item) => Number.isFinite(item.sourceFps)) ? `captura ${range('sourceFps')} fps` : '';
+    return [size, `${range('fps')} fps`, captured, rate, codecs].filter(Boolean).join(' · ');
   }
-  return { presets, watchModes, CODECS, viewerDemand, screenTarget, stepHeights, allocate, screenEncoding, screenCodecs, cpuFallback, cpuStrain, sustained, encoderLoad, strained, adapt, ladder, encoding, enqueue, startBitrate, audioMids, opusStereo, formatVideoStats };
+  return { presets, watchModes, CODECS, captureFps, viewerDemand, screenTarget, stepHeights, allocate, screenEncoding, screenCodecs, h264Rank, hardwareH264, pickCodec, cpuFallback, cpuStrain, sustained, encoderLoad, strained, adapt, ladder, encoding, enqueue, startBitrate, audioMids, opusStereo, formatVideoStats };
 });

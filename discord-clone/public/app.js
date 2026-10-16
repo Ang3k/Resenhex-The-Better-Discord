@@ -5537,6 +5537,8 @@
   // A lista inteira vale como ordem de preferência: quem não decodifica o primeiro (AV1) negocia o
   // segundo (VP9), e não o primeiro codec que o navegador listar. Os demais continuam negociados,
   // para dar para trocar de codec depois sem renegociar (encodings[0].codec).
+  // No H.264, os perfis que a placa de vídeo codifica vêm antes (MediaPolicy.h264Rank): o Constrained
+  // Baseline (42e01f) cai no OpenH264, no processador, mesmo com NVIDIA, AMD ou Intel.
   function preferCodec(pc, sender, mimes) {
     const transceiver = pc.getTransceivers().find((t) => t.sender === sender);
     const caps = window.RTCRtpReceiver?.getCapabilities?.('video');
@@ -5545,7 +5547,7 @@
       // VP9 perfil 0 e AV1 perfil 0 (main) são os que todo mundo codifica; os outros são de 10/12 bits ou 4:4:4.
       && (mime !== 'video/VP9' || !c.sdpFmtpLine || c.sdpFmtpLine.includes('profile-id=0'))
       && (mime !== 'video/AV1' || !c.sdpFmtpLine || !/(^|;)profile=[1-9]/.test(c.sdpFmtpLine));
-    const first = mimes.flatMap((mime) => caps.codecs.filter((c) => usable(c, mime)));
+    const first = mimes.flatMap((mime) => caps.codecs.filter((c) => usable(c, mime)).sort((a, b) => MediaPolicy.h264Rank(a) - MediaPolicy.h264Rank(b)));
     if (!first.length) return;
     try {
       transceiver.setCodecPreferences([...first, ...caps.codecs.filter((c) => !first.includes(c))]);

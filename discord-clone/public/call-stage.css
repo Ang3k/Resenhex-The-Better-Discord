@@ -34,6 +34,8 @@
   letter-spacing: .04em; pointer-events: none;
 }
 #stage-primary > .tile.screen:not(.immersive) .stream-health { top: 40px; }
+/* Em blocos estreitos, as estatísticas param antes do selo AO VIVO: o fim da linha vira "…". */
+#stage-primary > .tile.screen:not(.immersive) .stats { max-width: calc(100% - 90px); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 #stage-primary > .tile .label { bottom: 12px; left: 12px; max-width: calc(100% - 24px); overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
 #stage-primary > .tile:hover .label, #stage-primary > .tile:focus-within .label { bottom: 52px; }
 #stage-primary > .tile.focus { box-shadow: inset 0 0 0 2px color-mix(in srgb, var(--brand) 70%, transparent); }

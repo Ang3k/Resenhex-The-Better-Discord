@@ -14,6 +14,17 @@ test('stream overlay includes resolution, FPS, Mbps and codec for every viewer c
   assert.equal(policy.formatVideoStats([first]), '1920×1080 · 30 fps · 2,0 Mbps · VP8');
   assert.equal(policy.formatVideoStats([first, { width: 1280, height: 720, fps: 24, bitrate: 1_000_000, codec: 'VP8' }], true), '720–1080p · 24–30 fps · 3,0 Mbps total · VP8');
   assert.match(policy.formatVideoStats([{ ...first, bitrate: null }]), /Medindo Mbps/);
+  assert.equal(policy.formatVideoStats([{ ...first, fps: 57.4, sourceFps: 58.2 }]), '1920×1080 · 57 fps · captura 58 fps · 2,0 Mbps · VP8');
+});
+
+test('the 60 fps profile asks the screen capture for 64 fps and keeps the encoder at 60', () => {
+  const movement = policy.presets.p1080_60;
+  assert.equal(policy.captureFps(movement.fps), 64);
+  assert.equal(policy.screenEncoding(movement, 8_000_000, {}).maxFramerate, 60);
+  assert.equal(policy.encoding(movement, 8_000_000).maxFramerate, 60);
+  // A 30 fps a captura já chega perto do pedido; acima disso o codificador descartaria quadros.
+  assert.equal(policy.captureFps(policy.presets.p1080.fps), 30);
+  assert.equal(policy.captureFps(5), 5);
 });
 
 test('upload budget counts actual viewers, reserves voice, and stays within the cap', () => {
@@ -180,6 +191,23 @@ test('mobile viewers get a hardware-decodable screen codec unless the preset alr
   assert.deepEqual(policy.screenCodecs(policy.presets.auto, [], 'video/VP8'), ['video/VP8', 'video/AV1', 'video/VP9', 'video/H264']);
   assert.deepEqual(policy.screenCodecs(policy.presets.auto, ['video/H264'], 'video/VP8'), ['video/H264', 'video/VP8', 'video/AV1', 'video/VP9']);
   assert.deepEqual(policy.viewerDemand({ width: 844, height: 390, pixelRatio: 3, codecs: ['video/H264'] }), { mode: 'auto', maxHeight: 1080, background: false, codecs: ['video/H264'] });
+});
+
+test('H.264 goes to the profiles the graphics card encodes: Main, then Baseline and High, Constrained Baseline last', () => {
+  const h264 = (profile, mode = 1) => ({ mimeType: 'video/H264', clockRate: 90000, sdpFmtpLine: `level-asymmetry-allowed=1;packetization-mode=${mode};profile-level-id=${profile}` });
+  const [cbp, base, main, high, single] = [h264('42e01f'), h264('42001f'), h264('4d001f'), h264('64001f'), h264('4d001f', 0)];
+  const vp8 = { mimeType: 'video/VP8', clockRate: 90000 };
+  // Medido no Windows (Electron 44, RTX 4060 Ti, 1080p60 a 6 Mbps): 42e01f vai para o OpenH264 (36,4 dB,
+  // 81% de CPU); 42001f, 4d001f e 64001f vão para a placa pelo Media Foundation (39,4 / 40,2 / 40,3 dB, 24%).
+  assert.deepEqual([vp8, single, cbp, base, high, main].sort((a, b) => policy.h264Rank(a) - policy.h264Rank(b)), [vp8, main, base, high, cbp, single]);
+  assert.deepEqual([main, base, high].map(policy.hardwareH264), [true, true, true]);
+  assert.deepEqual([cbp, single, vp8].map(policy.hardwareH264), [false, false, false]);
+  const movimento = ['video/H264', 'video/VP8'];
+  assert.equal(policy.pickCodec([cbp, base, main, vp8], movimento), main);
+  assert.equal(policy.pickCodec([cbp, base, main, vp8], movimento, [main.sdpFmtpLine]), base, 'skips a profile that fell back to software on this connection');
+  assert.equal(policy.pickCodec([cbp, vp8], movimento, [cbp.sdpFmtpLine]), cbp, 'with nothing better it stays on H.264');
+  assert.equal(policy.pickCodec([vp8, base], ['video/VP8', 'video/H264']), vp8);
+  assert.equal(policy.pickCodec([{ mimeType: 'video/AV1', clockRate: 90000 }], movimento), undefined);
 });
 
 test('viewer demand follows the displayed image, pixel density and selected mode', () => {
@@ -401,7 +429,7 @@ test('capture stays at the chosen preset while viewers resize; each viewer is sc
   assert.deepEqual(track.settings, { height: 720, width: 1280, frameRate: 30 });
   await h.media.setSharePreset('p1080_60');
   await h.media.applySharePreset();
-  assert.deepEqual(track.settings, { height: 1080, width: 1920, frameRate: 60 });
+  assert.deepEqual(track.settings, { height: 1080, width: 1920, frameRate: 64 }, 'the capture asks a little more than 60 (MediaPolicy.captureFps)');
   assert.equal(track.contentHint, 'motion');
   assert.equal(track.readyState, 'live');
 });
@@ -532,6 +560,56 @@ test('a CPU-bound AV1 screen switches viewers to VP8 without renegotiating, befo
   assert.match(h.state.mediaHealth, /mais leve/);
   h.media.setSharePreset('p1080');
   assert.equal(h.state.screenCodecFallback, null, 'a new preset tries the sharper codec again');
+});
+
+test('H.264 starts on the Main profile and leaves a profile that lands on the software encoder, at most twice', async () => {
+  const h = mediaHarness();
+  h.state.sharePreset = 'p1080_60';
+  const h264 = (profile) => ({ mimeType: 'video/H264', clockRate: 90000, sdpFmtpLine: `level-asymmetry-allowed=1;packetization-mode=1;profile-level-id=${profile}` });
+  const negotiated = [h264('42e01f'), h264('42001f'), h264('4d001f'), h264('64001f'), { mimeType: 'video/VP8', clockRate: 90000 }];
+  const addTrack = h.peer.pc.addTrack.bind(h.peer.pc);
+  h.peer.pc.addTrack = (track) => { const sender = addTrack(track); sender.params.codecs = structuredClone(negotiated); return sender; };
+  h.self.viewers = ['viewer']; h.media.syncScreenSubscriptions(); await settle(h);
+  const video = h.peer.senders.screen.find((s) => s.track.kind === 'video');
+  const sending = () => video.params.encodings[0].codec?.sdpFmtpLine.match(/profile-level-id=(\w+)/)[1];
+  assert.equal(sending(), '4d001f', 'Main even when the negotiation put Constrained Baseline first');
+  const screenTrack = h.screen.getVideoTracks()[0];
+  const report = (at, hardware) => new Map([
+    ['source', { id: 'source', type: 'media-source', trackIdentifier: screenTrack.id, framesPerSecond: 60 }],
+    ['codec', { id: 'codec', type: 'codec', mimeType: 'video/H264', sdpFmtpLine: video.params.encodings[0].codec.sdpFmtpLine }],
+    ['screen', { id: 'screen', type: 'outbound-rtp', kind: 'video', mediaSourceId: 'source', codecId: 'codec', bytesSent: at * 900, framesSent: at * .06, framesPerSecond: 60,
+      timestamp: at, qualityLimitationReason: 'none', powerEfficientEncoder: hardware, encoderImplementation: hardware ? 'MediaFoundationVideoEncodeAccelerator' : 'OpenH264' }],
+  ]);
+  let at = 0;
+  const ticks = async (count, hardware) => { for (let i = 0; i < count; i++) { at += 1500; h.clock(at); h.peer.pc.report = report(at, hardware); await h.media.updateStreamStats(); } await settle(h); };
+  await ticks(1, false);
+  assert.equal(sending(), '4d001f', 'one sample is not enough');
+  await ticks(1, false);
+  assert.equal(sending(), '42001f', 'Main landed on OpenH264 (no free hardware session, for instance): Baseline next');
+  await ticks(3, true);
+  assert.equal(sending(), '42001f', 'stays on the profile the graphics card took');
+  assert.match(h.state.videoEncoder, /hardware/);
+  const second = mediaHarness();
+  second.state.sharePreset = 'p1080_60';
+  const addSecond = second.peer.pc.addTrack.bind(second.peer.pc);
+  second.peer.pc.addTrack = (track) => { const sender = addSecond(track); sender.params.codecs = structuredClone(negotiated); return sender; };
+  second.self.viewers = ['viewer']; second.media.syncScreenSubscriptions(); await settle(second);
+  const other = second.peer.senders.screen.find((s) => s.track.kind === 'video');
+  const otherReport = (stamp) => new Map([
+    ['source', { id: 'source', type: 'media-source', trackIdentifier: second.screen.getVideoTracks()[0].id, framesPerSecond: 60 }],
+    ['codec', { id: 'codec', type: 'codec', mimeType: 'video/H264', sdpFmtpLine: other.params.encodings[0].codec.sdpFmtpLine }],
+    ['screen', { id: 'screen', type: 'outbound-rtp', kind: 'video', mediaSourceId: 'source', codecId: 'codec', bytesSent: stamp * 900, framesSent: stamp * .06, framesPerSecond: 60,
+      timestamp: stamp, qualityLimitationReason: 'none', powerEfficientEncoder: false, encoderImplementation: 'OpenH264' }],
+  ]);
+  const seen = [];
+  for (let stamp = 1500; stamp <= 30_000; stamp += 1500) {
+    second.clock(stamp); second.peer.pc.report = otherReport(stamp); await second.media.updateStreamStats(); await settle(second);
+    seen.push(other.params.encodings[0].codec.sdpFmtpLine.match(/profile-level-id=(\w+)/)[1]);
+  }
+  // Sem placa de vídeo livre: tenta Main, Baseline e High (duas trocas) e fica, sem ir para o 42e01f.
+  assert.deepEqual([...new Set(seen)], ['4d001f', '42001f', '64001f']);
+  assert.equal(seen.at(-1), '64001f');
+  assert.match(second.state.videoEncoder, /OpenH264/);
 });
 
 test('a viewer who comes back starts the 5 s CPU and heavy-content counts over', async () => {

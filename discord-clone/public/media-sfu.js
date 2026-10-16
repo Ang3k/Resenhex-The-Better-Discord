@@ -281,7 +281,8 @@ window.MediaSfu = function ({ state, renderStage, applyAudio, watchSpeaking, unw
   function measurement(report, r) {
     const old = samples.get(r.id), bytes = r.bytesSent ?? r.bytesReceived;
     samples.set(r.id, { bytes, timestamp: r.timestamp });
-    return { width: r.frameWidth, height: r.frameHeight, fps: r.framesPerSecond, bitrate: old && r.timestamp > old.timestamp ? (bytes - old.bytes) * 8000 / (r.timestamp - old.timestamp) : null, codec: report.get(r.codecId)?.mimeType?.split('/')[1] || '' };
+    return { width: r.frameWidth, height: r.frameHeight, fps: r.framesPerSecond, bitrate: old && r.timestamp > old.timestamp ? (bytes - old.bytes) * 8000 / (r.timestamp - old.timestamp) : null, codec: report.get(r.codecId)?.mimeType?.split('/')[1] || '',
+      sourceFps: report.get(r.mediaSourceId)?.framesPerSecond };
   }
   // Escada do Movimento no SFU: a camada de cima (1080p60) desce para 900p e 720p quando os quadros
   // caem (processador ou banda) e volta quando há folga, com a regra do P2P (MediaPolicy.ladder). A de
