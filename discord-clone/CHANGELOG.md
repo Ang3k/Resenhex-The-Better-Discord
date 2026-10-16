@@ -3,6 +3,23 @@
 Histórico de versões. A mesma lista aparece dentro do app em **Novidades** (menu do servidor ou rodapé das Configurações).
 O Resenhex chegou à versão 1.0 em 4 de outubro de 2026.
 
+## v1.6.2 — Transmissão a 60 fps em monitores de 144 Hz
+
+16 de outubro de 2026.
+
+No app do Windows, a transmissão em Movimento · 1080p / 60 passa de 48 para 59 fps em monitores de 144 Hz, e a imagem chega mais rápido para quem assiste. O H.264 passa a usar a placa de vídeo sempre que ela codifica.
+
+### Melhorias
+
+- App do Windows 1.4.4: a captura de tela entregava no máximo 48 quadros por segundo em monitores de 144 Hz, por um limite do Windows que o app não ajustava. Agora o Movimento · 1080p / 60 chega a 59 fps, sem gastar mais processador. O app se atualiza sozinho.
+- App do Windows 1.4.4: a transmissão sempre envia o quadro mais recente da tela. Nos perfis de 30 fps, a imagem chega cerca de 40 ms mais rápido para quem assiste.
+- As estatísticas da sua transmissão mostram também quantos quadros a captura da tela entrega ("captura 59 fps"). Se esse número estiver baixo, o limite é a captura, e não a internet ou o codificador.
+- Movimento · 1080p / 60: o H.264 usa primeiro os perfis que a placa de vídeo codifica (NVIDIA, AMD ou Intel). Antes, a transmissão podia cair no codificador do processador, com imagem pior e bem mais uso de CPU. Se a placa recusar um perfil, o app troca para outro sozinho, sem interromper.
+
+### Correções
+
+- Em blocos estreitos, as estatísticas da transmissão não cobrem mais o selo AO VIVO.
+
 ## v1.6.1 — 1080p a 60 fps por padrão e mais fluido
 
 16 de outubro de 2026.
