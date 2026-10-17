@@ -3,6 +3,28 @@
 Histórico de versões. A mesma lista aparece dentro do app em **Novidades** (menu do servidor ou rodapé das Configurações).
 O Resenhex chegou à versão 1.0 em 4 de outubro de 2026.
 
+## v1.7.0 — Prévia da transmissão e paleta roxa
+
+17 de outubro de 2026.
+
+Quem está na chamada sem assistir vê uma prévia da tela de quem transmite, como no Discord. O app todo ganhou o preto com roxo da tela de entrada. No navegador, compartilhar a tela abre o mesmo seletor do app do Windows.
+
+### Novidades
+
+- Prévia da transmissão: quem está na chamada e ainda não clicou em assistir vê uma foto da tela de quem transmite, trocada a cada 8 s com um esmaecido, no lugar do bloco parado. Quem entra na sala já recebe a última foto. Ao parar de assistir, o último quadro visto fica como prévia até a próxima foto.
+- Compartilhar a tela pelo navegador abre o mesmo seletor do app do Windows, com tela, janela, som e qualidade no mesmo lugar. O que só o app faz (escolher a janela pela miniatura, som de um app só, 60 fps pela captura nativa) aparece desabilitado, com o selo "Bloqueado no navegador".
+
+### Melhorias
+
+- Paleta do tema Escuro: o preto com roxo da tela de entrada agora vale para o app todo. O roxo do logo fica no que é ação ou marca (botões, interruptores, menções, links e os títulos das Configurações), e seleções e fundos ficam neutros. Os temas Meia-noite e Alto contraste não mudam.
+- Perfil: novo tom "Roxo Resenhex" entre as cores.
+- "Conectando…", ao começar a assistir uma transmissão, ganhou um indicador girando.
+- Nas miniaturas de transmissão, o botão diz só "Assistir" e fica acima do nome de quem transmite.
+
+### Correções
+
+- As medições da transmissão (resolução, fps, internet) somem do bloco quando você para de assistir. Antes ficavam na tela com os últimos números.
+
 ## v1.6.2 — Transmissão a 60 fps em monitores de 144 Hz
 
 16 de outubro de 2026.
