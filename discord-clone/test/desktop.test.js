@@ -362,3 +362,82 @@ test('fechar o seletor identifica o cancelamento, mas erros reais continuam send
   await assert.rejects(failure, { name: 'NotAllowedError' }, 'uma falha do app não vira cancelamento voluntário');
   w.close();
 });
+
+// No navegador: a mesma janela abre antes do seletor do navegador; o que só o app faz fica bloqueado.
+const browserQuality = (set) => ({
+  presets: {
+    auto: { label: 'Automática', desc: 'Fluida', height: 1080, fps: 30, codecs: ['video/AV1'] },
+    p1080_60: { label: 'Movimento · 1080p / 60', desc: 'Jogos e vídeos', height: 1080, fps: 60, codecs: ['video/H264', 'video/VP8'] },
+  },
+  current: () => 'auto',
+  set: (key) => set.push(key),
+});
+const locks = (root) => [...root.querySelectorAll('.share-locked-row strong')].map((node) => node.textContent);
+
+test('no navegador, o mesmo seletor abre antes do navegador e mostra bloqueado o que só o app faz', async () => {
+  const w = load({ userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) Firefox/140.0' });
+  const doc = w.document;
+  const set = [];
+  w.DesktopApp.shareQuality = browserQuality(set);
+  const calls = [];
+  const capture = w.DesktopApp.captureScreen(async (choice) => { calls.push(choice); return 'stream'; }, { audio: true });
+  assert.deepEqual([...doc.querySelectorAll('.share-tabs button')].map((tab) => tab.textContent), ['Aplicativos', 'Telas'], 'sem contagem: o site não vê as fontes');
+  assert.match(doc.querySelector('.share-head p').textContent, /o navegador pede para você confirmar/);
+  const cards = () => [...doc.querySelectorAll('.share-source')];
+  assert.deepEqual(cards().map((card) => card.textContent), ['Janela de um app', 'Bloqueado no navegadorO navegador não mostra suas janelas ao site.Janelas com miniatura'], 'sem aba fora do Chromium');
+  const locked = doc.querySelector('.share-locked');
+  assert.equal(locked.getAttribute('aria-disabled'), 'true');
+  locked.click();
+  assert.equal(doc.querySelector('.btn-primary').disabled, true, 'o card bloqueado não seleciona');
+
+  const select = doc.querySelector('.share-audio-select');
+  assert.deepEqual([...select.options].map((o) => [o.textContent, o.disabled]), [['Som do computador inteiro', false], ['Só o som de um app (bloqueado no navegador)', true], ['Sem som', false]]);
+  assert.deepEqual(locks(doc.querySelectorAll('.share-setting')[1]), ['Som de um app só']);
+  assert.deepEqual(locks(doc.querySelector('.share-setting')), [], 'Automática não perde nada no navegador');
+  doc.querySelector('[data-preset="p1080_60"]').click();
+  await new Promise((resolve) => setTimeout(resolve));
+  assert.deepEqual(locks(doc.querySelector('.share-setting')), ['60 fps pela captura nativa', 'H.264 na placa de vídeo'], 'sem confirmação do navegador, o H.264 vai no processador');
+
+  doc.querySelectorAll('.share-tabs button')[1].click();
+  assert.deepEqual(cards().map((card) => card.querySelector('.share-name').textContent), ['Tela inteira', 'Telas com miniatura']);
+  cards()[0].click();
+  select.value = 'none';
+  select.dispatchEvent(new w.Event('change'));
+  doc.querySelector('.btn-primary').click();
+  assert.equal(await capture, 'stream');
+  assert.deepEqual(calls.map((choice) => ({ ...choice })), [{ id: 'surface:monitor', surface: 'monitor', audio: false }]);
+  assert.deepEqual(set, ['p1080_60'], 'a qualidade escolhida vale antes do pedido ao navegador');
+  w.close();
+});
+
+test('no navegador, fechar a janela cancela sem pedir a captura', async () => {
+  const w = load({});
+  let asked = 0;
+  for (const close of [(doc) => doc.querySelector('.share-close').click(), (doc) => doc.querySelector('.btn-ghost').click()]) {
+    const capture = w.DesktopApp.captureScreen(async () => { asked++; }, { audio: false });
+    assert.equal(w.document.querySelector('.share-overlay:not(.closing) .share-audio-select'), null, 'sem som pedido, sem opção de som');
+    close(w.document.querySelector('.share-overlay:not(.closing)'));
+    await assert.rejects(capture, { name: 'ShareCancelledError' });
+  }
+  assert.equal(asked, 0);
+  w.close();
+});
+
+test('no Chromium, a aba do navegador leva o som dela e o H.264 na placa não fica bloqueado', async () => {
+  const w = load({ userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/141.0' });
+  Object.defineProperty(w.navigator, 'userAgentData', { value: { brands: [{ brand: 'Chromium', version: '141' }, { brand: 'Google Chrome', version: '141' }] } });
+  const doc = w.document;
+  w.DesktopApp.shareQuality = browserQuality([]);
+  const calls = [];
+  const capture = w.DesktopApp.captureScreen(async (choice) => { calls.push(choice); }, { audio: true });
+  doc.querySelector('[data-preset="p1080_60"]').click();
+  await new Promise((resolve) => setTimeout(resolve));
+  assert.deepEqual(locks(doc.querySelector('.share-setting')), ['60 fps pela captura nativa']);
+  doc.querySelector('[data-source-id="surface:browser"]').click();
+  assert.equal(doc.querySelector('.share-audio-select').options[0].textContent, 'Som da aba');
+  assert.match(doc.querySelectorAll('.share-setting')[1].querySelector(':scope > small').textContent, /Vai só o som da aba/);
+  doc.querySelector('.btn-primary').click();
+  await capture;
+  assert.deepEqual(calls.map((choice) => ({ ...choice })), [{ id: 'surface:browser', surface: 'browser', audio: true }]);
+  w.close();
+});

@@ -329,17 +329,33 @@ window.MediaSession = function ({ state, socket, call, el, toast, voiceEntry, me
     stream?.getTracks().forEach(track => { track.onended = track.onmute = track.onunmute = null; track.stop(); });
   }
 
-  async function captureScreen() {
-    const preset = presets[state.sharePreset];
-    if (!navigator.mediaDevices?.getDisplayMedia) throw new Error('Seu navegador não oferece captura de tela.');
+  // No navegador, a janela de escolha do Resenhex abre antes e entrega "choice" ({ surface, audio }):
+  // o seletor do navegador já abre no tipo de fonte escolhido, e o som segue a escolha. No app, a
+  // escolha acontece depois do pedido, e o pedido continua o mesmo de sempre (choice vazio).
+  function displayOptions(preset, choice) {
     const fps = MediaPolicy.captureFps(preset.fps);
-    const capture = () => navigator.mediaDevices.getDisplayMedia({
-      video: { width: { ideal: preset.width }, height: { ideal: preset.height }, frameRate: { ideal: fps, max: fps } },
+    const audio = state.shareAudio && choice?.audio !== false;
+    return {
+      video: { width: { ideal: preset.width }, height: { ideal: preset.height }, frameRate: { ideal: fps, max: fps }, ...(choice?.surface ? { displaySurface: choice.surface } : {}) },
       // restrictOwnAudio: o som do computador vai sem as vozes da própria chamada (evita eco para quem assiste).
-      audio: state.shareAudio ? { echoCancellation: false, noiseSuppression: false, autoGainControl: false, restrictOwnAudio: true } : false,
-      selfBrowserSurface: 'exclude', surfaceSwitching: 'include', systemAudio: state.shareAudio ? 'include' : 'exclude',
-    });
-    const stream = await (window.DesktopApp?.captureScreen ? window.DesktopApp.captureScreen(capture) : capture());
+      audio: audio ? { echoCancellation: false, noiseSuppression: false, autoGainControl: false, restrictOwnAudio: true } : false,
+      selfBrowserSurface: 'exclude', surfaceSwitching: 'include', systemAudio: audio ? 'include' : 'exclude',
+      // Numa janela, "Som do computador inteiro" leva o som do PC, como no app.
+      ...(choice ? { windowAudio: audio ? 'system' : 'exclude', monitorTypeSurfaces: 'include', preferCurrentTab: false } : {}),
+    };
+  }
+
+  async function captureScreen() {
+    let preset = presets[state.sharePreset];
+    if (!navigator.mediaDevices?.getDisplayMedia) throw new Error('Seu navegador não oferece captura de tela.');
+    const capture = async (choice) => {
+      preset = presets[state.sharePreset];
+      const stream = await navigator.mediaDevices.getDisplayMedia(displayOptions(preset, choice));
+      // "Sem som" escolhido na janela: a falta de áudio não é problema da fonte.
+      if (choice?.audio === false) stream.audioDeclined = true;
+      return stream;
+    };
+    const stream = await (window.DesktopApp?.captureScreen ? window.DesktopApp.captureScreen(capture, { audio: state.shareAudio }) : capture());
     // A qualidade pode ter sido trocada na janela de escolha do app, depois de pedir a captura.
     try {
       const chosen = presets[state.sharePreset];
@@ -409,7 +425,7 @@ window.MediaSession = function ({ state, socket, call, el, toast, voiceEntry, me
         watchScreenTrack(track);
         syncScreenSubscriptions();
         Sounds.play('stream');
-        if (state.shareAudio && !stream.getAudioTracks().length) mediaNotice('Sua tela está sendo compartilhada sem áudio. Essa fonte ou navegador não forneceu som.');
+        if (state.shareAudio && !stream.audioDeclined && !stream.getAudioTracks().length) mediaNotice('Sua tela está sendo compartilhada sem áudio. Essa fonte ou navegador não forneceu som.');
         setAudioMode(stream.audioMode);
       } else {
         track.onended = () => stopVideo(kind);
@@ -464,7 +480,7 @@ window.MediaSession = function ({ state, socket, call, el, toast, voiceEntry, me
       await applySharePreset();
       sendVoiceState();
       renderStage();
-      mediaNotice(state.shareAudio && !current.getAudioTracks().length ? 'Tela trocada. A nova fonte não forneceu áudio.' : 'Tela trocada. Sua chamada continua conectada.');
+      mediaNotice(state.shareAudio && !next.audioDeclined && !current.getAudioTracks().length ? 'Tela trocada. A nova fonte não forneceu áudio.' : 'Tela trocada. Sua chamada continua conectada.');
       setAudioMode(next.audioMode);
     } catch (error) {
       if (error.name === 'ShareCancelledError') return;
