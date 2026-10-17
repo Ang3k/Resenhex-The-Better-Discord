@@ -1,7 +1,9 @@
 /* Acabamento visual: paleta neutra, painel inferior integrado e hierarquia do chat.
    Carregado por último; os temas Meia-noite e Alto contraste mantêm as próprias cores. */
 
-/* ---------- Paleta (tema escuro padrão): tons de carvão próximos entre si ---------- */
+/* ---------- Paleta (tema escuro padrão): o preto com roxo da tela de entrada ---------- */
+/* Carvão neutro, e o roxo do logo só no que é ação ou marca (botões, ícone do servidor, interruptores,
+   menções, links). Seleções, títulos e fundos ficam neutros. */
 :root:not([data-theme=midnight]):not([data-theme=contrast]) {
   --bg-rail: #141417;
   --bg-sidebar: #18181b;
@@ -18,13 +20,20 @@
   --text-muted: #8d8f98;
   --channel: #8a8c95;
   --interactive: #b3b5bc;
-  --brand: #8277fa;
-  --brand-hover: #6d63e6;
+  --brand: #8e2fd8;
+  --brand-hover: #7a24bd;
+  --link: color-mix(in srgb, var(--brand) 55%, #fff); /* lilás claro: se destaca do texto sem trazer o azul */
   --green: #3fbf85;
   --red: #f0565e;
   --red-dark: #d9434b;
 }
 :root { --rail-w: 72px; --side-w: 252px; --bg-members: var(--bg-sidebar); --dock-gap: 8px; }
+/* Tons da cor da marca para texto e fundos (seguem o tema: roxo no padrão, azul no Meia-noite). */
+:root {
+  --brand-text: color-mix(in srgb, var(--brand) 50%, #fff);
+  --brand-ink: color-mix(in srgb, var(--brand) 18%, #fff);
+  --brand-soft: color-mix(in srgb, var(--brand) 16%, transparent);
+}
 @media (hover: hover) and (pointer: fine) {
   #messages::-webkit-scrollbar-track { background: transparent; }
   * { scrollbar-color: #ffffff1c transparent; }
@@ -162,7 +171,7 @@
   align-items: flex-end; padding: 0 6px 0 4px; border-radius: 10px; background: var(--bg-input);
   border: 1px solid transparent; box-shadow: 0 1px 0 rgba(255, 255, 255, .02) inset; transition: border-color .15s, background .15s;
 }
-#chat-form:focus-within { border-color: rgba(130, 119, 250, .5); background: #28282e; }
+#chat-form:focus-within { border-color: rgba(255, 255, 255, .1); background: #28282e; }
 :root[data-theme=midnight] #chat-form:focus-within, :root[data-theme=contrast] #chat-form:focus-within { background: var(--bg-input); }
 #chat-input { padding: 12px 6px; line-height: 20px; min-height: 44px; font-size: var(--chat-size); }
 #chat-input::placeholder { color: var(--text-muted); opacity: .75; }

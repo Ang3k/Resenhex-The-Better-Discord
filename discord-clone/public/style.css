@@ -317,8 +317,8 @@ html.moving body { visibility: hidden; } /* mudando para o endereço oficial do 
 .msg.mentioned::before { content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 2px; background: var(--yellow); }
 .msg.mentioned:hover { background: rgba(240, 178, 50, .1); }
 .msg.flash { animation: flash 1.6s ease-out; }
-@keyframes flash { from { background: rgba(88, 101, 242, .3); } to { background: transparent; } }
-.msg.replying { background: rgba(88, 101, 242, .1); }
+@keyframes flash { from { background: color-mix(in srgb, var(--brand) 30%, transparent); } to { background: transparent; } }
+.msg.replying { background: color-mix(in srgb, var(--brand) 10%, transparent); }
 .msg.replying::before { content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 2px; background: var(--brand); }
 .msg-author { font-weight: 500; color: var(--text-strong); cursor: pointer; }
 .msg-author:hover { text-decoration: underline; }
@@ -609,7 +609,7 @@ blockquote { margin: 2px 0; padding: 0 8px 0 12px; border-left: 4px solid color-
 .menu-item.danger:hover { background: var(--red-dark); color: #fff; }
 .menu-item.preset { flex-direction: column; align-items: flex-start; gap: 0; }
 .menu-item.preset .muted-text { font-size: 12px; font-weight: 400; }
-.menu-item.preset.selected { background: rgba(88, 101, 242, .2); color: #fff; }
+.menu-item.preset.selected { background: color-mix(in srgb, var(--brand) 20%, transparent); color: #fff; }
 .menu-item.preset:hover .muted-text { color: #e0e3ff; }
 .menu-section { font-size: 12px; font-weight: 700; color: var(--text-muted); padding: 8px 8px 2px; letter-spacing: .02em; }
 .menu-sep { height: 1px; background: rgba(78, 80, 88, .5); margin: 4px 4px; }

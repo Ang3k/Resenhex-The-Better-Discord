@@ -108,7 +108,7 @@
 .callout-icon { display: grid; place-items: center; width: 40px; height: 40px; border-radius: 50%; background: var(--bg-panel); color: var(--interactive); flex-shrink: 0; }
 .admin-notice { display: flex; align-items: flex-start; gap: 10px; padding: 12px 14px; border-radius: 8px; background: #f0b23214; border: 1px solid #f0b23244; color: var(--text); font-size: 14px; line-height: 1.45; }
 .admin-notice .ico { color: var(--yellow); flex-shrink: 0; margin-top: 2px; }
-.admin-notice.info { background: #5865f214; border-color: #5865f244; }
+.admin-notice.info { background: color-mix(in srgb, var(--brand) 8%, transparent); border-color: color-mix(in srgb, var(--brand) 27%, transparent); }
 .admin-notice.info .ico { color: var(--link); }
 
 /* Visão geral */
