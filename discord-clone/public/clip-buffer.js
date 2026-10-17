@@ -4,6 +4,7 @@ window.ClipBuffer = ({ getCtx, now = () => performance.now(), maxPeople = 12 } =
   const WINDOW_MS = 30_000;
   const people = new Map(); // accountId -> { node, source, mute, profile, since, leftAt, lastSpoke }
   const blocked = new Set(); // contas com a opção desligada
+  const waiting = new Map(); // accountId -> { stream, profile } de quem está na chamada com a opção desligada
   let states = []; // [{ t, byAccount: Map }] a cada 100 ms
   let moduleReady = null, snapSeq = 0;
 
@@ -22,7 +23,8 @@ window.ClipBuffer = ({ getCtx, now = () => performance.now(), maxPeople = 12 } =
   }
 
   async function track(accountId, stream, profile) {
-    if (!accountId || !stream || blocked.has(accountId)) return;
+    if (!accountId || !stream) return;
+    if (blocked.has(accountId)) { waiting.set(accountId, { stream, profile }); return; }
     const ctx = getCtx();
     moduleReady ||= ctx.audioWorklet.addModule('/clip-buffer-worklet.js');
     await moduleReady;
@@ -42,12 +44,14 @@ window.ClipBuffer = ({ getCtx, now = () => performance.now(), maxPeople = 12 } =
     }
     p.source?.disconnect();
     p.source = ctx.createMediaStreamSource(stream);
+    p.stream = stream;
     p.source.connect(p.node);
     p.profile = profile;
     p.leftAt = null;
   }
 
   function untrack(accountId) {
+    waiting.delete(accountId);
     const p = people.get(accountId);
     if (!p || p.leftAt != null) return;
     p.source?.disconnect();
@@ -59,8 +63,17 @@ window.ClipBuffer = ({ getCtx, now = () => performance.now(), maxPeople = 12 } =
   function sample(byAccount) {
     const t = now();
     for (const [id, st] of byAccount) {
-      if (st.allowClips === false) { blocked.add(id); forget(id); }
-      else blocked.delete(id);
+      if (st.allowClips === false) {
+        const p = people.get(id);
+        if (p?.stream && p.leftAt == null) waiting.set(id, { stream: p.stream, profile: p.profile });
+        blocked.add(id);
+        forget(id);
+      } else if (blocked.delete(id) && waiting.has(id)) {
+        // Religou: volta a gravar daqui para frente, com o anel vazio.
+        const { stream, profile } = waiting.get(id);
+        waiting.delete(id);
+        track(id, stream, profile).catch(() => {});
+      }
       if (st.speaking && people.has(id)) people.get(id).lastSpoke = t;
     }
     states.push({ t, byAccount: new Map(byAccount) });
@@ -101,6 +114,7 @@ window.ClipBuffer = ({ getCtx, now = () => performance.now(), maxPeople = 12 } =
 
   function stop() {
     for (const id of [...people.keys()]) forget(id);
+    waiting.clear();
     states = [];
   }
 

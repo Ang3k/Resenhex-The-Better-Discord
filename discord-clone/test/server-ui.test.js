@@ -583,6 +583,8 @@ test('CLIPAR: "Pode clipar meu áudio" começa ligado, vai no estado de voz e de
   assert.ok(app.events.some((e) => e.event === 'clip:list'), 'pede os clipes da chamada ao entrar');
   app.d.querySelector('#btn-settings').click(); await settle();
   const toggle = app.d.querySelector('#allow-clips');
+  assert.ok(toggle.closest('#page-voice'), 'fica em Voz e vídeo');
+  assert.equal(toggle.closest('.mouse-only'), null, 'aparece também no celular');
   assert.equal(toggle.checked, true);
   toggle.checked = false; toggle.dispatchEvent(new app.w.Event('change', { bubbles: true })); await settle();
   app.d.querySelector('#settings-save').click(); await settle();

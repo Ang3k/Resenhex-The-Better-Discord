@@ -44,11 +44,12 @@ window.ClipUI = ({ el, Icon, toast, call, token, buffer, model, render, getConte
     const total = snapshot.seconds;
     let sel = model.clampSelection({ start: 0, end: total }, { total });
     let playing = null, busy = false, lastFocus = document.activeElement;
+    const takenAt = Date.now(); // a foto usa o relógio da página (performance.now); a marca do vídeo, a hora de verdade
     const images = new Map();
     // Fala de cada pessoa na foto inteira, quadro a quadro, para a prévia acender os anéis.
     const speech = new Map(snapshot.people.map((p) => [p.accountId, model.speakingFrames(p, snapshot, { start: 0, end: total, fps: FPS })]));
     const peaks = model.peaks(snapshot.people.map((p) => p.pcm), BARS);
-    const label = () => `${getContext().channelName} · ${stamp(snapshot.takenAt)}`;
+    const label = () => `${getContext().channelName} · ${stamp(takenAt)}`;
     const people = () => model.included(snapshot, getContext(), sel);
 
     const preview = el('canvas', { class: 'clip-preview', width: W, height: H, ariaHidden: 'true' });
@@ -112,7 +113,8 @@ window.ClipUI = ({ el, Icon, toast, call, token, buffer, model, render, getConte
       endHandle.value = String(sel.end);
       startHandle.setAttribute('aria-valuetext', `${decimal(total - sel.start)} segundos atrás`);
       endHandle.setAttribute('aria-valuetext', total - sel.end < 0.05 ? 'agora' : `${decimal(total - sel.end)} segundos atrás`);
-      selection.textContent = `início −${decimal(total - sel.start)} s · fim −${decimal(total - sel.end)} s · ${decimal(sel.end - sel.start)} s`;
+      const ago = (v) => (total - v < 0.05 ? 'agora' : `−${decimal(total - v)} s`);
+      selection.textContent = `início ${ago(sel.start)} · fim ${ago(sel.end)} · ${decimal(sel.end - sel.start)} s`;
       const list = people();
       who.textContent = list.length ? 'No clipe: ' + list.map((p) => p.profile.name).join(', ') : 'Ninguém neste trecho pode entrar no clipe.';
       release.disabled = busy || !list.length;

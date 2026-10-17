@@ -102,6 +102,27 @@ test('quem desliga a opção é descartado na hora', async () => {
   assert.deepEqual(Array.from((await h.buffer.snapshot()).people, (p) => p.accountId), ['b'], 'enquanto estiver desligada, não volta a gravar');
 });
 
+test('quem religa a opção volta a ser gravado sem precisar reconectar', async () => {
+  const h = harness();
+  await h.buffer.track('a', { id: 's1' }, profile('Ana'));
+  h.buffer.sample(new Map([['a', { allowClips: false }]]));
+  assert.equal((await h.buffer.snapshot()).people.length, 0);
+  h.buffer.sample(new Map([['a', { allowClips: true }]]));
+  await new Promise((r) => setTimeout(r, 0));
+  const snap = await h.buffer.snapshot();
+  assert.deepEqual(Array.from(snap.people, (p) => p.accountId), ['a']);
+  assert.equal(snap.people[0].profile.name, 'Ana');
+  assert.equal(h.sources.at(-1).stream.id, 's1', 'volta a ouvir o mesmo stream');
+  assert.ok(h.nodes.at(-1).ring.snapshot().samples === 0, 'o anel recomeça vazio: o que foi dito desligado não volta');
+  // Saiu da chamada enquanto estava desligada: religar não volta a gravar.
+  await h.buffer.track('b', { id: 's2' }, profile('Bia'));
+  h.buffer.sample(new Map([['b', { allowClips: false }]]));
+  h.buffer.untrack('b');
+  h.buffer.sample(new Map([['b', { allowClips: true }]]));
+  await new Promise((r) => setTimeout(r, 0));
+  assert.deepEqual(Array.from((await h.buffer.snapshot()).people, (p) => p.accountId), ['a']);
+});
+
 test('acima do limite ficam as pessoas que falaram por último', async () => {
   const h = harness({ maxPeople: 2 });
   await h.buffer.track('a', { id: 's1' }, profile('Ana'));

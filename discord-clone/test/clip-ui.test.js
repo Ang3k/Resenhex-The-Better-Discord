@@ -114,6 +114,16 @@ test('quem desligou durante o corte não vai para o vídeo', async () => {
   assert.equal(h.d.querySelector('.clip-overlay'), null, 'o modal fecha depois de enviar');
 });
 
+test('a marca do vídeo usa a hora de verdade, não o relógio da gravação', async () => {
+  const h = harness();
+  const snap = snapshotOf(['a']);
+  snap.takenAt = 123_456; // performance.now(): ms desde que a página abriu
+  h.w.Date.now = () => new Date(2026, 9, 17, 22, 14).getTime();
+  h.ui.open(snap); await settle();
+  h.button('Soltar para a chamada').click(); await settle();
+  assert.equal(h.renders[0].label, 'Sala 1 · 17/10 22:14');
+});
+
 test('erro ao enviar mantém o corte aberto e avisa', async () => {
   let answer;
   const h = harness({ post: () => new Promise((r) => { answer = r; }) });
@@ -132,6 +142,7 @@ test('erro ao enviar mantém o corte aberto e avisa', async () => {
 test('texto da seleção usa vírgula e segundos relativos', async () => {
   const h = harness();
   h.ui.open(snapshotOf(['a', 'b'])); await settle();
+  assert.equal(h.d.querySelector('.clip-selection').textContent, 'início −30,0 s · fim agora · 30,0 s');
   const [start, end] = h.d.querySelectorAll('.clip-handle');
   start.value = '11.4'; start.dispatchEvent(new h.w.Event('input'));
   end.value = '26.6'; end.dispatchEvent(new h.w.Event('input'));
