@@ -396,7 +396,19 @@ window.MediaSession = function ({ state, socket, call, el, toast, voiceEntry, me
   }
   function watchScreenTrack(track) {
     track.contentHint = presets[state.sharePreset].hint;
-    track.onended = () => stopVideo('screen');
+    track.onended = () => {
+      // App do Windows seguindo a partida: a janela do jogo fechou e o app volta sozinho para o
+      // launcher. Enquanto isso, quem assiste vê a transmissão pausada.
+      const hold = window.DesktopApp?.holdScreen?.();
+      if (!hold) { stopVideo('screen'); return; }
+      const stream = state.local.screen;
+      hold.then((held) => {
+        if (state.local.screen !== stream || stream?.getVideoTracks()[0] !== track) return;
+        if (!held) { stopVideo('screen'); return; }
+        state.sharePaused = true;
+        sendVoiceState();
+      });
+    };
     track.onmute = () => { state.sharePaused = true; sendVoiceState(); mediaNotice('A captura foi pausada. Restaure a fonte ou escolha outra tela.'); };
     track.onunmute = () => { state.sharePaused = false; sendVoiceState(); };
   }
@@ -442,7 +454,8 @@ window.MediaSession = function ({ state, socket, call, el, toast, voiceEntry, me
     }
   }
 
-  async function switchScreen() {
+  // follow: troca pedida pelo app que segue a partida ({ to: 'game' | 'home', name }), sem o seletor.
+  async function switchScreen(follow = null) {
     const current = state.local.screen;
     if (!current || state.captureBusy) return;
     state.captureBusy = true;
@@ -480,10 +493,13 @@ window.MediaSession = function ({ state, socket, call, el, toast, voiceEntry, me
       await applySharePreset();
       sendVoiceState();
       renderStage();
-      mediaNotice(state.shareAudio && !next.audioDeclined && !current.getAudioTracks().length ? 'Tela trocada. A nova fonte não forneceu áudio.' : 'Tela trocada. Sua chamada continua conectada.');
+      mediaNotice(follow ? (follow.to === 'game' ? `A transmissão foi para a partida: ${follow.name}.` : `A partida acabou. A transmissão voltou para ${follow.name}.`)
+        : state.shareAudio && !next.audioDeclined && !current.getAudioTracks().length ? 'Tela trocada. A nova fonte não forneceu áudio.' : 'Tela trocada. Sua chamada continua conectada.');
       setAudioMode(next.audioMode);
     } catch (error) {
       if (error.name === 'ShareCancelledError') return;
+      // A janela anterior já fechou (fim da partida): sem a nova, não há o que manter.
+      if (follow && state.local.screen === current && current.getVideoTracks()[0]?.readyState === 'ended') { releaseCapture(next); stopVideo('screen'); return; }
       if (sfu?.active() && state.local.screen === current) await sfu.publish('screen', current).catch(() => {});
       for (const { peer, sender, old, added } of changed.reverse()) {
         await MediaPolicy.enqueue(peer, async () => {
@@ -508,7 +524,7 @@ window.MediaSession = function ({ state, socket, call, el, toast, voiceEntry, me
     if (sfu?.active()) sfu.stop(kind).catch(() => {});
     if (!stream) return;
     releaseCapture(stream);
-    if (kind === 'screen') { state.sharePaused = false; state.shareAudioMode = null; state.screenCodecFallback = state.screenMotion = null; state.videoEncoder = ''; ownAudio?.sync(null); syncScreenSubscriptions(); }
+    if (kind === 'screen') { window.DesktopApp?.shareStopped?.(); state.sharePaused = false; state.shareAudioMode = null; state.screenCodecFallback = state.screenMotion = null; state.videoEncoder = ''; ownAudio?.sync(null); syncScreenSubscriptions(); }
     else for (const peer of state.peers.values()) {
       for (const sender of peer.senders.camera) { if (active(peer)) peer.pc.removeTrack(sender); }
       peer.senders.camera = [];

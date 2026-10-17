@@ -20,8 +20,12 @@ window.DesktopApp = (() => {
   let open = null;
   let captureAttempt = null;
   let gpuH264 = null; // no navegador: Promise<boolean> do teste de H.264 na placa de vídeo
-  // shareQuality: { presets, current(), set(key) }, registrado pelo app.js.
-  const api = { available: !!desktop, pickSource, captureScreen: desktop ? captureScreen : captureInBrowser, shareQuality: null };
+  let followOn = false; // a transmissão atual segue a partida (escolhida com "Seguir a partida")
+  let followArmed = false; // a próxima captura é a troca pedida pelo app
+  let followHold = null; // espera a troca depois que a janela transmitida fechou
+  let followEpoch = 0; // conta os avisos do app, para a espera não valer depois de uma troca
+  // shareQuality: { presets, current(), set(key) } e follow: { switch(message), stop() }, registrados pelo app.js.
+  const api = { available: !!desktop, pickSource, captureScreen: desktop ? captureScreen : captureInBrowser, shareQuality: null, follow: null, holdScreen, shareStopped };
 
   if (!desktop) {
     const ua = navigator.userAgent;
@@ -128,10 +132,17 @@ window.DesktopApp = (() => {
   // Vincula o cancelamento à captura que abriu o seletor, sem esconder erros de permissão.
   async function captureScreen(capture) {
     const attempt = { cancelled: false };
+    const follow = followArmed;
+    followArmed = false;
     captureAttempt = attempt;
     desktop.appAudio?.reset();
     let stream;
-    try { stream = await capture(); return await captureAppAudio(stream); }
+    try {
+      // Troca da partida: o app entrega a janela no lugar do seletor, se a troca ainda valer.
+      if (follow && !(await desktop.shareFollow.accept())) { attempt.cancelled = true; throw new Error('A troca da partida expirou.'); }
+      stream = await capture();
+      return await captureAppAudio(stream);
+    }
     catch (error) {
       stream?.desktopAudioCleanup?.();
       stream?.getTracks().forEach(track => track.stop());
@@ -144,7 +155,49 @@ window.DesktopApp = (() => {
 
   function updateSource(sources, options = {}) { open?.update(sources, options); }
   desktop.onPickSource(pickSource, updateSource);
+
+  // ---------------- transmissão que segue a partida ----------------
+  // O app avisa quando a partida abre ou acaba, e a transmissão troca sozinha, sem o seletor.
+  desktop.shareFollow?.onMessage((message) => {
+    followEpoch++;
+    clearTimeout(followHold);
+    followHold = null;
+    if (message.action === 'stop') { followOn = false; api.follow?.stop(); return; }
+    if (message.action !== 'switch' || !api.follow) return;
+    followArmed = true;
+    try { api.follow.switch(message); } finally { followArmed = false; }
+  });
   return api;
+
+  // A janela transmitida fechou (a partida acabou). Seguindo a partida, o app pode trocar sozinho:
+  // Promise<true> para esperar a troca em vez de parar, ou null quando não há o que esperar.
+  function holdScreen() {
+    if (!followOn || !desktop?.shareFollow) return null;
+    const epoch = followEpoch;
+    return desktop.shareFollow.ended().then((held) => {
+      // Se o app não mandar nada (nem a troca chegou antes desta resposta), a transmissão para como antes.
+      if (held && epoch === followEpoch) {
+        clearTimeout(followHold);
+        followHold = setTimeout(() => { followHold = null; followOn = false; api.follow?.stop(); }, 90000);
+      }
+      return !!held;
+    }, () => false);
+  }
+  function shareStopped() {
+    if (!desktop) return;
+    followOn = false;
+    clearTimeout(followHold);
+    followHold = null;
+    desktop.shareFollow?.stop();
+  }
+  // Preferência de "Seguir a partida" (ligada, a não ser que a pessoa desligue).
+  function followPreference(value) {
+    try {
+      if (value === undefined) return localStorage.getItem('shareFollowGame') !== '0';
+      localStorage.setItem('shareFollowGame', value ? '1' : '0');
+    } catch { /* sem armazenamento: fica ligada */ }
+    return value ?? true;
+  }
 
   function sourceLabel(source, screens) {
     if (source.kind === 'window' || source.surface) return source.name;
@@ -243,9 +296,12 @@ window.DesktopApp = (() => {
         if (!selected || start.disabled) return;
         if (quality && preset !== quality.current()) quality.set(preset);
         if (browser) return finish({ id: selected.id, surface: selected.surface, audio: audioSource !== 'none' });
-        if (audioSource === 'apps') return finish({ id: selected.id, audio: true, apps: [...audioPids] });
-        if (!apps.length) return finish({ id: selected.id, audio });
-        finish({ id: selected.id, audio: audioSource !== 'none', app: typeof audioSource === 'number' ? audioSource : null });
+        // Só o app que sabe seguir a partida recebe a escolha; app antigo não muda nada.
+        const extra = followSetting ? { follow: follow && selected.kind === 'window' } : {};
+        if (followSetting) followOn = extra.follow;
+        if (audioSource === 'apps') return finish({ id: selected.id, audio: true, apps: [...audioPids], ...extra });
+        if (!apps.length) return finish({ id: selected.id, audio, ...extra });
+        finish({ id: selected.id, audio: audioSource !== 'none', app: typeof audioSource === 'number' ? audioSource : null, ...extra });
       };
       const onKey = (event) => {
         if (event.key === 'Escape') { event.preventDefault(); event.stopPropagation(); finish(null); }
@@ -279,6 +335,7 @@ window.DesktopApp = (() => {
       }
       function render() {
         renderTabs();
+        if (followSetting) followSetting.hidden = tab !== 'window';
         grid.setAttribute('aria-busy', String(loading));
         if (loading) {
           grid.replaceChildren(el('div', { class: 'share-loading', role: 'status', textContent: 'Buscando aplicativos e telas…' }));
@@ -432,6 +489,24 @@ window.DesktopApp = (() => {
               el('span', {}, el('strong', { textContent: 'Som do computador' }), el('small', { textContent: 'Seus amigos ouvem o que toca no PC. A voz da chamada fica de fora.' })))]));
       }
       renderAudio();
+
+      // Seguir a partida: no app, a janela do client do LoL (ou de outro launcher) leva a transmissão
+      // até o jogo quando a partida abre, e de volta no fim. Só vale para a janela de um app, então
+      // fica ao lado das abas, só na de aplicativos. No navegador, bloqueada no mesmo lugar.
+      let follow = followPreference();
+      let followSetting = null;
+      if (browser) {
+        followSetting = lockedRow('refresh', 'Seguir a partida', 'O navegador não vê quando o jogo abre.');
+        followSetting.classList.add('share-follow');
+      } else if (desktop?.shareFollow) {
+        followSetting = el('label', { class: 'share-follow share-follow-row', title: 'Quando a partida abre, a transmissão vai para o jogo. No fim, volta para o client.' },
+          el('span', { class: 'share-follow-icon', 'aria-hidden': 'true' }, Icon('refresh', 16)),
+          el('span', { class: 'share-follow-text' },
+            el('strong', { textContent: 'Seguir a partida' }),
+            el('small', { textContent: 'Do client do LoL para o jogo e de volta.' })),
+          el('input', { type: 'checkbox', class: 'ds-switch', checked: follow, onchange: (event) => { follow = followPreference(event.target.checked); } }));
+      }
+      if (followSetting) followSetting.hidden = tab !== 'window';
       const settings = [quality ? setting('Qualidade', qualityChips, qualityHint, qualityLocks) : null, audioSetting].filter(Boolean);
 
       const overlay = el('div', { class: 'confirm-overlay share-overlay', onmousedown: (event) => event.target === overlay && finish(null) },
@@ -441,7 +516,7 @@ window.DesktopApp = (() => {
               ? 'Escolha um aplicativo ou uma tela inteira para transmitir na chamada. Depois, o navegador pede para você confirmar.'
               : 'Escolha um aplicativo ou uma tela inteira para transmitir na chamada.' })),
             el('button', { type: 'button', class: 'share-close', ariaLabel: 'Fechar', onclick: () => finish(null) }, Icon('x', 20))),
-          tabs,
+          el('div', { class: 'share-bar' }, tabs, followSetting),
           grid,
           settings.length ? el('div', { class: 'share-settings' }, ...settings) : null,
           el('div', { class: 'share-foot' },

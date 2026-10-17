@@ -49,7 +49,9 @@ function harness(progressive = true, autoStart = true) {
   const reopen = start;
   const chooseLatest = choice => handlers.get('desktop:pick-source:result')({ sender: contents }, messages.findLast(message => message[0] === 'desktop:pick-source')[1], choice);
   const prepare = () => handlers.get('desktop:pick-source:prepare')({ sender: contents });
-  return { messages, callbacks, video, previews, audio, icons, pending, choose, chooseLatest, reopen, requests,
+  // A transmissão que segue a partida (lib/share-follow.js), trocada por uma falsa.
+  const useFollow = (follow) => { context.fakeFollow = follow; vm.runInContext('shareFollow = fakeFollow', context); };
+  return { messages, callbacks, video, previews, audio, icons, pending, choose, chooseLatest, reopen, requests, useFollow, handlers, contents,
     audioCalls: () => audioCalls, tuned: () => tuned, prepare, advance: ms => { elapsed += ms; } };
 }
 
@@ -205,4 +207,38 @@ test('source discovery failure closes the loading picker; legacy sites get one c
   assert.equal(legacy.messages[0][3].loading, false);
   legacy.choose({ id: 'window:7:0', audio: false });
   assert.equal(legacy.callbacks[0].video.id, 'window:7:0');
+});
+
+test('a troca da partida entra no lugar do seletor; a escolha com "Seguir a partida" começa a seguir', async () => {
+  const h = harness(true, false);
+  const calls = [];
+  let auto = null;
+  h.useFollow({ start: (_contents, options) => calls.push(['start', JSON.parse(JSON.stringify(options))]), stop: () => calls.push(['stop']), takePick: () => auto,
+    accept: () => true, ended: () => true });
+  h.reopen();
+  h.audio.resolve(apps);
+  h.video.resolve(sources);
+  await tick();
+  h.choose({ id: 'window:7:0', audio: true, app: 20, follow: true });
+  assert.deepEqual(calls, [['start', { source: { id: 'window:7:0', name: 'Jogo' }, audio: { enabled: true, pids: [20] } }]]);
+  assert.equal(h.callbacks[0].audio, 'applicationLoopback:20');
+
+  // O app já escolheu a janela da partida: nenhum seletor abre, e o som vai com o app da partida.
+  auto = { source: { id: 'window:8:0', name: 'Partida' }, audio: true, pids: [30, 40] };
+  const opened = h.messages.filter(message => message[0] === 'desktop:pick-source').length;
+  await h.reopen();
+  assert.equal(h.messages.filter(message => message[0] === 'desktop:pick-source').length, opened);
+  assert.deepEqual(JSON.parse(JSON.stringify(h.callbacks[1])), { video: { id: 'window:8:0', name: 'Partida' }, audio: 'applicationLoopback:30' });
+  assert.deepEqual([...h.messages.at(-1)[1].pids], [40], 'o outro app vai pela captura extra');
+  assert.equal(calls.length, 1, 'a troca não recomeça o acompanhamento');
+
+  // A tela inteira (ou um site sem a opção) não segue nada.
+  auto = null;
+  h.reopen();
+  h.video.resolve(sources);
+  await tick();
+  h.chooseLatest({ id: 'screen:1:0', audio: false, follow: true });
+  assert.deepEqual(calls.at(-1), ['stop']);
+  assert.equal(await h.handlers.get('desktop:share-follow:accept')({ sender: h.contents }), true);
+  assert.equal(await h.handlers.get('desktop:share-follow:ended')({ sender: h.contents }), true);
 });

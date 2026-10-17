@@ -14,6 +14,7 @@ if (location.protocol === 'file:') {
   let audioPlan = null;
   let pttListener = null;
   let keybindListener = null;
+  let followListener = null;
 
   ipcRenderer.on('desktop:pick-source', async (_event, id, sources, options) => {
     activePick = id;
@@ -30,6 +31,7 @@ if (location.protocol === 'file:') {
   ipcRenderer.on('desktop:app-audio:plan', (_event, plan) => { audioPlan = plan; });
   ipcRenderer.on('desktop:ptt', (_event, pressed) => pttListener?.(!!pressed));
   ipcRenderer.on('desktop:keybind', (_event, id) => keybindListener?.(String(id)));
+  ipcRenderer.on('desktop:share-follow', (_event, message) => followListener?.({ action: String(message?.action || ''), to: String(message?.to || ''), name: String(message?.name || '') }));
 
   contextBridge.exposeInMainWorld('resenhexDesktop', {
     platform: process.platform,
@@ -48,6 +50,14 @@ if (location.protocol === 'file:') {
       ipcRenderer.send('desktop:pick-source:ready', !!pickSource && !!updateSource);
     },
     prepareShare: () => ipcRenderer.send('desktop:pick-source:prepare'),
+    // Transmissão que segue a partida (a escolha manda follow: true). O app avisa
+    // { action: 'switch', to: 'game' | 'home', name } ou { action: 'stop' }.
+    shareFollow: {
+      onMessage: (listener) => { followListener = typeof listener === 'function' ? listener : null; },
+      accept: () => ipcRenderer.invoke('desktop:share-follow:accept'),
+      ended: () => ipcRenderer.invoke('desktop:share-follow:ended'),
+      stop: () => ipcRenderer.send('desktop:share-follow:stop'),
+    },
     setPushToTalk: (config) => ipcRenderer.send('desktop:set-ptt', { enabled: !!config?.enabled, code: String(config?.code || '') }),
     onPushToTalk: (listener) => { pttListener = typeof listener === 'function' ? listener : null; },
     // list: [{ id, combo }] dos atalhos que valem com o app em segundo plano.

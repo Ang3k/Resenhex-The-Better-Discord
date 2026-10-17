@@ -2,15 +2,13 @@
 // É uma janela transparente, sempre no topo e que deixa o clique passar. Não injeta nada no jogo,
 // então não aparece em jogos de tela cheia exclusiva, só nos de janela ou tela cheia sem borda.
 // O site manda o resumo da chamada; aqui só se decide quando e onde mostrar.
-const fs = require('node:fs');
-const { createGameMatcher } = require('./game-detect');
 const { WIDTH, MAX_HEIGHT, overlayConfig, overlayPosition, overlayBounds, overlayState } = require('./overlay-layout');
 
 const POLL_MS = 1500;
 const PREVIEW_MS = 6000;
-const LIST_MAX_AGE = 24 * 60 * 60 * 1000;
 
-function createOverlay({ BrowserWindow, screen, origin, preload, cacheFile, fetch, log }) {
+// games: a lista de jogos (game-list.js), a mesma da transmissão que segue a partida.
+function createOverlay({ BrowserWindow, screen, origin, preload, games, log }) {
   let config = overlayConfig(null);
   let call = null; // resumo da chamada, ou null fora dela
   let preview = null; // { area, position, state, timer } enquanto o teste das configurações está na tela
@@ -18,9 +16,6 @@ function createOverlay({ BrowserWindow, screen, origin, preload, cacheFile, fetc
   let win = null;
   let ready = false;
   let timer = null;
-  let matcher = null;
-  let listSavedAt = 0; // quando a lista de jogos em uso foi baixada
-  let listLoading = null;
   let foreground;
   let gameArea = null; // área do jogo em primeiro plano (DIP), ou null
 
@@ -30,37 +25,6 @@ function createOverlay({ BrowserWindow, screen, origin, preload, cacheFile, fetc
       catch (error) { foreground = null; log.warn('Overlay indisponível:', error.message); }
     }
     return foreground;
-  }
-
-  // ---------------- lista de jogos ----------------
-  // Renova a cada 24 h, também com o app aberto. A cópia em disco é a resposta inteira do servidor
-  // (lista e regras das pastas); uma cópia sem as regras é de versões anteriores e é baixada de novo.
-  function loadList() {
-    if (listLoading || (matcher && Date.now() - listSavedAt < LIST_MAX_AGE)) return;
-    if (!matcher) {
-      let saved = null;
-      try { saved = JSON.parse(fs.readFileSync(cacheFile, 'utf8')); } catch { /* primeira vez */ }
-      if (Array.isArray(saved?.games)) {
-        matcher = createGameMatcher(saved);
-        listSavedAt = Array.isArray(saved.folders) ? saved.savedAt || 0 : 0;
-        if (Date.now() - listSavedAt < LIST_MAX_AGE) return;
-      }
-    }
-    listLoading = (async () => {
-      try {
-        const response = await fetch(new URL('/api/games/detectable', origin).href);
-        if (!response.ok) throw new Error('HTTP ' + response.status);
-        const body = await response.json();
-        if (!Array.isArray(body.games) || !body.games.length) throw new Error('lista vazia');
-        matcher = createGameMatcher(body);
-        listSavedAt = Date.now();
-        fs.writeFileSync(cacheFile + '.tmp', JSON.stringify({ ...body, savedAt: listSavedAt }));
-        fs.renameSync(cacheFile + '.tmp', cacheFile);
-        log.info(`Overlay: ${body.games.length} jogos conhecidos e ${matcher.folders} pastas de lojas`);
-      } catch (error) {
-        log.warn('Overlay: lista de jogos não foi baixada:', error.message);
-      } finally { listLoading = null; }
-    })();
   }
 
   // ---------------- janela ----------------
@@ -105,6 +69,7 @@ function createOverlay({ BrowserWindow, screen, origin, preload, cacheFile, fetc
   // ---------------- jogo em primeiro plano ----------------
   function check() {
     const current = config.enabled && call ? getForeground()?.() : null;
+    const matcher = games.matcher(); // também renova a lista se já passou um dia
     const game = current && current.pid !== process.pid ? matcher?.match(current.exe) : null;
     let area = null;
     if (game) {
@@ -117,7 +82,6 @@ function createOverlay({ BrowserWindow, screen, origin, preload, cacheFile, fetc
       }
     }
     if (area && !gameArea) log.info(`Overlay: ${game.name}${game.exact ? '' : ' (pela pasta)'}`);
-    loadList(); // renova a lista se já passou um dia
     const changed = JSON.stringify(area) !== JSON.stringify(gameArea);
     gameArea = area;
     if (changed || preview) place();
@@ -125,7 +89,7 @@ function createOverlay({ BrowserWindow, screen, origin, preload, cacheFile, fetc
 
   function schedule() {
     const needed = config.enabled && !!call && !!getForeground();
-    if (needed && !timer) { loadList(); timer = setInterval(check, POLL_MS); check(); }
+    if (needed && !timer) { games.matcher(); timer = setInterval(check, POLL_MS); check(); }
     else if (!needed && timer) { clearInterval(timer); timer = null; gameArea = null; place(); }
   }
 

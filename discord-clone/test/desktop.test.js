@@ -441,3 +441,103 @@ test('no Chromium, a aba do navegador leva o som dela e o H.264 na placa não fi
   assert.deepEqual(calls.map((choice) => ({ ...choice })), [{ id: 'surface:browser', surface: 'browser', audio: true }]);
   w.close();
 });
+
+const followBridge = () => {
+  const b = bridge();
+  const follow = { listener: null, accepts: [], ended: 0, stops: 0, acceptWith: true };
+  b.shareFollow = {
+    onMessage: (fn) => { follow.listener = fn; },
+    accept: async () => { follow.accepts.push(follow.acceptWith); return follow.acceptWith; },
+    ended: async () => { follow.ended++; return true; },
+    stop: () => { follow.stops++; },
+  };
+  return { b, follow };
+};
+
+test('no app, "Seguir a partida" vale para a janela de um app e a escolha fica salva', async () => {
+  const { b } = followBridge();
+  const w = load({ bridge: b });
+  const doc = w.document;
+  const open = (selector) => doc.querySelector(`.share-overlay:not(.closing) ${selector}`);
+  let choice = b.calls.picker(sources, { audio: false });
+  assert.equal(open('.share-follow').hidden, false);
+  assert.match(open('.share-follow').textContent, /Seguir a partida/);
+  assert.equal(open('.share-follow .share-lock-badge'), null, 'no app não fica bloqueado');
+  assert.equal(open('.share-follow input').checked, true, 'ligada por padrão');
+  doc.querySelectorAll('.share-overlay:not(.closing) .share-tabs button')[1].click();
+  assert.equal(open('.share-follow').hidden, true, 'a tela inteira não tem partida para seguir');
+  doc.querySelectorAll('.share-overlay:not(.closing) .share-tabs button')[0].click();
+  open('[data-source-id="window:7:0"]').click();
+  open('.btn-primary').click();
+  assert.deepEqual({ ...await choice }, { id: 'window:7:0', audio: false, follow: true });
+  assert.ok(w.DesktopApp.holdScreen() instanceof w.Promise || typeof w.DesktopApp.holdScreen()?.then === 'function', 'a janela fechada espera o app');
+
+  choice = b.calls.picker(sources, { audio: false });
+  open('.share-follow input').click();
+  assert.equal(w.localStorage.getItem('shareFollowGame'), '0');
+  open('[data-source-id="window:7:0"]').click();
+  open('.btn-primary').click();
+  assert.deepEqual({ ...await choice }, { id: 'window:7:0', audio: false, follow: false });
+  assert.equal(w.DesktopApp.holdScreen(), null, 'sem seguir, a janela fechada para a transmissão');
+  choice = b.calls.picker(sources, { audio: false });
+  assert.equal(open('.share-follow input').checked, false, 'a escolha continua na próxima vez');
+  open('.share-close').click();
+  await choice;
+
+  // App antigo, sem a ponte: nada muda na escolha.
+  const old = bridge();
+  const w2 = load({ bridge: old });
+  const oldChoice = old.calls.picker(sources, { audio: false });
+  assert.equal(w2.document.querySelector('.share-follow'), null);
+  w2.document.querySelector('[data-source-id="window:7:0"]').click();
+  w2.document.querySelector('.btn-primary').click();
+  assert.deepEqual({ ...await oldChoice }, { id: 'window:7:0', audio: false });
+  w.close(); w2.close();
+});
+
+test('no app, a troca da partida pede a captura sem o seletor, e só se o app confirmar', async () => {
+  const { b, follow } = followBridge();
+  const w = load({ bridge: b });
+  const switched = [], captures = [], results = [];
+  w.DesktopApp.follow = {
+    switch: (message) => { switched.push({ ...message }); results.push(w.DesktopApp.captureScreen(async () => { captures.push('troca'); return { id: 'stream' }; })); },
+    stop: () => switched.push('stop'),
+  };
+  follow.listener({ action: 'switch', to: 'game', name: 'League of Legends (TM) Client' });
+  assert.deepEqual(switched, [{ action: 'switch', to: 'game', name: 'League of Legends (TM) Client' }]);
+  assert.deepEqual(await results[0], { id: 'stream' });
+  assert.deepEqual(follow.accepts, [true], 'o app confirmou a troca antes do pedido');
+
+  follow.acceptWith = false;
+  follow.listener({ action: 'switch', to: 'home', name: 'League of Legends' });
+  await assert.rejects(results[1], { name: 'ShareCancelledError' }, 'a troca expirou: nada de seletor');
+  assert.deepEqual(captures, ['troca']);
+
+  await w.DesktopApp.captureScreen(async () => { captures.push('pessoa'); return {}; });
+  assert.equal(follow.accepts.length, 2, 'a captura pedida pela pessoa não passa pela troca');
+
+  follow.listener({ action: 'stop' });
+  assert.equal(switched.at(-1), 'stop');
+  w.DesktopApp.shareStopped();
+  assert.equal(follow.stops, 1);
+  w.close();
+});
+
+test('no navegador, "Seguir a partida" aparece bloqueado na aba de aplicativos', async () => {
+  const w = load({ userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) Firefox/140.0' });
+  const doc = w.document;
+  w.DesktopApp.shareQuality = browserQuality([]);
+  const capture = w.DesktopApp.captureScreen(async (choice) => choice, { audio: true });
+  const row = doc.querySelector('.share-follow');
+  assert.equal(row.hidden, false);
+  assert.deepEqual(locks(row), ['Seguir a partida']);
+  assert.match(row.textContent, /Bloqueado no navegador/);
+  assert.equal(row.querySelector('input'), null);
+  doc.querySelectorAll('.share-tabs button')[1].click();
+  assert.equal(row.hidden, true);
+  assert.equal(w.DesktopApp.holdScreen(), null);
+  doc.querySelector('.share-source').click();
+  doc.querySelector('.btn-primary').click();
+  assert.deepEqual({ ...await capture }, { id: 'surface:monitor', surface: 'monitor', audio: true });
+  w.close();
+});

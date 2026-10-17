@@ -55,6 +55,11 @@ function createGameMatcher(data) {
       }
       return null;
     },
+    // Se o caminho passa por uma biblioteca de jogos ("steamapps/common/", "riot games/"…).
+    inLibrary(file) {
+      const full = '/' + normalize(file);
+      return folders.some((folder) => full.includes('/' + folder));
+    },
   };
 }
 

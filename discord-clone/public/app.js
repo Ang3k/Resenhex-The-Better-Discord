@@ -5733,6 +5733,8 @@
   }
 
   if (window.DesktopApp) window.DesktopApp.shareQuality = { presets: SHARE_PRESETS, current: () => state.sharePreset, set: setSharePreset };
+  // O app do Windows troca a transmissão sozinho quando a partida abre ou acaba.
+  if (window.DesktopApp) window.DesktopApp.follow = { switch: (message) => switchScreen(message), stop: () => { if (state.local.screen) { stopVideo('screen'); mediaNotice('A janela transmitida fechou e não voltou. A transmissão parou.'); } } };
 
   function openShareMenu(anchor) {
     const menu = $('#context-menu');

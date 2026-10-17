@@ -1092,3 +1092,36 @@ test('in the browser, the Resenhex picker choice becomes getDisplayMedia hints; 
   assert.equal(asked[2].windowAudio, 'system', 'a window keeps the whole-PC sound, as in the app');
   assert.equal(asked[2].audio.restrictOwnAudio, true);
 });
+
+test('the Windows app following the match: a closed game window waits for the switch back instead of ending the stream', async () => {
+  const h = mediaHarness();
+  h.media.stopVideo('screen');
+  let hold = null, stopped = 0;
+  h.context.window.DesktopApp = { captureScreen: (capture) => capture(), holdScreen: () => hold, shareStopped: () => { stopped++; } };
+  await h.media.startVideo('screen');
+  let video = h.state.local.screen.getVideoTracks()[0];
+  video.readyState = 'ended'; video.onended();
+  assert.equal(h.state.local.screen, null, 'without the app following, a closed window still ends the stream at once');
+  assert.equal(stopped, 1, 'and the app is told');
+
+  await h.media.startVideo('screen');
+  const screen = h.state.local.screen;
+  video = screen.getVideoTracks()[0];
+  hold = Promise.resolve(true);
+  video.readyState = 'ended'; video.onended();
+  await hold;
+  assert.equal(h.state.local.screen, screen, 'waits for the app to switch');
+  assert.equal(h.state.sharePaused, true, 'viewers see the stream paused meanwhile');
+  await h.media.switchScreen({ to: 'home', name: 'League of Legends' });
+  assert.equal(h.state.local.screen, screen);
+  assert.equal(screen.getVideoTracks()[0].readyState, 'live');
+  assert.equal(h.state.sharePaused, false);
+  assert.ok(h.notices.includes('A partida acabou. A transmissão voltou para League of Legends.'));
+
+  // The switch failed and the previous window is already gone: nothing left to keep.
+  screen.getVideoTracks()[0].readyState = 'ended';
+  h.context.navigator.mediaDevices.getDisplayMedia = async () => { throw Object.assign(new Error('gone'), { name: 'NotReadableError' }); };
+  await h.media.switchScreen({ to: 'game', name: 'Partida' });
+  assert.equal(h.state.local.screen, null);
+  assert.equal(h.state.captureBusy, false);
+});
