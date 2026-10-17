@@ -22,6 +22,7 @@ const { cleanGif } = require('./server/gifs');
 const { createGameList } = require('./server/games');
 const { createMailer } = require('./server/mailer');
 const { createRecovery, normalizeEmail } = require('./server/recovery');
+const { createClipStore, MAX_CLIP_BYTES, MAX_THUMB_BYTES, MAX_CLIP_SECONDS } = require('./server/clip-store');
 const { version: APP_VERSION } = require('./package.json');
 
 const PORT = process.env.PORT || 3000;
@@ -38,6 +39,9 @@ const AVATAR_DIR = path.join(UPLOAD_DIR, 'avatars');
 fs.mkdirSync(AVATAR_DIR, { recursive: true });
 const SOUND_DIR = path.join(UPLOAD_DIR, 'sounds');
 fs.mkdirSync(SOUND_DIR, { recursive: true });
+// Clipes da chamada (vídeos de até 30 s): só quem estava na chamada baixa, por token de uso único.
+const CLIP_DIR = path.join(UPLOAD_DIR, 'clips');
+fs.mkdirSync(CLIP_DIR, { recursive: true });
 
 // Tipos que o navegador pode exibir direto. Todo o resto é servido como download,
 // para que um arquivo enviado (ex.: .html, .svg) nunca rode código neste site.
@@ -157,6 +161,7 @@ const communities = communityStore(loadedDb, newId, defaultDb);
 const db = communities.db;
 const channelStore = channelActions(db, newId);
 db.uploads ||= {};
+const clipStore = createClipStore({ root: communities.root, randomId: () => crypto.randomBytes(16).toString('hex'), serverExists: (id) => !!communities.root.servers?.[id] });
 db.friendships ||= {}; // "idA-idB" (ids em ordem) -> { status: 'pending' | 'friends', from, ts }
 db.blocks ||= {}; // idDeQuemBloqueou -> [ids bloqueados]
 db.dms ||= {}; // "dm-idA-idB" -> { id, users: [idA, idB], closed: { idDaConta: true } }; as mensagens ficam em db.messages[id]
@@ -341,6 +346,7 @@ const deleteAttachments = (msg) => (msg.attachments || []).forEach((a) => delete
 setInterval(() => {
   const limit = Date.now() - 60 * 60 * 1000;
   for (const up of Object.values(db.uploads)) if (!up.messageId && up.ts < limit) deleteUpload(up.id);
+  for (const file of clipStore.prune()) fs.unlink(path.join(CLIP_DIR, file), () => {});
   save();
 }, 10 * 60 * 1000).unref();
 
@@ -793,10 +799,59 @@ app.get('/uploads/:file', (req, res) => {
   res.sendFile(path.join(UPLOAD_DIR, up.file));
 });
 
+// Clipe da chamada. Corpo: u32 (tamanho da miniatura) | miniatura JPEG | MP4. Metadados em x-clip.
+const clipError = (res, status, error) => res.status(status).json({ error });
+const clipSlug = (name) => String(name || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 40) || 'chamada';
+app.post('/clips', express.raw({ type: () => true, limit: MAX_CLIP_BYTES + MAX_THUMB_BYTES + 4 }), (req, res) => {
+  const acc = db.accounts[db.sessions[req.get('x-token')]];
+  if (!acc) return clipError(res, 401, 'Não autenticado');
+  const s = [...online.values()].find((x) => x.accountId === acc.id && x.voice);
+  if (!s) return clipError(res, 403, 'Entre numa chamada para clipar.');
+  let meta;
+  try { meta = JSON.parse(decodeURIComponent(req.get('x-clip') || '')); } catch { meta = null; }
+  const duration = Number(meta?.duration);
+  const participants = Array.isArray(meta?.participants) ? meta.participants.filter((id) => typeof id === 'string').slice(0, 50) : null;
+  const body = req.body;
+  if (!participants || !Number.isFinite(duration) || duration <= 0 || duration > MAX_CLIP_SECONDS || !Buffer.isBuffer(body) || body.length < 16) return clipError(res, 400, 'Clipe inválido.');
+  const thumbLength = body.readUInt32BE(0);
+  const thumb = body.subarray(4, 4 + thumbLength), mp4 = body.subarray(4 + thumbLength);
+  if (thumbLength < 64 || thumbLength > MAX_THUMB_BYTES || thumb[0] !== 0xff || thumb[1] !== 0xd8 || thumb[2] !== 0xff) return clipError(res, 400, 'Clipe inválido.');
+  if (mp4.length < 16 || mp4.length > MAX_CLIP_BYTES || mp4.toString('latin1', 4, 8) !== 'ftyp') return clipError(res, 400, 'Clipe inválido.');
+  const room = [...online.values()].filter((x) => x.voice === s.voice && x.voiceServerId === s.voiceServerId);
+  if (room.some((x) => participants.includes(x.accountId) && x.allowClips === false)) return clipError(res, 403, 'Alguém no clipe não quer ser clipado.');
+  if (!allow('clip:' + acc.id, 6, 60_000) || !allow('clip-h:' + acc.id, 30, 60 * 60 * 1000)) return clipError(res, 429, 'Clipes demais seguidos. Espere um pouco.');
+  const channelName = isDmCall(s) ? 'Chamada' : communities.run(s.voiceServerId, () => db.channels.find((c) => c.id === s.voice)?.name) || 'Chamada';
+  const file = crypto.randomBytes(16).toString('hex') + '.mp4';
+  fs.writeFile(path.join(CLIP_DIR, file), mp4, (err) => {
+    if (err) { console.error('Falha ao salvar clipe:', err); return clipError(res, 500, 'Falha ao salvar o clipe.'); }
+    const clip = clipStore.add({
+      file, voice: s.voice, serverId: s.voiceServerId || null, creatorId: acc.id, duration: Math.round(duration * 10) / 10, channelName,
+      recipients: room.map((x) => x.accountId), thumb: 'data:image/jpeg;base64,' + thumb.toString('base64'),
+    });
+    save();
+    io.to('voice:' + s.voice).emit('clip:new', clipStore.publicView(clip));
+    res.json({ id: clip.id });
+  });
+});
+
+app.get('/clips/:id', (req, res) => {
+  const clip = clipStore.consumeToken(req.params.id, String(req.query.t || ''));
+  if (!clip) return res.status(410).end();
+  const d = new Date(clip.createdAt), two = (n) => String(n).padStart(2, '0');
+  const stamp = `${d.getFullYear()}-${two(d.getMonth() + 1)}-${two(d.getDate())}-${two(d.getHours())}${two(d.getMinutes())}`;
+  res.set({
+    'Content-Type': 'video/mp4',
+    'X-Content-Type-Options': 'nosniff',
+    'Cache-Control': 'no-store',
+    'Content-Disposition': `attachment; filename="resenhex-clipe-${clipSlug(clip.channelName)}-${stamp}.mp4"`,
+  });
+  res.sendFile(path.join(CLIP_DIR, clip.file));
+});
+
 // Upload maior que o limite ou outro erro de corpo da requisição.
 app.use((err, req, res, _next) => {
   if (err.type === 'entity.too.large') {
-    return res.status(413).json({ error: req.path.startsWith('/profile/') ? 'A imagem deve ter até 5 MB.' : req.path.endsWith('/sounds') ? 'O efeito sonoro deve ter até 8 segundos.' : `Arquivo maior que ${MAX_UPLOAD_MB} MB` });
+    return res.status(413).json({ error: req.path === '/clips' ? 'O clipe deve ter até 25 MB.' : req.path.startsWith('/profile/') ? 'A imagem deve ter até 5 MB.' : req.path.endsWith('/sounds') ? 'O efeito sonoro deve ter até 8 segundos.' : `Arquivo maior que ${MAX_UPLOAD_MB} MB` });
   }
   console.error(err);
   res.status(500).json({ error: 'Erro no servidor' });
@@ -905,6 +960,7 @@ function voiceEntry(sid, s) {
     paused: s.paused,
     camera: s.camera,
     voiceFx: s.voiceFx || null, // efeito do modificador de voz (selo para os outros)
+    allowClips: s.allowClips !== false, // "Pode clipar meu áudio" (ligado por padrão)
     viewers: [...online].filter(([, viewer]) => viewer.voice === s.voice && viewer.watching?.has(sid)).map(([viewerId]) => viewerId),
     // "silenced": ninguém deve ouvir essa pessoa (mutada pelo servidor, de castigo ou sem permissão de falar).
     // Numa chamada privada não há cargos nem castigo.
@@ -1038,6 +1094,7 @@ function leaveVoice(socket) {
   s.preview = null;
   s.camera = false;
   s.voiceFx = null;
+  delete s.allowClips;
   if (dm) dmCalls.left(dm, s.accountId, roomAccounts(dm));
 }
 
@@ -1951,7 +2008,7 @@ io.on('connection', (socket) => {
     broadcastState();
   });
 
-  on('voice:state', (acc, { muted, deafened, sharing, paused, camera, voiceFx }) => {
+  on('voice:state', (acc, { muted, deafened, sharing, paused, camera, voiceFx, allowClips }) => {
     const s = online.get(socket.id);
     const video = !!s.voice && (isDmCall(s) || (can(acc, 'STREAM') && !timedOut(acc)));
     s.muted = !!muted;
@@ -1962,7 +2019,19 @@ io.on('connection', (socket) => {
     s.paused = s.sharing && !!paused;
     s.camera = !!camera && video;
     s.voiceFx = VOICE_FX.includes(voiceFx) ? voiceFx : null;
+    s.allowClips = allowClips !== false;
     broadcastState();
+  }, { voice: true });
+
+  // Clipes desta chamada em que a pessoa é destinatária (últimas 24 h) e o link de download de uso único.
+  on('clip:list', (acc) => {
+    const s = online.get(socket.id);
+    return { clips: s.voice ? clipStore.listFor(acc.id, s.voice).map(clipStore.publicView) : [] };
+  }, { voice: true });
+  on('clip:link', (acc, { id }) => {
+    const token = typeof id === 'string' && clipStore.issueToken(id, acc.id);
+    if (!token) fail('Clipe indisponível.');
+    return { url: `/clips/${id}?t=${token}` };
   }, { voice: true });
 
   // Prévia da transmissão (como no Discord): uma foto pequena da tela de quem transmite, repassada para
