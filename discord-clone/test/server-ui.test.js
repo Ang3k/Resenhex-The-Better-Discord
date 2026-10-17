@@ -34,7 +34,9 @@ async function ui(t, invited = false, options = {}) {
   let current = snapshot(null, '', servers);
   const push = () => handlers.get('state')?.(structuredClone(current));
   const socket = {
-    connected: false, active: false, on(event, handler) { handlers.set(event, handler); },
+    connected: false, active: false,
+    // Como no socket.io, cada evento pode ter mais de um ouvinte (o app e a prévia da transmissão ouvem o connect).
+    on(event, handler) { const before = handlers.get(event); handlers.set(event, before ? (payload) => { const out = before(payload); handler(payload); return out; } : handler); },
     connect() { this.connected = true; }, disconnect() { this.connected = false; }, timeout() { return this; },
     emit(event, payload, callback) {
       events.push({ event, payload });
@@ -84,7 +86,7 @@ async function ui(t, invited = false, options = {}) {
   let copied = '';
   Object.defineProperty(w.navigator, 'clipboard', { value: { writeText: async (text) => { copied = text; } } });
   options.setup?.(w);
-  for (const file of ['icons.js', 'format.js', 'sounds.js', 'media-policy.js', 'keybinds.js', 'settings.js', 'photo-editor.js', 'media-session.js', 'media-sfu.js', 'mobile-stream.js', 'stream-zoom.js', 'changelog.js', 'confetti.js', 'channel-navigation.js', 'music.js', 'mudae.js', 'mudae-salao.js', 'dm-call.js', 'gif-picker.js', 'emoji-picker.js', 'lightbox.js', 'voice-fx.js', 'feedback.js', 'app.js', 'landing.js']) w.eval(fs.readFileSync(path.join(publicDir, file), 'utf8'));
+  for (const file of ['icons.js', 'format.js', 'sounds.js', 'media-policy.js', 'keybinds.js', 'settings.js', 'photo-editor.js', 'media-session.js', 'media-sfu.js', 'stream-preview.js', 'mobile-stream.js', 'stream-zoom.js', 'changelog.js', 'confetti.js', 'channel-navigation.js', 'music.js', 'mudae.js', 'mudae-salao.js', 'dm-call.js', 'gif-picker.js', 'emoji-picker.js', 'lightbox.js', 'voice-fx.js', 'feedback.js', 'app.js', 'landing.js']) w.eval(fs.readFileSync(path.join(publicDir, file), 'utf8'));
   w.localStorage.setItem('seenVersion', w.APP_VERSION);
   t.after(() => { dom.window.close(); assert.deepEqual(errors.map((e) => e.message), []); });
   await settle();
