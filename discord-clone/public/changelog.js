@@ -4,6 +4,18 @@
 // O título deve destacar as principais funcionalidades ou correções, com termos objetivos.
 window.CHANGELOG = [
   {
+    version: '1.8.0', date: '2026-10-17', name: 'Clipar',
+    summary: 'Pegue os últimos 30 segundos da chamada e solte um vídeo para a galera baixar.',
+    sections: [
+      { kind: 'new', items: [
+        'Botão Clipar (claquete) na barra da chamada e atalho Alt+C, que funciona com o jogo aberto no app do Windows.',
+        'Corte o trecho que quiser dentro dos últimos 30 segundos antes de soltar.',
+        'O clipe vira um vídeo com os perfis de quem estava na chamada, acendendo verde em quem fala, e só quem estava lá pode baixar.',
+        'Nova opção em Voz e vídeo: Pode clipar meu áudio. Desligada, você some dos clipes.',
+      ] },
+    ],
+  },
+  {
     version: '1.7.0', date: '2026-10-17', name: 'Prévia da transmissão e paleta roxa',
     summary: 'Quem está na chamada sem assistir vê uma prévia da tela de quem transmite, como no Discord. O app todo ganhou o preto com roxo da tela de entrada.',
     sections: [

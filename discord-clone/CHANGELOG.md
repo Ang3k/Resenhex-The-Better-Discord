@@ -3,6 +3,19 @@
 Histórico de versões. A mesma lista aparece dentro do app em **Novidades** (menu do servidor ou rodapé das Configurações).
 O Resenhex chegou à versão 1.0 em 4 de outubro de 2026.
 
+## v1.8.0 — Clipar
+
+17 de outubro de 2026.
+
+Pegue os últimos 30 segundos da chamada e solte um vídeo para a galera baixar.
+
+### Novidades
+
+- Botão Clipar (claquete) na barra da chamada e atalho Alt+C, que funciona com o jogo aberto no app do Windows.
+- Corte o trecho que quiser dentro dos últimos 30 segundos antes de soltar.
+- O clipe vira um vídeo com os perfis de quem estava na chamada, acendendo verde em quem fala, e só quem estava lá pode baixar.
+- Nova opção em Voz e vídeo: Pode clipar meu áudio. Desligada, você some dos clipes.
+
 ## v1.7.0 — Prévia da transmissão e paleta roxa
 
 17 de outubro de 2026.
