@@ -141,56 +141,7 @@ a.download-app { text-decoration: none; }
 :root[data-reduce-motion=true] :is(.share-source, .share-close, .share-chip, .share-quality-thumb) { transition: none; }
 .share-picker .confirm-actions .btn-primary:disabled { opacity: .45; box-shadow: none; cursor: not-allowed; }
 
-/* ---------- Escolha da tela no navegador: o que só o app faz fica no lugar, bloqueado ---------- */
-.share-lock-badge {
-  display: inline-flex; align-items: center; gap: 4px; flex-shrink: 0; height: 20px; padding: 0 8px 0 6px; border-radius: 999px;
-  background: color-mix(in srgb, var(--text-muted) 16%, transparent); color: var(--text);
-  font-size: 11px; font-weight: 700; line-height: 1; letter-spacing: .01em; white-space: nowrap;
-}
-.share-lock-badge .ico { flex-shrink: 0; color: var(--text-muted); }
-
-/* Card da lista de janelas/telas: contorno tracejado, miniaturas fantasmas e o selo no meio. */
-.share-source.share-locked {
-  padding: 7px; border: 1px dashed color-mix(in srgb, var(--text-muted) 38%, transparent);
-  background: transparent; box-shadow: none; cursor: not-allowed; animation-name: share-in;
-}
-.share-source.share-locked:hover { background: transparent; transform: none; }
-.share-locked .share-thumb { position: relative; background: color-mix(in srgb, var(--bg-rail) 70%, transparent); }
-.share-ghosts {
-  position: absolute; inset: 16% 12%; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); grid-auto-rows: 1fr; gap: 8px;
-}
-.share-ghosts.screens { inset: 22% 10%; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
-.share-ghosts i {
-  border-radius: 4px; box-shadow: inset 0 0 0 1px var(--divider);
-  background: linear-gradient(var(--bg-input) 0 18%, color-mix(in srgb, var(--bg-input) 45%, transparent) 18%);
-}
-.share-ghosts.screens i { border-radius: 5px; background: color-mix(in srgb, var(--bg-input) 60%, transparent); }
-/* Selo e motivo por cima das miniaturas fantasmas, que ficam apagadas atrás de um véu. */
-.share-locked-cover {
-  position: absolute; inset: 0; display: grid; place-content: center; justify-items: center; gap: 7px; padding: 10px 14px;
-  background: radial-gradient(closest-side, color-mix(in srgb, var(--bg-rail) 82%, transparent), color-mix(in srgb, var(--bg-rail) 30%, transparent)); text-align: center;
-}
-.share-locked-cover .share-lock-badge { height: 24px; padding: 0 10px 0 8px; background: var(--bg-floating); box-shadow: 0 4px 14px rgba(0, 0, 0, .28), inset 0 0 0 1px var(--divider); }
-.share-locked-cover small { max-width: 30ch; color: var(--text); font-size: 12px; font-weight: 500; line-height: 1.35; }
-.share-locked .share-name { color: var(--text); }
-.share-locked .share-name .ico { color: var(--text-muted); }
-
-/* Ajuste bloqueado (som de um app só, 60 fps, H.264 na placa): uma linha tracejada embaixo do ajuste. */
-.share-locks { display: grid; gap: 6px; }
-.share-locks[hidden] { display: none; }
-.share-locked-row {
-  display: flex; align-items: center; gap: 10px; min-width: 0; padding: 6px 10px 6px 6px; border-radius: 10px;
-  border: 1px dashed color-mix(in srgb, var(--text-muted) 38%, transparent); cursor: not-allowed;
-}
-.share-locked-icon { display: grid; place-items: center; flex-shrink: 0; width: 30px; height: 30px; border-radius: 8px; background: var(--bg-rail); color: var(--text-muted); }
-.share-locked-text { display: grid; gap: 2px; min-width: 0; }
-.share-locked-title { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; min-width: 0; }
-.share-locked-title strong { font-size: 13px; font-weight: 600; color: var(--text); }
-.share-locked-text small { font-size: 12px; line-height: 1.35; color: var(--text-muted); }
-.share-audio-select option:disabled { color: var(--text-muted); }
-
-/* Seguir a partida: ao lado das abas, só na de aplicativos, da mesma altura delas. No app, com o
-   interruptor; no navegador, a linha bloqueada. */
+/* Seguir a partida (só no app): ao lado das abas, só na de aplicativos, da mesma altura delas. */
 .share-follow { min-height: 42px; margin-left: auto; padding-top: 5px; padding-bottom: 5px; }
 /* Na aba de telas some sem mexer na altura da linha (a lista não pula); em tela estreita, sai de vez. */
 .share-follow[hidden] { visibility: hidden; }
@@ -204,9 +155,9 @@ a.download-app { text-decoration: none; }
 
 /* Toque: sem o card "levantando" depois do toque. */
 html.touch .share-source:hover { transform: none; }
-html.touch .share-source:not(.selected, .share-locked):hover { background: var(--bg-sidebar); }
+html.touch .share-source:not(.selected):hover { background: var(--bg-sidebar); }
 
-/* Janela estreita (tablet, navegador pequeno): a janela inteira rola, com os botões presos embaixo. */
+/* Janela estreita: a janela inteira rola, com os botões presos embaixo. */
 @media (max-width: 640px) {
   .confirm-card.share-picker { overflow-y: auto; overscroll-behavior: contain; }
   .share-head { padding: 18px 16px 12px; }
@@ -226,10 +177,6 @@ html.touch .share-source:not(.selected, .share-locked):hover { background: var(-
   .share-placeholder .ico, .share-thumb .share-placeholder-icon { width: 28px; height: 28px; }
   .share-name { align-items: flex-start; }
   .share-name > span { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; white-space: normal; line-height: 1.3; }
-  /* A lista bloqueada ocupa a linha inteira, numa faixa mais baixa, para o selo e o motivo caberem. */
-  .share-source.share-locked { grid-column: 1 / -1; }
-  .share-locked .share-thumb { aspect-ratio: 32 / 9; }
-  .share-locked-cover { gap: 5px; padding: 6px 12px; }
 }
 
 /* ---------- Overlay em jogos: aparência e posição lado a lado (em tela estreita, uma embaixo da outra) ---------- */

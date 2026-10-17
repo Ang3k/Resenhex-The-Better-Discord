@@ -1,7 +1,6 @@
 // Integração com o app de desktop do Resenhex (pasta desktop/ do projeto).
-// Dentro do app, sincroniza as cores da barra de título e mostra a janela de escolha da tela a
-// transmitir. No navegador, mostra o botão "Baixar o app" para quem usa Windows e abre a mesma
-// janela de escolha antes do seletor do próprio navegador.
+// No navegador, só mostra o botão "Baixar o app" para quem usa Windows. Dentro do app,
+// sincroniza as cores da barra de título e mostra a janela de escolha da tela a transmitir.
 // Fica no site para que a escolha de tela seja atualizada junto com cada deploy.
 window.DesktopApp = (() => {
   const desktop = window.resenhexDesktop;
@@ -19,13 +18,12 @@ window.DesktopApp = (() => {
   };
   let open = null;
   let captureAttempt = null;
-  let gpuH264 = null; // no navegador: Promise<boolean> do teste de H.264 na placa de vídeo
   let followOn = false; // a transmissão atual segue a partida (escolhida com "Seguir a partida")
   let followArmed = false; // a próxima captura é a troca pedida pelo app
   let followHold = null; // espera a troca depois que a janela transmitida fechou
   let followEpoch = 0; // conta os avisos do app, para a espera não valer depois de uma troca
   // shareQuality: { presets, current(), set(key) } e follow: { switch(message), stop() }, registrados pelo app.js.
-  const api = { available: !!desktop, pickSource, captureScreen: desktop ? captureScreen : captureInBrowser, shareQuality: null, follow: null, holdScreen, shareStopped };
+  const api = { available: !!desktop, pickSource, captureScreen: desktop ? captureScreen : null, shareQuality: null, follow: null, holdScreen, shareStopped };
 
   if (!desktop) {
     const ua = navigator.userAgent;
@@ -200,62 +198,9 @@ window.DesktopApp = (() => {
   }
 
   function sourceLabel(source, screens) {
-    if (source.kind === 'window' || source.surface) return source.name;
+    if (source.kind === 'window') return source.name;
     if (screens.length === 1) return 'Tela inteira';
     return `Tela ${screens.indexOf(source) + 1}`;
-  }
-
-  // ---------------- no navegador ----------------
-  // O site não vê as janelas nem as telas: a mesma janela de escolha oferece o tipo de fonte, e o
-  // seletor do navegador abre logo depois, já na aba certa (displaySurface), para confirmar qual.
-  // O que só o app do Windows faz continua no mesmo lugar, desabilitado, com o selo de bloqueio.
-  // Aba do navegador e as dicas de tipo de fonte só existem nos navegadores com base no Chromium.
-  function chromium() { return !!navigator.userAgentData?.brands?.some((item) => /Chromium/i.test(item.brand)); }
-  function browserSources() {
-    return [
-      { id: 'surface:window', kind: 'window', surface: 'window', name: 'Janela de um app', glyph: 'pip' },
-      chromium() ? { id: 'surface:browser', kind: 'window', surface: 'browser', name: 'Aba do navegador', glyph: 'panelTop' } : null,
-      { id: 'surface:monitor', kind: 'screen', surface: 'monitor', name: 'Tela inteira', glyph: 'screen' },
-    ].filter(Boolean);
-  }
-  // H.264 na placa de vídeo: os navegadores com base no Chromium codificam como o app (que também é
-  // Chromium). Nos outros, só vale o que o próprio navegador confirmar.
-  function probeGpuH264() {
-    gpuH264 ??= chromium() ? Promise.resolve(true) : Promise.resolve(navigator.mediaCapabilities?.encodingInfo?.({
-      type: 'webrtc', video: { contentType: 'video/H264;level-asymmetry-allowed=1;packetization-mode=1;profile-level-id=4d0032', width: 1920, height: 1080, bitrate: 8_000_000, framerate: 60 },
-    })).then((info) => !!(info?.supported && info.powerEfficient)).catch(() => false);
-    return gpuH264;
-  }
-  // capture(choice) chama o getDisplayMedia com a escolha feita aqui: { surface, audio }.
-  async function captureInBrowser(capture, options = {}) {
-    probeGpuH264();
-    const choice = await pickSource(browserSources(), { browser: true, audio: options.audio !== false });
-    if (!choice) {
-      const cancelled = new Error('Seleção de tela cancelada.');
-      cancelled.name = 'ShareCancelledError';
-      throw cancelled;
-    }
-    return capture(choice);
-  }
-  function lockBadge() {
-    return el('span', { class: 'share-lock-badge' }, Icon('lock', 12), el('span', { textContent: 'Bloqueado no navegador' }));
-  }
-  function lockedRow(glyph, title, why) {
-    return el('div', { class: 'share-locked-row', 'aria-disabled': 'true' },
-      el('span', { class: 'share-locked-icon', 'aria-hidden': 'true' }, Icon(glyph, 16)),
-      el('span', { class: 'share-locked-text' },
-        el('span', { class: 'share-locked-title' }, el('strong', { textContent: title }), lockBadge()),
-        el('small', { textContent: why })));
-  }
-  // A lista de janelas ou telas com miniatura, no lugar onde o app a mostra.
-  function lockedSource(kind) {
-    const screen = kind === 'screen';
-    const why = screen ? 'O navegador não mostra suas telas ao site.' : 'O navegador não mostra suas janelas ao site.';
-    return el('div', { class: 'share-source share-locked', role: 'option', 'aria-disabled': 'true', 'aria-selected': 'false', title: why },
-      el('span', { class: 'share-thumb' },
-        el('span', { class: 'share-ghosts' + (screen ? ' screens' : ''), 'aria-hidden': 'true' }, ...Array.from({ length: screen ? 2 : 6 }, () => el('i'))),
-        el('span', { class: 'share-locked-cover' }, lockBadge(), el('small', { textContent: why }))),
-      el('span', { class: 'share-name' }, Icon('lock', 16), el('span', { textContent: screen ? 'Telas com miniatura' : 'Janelas com miniatura' })));
   }
 
   function pickSource(sources, options = {}) {
@@ -279,8 +224,6 @@ window.DesktopApp = (() => {
       const multiAudio = desktop?.appAudio?.supported === true;
       const maxAudioApps = options.maxAudioApps || 8;
       const audioPids = new Set();
-      // No navegador as fontes são tipos (janela, aba, tela); a escolha vira { id, surface, audio }.
-      const browser = !!options.browser;
 
       const finish = (choice, userCancelled = true) => {
         if (closed) return;
@@ -295,7 +238,6 @@ window.DesktopApp = (() => {
       const go = () => {
         if (!selected || start.disabled) return;
         if (quality && preset !== quality.current()) quality.set(preset);
-        if (browser) return finish({ id: selected.id, surface: selected.surface, audio: audioSource !== 'none' });
         // Só o app que sabe seguir a partida recebe a escolha; app antigo não muda nada.
         const extra = followSetting ? { follow: follow && selected.kind === 'window' } : {};
         if (followSetting) followOn = extra.follow;
@@ -315,20 +257,14 @@ window.DesktopApp = (() => {
       function renderTabs() {
         tabs.replaceChildren(...[['window', 'Aplicativos', windows], ['screen', 'Telas', screens]].map(([key, label, list]) =>
           el('button', { type: 'button', role: 'tab', class: tab === key ? 'active' : '', ariaSelected: String(tab === key), disabled: loading || !list.length, onclick: () => { tab = key; render(); } },
-            el('span', { textContent: label }), browser ? null : el('span', { class: 'share-count', textContent: loading ? '…' : String(list.length) }))));
+            el('span', { textContent: label }), el('span', { class: 'share-count', textContent: loading ? '…' : String(list.length) }))));
       }
       function select(source, card) {
         selected = source;
         // Como no Discord: a janela de um app leva o som daquele app, até a pessoa escolher outro.
         if (apps.length && !audioTouched) setAudioSource(apps.some((item) => item.pid === source.app) ? source.app : 'system');
-        // Numa aba, o navegador só leva o som dela.
-        if (browser && audioSetting) {
-          const option = audioSelect.querySelector('option[value="system"]');
-          if (option) option.textContent = systemAudioLabel();
-          setAudioSource(audioSource);
-        }
         updateAudioApps();
-        for (const node of grid.querySelectorAll('.share-source:not(.share-locked)')) {
+        for (const node of grid.children) {
           node.classList.toggle('selected', node === card);
           node.setAttribute('aria-selected', String(node === card));
         }
@@ -354,22 +290,18 @@ window.DesktopApp = (() => {
             ? el('img', { class: 'share-preview', src: source.thumbnail, alt: '', draggable: false })
             : el('span', { class: 'share-placeholder', ariaHidden: 'true' }, source.icon
               ? el('img', { class: 'share-placeholder-icon', src: source.icon, alt: '', draggable: false })
-              : Icon(source.glyph || (source.kind === 'screen' ? 'screen' : 'pip'), 40))),
+              : Icon(source.kind === 'screen' ? 'screen' : 'pip', 40))),
           el('span', { class: 'share-name' },
-            source.icon ? el('img', { class: 'share-app-icon', src: source.icon, alt: '' }) : Icon(source.glyph || (source.kind === 'screen' ? 'screen' : 'pip'), 16),
+            source.icon ? el('img', { class: 'share-app-icon', src: source.icon, alt: '' }) : Icon(source.kind === 'screen' ? 'screen' : 'pip', 16),
             el('span', { textContent: sourceLabel(source, screens) })));
           return card;
-        }), ...(browser ? [lockedSource(tab)] : []));
+        }));
       }
 
       const audioHints = {
         system: 'Seus amigos ouvem tudo que toca no PC. A voz da chamada fica de fora.',
         none: 'A transmissão vai sem som.',
       };
-      // No navegador, o som depende da fonte confirmada lá: numa aba, vai só o som dela.
-      const systemAudioLabel = () => browser && selected?.surface === 'browser' ? 'Som da aba' : 'Som do computador inteiro';
-      const browserAudioHint = () => audioSource === 'none' ? audioHints.none
-        : `${selected?.surface === 'browser' ? 'Vai só o som da aba.' : 'Seus amigos ouvem o que toca no PC.'} Deixe o som ligado no navegador.`;
       const audioSelect = el('select', { class: 'share-audio-select', ariaLabel: 'Som da transmissão', onchange: (event) => { audioTouched = true; setAudioSource(event.target.value); } },
         el('option', { value: 'system', textContent: 'Som do computador inteiro' }),
         apps.length ? el('optgroup', { label: 'Só o som de um app' }, ...apps.map((item) => el('option', { value: String(item.pid), textContent: item.name }))) : null,
@@ -398,7 +330,7 @@ window.DesktopApp = (() => {
         audio = audioSource !== 'none';
         audioSelect.value = String(audioSource);
         audioIcon.replaceChildren(item?.icon ? el('img', { src: item.icon, alt: '' }) : Icon(audioSource === 'none' ? 'volumeX' : 'volume', 18));
-        audioHint.textContent = item ? `Só o som de ${item.name}. O resto do PC, como o Discord ou uma música, fica de fora.` : browser ? browserAudioHint() : audioHints[audioSource];
+        audioHint.textContent = item ? `Só o som de ${item.name}. O resto do PC, como o Discord ou uma música, fica de fora.` : audioHints[audioSource];
         audioApps.hidden = audioSource !== 'apps';
         updateAudioApps();
       }
@@ -408,19 +340,6 @@ window.DesktopApp = (() => {
       const quality = api.shareQuality;
       let preset = quality?.current();
       const qualityHint = el('small');
-      // No navegador, o que o perfil ganharia só no app aparece embaixo da dica, bloqueado.
-      const qualityLocks = browser && quality ? el('div', { class: 'share-locks' }) : null;
-      let gpuReady = null;
-      function renderQualityLocks() {
-        if (!qualityLocks) return;
-        const p = quality.presets[preset];
-        qualityLocks.replaceChildren(...[
-          p.fps >= 60 ? lockedRow('gamepad', '60 fps pela captura nativa', 'Em monitores de 144 Hz, o navegador fica perto de 48 fps.') : null,
-          p.codecs?.[0] === 'video/H264' && gpuReady === false ? lockedRow('grid', 'H.264 na placa de vídeo', 'Este navegador codifica no processador, e o jogo pode perder fps.') : null,
-        ].filter(Boolean));
-        qualityLocks.hidden = !qualityLocks.children.length;
-      }
-      if (qualityLocks) probeGpuH264().then((ok) => { gpuReady = ok; if (!closed) renderQualityLocks(); });
       const spec = (key, p) => key === 'auto' ? `até ${p.height}p` : `${p.height}p · ${p.fps} fps`;
       const qualityIcons = { auto: 'sparkles', p720: 'signal', p1080: 'scan', p1080_60: 'gamepad' };
       const presetKeys = quality ? Object.keys(quality.presets) : [];
@@ -444,7 +363,6 @@ window.DesktopApp = (() => {
           chip.tabIndex = on ? 0 : -1;
         }
         qualityHint.textContent = quality.presets[key].desc;
-        renderQualityLocks();
       }
       // Setas trocam o perfil, como num grupo de rádio.
       function onQualityKey(event) {
@@ -463,10 +381,9 @@ window.DesktopApp = (() => {
       function renderAudio() {
         if (!audioSetting) return;
         audioSelect.replaceChildren(...[
-          el('option', { value: 'system', textContent: systemAudioLabel() }),
+          el('option', { value: 'system', textContent: 'Som do computador inteiro' }),
           multiAudio && apps.length ? el('option', { value: 'apps', textContent: 'Escolher aplicativos…' }) : null,
           apps.length ? el('optgroup', { label: 'Só o som de um app' }, ...apps.map((item) => el('option', { value: String(item.pid), textContent: item.name }))) : null,
-          browser ? el('option', { value: 'locked', disabled: true, textContent: 'Só o som de um app (bloqueado no navegador)' }) : null,
           el('option', { value: 'none', textContent: 'Sem som' })].filter(Boolean));
         for (const pid of audioPids) if (!apps.some(app => app.pid === pid)) audioPids.delete(pid);
         audioApps.replaceChildren(el('div', { class: 'share-audio-app-head' }, el('strong', { textContent: 'Aplicativos' }), el('small', { textContent: `Até ${maxAudioApps}` })),
@@ -481,9 +398,8 @@ window.DesktopApp = (() => {
         if (selected && !audioTouched) setAudioSource(apps.some((item) => item.pid === selected.app) ? selected.app : 'system');
         else setAudioSource(audioSource);
         audioSetting.replaceChildren(el('span', { class: 'share-setting-title', textContent: 'Som da transmissão' }),
-          ...(apps.length || appsLoading || browser ? [el('div', { class: 'share-audio-row' }, audioIcon, audioSelect), multiAudio ? audioApps : null, audioHint,
-            appsLoading ? el('small', { role: 'status', textContent: 'Buscando opções de som dos aplicativos…' }) : null,
-            browser ? lockedRow('volume', 'Som de um app só', 'O navegador só separa o som de uma aba.') : null].filter(Boolean)
+          ...(apps.length || appsLoading ? [el('div', { class: 'share-audio-row' }, audioIcon, audioSelect), multiAudio ? audioApps : null, audioHint,
+            appsLoading ? el('small', { role: 'status', textContent: 'Buscando opções de som dos aplicativos…' }) : null].filter(Boolean)
             : [el('label', { class: 'share-audio switch-row' },
               el('input', { type: 'checkbox', class: 'ds-switch', checked: audio, onchange: (event) => { audioTouched = true; setAudioSource(event.target.checked ? 'system' : 'none'); } }),
               el('span', {}, el('strong', { textContent: 'Som do computador' }), el('small', { textContent: 'Seus amigos ouvem o que toca no PC. A voz da chamada fica de fora.' })))]));
@@ -492,13 +408,10 @@ window.DesktopApp = (() => {
 
       // Seguir a partida: no app, a janela do client do LoL (ou de outro launcher) leva a transmissão
       // até o jogo quando a partida abre, e de volta no fim. Só vale para a janela de um app, então
-      // fica ao lado das abas, só na de aplicativos. No navegador, bloqueada no mesmo lugar.
+      // fica ao lado das abas, só na de aplicativos.
       let follow = followPreference();
       let followSetting = null;
-      if (browser) {
-        followSetting = lockedRow('refresh', 'Seguir a partida', 'O navegador não vê quando o jogo abre.');
-        followSetting.classList.add('share-follow');
-      } else if (desktop?.shareFollow) {
+      if (desktop?.shareFollow) {
         followSetting = el('label', { class: 'share-follow share-follow-row', title: 'Quando a partida abre, a transmissão vai para o jogo. No fim, volta para o client.' },
           el('span', { class: 'share-follow-icon', 'aria-hidden': 'true' }, Icon('refresh', 16)),
           el('span', { class: 'share-follow-text' },
@@ -507,14 +420,12 @@ window.DesktopApp = (() => {
           el('input', { type: 'checkbox', class: 'ds-switch', checked: follow, onchange: (event) => { follow = followPreference(event.target.checked); } }));
       }
       if (followSetting) followSetting.hidden = tab !== 'window';
-      const settings = [quality ? setting('Qualidade', qualityChips, qualityHint, qualityLocks) : null, audioSetting].filter(Boolean);
+      const settings = [quality ? setting('Qualidade', qualityChips, qualityHint) : null, audioSetting].filter(Boolean);
 
       const overlay = el('div', { class: 'confirm-overlay share-overlay', onmousedown: (event) => event.target === overlay && finish(null) },
         el('div', { class: 'confirm-card share-picker', role: 'dialog', ariaModal: 'true', ariaLabel: 'Escolher o que transmitir', tabIndex: -1 },
           el('div', { class: 'share-head' },
-            el('div', {}, el('h2', { textContent: 'Compartilhar tela' }), el('p', { textContent: browser
-              ? 'Escolha um aplicativo ou uma tela inteira para transmitir na chamada. Depois, o navegador pede para você confirmar.'
-              : 'Escolha um aplicativo ou uma tela inteira para transmitir na chamada.' })),
+            el('div', {}, el('h2', { textContent: 'Compartilhar tela' }), el('p', { textContent: 'Escolha um aplicativo ou uma tela inteira para transmitir na chamada.' })),
             el('button', { type: 'button', class: 'share-close', ariaLabel: 'Fechar', onclick: () => finish(null) }, Icon('x', 20))),
           el('div', { class: 'share-bar' }, tabs, followSetting),
           grid,

@@ -5745,15 +5745,15 @@
     menu.querySelector('.device-select, .device-item.current, .device-item')?.focus();
   }
 
-  if (window.DesktopApp) window.DesktopApp.shareQuality = { presets: SHARE_PRESETS, current: () => state.sharePreset, set: setSharePreset };
+  if (window.DesktopApp?.available) window.DesktopApp.shareQuality = { presets: SHARE_PRESETS, current: () => state.sharePreset, set: setSharePreset };
   // O app do Windows troca a transmissão sozinho quando a partida abre ou acaba.
   if (window.DesktopApp) window.DesktopApp.follow = { switch: (message) => switchScreen(message), stop: () => { if (state.local.screen) { stopVideo('screen'); mediaNotice('A janela transmitida fechou e não voltou. A transmissão parou.'); } } };
 
   function openShareMenu(anchor) {
     const menu = $('#context-menu');
     const live = !!state.local.screen;
-    // A qualidade fica na própria janela de escolha (como no Go Live), no app e no navegador: vai direto para ela.
-    if (!live && (window.DesktopApp?.available || window.DesktopApp && navigator.mediaDevices?.getDisplayMedia)) { startVideo('screen'); return; }
+    // No app, a qualidade fica na própria janela de escolha (como no Go Live): vai direto para ela.
+    if (!live && window.DesktopApp?.available) { startVideo('screen'); return; }
     if (!live && !navigator.mediaDevices?.getDisplayMedia) {
       // Sem https o navegador esconde a captura; no celular (Chrome Android, Safari do iPhone) ela não existe.
       const why = !window.isSecureContext

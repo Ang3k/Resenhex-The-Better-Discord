@@ -5,11 +5,10 @@
 window.CHANGELOG = [
   {
     version: '1.7.0', date: '2026-10-17', name: 'Prévia da transmissão e paleta roxa',
-    summary: 'Quem está na chamada sem assistir vê uma prévia da tela de quem transmite, como no Discord. O app todo ganhou o preto com roxo da tela de entrada. No navegador, compartilhar a tela abre o mesmo seletor do app do Windows.',
+    summary: 'Quem está na chamada sem assistir vê uma prévia da tela de quem transmite, como no Discord. O app todo ganhou o preto com roxo da tela de entrada.',
     sections: [
       { kind: 'new', items: [
         'Prévia da transmissão: quem está na chamada e ainda não clicou em assistir vê uma foto da tela de quem transmite, trocada a cada 8 s com um esmaecido, no lugar do bloco parado. Quem entra na sala já recebe a última foto. Ao parar de assistir, o último quadro visto fica como prévia até a próxima foto.',
-        'Compartilhar a tela pelo navegador abre o mesmo seletor do app do Windows, com tela, janela, som e qualidade no mesmo lugar. O que só o app faz (escolher a janela pela miniatura, som de um app só, 60 fps pela captura nativa) aparece desabilitado, com o selo "Bloqueado no navegador".',
       ] },
       { kind: 'improved', items: [
         'Paleta do tema Escuro: o preto com roxo da tela de entrada agora vale para o app todo. O roxo do logo fica no que é ação ou marca (botões, interruptores, menções, links e os títulos das Configurações), e seleções e fundos ficam neutros. Os temas Meia-noite e Alto contraste não mudam.',

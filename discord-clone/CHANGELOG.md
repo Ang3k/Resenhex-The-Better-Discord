@@ -7,12 +7,11 @@ O Resenhex chegou à versão 1.0 em 4 de outubro de 2026.
 
 17 de outubro de 2026.
 
-Quem está na chamada sem assistir vê uma prévia da tela de quem transmite, como no Discord. O app todo ganhou o preto com roxo da tela de entrada. No navegador, compartilhar a tela abre o mesmo seletor do app do Windows.
+Quem está na chamada sem assistir vê uma prévia da tela de quem transmite, como no Discord. O app todo ganhou o preto com roxo da tela de entrada.
 
 ### Novidades
 
 - Prévia da transmissão: quem está na chamada e ainda não clicou em assistir vê uma foto da tela de quem transmite, trocada a cada 8 s com um esmaecido, no lugar do bloco parado. Quem entra na sala já recebe a última foto. Ao parar de assistir, o último quadro visto fica como prévia até a próxima foto.
-- Compartilhar a tela pelo navegador abre o mesmo seletor do app do Windows, com tela, janela, som e qualidade no mesmo lugar. O que só o app faz (escolher a janela pela miniatura, som de um app só, 60 fps pela captura nativa) aparece desabilitado, com o selo "Bloqueado no navegador".
 
 ### Melhorias
 

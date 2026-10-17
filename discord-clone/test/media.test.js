@@ -1052,47 +1052,6 @@ test('screen audio that carries the call is cleaned; excluded system audio and t
   }
 });
 
-test('in the browser, the Resenhex picker choice becomes getDisplayMedia hints; the desktop request stays the same', async () => {
-  const h = mediaHarness();
-  h.media.stopVideo('screen');
-  const asked = [];
-  h.context.navigator.mediaDevices.getDisplayMedia = async (options) => { asked.push(options); return h.stream([h.track('video')]); };
-  // App de desktop: a escolha vem depois do pedido, que continua sem dicas de tipo de fonte.
-  h.context.window.DesktopApp = { captureScreen: (capture) => capture() };
-  await h.media.startVideo('screen');
-  assert.equal(asked[0].video.displaySurface, undefined);
-  assert.equal('windowAudio' in asked[0], false);
-  assert.equal(asked[0].systemAudio, 'include');
-  assert.ok(h.notices.some((text) => text.includes('sem áudio')), 'a source without sound is still reported');
-  h.media.stopVideo('screen');
-
-  // Navegador: a janela do Resenhex escolheu a qualidade, uma janela e "Sem som".
-  h.notices.length = 0;
-  h.context.window.DesktopApp = { captureScreen: async (capture, options) => {
-    assert.deepEqual({ ...options }, { audio: true });
-    h.media.setSharePreset('p1080_60');
-    return capture({ id: 'surface:window', surface: 'window', audio: false });
-  } };
-  await h.media.startVideo('screen');
-  const browser = asked[1];
-  assert.equal(browser.video.displaySurface, 'window');
-  assert.deepEqual({ ...browser.video.frameRate }, { ideal: 64, max: 64 }, 'the quality picked in the window is the one requested');
-  assert.equal(browser.audio, false);
-  assert.equal(browser.systemAudio, 'exclude');
-  assert.equal(browser.windowAudio, 'exclude');
-  assert.equal(browser.monitorTypeSurfaces, 'include');
-  assert.equal(browser.preferCurrentTab, false);
-  assert.equal(h.notices.some((text) => text.includes('sem áudio')), false, 'no sound was the choice, not a failure');
-  h.media.stopVideo('screen');
-
-  h.context.window.DesktopApp = { captureScreen: async (capture) => capture({ id: 'surface:monitor', surface: 'monitor', audio: true }) };
-  await h.media.startVideo('screen');
-  assert.equal(asked[2].video.displaySurface, 'monitor');
-  assert.equal(asked[2].systemAudio, 'include');
-  assert.equal(asked[2].windowAudio, 'system', 'a window keeps the whole-PC sound, as in the app');
-  assert.equal(asked[2].audio.restrictOwnAudio, true);
-});
-
 test('the Windows app following the match: a closed game window waits for the switch back instead of ending the stream', async () => {
   const h = mediaHarness();
   h.media.stopVideo('screen');
