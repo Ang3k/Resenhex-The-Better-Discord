@@ -86,7 +86,7 @@ async function ui(t, invited = false, options = {}) {
   let copied = '';
   Object.defineProperty(w.navigator, 'clipboard', { value: { writeText: async (text) => { copied = text; } } });
   options.setup?.(w);
-  for (const file of ['icons.js', 'format.js', 'sounds.js', 'media-policy.js', 'keybinds.js', 'settings.js', 'photo-editor.js', 'media-session.js', 'media-sfu.js', 'stream-preview.js', 'mobile-stream.js', 'stream-zoom.js', 'changelog.js', 'confetti.js', 'channel-navigation.js', 'music.js', 'mudae.js', 'mudae-salao.js', 'dm-call.js', 'gif-picker.js', 'emoji-picker.js', 'lightbox.js', 'voice-fx.js', 'feedback.js', 'app.js', 'landing.js']) w.eval(fs.readFileSync(path.join(publicDir, file), 'utf8'));
+  for (const file of ['icons.js', 'format.js', 'sounds.js', 'media-policy.js', 'keybinds.js', 'settings.js', 'photo-editor.js', 'media-session.js', 'media-sfu.js', 'stream-preview.js', 'mobile-stream.js', 'stream-zoom.js', 'changelog.js', 'confetti.js', 'channel-navigation.js', 'music.js', 'mudae.js', 'mudae-salao.js', 'dm-call.js', 'gif-picker.js', 'emoji-picker.js', 'lightbox.js', 'voice-fx.js', 'feedback.js', 'clip-model.js', 'clip-buffer.js', 'clip-render.js', 'clip-ui.js', 'app.js', 'landing.js']) w.eval(fs.readFileSync(path.join(publicDir, file), 'utf8'));
   w.localStorage.setItem('seenVersion', w.APP_VERSION);
   t.after(() => { dom.window.close(); assert.deepEqual(errors.map((e) => e.message), []); });
   await settle();
@@ -571,6 +571,26 @@ test('standard voice effects preserve mute during local preview and effect chang
   assert.equal(track.enabled, false); assert.equal(effect.blocked, true);
   app.d.querySelector('#sc-mic').click(); await settle();
   assert.equal(track.enabled, true); assert.equal(effect.blocked, false);
+});
+
+test('CLIPAR: "Pode clipar meu áudio" começa ligado, vai no estado de voz e desligar avisa a chamada', async (t) => {
+  const app = await voicePreviewApp(t);
+  const states = () => app.events.filter((e) => e.event === 'voice:state').map((e) => e.payload);
+  assert.ok(states().length, 'mandou o estado de voz');
+  assert.equal(states().at(-1).allowClips, true);
+  assert.equal(app.d.querySelector('#sc-clip').classList.contains('hidden'), false, 'botão claquete na barra da chamada');
+  assert.equal(app.d.querySelector('#sc-screen').nextElementSibling.id, 'sc-clip', 'logo depois de compartilhar tela');
+  assert.ok(app.events.some((e) => e.event === 'clip:list'), 'pede os clipes da chamada ao entrar');
+  app.d.querySelector('#btn-settings').click(); await settle();
+  const toggle = app.d.querySelector('#allow-clips');
+  assert.equal(toggle.checked, true);
+  toggle.checked = false; toggle.dispatchEvent(new app.w.Event('change', { bubbles: true })); await settle();
+  app.d.querySelector('#settings-save').click(); await settle();
+  assert.equal(states().at(-1).allowClips, false);
+  assert.equal(app.w.localStorage.getItem('allowClips'), '0');
+  // Sem chamada, o botão some.
+  app.d.querySelector('#sc-leave').click(); await settle();
+  assert.equal(app.d.querySelector('#sc-clip').classList.contains('hidden'), true);
 });
 
 test('standard voice effects preserve push-to-talk and mute when changing microphone', async (t) => {

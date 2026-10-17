@@ -64,6 +64,8 @@
     local: { screen: null, camera: null }, // meus streams de vídeo
     sharePreset: SHARE_PRESETS[localStorage.getItem('sharePreset')] ? localStorage.getItem('sharePreset') : 'p1080_60',
     sharePaused: false,
+    allowClips: localStorage.getItem('allowClips') !== '0', // CLIPAR: "Pode clipar meu áudio"
+    clips: [], // clipes da chamada atual (24 h, só para quem estava nela)
     uploadMbps: Math.min(100, Math.max(3, Number(localStorage.getItem('uploadMbps')) || 50)),
     cameraDeviceId: localStorage.getItem('cameraDeviceId') || '',
     voiceFx: initialVoiceFx, // modificador de voz (voice-fx.js)
@@ -2591,7 +2593,8 @@
     stage.dataset.layout = focusKey ? 'focus' : screens.length ? 'streams' : 'people';
     primary.style.setProperty('--stage-columns', screens.length > 4 ? 3 : Math.min(2, mainTiles.length) || 1);
     primary.style.setProperty('--stage-count', mainTiles.length || 1);
-    $('#stage-toolbar').classList.toggle('hidden', !screens.length && !state.pinned);
+    $('#stage-toolbar').classList.toggle('hidden', !screens.length && !state.pinned && !state.clips.length);
+    $('#stage-toolbar').classList.toggle('clips-only', !screens.length && !state.pinned); // só o "Clipes (n)"
     $('#stage-summary').textContent = screens.length ? `${screens.length} ${screens.length === 1 ? 'transmissão' : 'transmissões'}` : 'Participante em destaque';
     $('#stage-grid').setAttribute('aria-pressed', String(!focusKey));
     $('#stage-focus').setAttribute('aria-pressed', String(!!focusKey));
@@ -2823,6 +2826,12 @@
     scDeaf.classList.toggle('off', deaf);
     scDeaf.dataset.tip = deafen.dataset.tip;
     refreshTip(scDeaf);
+    const scClip = $('#sc-clip');
+    scClip.classList.toggle('hidden', !inVoice);
+    scClip.classList.toggle('off', inVoice && deaf);
+    scClip.dataset.tip = deaf ? 'Ligue o fone para clipar' : 'Clipar últimos 30 s (Alt+C)';
+    scClip.setAttribute('aria-label', scClip.dataset.tip);
+    refreshTip(scClip);
     const scSb = $('#sc-sounds');
     setControlIcon(scSb, state.sbMuted ? 'volumeX' : 'music', 24);
     scSb.classList.toggle('off', state.sbMuted);
@@ -4681,6 +4690,7 @@
       paused: !!state.local.screen && state.sharePaused,
       camera: !!state.local.camera,
       voiceFx: noise.pipes.get(state.micStream)?.fx?.id || null, // os outros veem um selo com o efeito
+      allowClips: state.allowClips,
     });
     streamPreview.sync();
   }
@@ -4698,9 +4708,14 @@
     analyser.fftSize = 512;
     source.connect(analyser);
     analysers.set(sid, { analyser, source, data: new Uint8Array(analyser.fftSize) });
+    clipStreams.set(sid, { stream, accountId: null });
+    clipSync();
   }
 
   function unwatchSpeaking(sid) {
+    const clipped = clipStreams.get(sid)?.accountId;
+    clipStreams.delete(sid);
+    if (clipped && ![...clipStreams.values()].some((c) => c.accountId === clipped)) clipBuffer.untrack(clipped);
     analysers.get(sid)?.source.disconnect();
     analysers.delete(sid);
     lastLoud.delete(sid);
@@ -4709,7 +4724,67 @@
 
   // Mantém o círculo verde por um instante depois da última sílaba, para não piscar entre palavras.
   const lastLoud = new Map(); // sid -> hora do último som
+
+  // ---------------- CLIPAR: os últimos 30 s da chamada ----------------
+  // Cada voz que a chamada ouve também vai para um anel de 30 s por conta (clip-buffer.js). Nada sai
+  // do aparelho até alguém clipar; quem desliga "Pode clipar meu áudio" some do anel na hora.
+  const clipBuffer = window.ClipBuffer({ getCtx: getAudioCtx });
+  const clipStreams = new Map(); // sid -> { stream, accountId }
+  const callVoices = () => (callInfo()?.voice || state.server?.voice || []).filter((v) => !v.channel || v.channel === state.voiceChannel);
+  const clipProfile = (accountId) => {
+    const m = callMember(accountId) || {};
+    return { name: m.nickname || m.name || 'Alguém', color: m.color, avatarUrl: m.avatarUrl || null, avatarCrop: m.avatarCrop || null };
+  };
+  function clipSync() {
+    if (!state.voiceChannel) return;
+    for (const [sid, entry] of clipStreams) {
+      const accountId = sid === state.me?.sid ? state.me.accountId : voiceEntry(sid)?.accountId;
+      if (!accountId || entry.accountId === accountId) continue;
+      entry.accountId = accountId;
+      clipBuffer.track(accountId, entry.stream, clipProfile(accountId)).catch(() => {});
+    }
+    const states = new Map();
+    for (const v of callVoices()) {
+      if (v.accountId === state.me?.accountId) continue;
+      states.set(v.accountId, { muted: !!v.muted, silenced: !!v.silenced, allowClips: v.allowClips !== false, speaking: state.speaking.has(v.sid) });
+    }
+    if (state.me) states.set(state.me.accountId, { muted: selfSilent(), silenced: false, allowClips: state.allowClips, speaking: state.speaking.has(state.me.sid) });
+    clipBuffer.sample(states);
+  }
+  const clipUi = window.ClipUI({
+    el, Icon, toast, call, token: () => localStorage.getItem('token') || '', buffer: clipBuffer, model: window.ClipModel, render: window.ClipRender,
+    audioCtx: getAudioCtx,
+    nameOf: (id) => (id === state.me?.accountId ? 'Você' : clipProfile(id).name),
+    loadImage: (url) => new Promise((resolve, reject) => { const img = new Image(); img.onload = () => resolve(img); img.onerror = reject; img.src = url; }),
+    getContext: () => {
+      const byAccount = new Map(callVoices().map((v) => [v.accountId, v]));
+      return {
+        selfId: state.me?.accountId, selfAllow: state.allowClips, localMuted: state.localMuted, deafened: state.deafened || !!callMe()?.serverDeafened,
+        allowNow: (id) => byAccount.get(id)?.allowClips !== false, silencedNow: (id) => !!byAccount.get(id)?.silenced,
+        channelName: callInfo()?.dm ? 'Chamada' : callChannelName() || 'Chamada',
+      };
+    },
+  });
+  async function startClip() {
+    if (!state.voiceChannel) return;
+    const verdict = clipUi.canClip();
+    if (!verdict.ok) { toast(verdict.reason, 'info'); return; }
+    const button = $('#sc-clip');
+    button.classList.add('clipping');
+    setTimeout(() => button.classList.remove('clipping'), 1000);
+    window.resenhexDesktop?.focus?.(); // pelo atalho global, o corte aparece mesmo com o jogo na frente
+    clipUi.open(await clipBuffer.snapshot());
+  }
+  async function loadClips() {
+    const res = await call('clip:list');
+    if (!res || !state.voiceChannel) return;
+    state.clips = res.clips || [];
+    clipUi.setList(state.clips);
+    render();
+  }
+
   setInterval(() => {
+    if (state.voiceChannel) clipSync();
     if (!state.server || !analysers.size) return;
     let changed = false;
     const now = performance.now();
@@ -4965,6 +5040,8 @@
     // Quem entra inicia a conexão com todos que já estavam na sala.
     for (const sid of peers) getPeer(sid);
     sendVoiceState();
+    clipUi.prepare();
+    loadClips();
     render();
   }
 
@@ -5009,6 +5086,10 @@
     state.micStream = null;
     attachGate(null);
     unwatchSpeaking(state.me.sid);
+    clipBuffer.stop();
+    clipStreams.clear();
+    state.clips = [];
+    clipUi.setList([]);
     state.voiceChannel = null;
     state.voiceSnapshot = null;
     stopCallTime();
@@ -5521,6 +5602,14 @@
     showMenuAt(r.left + r.width / 2 - 160, r.top - menu.getBoundingClientRect().height - 8);
   }
 
+  // CLIPAR: clipe novo na chamada (inclusive o meu): entra na lista e aparece o aviso para baixar.
+  socket.on('clip:new', (clip) => {
+    if (!state.voiceChannel || !clip?.id) return;
+    state.clips = [clip, ...state.clips.filter((c) => c.id !== clip.id)];
+    clipUi.setList(state.clips);
+    clipUi.showNotice(clip);
+    render();
+  });
   socket.on('voice:peer-left', ({ id }) => {
     if (earlySignals) earlySignals = earlySignals.filter((signal) => signal.from !== id); // saiu antes de a chamada começar aqui
     closePeer(id);
@@ -5892,6 +5981,7 @@
   $('#sc-deaf').onclick = () => $('#btn-deafen').click();
   $('#sc-sounds').onclick = (e) => openSoundboard(e.currentTarget);
   $('#sc-music').onclick = (e) => dj.openPanel(e.currentTarget);
+  $('#sc-clip').onclick = () => startClip();
   $('#sc-cam').onclick = () => $('#btn-camera').click();
   // Setinha ao lado (ou clique direito no botão): troca de dispositivo sem sair da chamada.
   $('#sc-mic-devices').onclick = (e) => openDeviceMenu('audio', e.currentTarget);
@@ -5958,6 +6048,7 @@
     toggleDeafen: () => press('#btn-deafen'),
     toggleCamera: () => state.voiceChannel && press('#btn-camera'),
     shareScreen: () => state.voiceChannel && press('#btn-share'),
+    clip: () => state.voiceChannel && startClip(),
     toggleNoise: () => press('#btn-noise'),
     disconnect: () => state.voiceChannel && leaveVoice(),
     returnToCall: () => state.voiceChannel && returnToCall(),
@@ -6145,7 +6236,7 @@
     'camera-select': 'cameraDeviceId', 'noise-mode': 'noiseMode', 'echo-toggle': 'echoCancellation', 'voice-fx': 'voiceFx',
     'sens-auto': 'sensAuto', 'sens-range': 'sensThreshold', 'input-mode': 'inputMode',
     'ptt-code': 'pttCode', 'ptt-label': 'pttLabel', 'keybinds-data': 'keybinds', 'upload-select': 'uploadMbps',
-    'share-preset': 'sharePreset', 'share-audio': 'shareAudio', 'stream-stats': 'showStreamStats', 'camera-preview-toggle': 'cameraPreview',
+    'share-preset': 'sharePreset', 'share-audio': 'shareAudio', 'allow-clips': 'allowClips', 'stream-stats': 'showStreamStats', 'camera-preview-toggle': 'cameraPreview',
     'sounds-toggle': 'sounds', 'notify-toggle': 'notify', 'sb-toggle': 'soundboard', 'sb-volume': 'sbVolume',
     'output-volume': 'outputVolume', 'theme-select': 'theme', 'density-select': 'density',
     'font-size': 'fontSize', 'reduce-motion': 'reduceMotion', 'overlay-toggle': 'overlayEnabled', 'overlay-x': 'overlayX', 'overlay-y': 'overlayY',
@@ -6478,6 +6569,11 @@
     localStorage.setItem('appearance', JSON.stringify({ theme: state.theme, density: state.density, fontSize: state.fontSize, reduceMotion: state.reduceMotion }));
     previewAppearance(state);
     setSharePreset(values.sharePreset);
+    if (values.allowClips !== state.allowClips) {
+      state.allowClips = values.allowClips;
+      localStorage.setItem('allowClips', state.allowClips ? '1' : '0');
+      if (state.voiceChannel) sendVoiceState();
+    }
     syncSpeaker();
     if (micChanged && state.voiceChannel) sendVoiceState();
     renderControls();

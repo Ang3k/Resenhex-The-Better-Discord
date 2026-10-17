@@ -1,0 +1,107 @@
+/* CLIPAR: botão claquete aceso, tela de corte, aviso de clipe novo e lista "Clipes (n)". */
+#stage-controls .sc-btn.clipping { background: var(--brand); color: #fff; box-shadow: 0 0 0 4px color-mix(in srgb, var(--brand) 30%, transparent); }
+#stage-controls .sc-btn.clipping svg { animation: clip-snap .35s var(--spring, ease-out); }
+@keyframes clip-snap { 40% { transform: rotate(-12deg) scale(1.08); } }
+
+/* Barra de cima da chamada: o "Clipes (n)" fica à direita, junto da escolha de grade ou destaque. */
+.stage-actions { display: flex; align-items: center; gap: 8px; margin-left: auto; }
+#stage-toolbar.clips-only .stage-summary, #stage-toolbar.clips-only .stage-layout { display: none; }
+.stage-clips {
+  display: inline-flex; align-items: center; gap: 6px; height: 32px; padding: 0 12px;
+  border: 1px solid var(--divider); border-radius: 9px; background: var(--bg-panel); color: var(--text);
+  font: inherit; font-size: 12px; font-weight: 600; cursor: pointer; transition: background .15s, border-color .15s;
+}
+.stage-clips:hover { background: var(--hover); border-color: color-mix(in srgb, var(--brand) 45%, var(--divider)); }
+.stage-clips svg { color: var(--brand); }
+.stage-actions { position: relative; }
+
+/* Tela de corte */
+.clip-card { width: min(720px, 100%); padding: 20px 22px 0; display: flex; flex-direction: column; gap: 14px; background: var(--bg-main); }
+.clip-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
+.clip-head h2 { margin: 0; }
+.clip-sub { margin: 4px 0 0; color: var(--text-muted); font-size: 13px; }
+.clip-close {
+  display: grid; place-items: center; width: 32px; height: 32px; flex-shrink: 0; border: 0; border-radius: 50%;
+  background: transparent; color: var(--text-muted); cursor: pointer; transition: background .15s, color .15s, transform .2s;
+}
+.clip-close:hover { background: var(--hover-strong); color: var(--text); transform: rotate(90deg); }
+.clip-stage { border-radius: 12px; overflow: hidden; background: #0d0b12; aspect-ratio: 16 / 9; border: 1px solid var(--divider); }
+.clip-preview { display: block; width: 100%; height: 100%; }
+
+.clip-wave { position: relative; height: 64px; border-radius: 10px; background: var(--bg-panel); border: 1px solid var(--divider); overflow: hidden; }
+.clip-wave-bars { position: absolute; inset: 0; width: 100%; height: 100%; }
+.clip-shade { position: absolute; top: 0; bottom: 0; background: rgba(0, 0, 0, .45); pointer-events: none; }
+.clip-shade.left { left: 0; }
+.clip-shade.right { right: 0; }
+.clip-window { position: absolute; top: 0; bottom: 0; border: 2px solid var(--brand); border-radius: 8px; pointer-events: none; box-shadow: 0 0 0 1px rgba(0, 0, 0, .3); }
+.clip-playhead { position: absolute; top: 0; bottom: 0; width: 2px; margin-left: -1px; background: #fff; pointer-events: none; box-shadow: 0 0 6px rgba(255, 255, 255, .6); }
+.clip-playhead.hidden { display: none; }
+/* As duas alças são sliders sobrepostos: só o pegador recebe o mouse, o trilho deixa passar. */
+.clip-handle { position: absolute; inset: 0; width: 100%; height: 100%; margin: 0; background: transparent; pointer-events: none; -webkit-appearance: none; appearance: none; }
+.clip-handle:focus { outline: none; }
+.clip-handle::-webkit-slider-runnable-track { height: 100%; background: transparent; }
+.clip-handle::-moz-range-track { height: 100%; background: transparent; }
+.clip-handle::-webkit-slider-thumb {
+  -webkit-appearance: none; pointer-events: auto; width: 14px; height: 64px; border-radius: 6px; cursor: ew-resize;
+  background: var(--brand); box-shadow: 0 0 0 2px rgba(0, 0, 0, .35); transition: transform .12s;
+}
+.clip-handle::-moz-range-thumb { pointer-events: auto; width: 14px; height: 62px; border: 0; border-radius: 6px; cursor: ew-resize; background: var(--brand); }
+.clip-handle:focus-visible::-webkit-slider-thumb { box-shadow: 0 0 0 3px #fff; }
+.clip-handle:focus-visible::-moz-range-thumb { box-shadow: 0 0 0 3px #fff; }
+.clip-handle::-webkit-slider-thumb:hover { transform: scaleX(1.15); }
+
+.clip-info { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; flex-wrap: wrap; }
+.clip-selection { margin: 0; font-variant-numeric: tabular-nums; font-weight: 600; color: var(--text); font-size: 14px; }
+.clip-who { margin: 0; color: var(--text-muted); font-size: 12px; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 60%; }
+.clip-actions { display: flex; align-items: center; gap: 8px; margin: 0 -22px; padding: 14px 22px; background: var(--bg-sidebar); border-top: 1px solid var(--divider); }
+.clip-actions .clip-spacer { flex: 1; }
+.clip-listen { display: inline-flex; align-items: center; gap: 6px; }
+.clip-release:disabled { opacity: .7; cursor: progress; }
+
+/* Aviso de clipe novo: canto de baixo, acima da barra da chamada. */
+#clip-notices { position: fixed; right: 20px; bottom: 96px; z-index: 46; display: flex; flex-direction: column; gap: 8px; pointer-events: none; }
+.clip-notice, .clip-list-item { display: flex; align-items: center; gap: 12px; }
+.clip-notice {
+  pointer-events: auto; width: min(380px, calc(100vw - 32px)); padding: 10px 10px 10px 10px; border: 1px solid var(--divider); border-radius: 14px;
+  background: var(--bg-floating); box-shadow: 0 16px 48px rgba(0, 0, 0, .5); animation: clip-in .28s cubic-bezier(.16, 1, .3, 1);
+}
+.clip-notice.leaving { animation: clip-out .2s ease-in forwards; }
+@keyframes clip-in { from { opacity: 0; transform: translateY(12px) scale(.97); } }
+@keyframes clip-out { to { opacity: 0; transform: translateY(8px); } }
+.clip-thumb { width: 80px; height: 45px; flex-shrink: 0; border-radius: 8px; object-fit: cover; background: #0d0b12; border: 1px solid var(--divider); }
+.clip-notice-text { display: flex; flex-direction: column; gap: 2px; min-width: 0; flex: 1; }
+.clip-notice-text strong { font-size: 14px; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.clip-notice-text small { font-size: 12px; color: var(--text-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.clip-download {
+  display: inline-flex; align-items: center; gap: 6px; height: 32px; padding: 0 12px; flex-shrink: 0; border: 0; border-radius: 9px;
+  background: var(--hover-strong); color: var(--text); font: inherit; font-size: 13px; font-weight: 600; cursor: pointer; transition: background .15s, transform .12s;
+}
+.clip-download.primary { background: var(--brand); color: #fff; }
+.clip-download:hover { background: var(--hover); }
+.clip-download.primary:hover { background: var(--brand-hover); }
+.clip-download:active { transform: scale(.96); }
+.clip-notice-close { display: grid; place-items: center; width: 24px; height: 24px; flex-shrink: 0; border: 0; border-radius: 50%; background: transparent; color: var(--text-muted); cursor: pointer; }
+.clip-notice-close:hover { background: var(--hover-strong); color: var(--text); }
+
+/* Lista "Clipes (n)" */
+.clip-list {
+  position: absolute; top: calc(100% + 8px); right: 0; z-index: 30; width: min(360px, calc(100vw - 32px)); max-height: 360px; overflow-y: auto;
+  padding: 10px; border: 1px solid var(--divider); border-radius: 14px; background: var(--bg-floating); box-shadow: 0 16px 48px rgba(0, 0, 0, .5);
+  animation: clip-in .2s cubic-bezier(.16, 1, .3, 1);
+}
+.clip-list-title { margin: 2px 4px 2px; font-weight: 700; font-size: 14px; color: var(--text); }
+.clip-list-hint { margin: 0 4px 8px; font-size: 12px; color: var(--text-muted); }
+.clip-list-item { padding: 6px 4px; border-radius: 10px; }
+.clip-list-item:hover { background: var(--hover); }
+
+:root[data-reduce-motion=true] :is(.clip-notice, .clip-list, #stage-controls .sc-btn.clipping svg) { animation: none; }
+
+@media (max-width: 640px) {
+  .clip-card { padding: 16px 14px 0; gap: 12px; }
+  .clip-actions { margin: 0 -14px; padding: 12px 14px; flex-wrap: wrap; }
+  .clip-actions .clip-spacer { display: none; }
+  .clip-actions button { flex: 1; }
+  .clip-who { max-width: 100%; }
+  #clip-notices { right: 16px; left: 16px; bottom: 84px; }
+  .clip-notice { width: 100%; }
+}

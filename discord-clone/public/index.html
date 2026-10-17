@@ -37,6 +37,7 @@
   <link rel="stylesheet" href="chat-media.css">
   <link rel="stylesheet" href="call-tools.css">
   <link rel="stylesheet" href="feedback.css">
+  <link rel="stylesheet" href="clips.css">
   <script>
     // Mouse de verdade = hover + ponteiro fino. O emulador Android responde "pointer: fine" sem hover,
     // então "pointer: fine" sozinho não serve para saber se é toque. A classe "touch" troca textos e opções.
@@ -519,9 +520,12 @@
       <section id="voice-view" class="hidden">
         <div id="stage-toolbar" class="hidden">
           <div class="stage-summary"><span class="stage-live-dot"></span><span id="stage-summary"></span></div>
+          <div class="stage-actions">
+          <button type="button" id="clip-list-btn" class="stage-clips hidden" aria-haspopup="dialog"></button>
           <div class="stage-layout" role="group" aria-label="Visualização da chamada">
             <button type="button" id="stage-grid" aria-label="Ver em grade" aria-pressed="true">Grade</button>
             <button type="button" id="stage-focus" aria-label="Destacar uma tela" aria-pressed="false">Destaque</button>
+          </div>
           </div>
         </div>
         <div id="stage">
@@ -543,6 +547,7 @@
           </div>
           <button type="button" id="sc-screen" class="sc-btn" aria-label="Compartilhar tela">
 </button>
+          <button type="button" id="sc-clip" class="sc-btn hidden" data-icon="clapperboard" data-size="24" data-tip="Clipar últimos 30 s (Alt+C)" aria-label="Clipar últimos 30 s"></button>
           <button type="button" id="sc-sounds" class="sc-btn" aria-label="Efeitos sonoros">
 </button>
           <button type="button" id="sc-music" class="sc-btn" data-icon="disc" data-size="24" data-tip="DJ: tocar música do YouTube" aria-label="DJ: músicas do YouTube"></button>
@@ -900,6 +905,14 @@
 <span>Estatísticas sobre o vídeo<small>Resolução, quadros por segundo e taxa de dados.</small>
 </span>
 <input id="stream-stats" type="checkbox">
+</label>
+</div>
+<div class="setting-group">
+<h3>Clipes</h3>
+<label class="setting-switch">
+<span>Pode clipar meu áudio<small>Desligado, você some dos clipes que os outros fizerem.</small>
+</span>
+<input id="allow-clips" type="checkbox">
 </label>
 </div>
 </section>
@@ -1292,6 +1305,10 @@
   <script src="lightbox.js"></script>
   <script src="voice-fx.js"></script>
   <script src="feedback.js"></script>
+  <script src="clip-buffer.js"></script>
+  <script src="clip-model.js"></script>
+  <script src="clip-render.js"></script>
+  <script src="clip-ui.js"></script>
   <script src="app.js">
 </script>
   <script src="landing.js"></script>

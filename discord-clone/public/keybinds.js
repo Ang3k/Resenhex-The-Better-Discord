@@ -7,6 +7,7 @@ window.Keybinds = (() => {
     { id: 'toggleDeafen', group: 'Voz', label: 'Ativar ou desativar áudio', combo: 'Ctrl+Shift+KeyD', global: true },
     { id: 'toggleCamera', group: 'Voz', label: 'Ligar ou desligar câmera', combo: '' },
     { id: 'shareScreen', group: 'Voz', label: 'Compartilhar tela', combo: '' },
+    { id: 'clip', group: 'Voz', label: 'Clipar', combo: 'Alt+KeyC', global: true },
     { id: 'toggleNoise', group: 'Voz', label: 'Supressão de ruído', combo: '' },
     { id: 'disconnect', group: 'Voz', label: 'Sair da chamada', combo: '' },
     { id: 'returnToCall', group: 'Voz', label: 'Voltar para a chamada', combo: 'Ctrl+Alt+KeyA' },
