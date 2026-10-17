@@ -795,6 +795,8 @@
     playVoiceSounds();
     applyAudio();
     syncScreenSubscriptions();
+    streamPreview.prune();
+    streamPreview.sync();
     tuneSenders();
     render();
     if (pendingInviteCode && !inviteShown) { inviteShown = true; showInviteAcceptance(pendingInviteCode, pendingInvitePreview); }
@@ -2463,12 +2465,20 @@
         if (watch.dataset.state !== watchState) {
           watch.dataset.state = watchState;
           watch.replaceChildren();
-          if (hidden || waiting) watch.append(Icon('screen', 36), el('div', { class: 'paused-title', textContent: hidden ? 'Tela de ' + m.name : 'Conectando à transmissão…' }),
+          if (hidden || waiting) watch.append(hidden ? Icon('screen', 36) : el('span', { class: 'watch-spinner', ariaHidden: 'true' }),
+            el('div', { class: 'paused-title', textContent: hidden ? 'Tela de ' + m.name : 'Conectando à transmissão…' }),
             el('div', { class: 'muted-text', textContent: hidden ? 'Entre para assistir e ouvir a tela compartilhada.' : 'A voz continua conectada. Você pode parar e tentar novamente.' }),
-            el('button', { class: 'watch-btn', textContent: hidden ? 'Assistir transmissão' : 'Parar de assistir', onclick: (e) => { e.stopPropagation(); setWatching(v.sid, hidden); } }));
+            // Nas miniaturas o botão diz só "Assistir"; o nome acessível é sempre o completo.
+            el('button', { class: 'watch-btn', ariaLabel: hidden ? 'Assistir transmissão' : 'Parar de assistir', onclick: (e) => { e.stopPropagation(); setWatching(v.sid, hidden); } },
+              ...(hidden ? [Icon('eye', 18), el('span', { class: 'wb-long', ariaHidden: 'true' }, 'Assistir transmissão'), el('span', { class: 'wb-short', ariaHidden: 'true' }, 'Assistir')] : ['Parar de assistir'])));
         }
         const video = tile.querySelector('video');
         const src = hidden ? null : remote.screen || null;
+        // Quem para de assistir continua vendo o último quadro até a próxima foto chegar, sem as medições
+        // da transmissão (elas só são atualizadas enquanto se assiste).
+        if (hidden && video.srcObject && !self) streamPreview.keep(v.sid, video);
+        if (hidden) for (const info of tile.querySelectorAll('.stats, .stream-health')) if (info.textContent) info.textContent = '';
+        streamPreview.paint(tile, v.sid, !self && (hidden || waiting));
         if (video.srcObject !== src) {
           video.srcObject = src;
           setSinkId(video);
@@ -4672,6 +4682,7 @@
       camera: !!state.local.camera,
       voiceFx: noise.pipes.get(state.micStream)?.fx?.id || null, // os outros veem um selo com o efeito
     });
+    streamPreview.sync();
   }
 
   function setSinkId(node) {
@@ -5568,6 +5579,8 @@
   }
   const sfu = MediaSfu({ state, renderStage, applyAudio, watchSpeaking, unwatchSpeaking, closePeer, notice: (message) => mediaNotice(message), onLost: recoverMedia, tuneReceiver: (receiver) => mobileStream.tuneReceiver(receiver) });
   const { isWatching, setWatching, getWatchQuality, setWatchQuality, syncViewerQuality, addVideoTracks, syncScreenSubscriptions, videoBitrates, remoteDescription, tuneSenders, applySharePreset, setSharePreset, captureScreen, watchScreenTrack, switchScreen, startVideo, stopVideo, connectionChanged, renderDiagnostics, updateStreamStats, mediaNotice } = MediaSession({ state, socket, call, el, toast, voiceEntry, member: callMember, render, renderStage, sendVoiceState, preferCodec, ownAudio, sfu });
+  // Prévia da transmissão para quem está na chamada sem assistir: a última foto da tela de quem transmite.
+  const streamPreview = StreamPreview({ state, socket, el, voiceEntry, roomEntries: () => voiceEntries(state.voiceChannel), onPreview: () => { if (state.view === 'voice') renderStage(); } });
   const streamZoom = StreamZoom({ el, Icon, syncViewerQuality });
   const mobileStream = MobileStream({ state, el, Icon, toast, member: callMember, voiceEntry, syncViewerQuality, openWatchQualityMenu, toggleStreamMute, togglePip });
 

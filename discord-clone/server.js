@@ -1005,6 +1005,7 @@ function clearScreenWatchers(sharer) {
 }
 
 const SCREEN_CODECS = ['video/H264', 'video/VP9', 'video/VP8', 'video/AV1'];
+const SCREEN_PREVIEW_BYTES = 200_000;
 function screenQuality(value = { mode: 'auto', maxHeight: 1080, background: false }) {
   if (!value || typeof value !== 'object' || !['auto', 'economy', 'source'].includes(value.mode)
       || !Number.isInteger(value.maxHeight) || value.maxHeight < 180 || value.maxHeight > 1080 || typeof value.background !== 'boolean') throw new Error('Qualidade de transmissão inválida.');
@@ -1034,6 +1035,7 @@ function leaveVoice(socket) {
   s.voiceServerId = null;
   if (![...online.values()].some((o) => o.voice === left.channel && o.voiceServerId === left.server)) media.vacate(left.server, left.channel);
   s.sharing = false;
+  s.preview = null;
   s.camera = false;
   s.voiceFx = null;
   if (dm) dmCalls.left(dm, s.accountId, roomAccounts(dm));
@@ -1085,6 +1087,7 @@ function enforceVoice() {
       } else if ((s.sharing || s.camera) && (!can(acc, 'STREAM') || timedOut(acc))) {
         clearScreenWatchers(sid);
         s.sharing = false;
+        s.preview = null;
         s.camera = false;
         socket.emit('voice:stop-share');
       }
@@ -1891,6 +1894,7 @@ io.on('connection', (socket) => {
       s.voiceServerId = target;
       const dropped = dropOtherVoiceSessions(socket, acc.id);
       broadcastState();
+      sendPreviews(peers);
       return { peers: peers.filter((p) => !dropped.includes(p)) };
     });
   });
@@ -1911,7 +1915,20 @@ io.on('connection', (socket) => {
     const dropped = dropOtherVoiceSessions(socket, acc.id);
     dmCalls.joined(dm, acc.id, conversation.users.find((u) => u !== acc.id), { first: !peers.length, silent });
     broadcastState();
+    sendPreviews(peers);
     return { peers: peers.filter((p) => !dropped.includes(p)) };
+  }
+
+  // Quem entra na sala já vê a última prévia de cada transmissão. Vai depois do estado novo, que traz
+  // quem está transmitindo.
+  function sendPreviews(peers) {
+    setImmediate(() => {
+      const s = online.get(socket.id);
+      for (const sid of peers) {
+        const source = online.get(sid);
+        if (s?.voice && source?.voice === s.voice && source.sharing && source.preview) socket.emit('screen:preview', { sid, image: source.preview });
+      }
+    });
   }
 
   // Ligar de novo para quem não atendeu (só quem está na chamada, esperando).
@@ -1940,12 +1957,23 @@ io.on('connection', (socket) => {
     s.muted = !!muted;
     s.deafened = !!deafened;
     s.sharing = !!sharing && video;
-    if (!s.sharing) clearScreenWatchers(socket.id);
+    if (!s.sharing) { clearScreenWatchers(socket.id); s.preview = null; }
     // Transmissão pausada: a janela compartilhada foi minimizada (o navegador para de capturar).
     s.paused = s.sharing && !!paused;
     s.camera = !!camera && video;
     s.voiceFx = VOICE_FX.includes(voiceFx) ? voiceFx : null;
     broadcastState();
+  }, { voice: true });
+
+  // Prévia da transmissão (como no Discord): uma foto pequena da tela de quem transmite, repassada para
+  // a sala. Só JPEG, até 200 KB, poucas por minuto. A última fica guardada para quem entrar depois.
+  on('screen:preview', (acc, { image }) => {
+    const s = online.get(socket.id);
+    if (!s.voice || !s.sharing) fail('Você não está transmitindo.');
+    if (!Buffer.isBuffer(image) || image.length < 64 || image.length > SCREEN_PREVIEW_BYTES || image[0] !== 0xff || image[1] !== 0xd8 || image[2] !== 0xff) fail('Prévia inválida.');
+    if (!allow('screen-preview:' + socket.id, 8, 20_000)) fail('Prévias demais seguidas.');
+    s.preview = image;
+    socket.to('voice:' + s.voice).emit('screen:preview', { sid: socket.id, image });
   }, { voice: true });
 
   // Quem assiste continua autorizado na sala de quem transmite (canal visível ou amizade, na privada).

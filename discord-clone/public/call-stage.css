@@ -63,6 +63,31 @@
 #main.dm-call #voice-view #stage-strip > .tile:not(:fullscreen, .immersive, .cinema) { flex-basis: 112px; width: 112px; height: 64px; }
 #main.dm-call #stage-strip > .tile .avatar { width: 32px; height: 32px; font-size: 14px; }
 
+/* Prévia da transmissão para quem ainda não assiste (stream-preview.js): a última foto da tela de quem
+   transmite, inteira no meio, com a mesma foto desfocada preenchendo o resto do quadrado. */
+.tile.screen .stream-preview { position: absolute; inset: 0; overflow: hidden; opacity: 0; pointer-events: none; background: #000; }
+.tile.screen .stream-preview.shown { opacity: 1; }
+.stream-preview .sp-frame { position: absolute; inset: 0; opacity: 0; }
+.stream-preview .sp-frame.in { opacity: 1; }
+.stream-preview img { position: absolute; inset: 0; display: block; width: 100%; height: 100%; user-select: none; }
+.stream-preview .sp-fill { object-fit: cover; filter: blur(24px) brightness(.55) saturate(1.15); transform: scale(1.12); }
+.stream-preview .sp-img { object-fit: contain; }
+/* Sobre a foto, um véu escuro (mais forte embaixo, onde fica o nome) deixa o botão legível. */
+.tile.screen.has-preview .watch-overlay { background: linear-gradient(180deg, rgb(0 0 0 / .14), rgb(0 0 0 / .3) 50%, rgb(0 0 0 / .56)); color: #fff; }
+.tile.screen.has-preview .watch-overlay[data-state="idle"] > :not(.watch-btn),
+.tile.screen.has-preview .watch-overlay[data-state="loading"] > .muted-text { display: none; }
+.tile.screen.has-preview .watch-overlay .paused-title { text-shadow: 0 1px 4px rgb(0 0 0 / .6); }
+.tile.screen.has-preview .watch-btn { box-shadow: 0 6px 20px rgb(0 0 0 / .4); }
+.watch-overlay .watch-btn { display: inline-flex; align-items: center; gap: 8px; }
+.watch-spinner { width: 32px; height: 32px; border-radius: 50%; border: 3px solid color-mix(in srgb, currentColor 22%, transparent); border-top-color: currentColor; animation: lb-spin .8s linear infinite; }
+.watch-btn .wb-short { display: none; }
+/* Na miniatura, o botão fica no meio do espaço acima do nome (que ocupa os 28 px de baixo). */
+#stage-strip > .tile .watch-overlay { padding: 4px 4px 28px; }
+#stage-strip > .tile .watch-btn { gap: 5px; white-space: nowrap; }
+#stage-strip > .tile .watch-btn .ico { width: 13px; height: 13px; }
+#stage-strip > .tile .watch-btn .wb-long { display: none; }
+#stage-strip > .tile .watch-btn .wb-short { display: inline; }
+
 @container (max-width: 560px) {
   #stage-toolbar { padding: 10px 12px 0; }
   #main #voice-view #stage { padding: 12px 12px 100px; gap: 10px; }
