@@ -152,6 +152,16 @@ test('quem recebe guarda a foto, troca com esmaecido e apaga quando a transmiss�
   await h.advance(2000);
   assert.equal(h.urls.size, 1, 'a foto antiga é liberada');
 
+  // Com a janela escondida a troca é direta: a foto não fica invisível esperando a janela aparecer.
+  Object.defineProperty(h.w.document, 'hidden', { configurable: true, get: () => true });
+  h.handlers['screen:preview']({ sid: 'friend', image: JPEG(3).buffer });
+  await h.advance(0);
+  h.preview.paint(tile, 'friend', true);
+  assert.equal(box.querySelectorAll('.sp-frame').length, 1);
+  assert.equal(box.querySelectorAll('.sp-frame.in').length, 1);
+  delete h.w.document.hidden;
+  await h.advance(2000);
+
   // Assistindo ao vivo: a prévia some.
   h.preview.paint(tile, 'friend', false);
   assert.ok(!tile.classList.contains('has-preview'));

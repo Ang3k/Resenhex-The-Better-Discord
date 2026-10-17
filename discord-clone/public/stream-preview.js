@@ -162,9 +162,14 @@ window.StreamPreview = function ({ state, socket, el, voiceEntry, roomEntries, o
       el('img', { class: 'sp-img', src: preview.url, alt: '', draggable: false }));
     const older = [...box.children];
     box.append(frame);
-    // Dois quadros de animação: o navegador desenha a foto nova invisível antes de esmaecer.
-    requestAnimationFrame(() => requestAnimationFrame(() => frame.classList.add('in')));
-    setTimeout(() => older.forEach((node) => node.remove()), 900);
+    // Janela escondida: sem esmaecido (os quadros de animação só voltam quando ela aparece, e a
+    // prévia ficaria preta até lá). Visível: dois quadros de animação, para o navegador desenhar a
+    // foto nova invisível antes de esmaecer; a anterior só sai depois que a nova apareceu.
+    if (document.hidden) { frame.classList.add('in'); older.forEach((node) => node.remove()); return; }
+    requestAnimationFrame(() => requestAnimationFrame(() => {
+      frame.classList.add('in');
+      setTimeout(() => older.forEach((node) => node.remove()), 900);
+    }));
   }
 
   return { sync, paint, prune, keep, has: (sid) => previews.has(sid) };
