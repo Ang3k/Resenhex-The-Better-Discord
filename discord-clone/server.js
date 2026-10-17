@@ -404,6 +404,8 @@ app.get('/privacidade', (_req, res) => res.sendFile(path.join(__dirname, 'public
 app.use('/vendor/noise', express.static(path.dirname(require.resolve('@sapphi-red/web-noise-suppressor')), { maxAge: '7d' }));
 // Mudança de tom do modificador de voz (Signalsmith Stretch, MIT, WebAssembly num AudioWorklet).
 app.get('/vendor/stretch.mjs', (_req, res) => res.sendFile('SignalsmithStretch.mjs', { root: path.dirname(require.resolve('signalsmith-stretch')), maxAge: '7d' }));
+// Gerador de MP4 dos clipes da chamada (mp4-muxer, MIT), carregado só quando alguém clipa.
+app.get('/vendor/mp4-muxer.js', (_req, res) => res.sendFile('mp4-muxer.js', { root: path.dirname(require.resolve('mp4-muxer')), maxAge: '7d' }));
 // Three.js da cena 3D do Salão do Mudae, servido daqui (sem CDN): só o build e os addons.
 const threeDir = path.join(path.dirname(require.resolve('three')), '..');
 app.use('/vendor/three/build', express.static(path.join(threeDir, 'build'), { maxAge: '7d' }));
