@@ -3,6 +3,25 @@
 Histórico de versões. A mesma lista aparece dentro do app em **Novidades** (menu do servidor ou rodapé das Configurações).
 O Resenhex chegou à versão 1.0 em 4 de outubro de 2026.
 
+## v1.9.0 — Recorte de efeito sonoro e celular revisado
+
+18 de outubro de 2026.
+
+Crie um efeito sonoro a partir de qualquer áudio ou vídeo e escolha o trecho na onda, como no Discord. No celular, a barra da chamada, os menus e várias telas foram acertados.
+
+### Novidades
+
+- Adicionar efeito sonoro aceita áudio ou vídeo (MP3, WAV, OGG, M4A, MP4, WEBM, até 50 MB e 5 minutos). Escolha até 8 segundos arrastando as bordas na onda, arraste o trecho inteiro ou toque fora dele para começar ali. O play toca só o trecho, do jeito que vai soar na chamada.
+- Arquivos com mais de 20 segundos ganham uma faixa com o arquivo inteiro embaixo da onda, para ir direto até a parte certa.
+
+### Melhorias
+
+- Celular: a barra da chamada cabe inteira com todos os botões, mesmo em telas estreitas, e os botões de quem está sozinho na sala ficam um embaixo do outro.
+- Celular: os efeitos sonoros abrem numa folha que sobe de baixo, com o fundo escurecido. O cartão de perfil também escurece o fundo, e tocar fora só fecha, sem acionar o que estava atrás.
+- Celular: os menus não passam mais da borda da tela, e os itens ficaram mais altos, fáceis de tocar.
+- Celular: o topo do cartão de entrar ou criar conta sempre fica alcançável, o teclado não abre sozinho no login nem no DJ, e as dicas de passar o mouse não aparecem no toque.
+- Celular: avisos mais largos e acima da caixa de mensagem, abas de Amigos em grade, a fileira de baixo das Configurações quebra linha em vez de rolar de lado e as legendas dos clipes não cortam mais o texto.
+
 ## v1.8.0 — Clipar
 
 17 de outubro de 2026.
