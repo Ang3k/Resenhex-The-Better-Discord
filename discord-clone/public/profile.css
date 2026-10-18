@@ -137,6 +137,7 @@ button.pc-role.add:hover { background: rgba(255, 255, 255, .12); color: var(--te
 .icon-status:empty { display: none; }
 
 @media (max-width: 640px) {
-  #profile-card { left: 8px !important; right: 8px; width: auto; top: auto !important; bottom: 8px; }
+  /* Folha embaixo sobre um véu escuro, como as outras folhas do celular (sem ele o cartão parecia solto em cima do chat). */
+  #profile-card { left: 8px !important; right: 8px; width: auto; top: auto !important; bottom: max(8px, env(safe-area-inset-bottom)); box-shadow: 0 0 0 100vmax rgba(0, 0, 0, .5), 0 16px 48px rgba(0, 0, 0, .55); }
   .server-icon-editor { flex-direction: column; align-items: flex-start; }
 }

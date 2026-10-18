@@ -326,7 +326,8 @@ window.MusicDJ = function ({ state, el, Icon, toast, call, callInfo, callPerm, c
     panel.sig = '';
     renderPanel(true);
     positionPanel();
-    if (canUse()) setTimeout(() => input.focus(), 0);
+    // No celular o teclado abriria por cima do que está tocando; a busca só abre quando a pessoa toca nela.
+    if (canUse() && window.hasMouse?.()) setTimeout(() => input.focus(), 0);
     setTimeout(() => document.addEventListener('mousedown', outside, true), 0);
     document.addEventListener('keydown', escape, true);
   }

@@ -82,6 +82,11 @@
 .sa-btn.primary { border-color: transparent; background: var(--brand); color: #fff; }
 .sa-btn.primary:hover { background: color-mix(in srgb, var(--brand) 85%, #000); }
 #main.voice-chat .sa-btn.chat { display: none; }
+/* Celular: os atalhos viram uma coluna de botões da mesma largura, em vez de linhas de tamanhos diferentes. */
+@container (max-width: 440px) {
+  .sa-actions { flex-direction: column; align-items: stretch; width: min(260px, 100%); }
+  .sa-btn { justify-content: center; height: 42px; }
+}
 @keyframes sa-in { from { opacity: 0; transform: translateY(6px); } }
 @media (prefers-reduced-motion: reduce) { #stage-alone { animation: none; } }
 :root[data-reduce-motion="true"] #stage-alone { animation: none; }

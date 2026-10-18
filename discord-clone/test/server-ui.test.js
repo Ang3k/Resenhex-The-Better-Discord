@@ -71,7 +71,8 @@ async function ui(t, invited = false, options = {}) {
   };
   w.io = () => socket;
   w.structuredClone = structuredClone;
-  w.matchMedia = () => ({ matches: false, addEventListener() {}, removeEventListener() {} });
+  // Sem `mouse`, a página se comporta como no celular (toque): hasMouse() é falso.
+  w.matchMedia = (query) => ({ matches: !!options.mouse && query === '(hover: hover) and (pointer: fine)', addEventListener() {}, removeEventListener() {} });
   w.ResizeObserver = class { observe() {} unobserve() {} disconnect() {} };
   w.Element.prototype.scrollTo = function () {};
   w.Element.prototype.scrollIntoView = function () {};
@@ -836,7 +837,7 @@ test('GIF: botão só com chave, painel busca no KLIPY e o GIF escolhido vai com
 });
 
 test('first visit shows the home; login, back and forward preserve the chosen screen and focus', async (t) => {
-  const app = await ui(t);
+  const app = await ui(t, false, { mouse: true });
   const root = app.d.documentElement;
   assert.equal(root.classList.contains('show-landing'), true);
   assert.equal(app.events.some((e) => e.event === 'auth'), false);
@@ -867,15 +868,18 @@ test('browser CTA opens registration; switching forms updates deep links and pre
   assert.equal(app.d.documentElement.classList.contains('show-landing'), true);
 });
 
-test('direct registration opens with focus and can return home without adding a history entry', async (t) => {
-  const app = await ui(t, false, { hash: '#criar-conta' });
-  assert.equal(app.d.documentElement.classList.contains('show-landing'), false);
-  assert.equal(app.d.querySelector('#login-submit').textContent, 'Criar conta');
-  assert.equal(app.d.activeElement.id, 'login-name');
-  const entries = app.w.history.length;
-  app.d.querySelector('#login-back').click(); await settle();
-  assert.equal(app.d.documentElement.classList.contains('show-landing'), true);
-  assert.equal(app.w.history.length, entries);
+test('direct registration opens with focus (only with a mouse) and can return home without adding a history entry', async (t) => {
+  for (const mouse of [true, false]) {
+    const app = await ui(t, false, { hash: '#criar-conta', mouse });
+    assert.equal(app.d.documentElement.classList.contains('show-landing'), false);
+    assert.equal(app.d.querySelector('#login-submit').textContent, 'Criar conta');
+    // No toque o teclado não abre sozinho, para o cartão aparecer inteiro.
+    assert.equal(app.d.activeElement.id, mouse ? 'login-name' : '');
+    const entries = app.w.history.length;
+    app.d.querySelector('#login-back').click(); await settle();
+    assert.equal(app.d.documentElement.classList.contains('show-landing'), true);
+    assert.equal(app.w.history.length, entries);
+  }
 });
 
 test('returning visitors, desktop and invitations bypass the home; saved sessions authenticate automatically', async (t) => {
