@@ -3,6 +3,19 @@
 Histórico de versões. A mesma lista aparece dentro do app em **Novidades** (menu do servidor ou rodapé das Configurações).
 O Resenhex chegou à versão 1.0 em 4 de outubro de 2026.
 
+## v1.8.1 — Clipes dentro do Clipar
+
+18 de outubro de 2026.
+
+Os clipes da chamada foram para dentro do Clipar, e a janela ganhou visual novo.
+
+### Melhorias
+
+- Os clipes da chamada agora ficam numa aba dentro da janela Clipar, em cartões com miniatura maior e a duração em cima.
+- A claquete mostra quantos clipes a chamada tem. Sem poder clipar (fone desligado, por exemplo), ela abre direto nos clipes que já existem.
+- Janela Clipar com visual novo: abas, régua de tempo embaixo da onda e a duração do trecho em destaque.
+- A claquete bate fechando e abre de novo, como no cinema, ao passar o mouse e ao clipar.
+
 ## v1.8.0 — Clipar
 
 17 de outubro de 2026.

@@ -2593,8 +2593,7 @@
     stage.dataset.layout = focusKey ? 'focus' : screens.length ? 'streams' : 'people';
     primary.style.setProperty('--stage-columns', screens.length > 4 ? 3 : Math.min(2, mainTiles.length) || 1);
     primary.style.setProperty('--stage-count', mainTiles.length || 1);
-    $('#stage-toolbar').classList.toggle('hidden', !screens.length && !state.pinned && !state.clips.length);
-    $('#stage-toolbar').classList.toggle('clips-only', !screens.length && !state.pinned); // só o "Clipes (n)"
+    $('#stage-toolbar').classList.toggle('hidden', !screens.length && !state.pinned);
     $('#stage-summary').textContent = screens.length ? `${screens.length} ${screens.length === 1 ? 'transmissão' : 'transmissões'}` : 'Participante em destaque';
     $('#stage-grid').setAttribute('aria-pressed', String(!focusKey));
     $('#stage-focus').setAttribute('aria-pressed', String(!!focusKey));
@@ -2829,7 +2828,8 @@
     const scClip = $('#sc-clip');
     scClip.classList.toggle('hidden', !inVoice);
     scClip.classList.toggle('off', inVoice && deaf);
-    scClip.dataset.tip = deaf ? 'Ligue o fone para clipar' : 'Clipar últimos 30 s (Alt+C)';
+    const clipCount = state.clips.length ? ` · ${state.clips.length} ${state.clips.length === 1 ? 'clipe' : 'clipes'}` : '';
+    scClip.dataset.tip = (deaf ? 'Ligue o fone para clipar' : 'Clipar últimos 30 s (Alt+C)') + clipCount;
     scClip.setAttribute('aria-label', scClip.dataset.tip);
     refreshTip(scClip);
     const scSb = $('#sc-sounds');

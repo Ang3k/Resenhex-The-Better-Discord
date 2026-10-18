@@ -1,39 +1,80 @@
-/* CLIPAR: botão claquete aceso, tela de corte, aviso de clipe novo e lista "Clipes (n)". */
+/* CLIPAR: botão claquete (aceso e com o número de clipes), janela com as abas "Novo clipe" e "Clipes da chamada", aviso de clipe novo. */
 #stage-controls .sc-btn.clipping { background: var(--brand); color: #fff; box-shadow: 0 0 0 4px color-mix(in srgb, var(--brand) 30%, transparent); }
-#stage-controls .sc-btn.clipping svg { animation: clip-snap .35s var(--spring, ease-out); }
-@keyframes clip-snap { 40% { transform: rotate(-12deg) scale(1.08); } }
-
-/* Barra de cima da chamada: o "Clipes (n)" fica à direita, junto da escolha de grade ou destaque. */
-.stage-actions { display: flex; align-items: center; gap: 8px; margin-left: auto; }
-#stage-toolbar.clips-only .stage-summary, #stage-toolbar.clips-only .stage-layout { display: none; }
-.stage-clips {
-  display: inline-flex; align-items: center; gap: 6px; height: 32px; padding: 0 12px;
-  border: 1px solid var(--divider); border-radius: 9px; background: var(--bg-panel); color: var(--text);
-  font: inherit; font-size: 12px; font-weight: 600; cursor: pointer; transition: background .15s, border-color .15s;
+/* Ao clipar (e ao abrir a janela), a claquete bate. A animação "clap" fica no motion.css. */
+#stage-controls .sc-btn.clipping .clap, .clip-badge .clap { animation: clap .7s ease-in-out; }
+.clip-badge .clap { animation-delay: .12s; }
+#stage-controls #sc-clip { position: relative; }
+#sc-clip[data-count]::after {
+  content: attr(data-count); position: absolute; top: -3px; right: -3px; min-width: 18px; height: 18px; padding: 0 5px; box-sizing: border-box;
+  border-radius: 9px; background: var(--brand); color: #fff; font-size: 11px; font-weight: 700; line-height: 18px; text-align: center;
+  font-variant-numeric: tabular-nums; box-shadow: 0 0 0 2px var(--bg-floating); pointer-events: none; animation: clip-pop .3s var(--spring, ease-out);
 }
-.stage-clips:hover { background: var(--hover); border-color: color-mix(in srgb, var(--brand) 45%, var(--divider)); }
-.stage-clips svg { color: var(--brand); }
-.stage-actions { position: relative; }
+@keyframes clip-pop { from { transform: scale(.4); opacity: 0; } }
 
-/* Tela de corte */
-.clip-card { width: min(720px, 100%); padding: 20px 22px 0; display: flex; flex-direction: column; gap: 14px; background: var(--bg-main); }
-.clip-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
-.clip-head h2 { margin: 0; }
-.clip-sub { margin: 4px 0 0; color: var(--text-muted); font-size: 13px; }
+/* Barra de cima da chamada: escolha de grade ou destaque à direita. */
+.stage-actions { position: relative; display: flex; align-items: center; gap: 8px; margin-left: auto; }
+
+/* ---------- Janela ---------- */
+.clip-card {
+  position: relative; width: min(760px, 100%); max-height: calc(100dvh - 32px); padding: 0; display: flex; flex-direction: column;
+  background: var(--bg-main); border: 1px solid var(--divider); border-radius: 18px; box-shadow: 0 24px 80px rgba(0, 0, 0, .6);
+}
+/* Um brilho da cor da marca atrás do título. */
+.clip-card::before {
+  content: ""; position: absolute; inset: 0 0 auto; height: 140px; pointer-events: none;
+  background: radial-gradient(120% 100% at 0% 0%, color-mix(in srgb, var(--brand) 22%, transparent), transparent 70%);
+}
+.clip-card [hidden] { display: none !important; }
+.clip-card p { padding: 0; line-height: 1.35; }
+.clip-head { position: relative; display: flex; align-items: center; gap: 12px; padding: 18px 20px 0; }
+.clip-badge {
+  display: grid; place-items: center; width: 40px; height: 40px; flex-shrink: 0; border-radius: 12px; color: #fff;
+  background: var(--brand-gradient, var(--brand)); box-shadow: 0 6px 18px color-mix(in srgb, var(--brand) 40%, transparent);
+}
+.clip-head-text { flex: 1; min-width: 0; }
+.clip-card .clip-head h2 { margin: 0; padding: 0; font-size: 18px; line-height: 1.2; color: var(--text-strong); }
+.clip-card .clip-sub { margin: 2px 0 0; color: var(--text-muted); font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .clip-close {
-  display: grid; place-items: center; width: 32px; height: 32px; flex-shrink: 0; border: 0; border-radius: 50%;
+  display: grid; place-items: center; width: 32px; height: 32px; flex-shrink: 0; align-self: flex-start; border: 0; border-radius: 50%;
   background: transparent; color: var(--text-muted); cursor: pointer; transition: background .15s, color .15s, transform .2s;
 }
 .clip-close:hover { background: var(--hover-strong); color: var(--text); transform: rotate(90deg); }
-.clip-stage { border-radius: 12px; overflow: hidden; background: #0d0b12; aspect-ratio: 16 / 9; border: 1px solid var(--divider); }
+
+/* Abas: controle segmentado. */
+.clip-tabs { position: relative; display: flex; gap: 4px; margin: 16px 20px 0; padding: 4px; border-radius: 12px; background: var(--bg-panel); border: 1px solid var(--divider); }
+.clip-tab {
+  flex: 1; display: inline-flex; align-items: center; justify-content: center; gap: 8px; height: 34px; padding: 0 12px; border: 0; border-radius: 9px;
+  background: transparent; color: var(--text-muted); font: inherit; font-size: 13px; font-weight: 600; cursor: pointer; transition: background .15s, color .15s, box-shadow .15s;
+}
+.clip-tab > span { white-space: nowrap; }
+.clip-tab:hover:not(:disabled):not(.active) { color: var(--text); background: var(--hover); }
+.clip-tab.active { background: var(--bg-main); color: var(--text-strong); box-shadow: 0 1px 0 rgba(255, 255, 255, .04) inset, 0 2px 8px rgba(0, 0, 0, .3); }
+.clip-tab.active svg { color: var(--brand); }
+.clip-tab:disabled { opacity: .45; cursor: not-allowed; }
+.clip-tab:focus-visible { outline: 2px solid var(--brand); outline-offset: 1px; }
+.clip-tab-count {
+  min-width: 20px; height: 20px; padding: 0 6px; box-sizing: border-box; border-radius: 10px; background: var(--hover-strong); color: var(--text);
+  font-size: 11px; font-weight: 700; line-height: 20px; font-variant-numeric: tabular-nums;
+}
+.clip-tab.active .clip-tab-count { background: var(--brand); color: #fff; }
+
+.clip-panel { position: relative; display: flex; flex-direction: column; gap: 14px; padding: 16px 20px; min-height: 0; }
+
+/* ---------- Aba "Novo clipe" ---------- */
+.clip-cutter { overflow-y: auto; }
+.clip-stage { flex-shrink: 0; border-radius: 14px; overflow: hidden; background: #0d0b12; aspect-ratio: 16 / 9; border: 1px solid var(--divider); box-shadow: 0 8px 24px rgba(0, 0, 0, .35); }
 .clip-preview { display: block; width: 100%; height: 100%; }
 
-.clip-wave { position: relative; height: 64px; border-radius: 10px; background: var(--bg-panel); border: 1px solid var(--divider); overflow: hidden; }
+.clip-timeline { display: flex; flex-direction: column; gap: 6px; }
+.clip-wave { position: relative; height: 68px; border-radius: 12px; background: var(--bg-panel); border: 1px solid var(--divider); overflow: hidden; }
 .clip-wave-bars { position: absolute; inset: 0; width: 100%; height: 100%; }
-.clip-shade { position: absolute; top: 0; bottom: 0; background: rgba(0, 0, 0, .45); pointer-events: none; }
+.clip-shade { position: absolute; top: 0; bottom: 0; background: rgba(0, 0, 0, .5); pointer-events: none; }
 .clip-shade.left { left: 0; }
 .clip-shade.right { right: 0; }
-.clip-window { position: absolute; top: 0; bottom: 0; border: 2px solid var(--brand); border-radius: 8px; pointer-events: none; box-shadow: 0 0 0 1px rgba(0, 0, 0, .3); }
+.clip-window {
+  position: absolute; top: 0; bottom: 0; border: 2px solid var(--brand); border-radius: 10px; pointer-events: none;
+  background: color-mix(in srgb, var(--brand) 8%, transparent); box-shadow: 0 0 0 1px rgba(0, 0, 0, .3), 0 0 18px color-mix(in srgb, var(--brand) 35%, transparent);
+}
 .clip-playhead { position: absolute; top: 0; bottom: 0; width: 2px; margin-left: -1px; background: #fff; pointer-events: none; box-shadow: 0 0 6px rgba(255, 255, 255, .6); }
 .clip-playhead.hidden { display: none; }
 /* As duas alças são sliders sobrepostos: só o pegador recebe o mouse, o trilho deixa passar.
@@ -44,29 +85,67 @@
 .clip-wave input.clip-handle[type=range]::-moz-range-track { height: 100%; background: none; }
 .clip-wave input.clip-handle[type=range]::-moz-range-progress { background: none; }
 .clip-wave input.clip-handle[type=range]::-webkit-slider-thumb {
-  -webkit-appearance: none; pointer-events: auto; width: 12px; height: 100%; margin-top: 0; border: 0; border-radius: 6px; cursor: ew-resize;
-  background: linear-gradient(#fff, #fff) center / 2px 18px no-repeat, var(--brand); box-shadow: 0 0 0 2px rgba(0, 0, 0, .35); transition: transform .12s, box-shadow .15s;
+  -webkit-appearance: none; pointer-events: auto; width: 14px; height: 100%; margin-top: 0; border: 0; border-radius: 7px; cursor: ew-resize;
+  background: linear-gradient(#fff, #fff) center / 2px 20px no-repeat, var(--brand); box-shadow: 0 0 0 2px rgba(0, 0, 0, .35); transition: transform .12s, box-shadow .15s;
 }
 .clip-wave input.clip-handle[type=range]::-moz-range-thumb {
-  pointer-events: auto; width: 12px; height: 62px; border: 0; border-radius: 6px; cursor: ew-resize;
-  background: linear-gradient(#fff, #fff) center / 2px 18px no-repeat, var(--brand); box-shadow: 0 0 0 2px rgba(0, 0, 0, .35);
+  pointer-events: auto; width: 14px; height: 66px; border: 0; border-radius: 7px; cursor: ew-resize;
+  background: linear-gradient(#fff, #fff) center / 2px 20px no-repeat, var(--brand); box-shadow: 0 0 0 2px rgba(0, 0, 0, .35);
 }
 .clip-wave input.clip-handle[type=range]:hover::-webkit-slider-thumb { transform: scaleX(1.2); }
 .clip-wave input.clip-handle[type=range]:focus-visible::-webkit-slider-thumb { box-shadow: 0 0 0 2px #fff, 0 0 0 5px color-mix(in srgb, var(--brand) 45%, transparent); }
 .clip-wave input.clip-handle[type=range]:focus-visible::-moz-range-thumb { box-shadow: 0 0 0 2px #fff, 0 0 0 5px color-mix(in srgb, var(--brand) 45%, transparent); }
+.clip-ruler { position: relative; height: 14px; margin: 0 2px; font-size: 11px; color: var(--text-muted); font-variant-numeric: tabular-nums; }
+.clip-ruler span { position: absolute; top: 0; transform: translateX(-50%); white-space: nowrap; }
+.clip-ruler span:first-child { transform: none; }
+.clip-ruler span:last-child { transform: translateX(-100%); }
 
-.clip-info { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; flex-wrap: wrap; }
-.clip-selection { margin: 0; font-variant-numeric: tabular-nums; font-weight: 600; color: var(--text); font-size: 14px; }
-.clip-who { margin: 0; color: var(--text-muted); font-size: 12px; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 60%; }
-.clip-actions { display: flex; align-items: center; gap: 8px; margin: 0 -22px; padding: 14px 22px; background: var(--bg-sidebar); border-top: 1px solid var(--divider); }
+.clip-info { display: flex; align-items: center; gap: 14px; }
+.clip-span {
+  flex-shrink: 0; padding: 8px 12px; border-radius: 10px; font-size: 20px; font-weight: 800; line-height: 1; font-variant-numeric: tabular-nums;
+  color: var(--text-strong); background: color-mix(in srgb, var(--brand) 18%, var(--bg-panel)); border: 1px solid color-mix(in srgb, var(--brand) 40%, transparent);
+}
+.clip-info-text { display: flex; flex-direction: column; gap: 3px; min-width: 0; flex: 1; }
+.clip-card .clip-selection { margin: 0; font-variant-numeric: tabular-nums; font-weight: 600; color: var(--text); font-size: 13px; }
+.clip-who-row { display: flex; align-items: center; gap: 6px; min-width: 0; color: var(--text-muted); }
+.clip-who-row svg { flex-shrink: 0; }
+.clip-card .clip-who { margin: 0; color: var(--text-muted); font-size: 12px; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+.clip-card .clip-actions { display: flex; align-items: center; gap: 8px; margin: 0; padding: 14px 20px; background: var(--bg-sidebar); border-top: 1px solid var(--divider); border-radius: 0 0 17px 17px; }
 .clip-actions .clip-spacer { flex: 1; }
-.clip-listen { display: inline-flex; align-items: center; gap: 6px; }
+.clip-listen { display: inline-flex; align-items: center; gap: 6px; border-radius: 9px; }
+.clip-card .clip-listen.playing { color: var(--brand); }
+.clip-release { border-radius: 10px; }
 .clip-release:disabled { opacity: .7; cursor: progress; }
 
-/* Aviso de clipe novo: canto de baixo, acima da barra da chamada. */
+/* ---------- Aba "Clipes da chamada" ---------- */
+.clip-library { min-height: 300px; max-height: min(62dvh, 560px); overflow-y: auto; padding-bottom: 20px; }
+.clip-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); gap: 12px; }
+.clip-item {
+  display: flex; flex-direction: column; border-radius: 14px; overflow: hidden; background: var(--bg-panel); border: 1px solid var(--divider);
+  transition: transform .15s var(--spring, ease-out), border-color .15s, box-shadow .15s;
+}
+.clip-item:hover { transform: translateY(-2px); border-color: color-mix(in srgb, var(--brand) 55%, var(--divider)); box-shadow: 0 10px 28px rgba(0, 0, 0, .35); }
+.clip-item-media { position: relative; aspect-ratio: 16 / 9; background: #0d0b12; }
+.clip-item-thumb { display: block; width: 100%; height: 100%; object-fit: cover; }
+.clip-item-length {
+  position: absolute; right: 8px; bottom: 8px; padding: 2px 7px; border-radius: 6px; background: rgba(0, 0, 0, .72); color: #fff;
+  font-size: 11px; font-weight: 700; font-variant-numeric: tabular-nums; backdrop-filter: blur(4px);
+}
+.clip-item-body { display: flex; align-items: center; gap: 10px; padding: 10px 10px 10px 12px; }
+.clip-item .clip-notice-text small { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.clip-empty { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; flex: 1; padding: 40px 16px; text-align: center; }
+.clip-empty-icon {
+  display: grid; place-items: center; width: 56px; height: 56px; margin-bottom: 6px; border-radius: 18px;
+  color: var(--brand); background: color-mix(in srgb, var(--brand) 14%, var(--bg-panel)); border: 1px solid color-mix(in srgb, var(--brand) 30%, transparent);
+}
+.clip-empty strong { color: var(--text-strong); font-size: 15px; }
+.clip-empty small { color: var(--text-muted); font-size: 13px; max-width: 320px; }
+
+/* ---------- Aviso de clipe novo: canto de baixo, acima da barra da chamada. ---------- */
 #clip-notices { position: fixed; right: 20px; bottom: 96px; z-index: 46; display: flex; flex-direction: column; gap: 8px; pointer-events: none; }
-.clip-notice, .clip-list-item { display: flex; align-items: center; gap: 12px; }
 .clip-notice {
+  display: flex; align-items: center; gap: 12px;
   pointer-events: auto; width: min(400px, calc(100vw - 32px)); padding: 10px; border: 1px solid var(--divider); border-radius: 14px;
   background: var(--bg-floating); box-shadow: 0 16px 48px rgba(0, 0, 0, .5); animation: clip-in .28s cubic-bezier(.16, 1, .3, 1);
 }
@@ -77,37 +156,35 @@
 .clip-notice-text { display: flex; flex-direction: column; gap: 2px; min-width: 0; flex: 1; }
 .clip-notice-text strong { font-size: 14px; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .clip-notice-text small { font-size: 12px; line-height: 1.35; color: var(--text-muted); }
-.clip-list-item .clip-notice-text small { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .clip-download {
   display: inline-flex; align-items: center; gap: 6px; height: 32px; padding: 0 12px; flex-shrink: 0; border: 0; border-radius: 9px;
   background: var(--hover-strong); color: var(--text); font: inherit; font-size: 13px; font-weight: 600; cursor: pointer; transition: background .15s, transform .12s;
 }
 .clip-download.primary { background: var(--brand); color: #fff; }
 .clip-download:hover { background: var(--hover); }
+.clip-item .clip-download:hover { background: var(--brand); color: #fff; }
 .clip-download.primary:hover { background: var(--brand-hover); }
 .clip-download:active { transform: scale(.96); }
 .clip-notice-close { display: grid; place-items: center; width: 24px; height: 24px; flex-shrink: 0; border: 0; border-radius: 50%; background: transparent; color: var(--text-muted); cursor: pointer; }
 .clip-notice-close:hover { background: var(--hover-strong); color: var(--text); }
 
-/* Lista "Clipes (n)" */
-.clip-list {
-  position: absolute; top: calc(100% + 8px); right: 0; z-index: 30; width: min(360px, calc(100vw - 32px)); max-height: 360px; overflow-y: auto;
-  padding: 10px; border: 1px solid var(--divider); border-radius: 14px; background: var(--bg-floating); box-shadow: 0 16px 48px rgba(0, 0, 0, .5);
-  animation: clip-in .2s cubic-bezier(.16, 1, .3, 1);
-}
-.clip-list-title { margin: 2px 4px 2px; font-weight: 700; font-size: 14px; color: var(--text); }
-.clip-list-hint { margin: 0 4px 8px; font-size: 12px; color: var(--text-muted); }
-.clip-list-item { padding: 6px 4px; border-radius: 10px; }
-.clip-list-item:hover { background: var(--hover); }
-
-:root[data-reduce-motion=true] :is(.clip-notice, .clip-list, #stage-controls .sc-btn.clipping svg) { animation: none; }
+:root[data-reduce-motion=true] :is(.clip-notice, #sc-clip[data-count]::after, #stage-controls .sc-btn.clipping .clap, .clip-badge .clap) { animation: none; }
+:root[data-reduce-motion=true] .clip-item:hover { transform: none; }
 
 @media (max-width: 640px) {
-  .clip-card { padding: 16px 14px 0; gap: 12px; }
-  .clip-actions { margin: 0 -14px; padding: 12px 14px; flex-wrap: wrap; }
+  .clip-head { padding: 14px 14px 0; }
+  .clip-tabs { margin: 12px 14px 0; }
+  .clip-tab { padding: 0 8px; gap: 6px; }
+  .clip-tab-extra { display: none; }
+  .clip-panel { padding: 12px 14px; gap: 12px; }
+  .clip-card .clip-actions { padding: 12px 14px; flex-wrap: wrap; }
   .clip-actions .clip-spacer { display: none; }
-  .clip-actions button { flex: 1; }
-  .clip-who { max-width: 100%; }
+  .clip-actions button { flex: 1; justify-content: center; white-space: nowrap; }
+  .clip-actions .clip-release { flex-basis: 100%; order: -1; }
+  .clip-span { font-size: 17px; padding: 7px 10px; }
+  .clip-grid { grid-template-columns: 1fr 1fr; gap: 8px; }
+  .clip-item-body { flex-direction: column; align-items: stretch; gap: 8px; padding: 8px; }
+  .clip-item .clip-download { justify-content: center; }
   #clip-notices { right: 16px; left: 16px; bottom: 84px; }
   .clip-notice { width: 100%; }
 }

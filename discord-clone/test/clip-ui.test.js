@@ -21,7 +21,7 @@ function snapshotOf(ids, seconds = 30) {
 }
 
 function harness({ recorded = 10, supported = true, context = {}, post } = {}) {
-  const dom = new JSDOM('<body><div id="stage-toolbar"><button id="clip-list-btn" class="hidden"></button></div></body>', { url: 'https://resenhex.test/', runScripts: 'outside-only', pretendToBeVisual: true });
+  const dom = new JSDOM('<body><button id="sc-clip"></button></body>', { url: 'https://resenhex.test/', runScripts: 'outside-only', pretendToBeVisual: true });
   const w = dom.window;
   w.HTMLCanvasElement.prototype.getContext = () => new Proxy({ measureText: () => ({ width: 10 }), createRadialGradient: () => ({ addColorStop() {} }) }, {
     get: (target, key) => (key in target ? target[key] : () => {}), set: () => true,
@@ -208,21 +208,67 @@ test('aviso mostra quem clipou e baixa por link de uso único', async () => {
   h.w.close();
 });
 
-test('a lista "Clipes (n)" aparece só com clipes e baixa cada um', async () => {
+const twoClips = () => [
+  { id: 'x', creatorId: 'a', duration: 9.6, channelName: 'Sala 1', createdAt: Date.UTC(2026, 9, 17, 22, 14), thumb: 'data:image/jpeg;base64,AA' },
+  { id: 'y', creatorId: 'b', duration: 30, channelName: 'Sala 1', createdAt: Date.UTC(2026, 9, 17, 22, 16), thumb: 'data:image/jpeg;base64,AA' },
+];
+const tab = (h, text) => [...h.d.querySelectorAll('.clip-tab')].find((b) => b.textContent.includes(text));
+
+test('a claquete mostra quantos clipes a chamada tem', () => {
   const h = harness();
-  const btn = h.d.querySelector('#clip-list-btn');
+  const btn = h.d.querySelector('#sc-clip');
   h.ui.setList([]);
-  assert.equal(btn.classList.contains('hidden'), true);
-  h.ui.setList([{ id: 'x', creatorId: 'a', duration: 9.6, channelName: 'Sala 1', createdAt: Date.UTC(2026, 9, 17, 22, 14), thumb: 'data:image/jpeg;base64,AA' },
-    { id: 'y', creatorId: 'b', duration: 30, channelName: 'Sala 1', createdAt: Date.UTC(2026, 9, 17, 22, 16), thumb: 'data:image/jpeg;base64,AA' }]);
-  assert.equal(btn.classList.contains('hidden'), false);
-  assert.equal(btn.textContent.trim(), 'Clipes (2)');
-  btn.click();
-  const items = h.d.querySelectorAll('.clip-list-item');
+  assert.equal(btn.dataset.count, undefined);
+  h.ui.setList(twoClips());
+  assert.equal(btn.dataset.count, '2');
+  h.ui.setList([]);
+  assert.equal(btn.dataset.count, undefined);
+});
+
+test('os clipes da chamada ficam numa aba do Clipar e baixam cada um', async () => {
+  const h = harness();
+  h.ui.prepare(); await settle();
+  h.ui.setList(twoClips());
+  assert.equal(await h.ui.start(async () => snapshotOf(['a', 'b'])), true);
+  assert.equal(tab(h, 'Novo clipe').getAttribute('aria-selected'), 'true', 'abre no corte');
+  assert.equal(tab(h, 'Clipes da chamada').textContent.trim(), 'Clipes da chamada2');
+  assert.equal(h.d.querySelector('#clip-panel-list').hidden, true);
+  tab(h, 'Clipes da chamada').click();
+  assert.equal(h.d.querySelector('#clip-panel-new').hidden, true);
+  assert.equal(h.d.querySelector('.clip-actions').hidden, true, '"Soltar" some fora do corte');
+  const items = h.d.querySelectorAll('.clip-item');
   assert.equal(items.length, 2);
   assert.ok(items[0].textContent.includes('Bia'), 'o mais novo primeiro');
+  assert.ok(items[0].textContent.includes('0:30'));
   assert.ok(items[1].textContent.includes('Ana'));
   h.w.HTMLAnchorElement.prototype.click = function () {};
   items[0].querySelector('button.clip-download').click(); await settle();
   assert.deepEqual(plain(h.calls), [{ event: 'clip:link', payload: { id: 'y' } }]);
+  // Clipe novo com a janela aberta entra na lista na hora.
+  h.ui.setList([...twoClips(), { id: 'z', creatorId: 'a', duration: 5, channelName: 'Sala 1', createdAt: Date.UTC(2026, 9, 17, 22, 20), thumb: 'data:image/jpeg;base64,AA' }]);
+  assert.equal(h.d.querySelectorAll('.clip-item').length, 3);
+  tab(h, 'Novo clipe').click();
+  assert.equal(h.d.querySelector('#clip-panel-new').hidden, false);
+});
+
+test('sem poder clipar, a claquete abre direto nos clipes que já existem', async () => {
+  const h = harness({ context: { deafened: true } });
+  h.ui.prepare(); await settle();
+  h.ui.setList(twoClips());
+  assert.equal(await h.ui.start(async () => { throw new Error('não devia tirar foto'); }), true);
+  assert.equal(h.toasts.length, 0);
+  assert.equal(tab(h, 'Novo clipe').disabled, true);
+  assert.equal(tab(h, 'Novo clipe').title, 'Ligue o fone para clipar.');
+  assert.equal(tab(h, 'Clipes da chamada').getAttribute('aria-selected'), 'true');
+  assert.equal(h.d.querySelectorAll('.clip-item').length, 2);
+  // A chamada acabou (lista vazia): sem corte aberto, a janela fecha.
+  h.ui.setList([]);
+  assert.equal(h.d.querySelector('.clip-overlay'), null);
+});
+
+test('aba de clipes vazia explica o que vai aparecer', async () => {
+  const h = harness();
+  h.ui.open(snapshotOf(['a']), { tab: 'list' }); await settle();
+  assert.ok(h.d.querySelector('.clip-empty').textContent.includes('Nenhum clipe nesta chamada ainda'));
+  assert.equal(tab(h, 'Clipes da chamada').querySelector('.clip-tab-count').hidden, true);
 });

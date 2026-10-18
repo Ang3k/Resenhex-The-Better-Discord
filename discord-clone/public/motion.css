@@ -6,6 +6,18 @@
 .ico-mic, .ico-micOff { transform-origin: 50% 88%; }
 .ico-headphones, .ico-headphonesOff { transform-origin: 50% 70%; }
 
+/* Claquete: a haste abre, bate fechando e abre de novo, como no set de filmagem. Gira na dobradiça da esquerda. */
+.ico-clapperboard .clap { transform-box: view-box; transform-origin: 3px 11px; }
+:is(.icon-btn, .sc-btn):hover:not(:disabled) .ico-clapperboard .clap { animation: clap .7s ease-in-out; }
+@keyframes clap {
+  0% { transform: rotate(0); }
+  30% { transform: rotate(-14deg); }
+  44% { transform: rotate(16deg); animation-timing-function: ease-out; }
+  52% { transform: rotate(12deg); }
+  58% { transform: rotate(16deg); }
+  100% { transform: rotate(0); }
+}
+
 /* Microfone: balança na base, como quem testa o som. */
 :is(.icon-btn, .sc-btn):hover:not(:disabled) :is(.ico-mic, .ico-micOff) { animation: mic-sway .62s cubic-bezier(.36, .07, .19, .97); }
 @keyframes mic-sway { 25% { transform: rotate(-14deg); } 50% { transform: rotate(10deg); } 75% { transform: rotate(-5deg); } }

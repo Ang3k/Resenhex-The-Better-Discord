@@ -45,7 +45,7 @@ window.Icon = (() => {
     pause: '<circle cx="12" cy="12" r="10"/><path d="M10 15V9M14 15V9"/>',
     // DJ (músicas na chamada)
     play: '<path d="M7 4.5v15L19 12z"/>',
-    clapperboard: '<path d="M20.2 6 3 11l-.9-2.4c-.3-1.1.3-2.2 1.3-2.5l13.5-4c1.1-.3 2.2.3 2.5 1.3Z"/><path d="m6.2 5.3 3.1 3.9M12.4 3.4l3.1 4"/><path d="M3 11h18v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2Z"/>',
+    clapperboard: '<g class="clap"><path d="M20.2 6 3 11l-.9-2.4c-.3-1.1.3-2.2 1.3-2.5l13.5-4c1.1-.3 2.2.3 2.5 1.3Z"/><path d="m6.2 5.3 3.1 3.9M12.4 3.4l3.1 4"/></g><path d="M3 11h18v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2Z"/>',
     pauseBars: '<path d="M8 5v14M16 5v14"/>',
     skip: '<path d="M5 4.5v15L16 12z"/><path d="M19 5v14"/>',
     stop: '<rect x="5.5" y="5.5" width="13" height="13" rx="2"/>',

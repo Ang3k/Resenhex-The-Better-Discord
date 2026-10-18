@@ -4,6 +4,18 @@
 // O título deve destacar as principais funcionalidades ou correções, com termos objetivos.
 window.CHANGELOG = [
   {
+    version: '1.8.1', date: '2026-10-18', name: 'Clipes dentro do Clipar',
+    summary: 'Os clipes da chamada foram para dentro do Clipar, e a janela ganhou visual novo.',
+    sections: [
+      { kind: 'improved', items: [
+        'Os clipes da chamada agora ficam numa aba dentro da janela Clipar, em cartões com miniatura maior e a duração em cima.',
+        'A claquete mostra quantos clipes a chamada tem. Sem poder clipar (fone desligado, por exemplo), ela abre direto nos clipes que já existem.',
+        'Janela Clipar com visual novo: abas, régua de tempo embaixo da onda e a duração do trecho em destaque.',
+        'A claquete bate fechando e abre de novo, como no cinema, ao passar o mouse e ao clipar.',
+      ] },
+    ],
+  },
+  {
     version: '1.8.0', date: '2026-10-17', name: 'Clipar',
     summary: 'Pegue os últimos 30 segundos da chamada e solte um vídeo para a galera baixar.',
     sections: [
