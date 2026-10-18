@@ -8,8 +8,6 @@ a.download-app { text-decoration: none; }
 @keyframes download-nudge { 50% { transform: translateY(2px); } }
 
 /* ---------- Escolha da tela ---------- */
-.share-overlay { animation: share-fade .14s ease-out; }
-.share-overlay.closing { animation: share-fade .14s ease-in reverse forwards; }
 .confirm-card.share-picker { width: min(820px, calc(100vw - 32px)); max-height: calc(100dvh - 48px); display: flex; flex-direction: column; gap: 0; padding: 0; overflow: hidden; outline: none; }
 /* Em janela baixa, só a grade de fontes encolhe (e rola); qualidade, som e botões ficam visíveis. */
 .share-picker > * { flex-shrink: 0; }
@@ -87,7 +85,7 @@ a.download-app { text-decoration: none; }
 .share-quality-thumb {
   position: absolute; top: 4px; bottom: 4px; left: 4px; width: calc((100% - 8px) / var(--count, 4)); border-radius: 9px;
   background: var(--bg-input); box-shadow: 0 1px 3px rgba(0, 0, 0, .25), inset 0 0 0 1px color-mix(in srgb, var(--brand) 55%, transparent);
-  transform: translateX(calc(var(--i) * 100%)); transition: transform .26s cubic-bezier(.3, .9, .3, 1.05);
+  transform: translateX(calc(var(--i) * 100%)); transition: transform var(--motion-base) var(--ease-enter);
 }
 .share-chip {
   position: relative; display: grid; justify-items: center; gap: 3px; min-width: 0; padding: 8px 4px; border: 0; border-radius: 9px;
@@ -135,7 +133,6 @@ a.download-app { text-decoration: none; }
 .share-picker .confirm-actions { display: flex; align-items: center; margin: 0 0 0 auto; padding: 0; border: 0; background: none; }
 .share-picker .confirm-actions .btn-primary { display: inline-flex; align-items: center; gap: 8px; }
 
-@keyframes share-fade { from { opacity: 0; } }
 @keyframes share-in { from { opacity: 0; transform: translateY(6px) scale(.98); } }
 :root[data-reduce-motion=true] :is(.share-overlay, .share-source, .download-app .ico) { animation: none !important; }
 :root[data-reduce-motion=true] :is(.share-source, .share-close, .share-chip, .share-quality-thumb) { transition: none; }
@@ -204,7 +201,7 @@ html.touch .share-source:not(.selected):hover { background: var(--bg-sidebar); }
 .overlay-segmented::before {
   content: ""; position: absolute; top: 3px; bottom: 3px; left: 3px; width: calc((100% - 6px) / 3); border-radius: 6px;
   background: var(--bg-panel); box-shadow: 0 1px 3px rgba(0, 0, 0, .35), inset 0 0 0 1px color-mix(in srgb, var(--text) 10%, transparent);
-  transform: translateX(calc(var(--seg-index) * 100%)); transition: transform .22s cubic-bezier(.3, .7, .2, 1);
+  transform: translateX(calc(var(--seg-index) * 100%)); transition: transform var(--motion-base) var(--ease-enter);
 }
 #settings .settings-content .overlay-segmented button {
   position: relative; z-index: 1; min-height: 30px; padding: 0 12px; border: 0; border-radius: 6px; background: none; box-shadow: none;

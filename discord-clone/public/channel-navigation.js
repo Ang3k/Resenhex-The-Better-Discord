@@ -67,7 +67,7 @@ window.ChannelNavigation = function ({ state, el, Icon, call, toast, hasPerm, re
       if (event.target === dialog && (event.clientX < rect.left || event.clientX > rect.right || event.clientY < rect.top || event.clientY > rect.bottom)) close();
     });
     dialog.addEventListener('close', () => {
-      dialog.remove();
+      Motion.leave(dialog);
       if (previous?.isConnected && previous.getClientRects().length) previous.focus();
       else document.querySelector('#server-header')?.focus();
     }, { once: true });

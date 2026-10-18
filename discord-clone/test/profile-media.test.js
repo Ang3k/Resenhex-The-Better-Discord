@@ -65,6 +65,7 @@ test('animated avatars retain all frames; malformed frames, dimensions and frami
 
 test('photo framing uses the same source rectangle as the zoomed preview', () => {
   const dom = new JSDOM('', { runScripts: 'outside-only' });
+  dom.window.eval(fs.readFileSync(path.join(__dirname, '../public/motion.js'), 'utf8'));
   dom.window.eval(fs.readFileSync(path.join(__dirname, '../public/photo-editor.js'), 'utf8'));
   const rect = dom.window.PhotoEditor.rect(800, 400, { x: 1, y: .5, zoom: 2 });
   assert.equal(rect.side, 200); assert.equal(rect.x, 600); assert.equal(rect.y, 100);

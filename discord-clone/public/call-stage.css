@@ -134,16 +134,16 @@
 
 /* Barras de fala: aparecem ao lado do nome enquanto a pessoa fala (claro até com a câmera ligada). */
 .speak-bars { display: none; align-items: flex-end; gap: 2px; height: 12px; flex-shrink: 0; }
-.speak-bars i { display: block; width: 3px; height: 4px; border-radius: 2px; background: var(--green); animation: speak-bar .9s ease-in-out infinite; }
+.speak-bars i { display: block; width: 3px; height: 12px; border-radius: 2px; background: var(--green); transform: scaleY(.34); transform-origin: bottom; animation: speak-bar .9s ease-in-out infinite; }
 .speak-bars i:nth-child(2) { animation-delay: .15s; }
 .speak-bars i:nth-child(3) { animation-delay: .3s; }
-@keyframes speak-bar { 0%, 100% { height: 4px; } 50% { height: 12px; } }
+@keyframes speak-bar { 50% { transform: none; } }
 .tile.speaking .speak-bars { display: inline-flex; }
 .tile.speaking .label { box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--green) 55%, transparent); }
 /* Com a câmera ligada o anel verde fica mais grosso, para não sumir na imagem. */
 .tile.cam-on.speaking { box-shadow: inset 0 0 0 4px var(--green), 0 0 26px color-mix(in srgb, var(--green) 30%, transparent); }
 .tile.mic-off:not(.cam-on) .avatar { filter: saturate(.7); opacity: .9; }
-@media (prefers-reduced-motion: reduce) { .speak-bars i { animation: none; height: 10px; } .tb { animation: none; } }
+@media (prefers-reduced-motion: reduce) { .speak-bars i { animation: none; transform: scaleY(.84); } .tb { animation: none; } }
 
 /* ---------- Prévia da câmera antes de ligar ---------- */
 .campv-overlay { z-index: 60; }

@@ -256,7 +256,8 @@
 .dj-now .dj-track-text strong { font-size: 14px; color: var(--text-strong); }
 .dj-progress { display: flex; align-items: center; gap: 8px; padding: 10px 8px 4px; font-size: 11px; color: var(--text-muted); font-variant-numeric: tabular-nums; }
 .dj-bar { flex: 1; height: 4px; border-radius: 999px; background: color-mix(in srgb, var(--text) 16%, transparent); overflow: hidden; }
-.dj-bar i { display: block; height: 100%; width: 0; border-radius: inherit; background: var(--brand); transition: width .5s linear; }
+/* O JS escala no eixo X a cada meio segundo; a transição linear do mesmo tempo deixa a barra andando sem parar. */
+.dj-bar i { display: block; height: 100%; border-radius: inherit; background: var(--brand); transform: scaleX(0); transform-origin: left; transition: transform .5s linear; }
 .dj-now.paused .dj-bar i { background: var(--text-muted); }
 .dj-progress.is-live .dj-bar i { background: var(--red); }
 .dj-progress.is-live .dj-total { color: var(--red); font-weight: 700; }

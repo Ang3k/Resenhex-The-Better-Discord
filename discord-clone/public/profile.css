@@ -6,7 +6,7 @@
   box-shadow: 0 12px 32px rgba(0, 0, 0, .5);
 }
 #context-menu { width: 232px; }
-#context-submenu { position: fixed; z-index: 31; width: 216px; max-height: calc(100vh - 16px); overflow-y: auto; animation: pop .08s ease-out; }
+#context-submenu { position: fixed; z-index: 31; width: 216px; max-height: calc(100vh - 16px); overflow-y: auto; }
 .menu-item { min-height: 32px; margin: 1px 0; padding: 6px 8px; border-radius: 5px; font-size: 14px; font-weight: 500; color: var(--interactive); gap: 10px; }
 .menu-item:hover, .menu-item.sub-open { background: var(--hover-strong); color: var(--text-strong); }
 .menu-item.danger { color: var(--red); }
@@ -38,9 +38,8 @@
   --pc-color: #5865f2;
   position: fixed; z-index: 29; width: 300px; max-height: calc(100vh - 16px); overflow-y: auto;
   background: var(--bg-sidebar); border: 1px solid var(--divider); border-radius: 12px;
-  box-shadow: 0 16px 48px rgba(0, 0, 0, .55); animation: pc-in .14s ease-out;
+  box-shadow: 0 16px 48px rgba(0, 0, 0, .55);
 }
-@keyframes pc-in { from { opacity: 0; transform: translateY(6px) scale(.98); } }
 .pc-banner {
   height: 96px; position: relative;
   background: linear-gradient(160deg, color-mix(in srgb, var(--pc-color) 85%, #fff 15%), color-mix(in srgb, var(--pc-color) 55%, #000 45%));

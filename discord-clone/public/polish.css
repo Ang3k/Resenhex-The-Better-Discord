@@ -203,12 +203,13 @@
 }
 /* ---------- Celular: o dock acompanha a gaveta dos canais ---------- */
 @media (max-width: 640px) {
-  #dock { display: none; }
-  #app.channels-open #dock {
-    display: block; position: fixed; left: 0; bottom: 0; width: min(300px, 85vw); z-index: 15;
+  /* Posição também com a gaveta fechada: ao fechar, o dock desliza junto com ela (motion.css). */
+  #dock {
+    display: none; position: fixed; left: 0; bottom: 0; width: min(300px, 85vw); z-index: 15;
     background: var(--bg-sidebar); padding: 0 8px max(8px, env(safe-area-inset-bottom));
   }
-  #app.channels-open #sidebar { padding-bottom: var(--dock-h, 72px); }
+  #app.channels-open #dock { display: block; }
+  #app #sidebar { padding-bottom: var(--dock-h, 72px); }
   #notify-banner { margin: 8px 10px 0; }
   .msg { padding-left: 14px; }
 }

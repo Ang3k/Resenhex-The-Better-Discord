@@ -1,6 +1,37 @@
-/* Movimento: ícones que reagem ao passar o mouse (como no Discord), resposta ao clique e entradas suaves.
+/* Movimento do app inteiro: tokens, entradas e saídas de menus, janelas e folhas, troca de tela, resposta ao clique
+   e os ícones que reagem ao passar o mouse (como no Discord).
+   Regras: só transform e opacity se animam (o navegador compõe na GPU, sem refazer o layout); entradas desaceleram
+   (--ease-enter), saídas aceleram (--ease-exit) e são mais curtas que a entrada.
    "Reduzir animações" e a preferência do sistema desligam tudo isto (regras no experience.css). */
-:root { --spring: cubic-bezier(.34, 1.56, .64, 1); --ease-out: cubic-bezier(.16, 1, .3, 1); }
+
+/* ---------- Tokens ---------- */
+:root {
+  --motion-fast: 150ms;   /* hover, clique e dicas */
+  --motion-base: 200ms;   /* menus, cartões e seletores */
+  --motion-slow: 300ms;   /* janelas, folhas, gavetas e troca de tela */
+  --motion-large: 400ms;  /* telas cheias (configurações, novidades) */
+  --motion-exit: 150ms;   /* qualquer saída */
+  --ease-enter: cubic-bezier(.22, 1, .36, 1);
+  --ease-exit: ease-in;
+  --ease-out: var(--ease-enter);             /* nome antigo, ainda usado por outros arquivos */
+  --spring: cubic-bezier(.34, 1.56, .64, 1); /* só nos ícones animados */
+  --press: .97;        /* botão com texto, ao clicar */
+  --press-icon: .92;   /* botão só de ícone, ao clicar */
+}
+
+/* ---------- Vocabulário de entradas e saídas (os outros arquivos usam os mesmos nomes) ---------- */
+@keyframes fade-in { from { opacity: 0; } }
+@keyframes fade-out { to { opacity: 0; } }
+@keyframes pop { from { opacity: 0; transform: scale(.97); } }
+@keyframes pop-in { from { opacity: 0; transform: scale(.96); } }
+@keyframes menu-in { from { opacity: 0; transform: translateY(var(--pop-y, -4px)) scale(.97); } }
+@keyframes dialog-in { from { opacity: 0; transform: translateY(8px) scale(.97); } }
+@keyframes dialog-out { to { opacity: 0; transform: scale(.97); } }
+@keyframes rise-in { from { opacity: 0; transform: translateY(6px); } }
+@keyframes sheet-up { from { transform: translateY(100%); } }
+@keyframes sheet-down { to { transform: translateY(100%); } }
+@keyframes drawer-left { from { transform: translateX(-100%); } }
+@keyframes drawer-right { from { transform: translateX(100%); } }
 
 /* ---------- Ícones animados dos controles de voz ---------- */
 .ico-mic, .ico-micOff { transform-origin: 50% 88%; }
@@ -68,70 +99,131 @@
 
 /* Membros, anexar e emoji */
 #btn-members:hover .ico-users { animation: headset-bob .5s var(--spring); }
-#chat-form #btn-attach .ico { transition: transform .35s var(--spring); }
+#chat-form #btn-attach .ico { transition: transform var(--motion-slow) var(--ease-enter); }
 #chat-form #btn-attach:hover:not(:disabled) .ico { transform: rotate(90deg); }
 #chat-form #btn-emoji:hover:not(:disabled) .ico { animation: emoji-wink .5s var(--spring); }
 @keyframes emoji-wink { 40% { transform: scale(1.18) rotate(-12deg); } }
-#btn-logout .ico-logout .arrow { transition: transform .25s var(--ease-out); }
+#btn-logout .ico-logout .arrow { transition: transform var(--motion-base) var(--ease-enter); }
 #btn-logout:hover .ico-logout .arrow { transform: translateX(2px); }
-.menu-item .ico { transition: transform .2s var(--ease-out); }
+.menu-item .ico { transition: transform var(--motion-base) var(--ease-enter); }
 .menu-item:hover .ico { transform: scale(1.1); }
-.msg-actions button .ico { transition: transform .2s var(--spring); }
+.msg-actions button .ico { transition: transform var(--motion-base) var(--ease-enter); }
 .msg-actions button:hover .ico { transform: scale(1.15); }
-#emoji-picker .ep-emoji { transition: background .12s, transform .15s var(--spring); }
+#emoji-picker .ep-emoji { transition: background var(--motion-fast), transform var(--motion-fast) var(--ease-enter); }
 #emoji-picker .ep-emoji:hover { transform: scale(1.18); }
 
 /* ---------- Resposta ao clique ---------- */
-.icon-btn, .vp-btn, .friend-btn, .pc-btn, .pc-icon-btn, .ft-tab, .msg-actions button, #chat-form button, .tc-btn, .cat-add, .group-action { transition-property: background, color, transform, opacity, box-shadow; transition-duration: .12s; }
-:is(.icon-btn, .vp-btn, .friend-btn, .pc-icon-btn, .msg-actions button, #chat-form button, .tc-btn, .cat-add, .group-action):active:not(:disabled) { transform: scale(.9); }
-:is(.pc-btn, .ft-tab, .friends-add-submit, .friend-text-btn, .watch-btn):active:not(:disabled) { transform: scale(.97); }
-.sc-btn { transition: background .15s, color .15s, transform .15s var(--spring), box-shadow .2s; }
+.icon-btn, .vp-btn, .friend-btn, .pc-btn, .pc-icon-btn, .ft-tab, .msg-actions button, #chat-form button, .tc-btn, .cat-add, .group-action {
+  transition-property: background, color, transform, opacity, box-shadow; transition-duration: var(--motion-fast); transition-timing-function: var(--ease-enter);
+}
+:is(.icon-btn, .vp-btn, .friend-btn, .pc-icon-btn, .msg-actions button, #chat-form button, .tc-btn, .cat-add, .group-action):active:not(:disabled) { transform: scale(var(--press-icon)); }
+:is(.pc-btn, .ft-tab, .friends-add-submit, .friend-text-btn, .watch-btn):active:not(:disabled) { transform: scale(var(--press)); }
+.sc-btn { transition: background var(--motion-fast), color var(--motion-fast), transform var(--motion-base) var(--ease-enter), box-shadow var(--motion-base); }
 .sc-btn:hover:not(:disabled) { transform: translateY(-2px); box-shadow: 0 8px 20px rgba(0, 0, 0, .35); }
-.sc-btn:active:not(:disabled) { transform: translateY(0) scale(.94); }
+.sc-btn:active:not(:disabled) { transform: translateY(0) scale(var(--press-icon)); }
 .sc-btn.hangup:hover { box-shadow: 0 8px 22px rgba(217, 67, 75, .45); }
 
-/* Faixa de servidores: o ícone afunda um pouco ao clicar. */
-.rail-icon { transition: border-radius .2s var(--ease-out), background .2s, color .2s, transform .12s; }
+/* Faixa de servidores: o ícone afunda um pouco ao clicar. A pílula tem 40 px e cresce com scaleY (8 → 20 → 40 px). */
+.rail-icon { transition: border-radius var(--motion-base) var(--ease-enter), background var(--motion-base), color var(--motion-base), transform var(--motion-fast); }
 .rail-item:active .rail-icon { transform: translateY(1px) scale(.96); }
-.rail-pill { transition: transform .2s var(--ease-out), height .2s var(--ease-out), margin-top .2s var(--ease-out); }
+.rail-pill { transition: transform var(--motion-base) var(--ease-enter); }
 
 /* ---------- Quem está falando ---------- */
 .avatar.speaking { animation: speak-glow 1.6s ease-in-out infinite; }
 @keyframes speak-glow { 50% { box-shadow: 0 0 0 2px var(--bg-sidebar), 0 0 0 4px var(--green), 0 0 14px 3px color-mix(in srgb, var(--green) 45%, transparent); } }
-.tile { transition: box-shadow .2s ease; }
+.tile { transition: box-shadow var(--motion-base) ease; }
 .tile.speaking { box-shadow: inset 0 0 0 3px var(--green), 0 0 26px color-mix(in srgb, var(--green) 28%, transparent); }
 .tile:not(.screen) { background-image: radial-gradient(circle at 50% 38%, rgba(255, 255, 255, .07), transparent 62%); }
 .tile.speaking .avatar { animation: speak-glow 1.6s ease-in-out infinite; }
 
 /* ---------- Entradas ---------- */
-.msg-new { animation: msg-in .32s var(--ease-out); }
-@keyframes msg-in { from { opacity: 0; transform: translateY(8px); } }
-.msg:hover .msg-actions { animation: bar-in .14s var(--ease-out); }
+/* Menus e cartões saem do ponto em que foram abertos; os que abrem para cima (emoji, GIF, sugestões) sobem. */
+:is(#context-menu, #context-submenu, #profile-card, #emoji-picker, #gif-picker, #autocomplete) { animation: menu-in var(--motion-base) var(--ease-enter); }
+:is(#emoji-picker, #gif-picker, #autocomplete) { --pop-y: 4px; }
+#context-menu, #context-submenu { transform-origin: top left; }
+#context-menu.sheet-menu { animation: sheet-up var(--motion-slow) var(--ease-enter); }
+.msg-new { animation: rise-in var(--motion-slow) var(--ease-enter); }
+.msg:hover .msg-actions { animation: bar-in var(--motion-fast) var(--ease-enter); }
 @keyframes bar-in { from { opacity: 0; transform: translateY(4px) scale(.98); } }
-#context-menu, #context-submenu { animation: menu-in .16s var(--ease-out); transform-origin: top left; }
-@keyframes menu-in { from { opacity: 0; transform: translateY(-4px) scale(.97); } }
-#emoji-picker, #autocomplete { animation: menu-in .16s var(--ease-out); }
-#tooltip { animation: tip-in .14s var(--ease-out); }
+#tooltip { animation: tip-in var(--motion-fast) var(--ease-enter); }
 #tooltip.right { animation-name: tip-in-right; }
 @keyframes tip-in { from { opacity: 0; transform: translateY(3px) scale(.96); } }
 @keyframes tip-in-right { from { opacity: 0; transform: translateX(-3px) scale(.96); } }
-.settings-overlay:not(.hidden) .settings-shell { animation: shell-in .3s var(--ease-out); }
-@keyframes shell-in { from { opacity: 0; transform: scale(.975); } }
-#settings .settings-content section:not(.hidden) { animation: page-in .28s var(--ease-out); }
-@keyframes page-in { from { opacity: 0; transform: translateY(6px); } }
+
+/* Janelas: o fundo escurece e o cartão sobe de leve; as telas cheias levam um pouco mais. */
+:is(.confirm-overlay, #server-dialog, #create-channel, #changelog, #feedback, #lightbox, #sidebar-backdrop, .settings-overlay, #msg-sheet) { animation: fade-in var(--motion-base) var(--ease-enter); }
+:is(.confirm-card, .channel-dialog, #create-channel .card, #feedback .feedback-card, #server-dialog .server-dialog) { animation: dialog-in var(--motion-slow) var(--ease-enter); }
+:is(#changelog .cl-card, .settings-overlay .settings-shell) { animation: dialog-in var(--motion-large) var(--ease-enter); }
+.channel-dialog[open]::backdrop { animation: fade-in var(--motion-base) var(--ease-enter); }
+
+/* ---------- Saídas ---------- */
+/* Os painéis fixos somem com .hidden (display:none no style.css). Com allow-discrete, a troca de display espera a
+   transição: o painel esmaece e encolhe de leve, e só então sai da página; nesse meio-tempo ele não recebe clique.
+   Navegador sem suporte: o painel só some, como antes. */
+:is(#context-submenu, #profile-card, #emoji-picker, #gif-picker, #autocomplete, #tooltip, #toast,
+    #create-channel, #changelog, .settings-overlay, #feedback, #lightbox, #sidebar-backdrop) {
+  transition: opacity var(--motion-exit) var(--ease-exit), transform var(--motion-exit) var(--ease-exit), display var(--motion-exit) allow-discrete;
+}
+:is(#context-submenu, #profile-card, #emoji-picker, #gif-picker, #autocomplete, #tooltip, #toast,
+    #create-channel, #changelog, .settings-overlay, #feedback, #lightbox, #sidebar-backdrop).hidden { opacity: 0; pointer-events: none; }
+:is(#context-submenu, #profile-card, #emoji-picker, #gif-picker, #autocomplete).hidden { transform: scale(.98); }
+/* O cartão das janelas encolhe junto com o fundo. */
+:is(#create-channel .card, #changelog .cl-card, .settings-overlay .settings-shell, #feedback .feedback-card) { transition: transform var(--motion-exit) var(--ease-exit); }
+:is(#create-channel.hidden .card, #changelog.hidden .cl-card, .settings-overlay.hidden .settings-shell, #feedback.hidden .feedback-card) { transform: scale(.97); }
+
+/* Janelas criadas na hora (confirmações, diálogos, folha da mensagem) saem com Motion.leave() (motion.js):
+   ganham .leaving, animam a saída e só depois são removidas. O menu de contexto sai por uma cópia (Motion.fadeCopy). */
+@keyframes menu-out { to { opacity: 0; transform: scale(.98); } }
+:is(.confirm-overlay, #server-dialog, #msg-sheet).leaving { animation: fade-out var(--motion-exit) var(--ease-exit) forwards; pointer-events: none; }
+#context-menu.leaving { animation: menu-out var(--motion-exit) var(--ease-exit) forwards; pointer-events: none; }
+@keyframes sheet-menu-out { to { opacity: 0; transform: translateY(100%); } } /* o véu escuro (sombra do próprio menu) esmaece junto */
+#context-menu.sheet-menu.leaving { animation-name: sheet-menu-out; }
+:is(.confirm-overlay, #server-dialog).leaving > * { animation: dialog-out var(--motion-exit) var(--ease-exit) forwards; }
+#msg-sheet .sheet-panel { animation: sheet-up var(--motion-slow) var(--ease-enter); }
+#msg-sheet.leaving .sheet-panel { animation: sheet-down var(--motion-exit) var(--ease-exit) forwards; }
+/* Diálogo nativo (<dialog>): ao fechar, o display e a camada de cima esperam a transição. */
+:is(.channel-dialog, .channel-dialog::backdrop) {
+  transition: opacity var(--motion-exit) var(--ease-exit), transform var(--motion-exit) var(--ease-exit),
+    display var(--motion-exit) allow-discrete, overlay var(--motion-exit) allow-discrete;
+}
+.channel-dialog:not([open]) { opacity: 0; transform: scale(.97); }
+.channel-dialog:not([open])::backdrop { opacity: 0; }
+
+/* ---------- Troca de tela ---------- */
+/* Cada tela entra subindo de leve ao aparecer; trocar de canal recomeça a da lista (Motion.replay no app.js).
+   A chamada só esmaece: um transform nela tiraria do lugar o palco em tela cheia e o player do DJ durante a entrada. */
+#app { animation: fade-in var(--motion-slow) var(--ease-enter); } /* depois de entrar na conta */
+:is(#messages, #friends-view) { animation: rise-in var(--motion-slow) var(--ease-enter); }
+:is(#voice-view, #salon-view) { animation: fade-in var(--motion-slow) var(--ease-enter); }
+:is(#settings, #server-settings) .settings-content section:not(.hidden) { animation: rise-in var(--motion-slow) var(--ease-enter); }
+
+/* ---------- Gavetas do celular ---------- */
+/* Canais saem da esquerda e membros da direita; ao fechar, voltam para a borda antes de sumir. */
+@media (max-width: 1100px) {
+  #members { transform: translateX(100%); transition: transform var(--motion-exit) var(--ease-exit), display var(--motion-exit) allow-discrete; }
+  #app.members-open #members { transform: none; animation: drawer-right var(--motion-slow) var(--ease-enter); }
+}
+@media (max-width: 1000px) {
+  /* Chat da sala e do Salão por cima do palco */
+  #main:is(.voice-chat, .salon-mode.salon-side-open) > #chat-view { animation: drawer-right var(--motion-slow) var(--ease-enter); }
+}
+@media (max-width: 640px) {
+  :is(#sidebar, #dock) { transform: translateX(-100%); transition: transform var(--motion-exit) var(--ease-exit), display var(--motion-exit) allow-discrete; }
+  #app.channels-open :is(#sidebar, #dock) { transform: none; animation: drawer-left var(--motion-slow) var(--ease-enter); }
+}
 
 /* Avisos (toast): sobem com um ícone, sem cobrir os controles da chamada. */
 #toast {
   display: flex; align-items: center; gap: 10px; padding: 11px 16px 11px 12px; border-radius: 12px;
   background: var(--bg-floating); color: var(--text-strong); border: 1px solid var(--divider);
-  box-shadow: 0 16px 40px rgba(0, 0, 0, .5); animation: toast-in .35s var(--spring);
+  box-shadow: 0 16px 40px rgba(0, 0, 0, .5); animation: toast-in var(--motion-slow) var(--ease-enter);
 }
-#toast.hidden { display: none; }
+#toast.hidden { display: none; transform: translate(-50%, 8px); }
 #toast .ico { flex-shrink: 0; padding: 5px; width: 28px; height: 28px; border-radius: 8px; }
 #toast.error .ico { color: #fff; background: var(--red-dark); }
 #toast.info .ico { color: #fff; background: var(--brand); }
 #toast.error { border-color: color-mix(in srgb, var(--red) 35%, transparent); }
-@keyframes toast-in { from { opacity: 0; transform: translate(-50%, 16px) scale(.96); } to { transform: translateX(-50%); } }
+@keyframes toast-in { from { opacity: 0; transform: translate(-50%, 12px) scale(.97); } to { transform: translateX(-50%); } }
 #app:has(#voice-view:not(.hidden)) ~ #toast { bottom: 108px; }
 /* max-content: com left 50%, a largura "cabia" só na metade da tela e o aviso quebrava em 4 linhas no celular. */
 #toast { width: max-content; max-width: min(640px, calc(100vw - 32px)); }
@@ -139,27 +231,18 @@
 @media (max-width: 640px) { #toast { bottom: calc(84px + env(safe-area-inset-bottom)); } }
 
 /* Faixa de reconexão */
-#conn-banner { animation: banner-in .3s var(--ease-out); }
+#conn-banner { animation: banner-in var(--motion-slow) var(--ease-enter); }
 @keyframes banner-in { from { transform: translate(-50%, -100%); } }
 
 /* Listas: realce do mouse entra e sai suave. */
-.channel, .member, .voice-user, .friend-row, .admin-row { transition: background .12s, color .12s; }
+.channel, .member, .voice-user, .friend-row, .admin-row { transition: background var(--motion-fast), color var(--motion-fast); }
 
 /* "Reduzir animações" também vale para os detalhes desenhados com ::before e ::after. */
 :root[data-reduce-motion=true] *::before, :root[data-reduce-motion=true] *::after { animation: none !important; transition: none !important; }
 
-/* Folha de ações (toque longo na mensagem) e menus em folha sobem de baixo. */
-@keyframes sheet-up { from { transform: translateY(100%); } }
-@keyframes sheet-fade { from { opacity: 0; } }
-#msg-sheet { animation: sheet-fade .16s var(--ease-out); }
-#msg-sheet .sheet-panel { animation: sheet-up .22s var(--ease-out); }
-#msg-sheet.closing { opacity: 0; transition: opacity .16s; }
-#msg-sheet.closing .sheet-panel { transform: translateY(100%); transition: transform .16s ease-in; }
-#context-menu.sheet-menu { animation: sheet-up .2s var(--ease-out); }
-
 /* ---------- Prévia da transmissão ---------- */
 /* A foto nova esmaece sobre a anterior; com o mouse em cima, a tela se aproxima de leve. */
-.tile.screen .stream-preview { transition: opacity .3s ease; }
+.tile.screen .stream-preview { transition: opacity var(--motion-slow) ease; }
 .stream-preview .sp-frame { transition: opacity .7s ease; }
-.stream-preview .sp-img { transition: transform .5s var(--ease-out); }
+.stream-preview .sp-img { transition: transform var(--motion-large) var(--ease-enter); }
 html:not(.touch) .tile.screen.has-preview:hover .stream-preview .sp-img { transform: scale(1.03); }

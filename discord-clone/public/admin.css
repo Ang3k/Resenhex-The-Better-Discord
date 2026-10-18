@@ -55,9 +55,8 @@
 
 /* Interruptor e caixa de seleção do Discord */
 .ds-switch { appearance: none; flex-shrink: 0; width: 40px !important; height: 24px !important; border-radius: 14px; background: #80848e; position: relative; cursor: pointer; transition: background .15s; margin: 0; }
-.ds-switch::after { content: ''; position: absolute; top: 3px; left: 3px; width: 18px; height: 18px; border-radius: 50%; background: #fff; transition: left .15s; box-shadow: 0 1px 2px #0003; }
+.ds-switch::after { content: ''; position: absolute; top: 3px; left: 3px; width: 18px; height: 18px; border-radius: 50%; background: #fff; box-shadow: 0 1px 2px #0003; }
 .ds-switch:checked { background: var(--green); }
-.ds-switch:checked::after { left: 19px; }
 .ds-switch:disabled { opacity: .45; cursor: not-allowed; }
 .ds-switch:focus-visible { outline: 2px solid var(--link); outline-offset: 2px; }
 .ds-check { width: 20px !important; height: 20px !important; accent-color: var(--brand); flex-shrink: 0; }
@@ -190,8 +189,8 @@
 @keyframes savebar-shake { 0%, 100% { transform: translateX(0); } 20%, 60% { transform: translateX(-8px); } 40%, 80% { transform: translateX(8px); } }
 
 /* Confirmação */
-.confirm-overlay { position: fixed; inset: 0; z-index: 48; display: grid; place-items: center; padding: 16px; background: #000a; animation: fade-in .15s; }
-.confirm-card { width: min(440px, 100%); background: var(--bg-main); border-radius: 10px; box-shadow: 0 16px 48px #0008; overflow: hidden; animation: pop-in .15s ease-out; }
+.confirm-overlay { position: fixed; inset: 0; z-index: 48; display: grid; place-items: center; padding: 16px; background: #000a; }
+.confirm-card { width: min(440px, 100%); background: var(--bg-main); border-radius: 10px; box-shadow: 0 16px 48px #0008; overflow: hidden; }
 .confirm-card h2 { margin: 0; padding: 20px 20px 8px; font-size: 20px; color: var(--text-strong); }
 .confirm-card p { margin: 0; padding: 0 20px 22px; color: var(--text); font-size: 15px; line-height: 1.45; }
 .confirm-actions { display: flex; justify-content: flex-end; gap: 8px; padding: 16px 20px; background: var(--bg-sidebar); }
@@ -200,8 +199,6 @@
 .confirm-actions .btn-danger:hover { background: #a12828; }
 .confirm-actions .btn-primary { background: var(--brand); color: #fff; }
 .confirm-card .btn-ghost:hover { text-decoration: underline; }
-@keyframes fade-in { from { opacity: 0; } }
-@keyframes pop-in { from { transform: scale(.94); opacity: 0; } }
 
 @media (max-width: 900px) {
   .admin-stats { grid-template-columns: repeat(2, 1fr); }

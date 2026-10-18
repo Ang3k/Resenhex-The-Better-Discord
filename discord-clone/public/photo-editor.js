@@ -51,7 +51,7 @@ window.PhotoEditor = (() => {
         const refresh = () => { zoom.value = c.zoom; x.value = c.x; y.value = c.y; output.textContent = `${Math.round(c.zoom * 100)}%`; style(image, c); };
         for (const [field, key] of [[zoom, 'zoom'], [x, 'x'], [y, 'y']]) field.oninput = () => { c[key] = Number(field.value); refresh(); };
         const close = (result) => {
-          if (done) return; done = true; overlay.remove(); settings.inert = previousInert;
+          if (done) return; done = true; Motion.leave(overlay); settings.inert = previousInert;
           document.removeEventListener('keydown', onKey, true); returnFocus?.focus(); resolve(result);
         };
         session.close = close;

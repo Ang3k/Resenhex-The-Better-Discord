@@ -28,6 +28,7 @@ function harness({ recorded = 10, supported = true, context = {}, post } = {}) {
   });
   w.requestAnimationFrame = () => 0;
   w.cancelAnimationFrame = () => {};
+  w.eval(read('motion.js'));
   w.eval(read('clip-model.js'));
   w.eval(read('clip-ui.js'));
   const el = (tag, props = {}, ...children) => {

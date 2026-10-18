@@ -142,7 +142,7 @@ window.ClipUI = ({ el, Icon, toast, call, token, buffer, model, render, getConte
 
     function close() {
       cutter?.stop();
-      overlay.remove();
+      Motion.leave(overlay);
       if (modal?.overlay === overlay) modal = null;
       if (lastFocus?.isConnected) lastFocus.focus?.();
     }

@@ -231,8 +231,7 @@ window.DesktopApp = (() => {
         if (!choice && userCancelled && attempt) attempt.cancelled = true;
         if (open === picker) open = null;
         document.removeEventListener('keydown', onKey, true);
-        overlay.classList.add('closing');
-        setTimeout(() => overlay.remove(), 140);
+        Motion.leave(overlay);
         resolve(choice);
       };
       const go = () => {

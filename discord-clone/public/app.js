@@ -43,6 +43,7 @@
   const savedVoiceFx = localStorage.getItem('voiceFx');
   const initialVoiceFx = VoiceFx.valid(savedVoiceFx) ? savedVoiceFx : 'none';
   if (savedVoiceFx && savedVoiceFx !== initialVoiceFx) localStorage.setItem('voiceFx', initialVoiceFx);
+  const historyPending = new Set(); // canais cujo histórico ainda está a caminho (a lista só entra quando ele chega)
   const state = {
     me: null, // { accountId, sid }
     presence: 'online', // o status que eu escolhi: online | idle | dnd | invisible
@@ -138,9 +139,8 @@
   function toast(text, kind = 'error') {
     const node = $('#toast');
     node.replaceChildren(Icon(kind === 'error' ? 'alert' : 'info', 18), el('span', { textContent: text }));
-    node.className = 'hidden';
-    void node.offsetWidth; // reinicia a animação de entrada quando um aviso substitui outro
     node.className = kind;
+    Motion.replay(node); // recomeça a entrada quando um aviso substitui outro
     clearTimeout(toast.t);
     toast.t = setTimeout(() => node.classList.add('hidden'), 4500);
   }
@@ -334,7 +334,7 @@
   }
   function hideTip() {
     tipTarget = null;
-    $('#tooltip').className = 'hidden';
+    $('#tooltip').classList.add('hidden'); // mantém o lado da seta enquanto a dica esmaece
   }
   document.addEventListener('mouseover', (e) => {
     // No toque o navegador simula o mouse a cada toque, e a dica ficava presa na tela depois do toque.
@@ -1087,7 +1087,7 @@
     const opener = document.activeElement;
     const body = el('div');
     const close = () => {
-      overlay.remove();
+      Motion.leave(overlay);
       document.removeEventListener('keydown', onKey, true);
       if (serverDialogClose === close) serverDialogClose = null;
       if (opener?.isConnected) opener.focus();
@@ -1539,13 +1539,15 @@
       c.topic || (c.mudae ? 'Salão do Mudae' : c.type === 'voice' ? 'Chat da sala de voz' : c.private ? 'Canal privado' : ''));
     if (!state.messages[c.id]) {
       state.messages[c.id] = [];
+      historyPending.add(c.id);
       call('chat:history', { channel: c.id }).then((res) => {
+        historyPending.delete(c.id);
         if (!res) return;
         for (const author of res.authors || []) state.messageAuthors.set(author.id, author);
         mudae.sync(res.now);
         state.messages[c.id] = res.messages;
         salon.onHistory(c.id);
-        if (state.textChannel === c.id) { renderMessages(true); renderDmCallBanner(c); }
+        if (state.textChannel === c.id) { renderMessages(true); Motion.replay($('#messages')); renderDmCallBanner(c); }
       });
     }
     $('#notify-banner').classList.toggle('hidden', !('Notification' in window) || Notification.permission !== 'default' || !!localStorage.getItem('notifyDismissed'));
@@ -1608,6 +1610,7 @@
       msgNodes.clear();
       box.dataset.channel = state.textChannel;
       scrollToEnd = true;
+      if (!historyPending.has(state.textChannel)) Motion.replay(box);
     }
     const list = state.messages[state.textChannel] || [];
     // O que vale para todas as mensagens (membros, cargos, permissões...): comparado à parte, uma vez por
@@ -1755,8 +1758,7 @@
     const { node, row } = messageSheet;
     messageSheet = null;
     row.classList.remove('sheet-target');
-    node.classList.add('closing');
-    setTimeout(() => node.remove(), 160);
+    Motion.leave(node);
   }
   async function copyText(text) {
     try { await navigator.clipboard.writeText(text); }
@@ -3022,6 +3024,7 @@
     if (micTestScope === 'menu') stopMicTest();
     const menu = $('#context-menu');
     if (!menu.classList.contains('hidden') && $('#server-header').classList.contains('open')) $('#server-header').dataset.closedAt = Date.now();
+    Motion.fadeCopy(menu);
     menu.classList.add('hidden');
     menu.classList.remove('member-menu', 'status-menu', 'device-menu', 'audio-device-menu', 'sheet-menu');
     menu.style.width = '';
@@ -3044,7 +3047,7 @@
     $('#emoji-picker').classList.add('hidden');
     $('#lightbox').classList.add('hidden');
     if (!$('#create-channel').classList.contains('hidden')) return closeCreateChannel();
-    if (document.querySelector('.confirm-overlay')) return;
+    if (document.querySelector('.confirm-overlay:not(.leaving)')) return;
     if (!$('#changelog').classList.contains('hidden')) return closeChangelog();
     if (adminOpen()) closeServerSettings();
     else if (!$('#settings').classList.contains('hidden')) $('#settings-close').click();
@@ -3240,7 +3243,7 @@
     input.oninput = () => { error.textContent = ''; refresh(); };
     const close = (force = false) => {
       if (closed || (busy && !force)) return;
-      closed = true; overlay.remove(); roots.forEach(([root, inert]) => { root.inert = inert; });
+      closed = true; Motion.leave(overlay); roots.forEach(([root, inert]) => { root.inert = inert; });
       document.removeEventListener('keydown', onKey, true); nicknameDialog = null; returnFocus?.focus();
     };
     const cancel = el('button', { type: 'button', class: 'btn-ghost', textContent: 'Cancelar', onclick: () => close() });
@@ -3299,7 +3302,7 @@
     name.oninput = () => { error.textContent = ''; refresh(); };
     const close = (force = false) => {
       if (closed || (busy && !force)) return;
-      closed = true; overlay.remove(); roots.forEach(([root, inert]) => { root.inert = inert; });
+      closed = true; Motion.leave(overlay); roots.forEach(([root, inert]) => { root.inert = inert; });
       document.removeEventListener('keydown', onKey, true); nicknameDialog = null; returnFocus?.focus();
     };
     const cancel = el('button', { type: 'button', class: 'btn-ghost', textContent: 'Cancelar', onclick: () => close() });
@@ -3826,7 +3829,7 @@
   // Confirmação dentro do app (no lugar do confirm() do navegador).
   function confirmDialog({ title, text, confirm = 'Confirmar', danger = true }) {
     return new Promise((resolve) => {
-      const done = (value) => { overlay.remove(); document.removeEventListener('keydown', onKey, true); resolve(value); };
+      const done = (value) => { Motion.leave(overlay); document.removeEventListener('keydown', onKey, true); resolve(value); };
       const onKey = (e) => {
         if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); done(false); }
         if (e.key === 'Enter') { e.preventDefault(); e.stopPropagation(); done(true); }
@@ -5498,7 +5501,7 @@
     file.onchange = () => { selectFile(file.files[0]); file.value = ''; };
     const close = () => {
       if (busy || closed) return; closed = true; epoch++; trimmer?.destroy(); source = null;
-      overlay.remove(); roots.forEach(([element, inert]) => { element.inert = inert; });
+      Motion.leave(overlay); roots.forEach(([element, inert]) => { element.inert = inert; });
       document.removeEventListener('keydown', onKey, true); soundUploadSession = null; focus?.focus();
     };
     const cancel = el('button', { type: 'button', class: 'btn-ghost', textContent: 'Cancelar', onclick: close });
@@ -5977,7 +5980,7 @@
       if (closed) return;
       closed = true; epoch++;
       if (!keep) stop();
-      overlay.remove(); document.removeEventListener('keydown', onKey, true);
+      Motion.leave(overlay); document.removeEventListener('keydown', onKey, true);
       cameraPreviewSession = null; returnFocus?.focus?.();
     };
     async function open(deviceId) {
@@ -6925,7 +6928,7 @@
   const dbToPct = (db) => Math.max(0, Math.min(100, ((db + 80) / 80) * 100));
   function drawMeter(db, open) {
     const threshold = $('#sens-auto').checked ? gateThreshold() : Number($('#sens-range').value);
-    $('#mic-meter-fill').style.width = dbToPct(db) + '%';
+    $('#mic-meter-fill').style.transform = `scaleX(${dbToPct(db) / 100})`;
     $('#mic-meter-fill').classList.toggle('closed', !open);
     $('#sens-mark').style.left = dbToPct(threshold) + '%';
   }
@@ -6957,7 +6960,7 @@
   // fecha a camada de cima em vez de sair da página. Fechar pela interface consome a entrada que sobrou.
   // As camadas vão da mais alta para a mais baixa; "close" fecha só aquela.
   const isShown = (sel) => { const node = $(sel); return !!node && !node.classList.contains('hidden'); };
-  const openDialogs = () => [...document.querySelectorAll('body > .confirm-overlay, body > #server-dialog, body > [role="dialog"][aria-modal="true"]:not(.hidden)')]
+  const openDialogs = () => [...document.querySelectorAll('body > .confirm-overlay:not(.leaving), body > #server-dialog:not(.leaving), body > [role="dialog"][aria-modal="true"]:not(.hidden, .leaving)')]
     .filter((node) => !node.matches('#msg-sheet, #settings, #server-settings, #create-channel, #lightbox, #changelog, #emoji-picker, #gif-picker, #profile-card, #feedback'));
   const dismissDialog = (node) => {
     const target = node.contains(document.activeElement) ? document.activeElement : node;
@@ -7104,7 +7107,7 @@
     releaseMic(micTest.stream);
     micTest = null;
     updateMicTestButtons();
-    $('#mic-meter-fill').style.width = '0%';
+    $('#mic-meter-fill').style.transform = 'scaleX(0)';
     applyAudio();
     if (announce && wasInCall) toast('Teste encerrado: seu microfone voltou na chamada.', 'info');
   }

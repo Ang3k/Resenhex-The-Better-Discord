@@ -13,6 +13,7 @@ function load({ userAgent, bridge, body = html } = {}) {
   const w = dom.window;
   if (bridge) w.resenhexDesktop = bridge;
   w.eval(fs.readFileSync(path.join(publicDir, 'icons.js'), 'utf8'));
+  w.eval(fs.readFileSync(path.join(publicDir, 'motion.js'), 'utf8'));
   w.eval(fs.readFileSync(path.join(publicDir, 'desktop.js'), 'utf8'));
   return w;
 }

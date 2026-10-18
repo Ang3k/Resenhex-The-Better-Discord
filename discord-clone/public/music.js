@@ -627,7 +627,7 @@ window.MusicDJ = function ({ state, el, Icon, toast, call, callInfo, callPerm, c
     const t = m.current;
     const shown = t.duration ? Math.min(pos, t.duration) : pos;
     for (const node of document.querySelectorAll('.dj-elapsed')) node.textContent = t.live ? 'ao vivo' : clock(shown);
-    for (const bar of document.querySelectorAll('.dj-bar i')) bar.style.width = t.duration ? (shown / t.duration) * 100 + '%' : t.live ? '100%' : '0%';
+    for (const bar of document.querySelectorAll('.dj-bar i')) bar.style.transform = `scaleX(${t.duration ? Math.min(1, shown / t.duration) : t.live ? 1 : 0})`;
   }
 
   // Botão no palco e estado geral, a cada estado novo do servidor.

@@ -1,10 +1,9 @@
 /* Janela "Novidades" (changelog) */
-#changelog { position: fixed; inset: 0; z-index: 44; display: grid; place-items: center; padding: 20px; background: rgba(10, 10, 12, .8); backdrop-filter: blur(6px); animation: fade-in .15s; }
+#changelog { position: fixed; inset: 0; z-index: 44; display: grid; place-items: center; padding: 20px; background: rgba(10, 10, 12, .8); backdrop-filter: blur(6px); }
 #changelog.hidden { display: none; }
 .cl-card {
   position: relative; width: min(880px, 100%); height: min(640px, 100%); display: grid; grid-template-columns: 220px minmax(0, 1fr);
   background: var(--bg-main); border: 1px solid var(--divider); border-radius: 14px; overflow: hidden; box-shadow: 0 24px 80px rgba(0, 0, 0, .6);
-  animation: pop-in .18s ease-out;
 }
 .cl-close { position: absolute; top: 14px; right: 14px; z-index: 2; display: grid; place-items: center; width: 34px; height: 34px; border: 0; border-radius: 50%; background: rgba(0, 0, 0, .35); color: #fff; transition: background .12s; }
 .cl-close:hover { background: rgba(0, 0, 0, .6); }

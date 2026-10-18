@@ -24,17 +24,17 @@ input[type=checkbox]:not(:is(.ds-switch, .setting-switch input, .settings-conten
 :is(.ds-switch, .setting-switch input[type=checkbox], .settings-content label.row > input[type=checkbox], .switch-row input[type=checkbox])::after {
   content: ''; position: absolute; top: 3px; left: 3px; width: 18px; height: 18px; border-radius: 50%;
   background: #fff url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%237c7e88' stroke-width='3.5' stroke-linecap='round'%3E%3Cpath d='M17 7 7 17M7 7l10 10'/%3E%3C/svg%3E") center / 10px no-repeat;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, .35); transition: left .25s cubic-bezier(.3, 1.4, .55, 1), background-image .2s;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, .35); transform-origin: left center; transition: transform var(--motion-base) var(--ease-enter), background-image var(--motion-base);
 }
 :is(.ds-switch, .setting-switch input[type=checkbox], .settings-content label.row > input[type=checkbox], .switch-row input[type=checkbox]):hover:not(:disabled) { background-color: color-mix(in srgb, var(--text) 30%, transparent); }
 :is(.ds-switch, .setting-switch input[type=checkbox], .settings-content label.row > input[type=checkbox], .switch-row input[type=checkbox]):checked { background-color: var(--brand); }
 :is(.ds-switch, .setting-switch input[type=checkbox], .settings-content label.row > input[type=checkbox], .switch-row input[type=checkbox]):checked:hover:not(:disabled) { background-color: var(--brand-hover); }
 :is(.ds-switch, .setting-switch input[type=checkbox], .settings-content label.row > input[type=checkbox], .switch-row input[type=checkbox]):checked::after {
-  left: 19px;
+  transform: translateX(16px);
   background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%236d63e6' stroke-width='3.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M20 6 9 17l-5-5'/%3E%3C/svg%3E");
 }
-:is(.ds-switch, .setting-switch input[type=checkbox], .settings-content label.row > input[type=checkbox], .switch-row input[type=checkbox]):active:not(:disabled)::after { width: 22px; }
-:is(.ds-switch, .setting-switch input[type=checkbox], .settings-content label.row > input[type=checkbox], .switch-row input[type=checkbox]):checked:active:not(:disabled)::after { left: 15px; }
+:is(.ds-switch, .setting-switch input[type=checkbox], .settings-content label.row > input[type=checkbox], .switch-row input[type=checkbox]):active:not(:disabled)::after { transform: scaleX(1.22); }
+:is(.ds-switch, .setting-switch input[type=checkbox], .settings-content label.row > input[type=checkbox], .switch-row input[type=checkbox]):checked:active:not(:disabled)::after { transform: translateX(12px) scaleX(1.22); }
 :is(.ds-switch, .setting-switch input[type=checkbox], .settings-content label.row > input[type=checkbox], .switch-row input[type=checkbox]):disabled { opacity: .45; cursor: not-allowed; }
 :is(.ds-switch, .setting-switch input[type=checkbox], .settings-content label.row > input[type=checkbox], .switch-row input[type=checkbox]):focus-visible { outline: 2px solid var(--brand); outline-offset: 2px; }
 
@@ -56,7 +56,7 @@ input[type=checkbox]:not(:is(.ds-switch, .setting-switch input, .settings-conten
 }
 :is(.card, body) input[type=radio]::before {
   content: ''; width: 10px; height: 10px; border-radius: 50%; background: var(--brand);
-  transform: scale(0); transition: transform .22s cubic-bezier(.34, 1.56, .64, 1);
+  transform: scale(0); transition: transform var(--motion-base) var(--ease-enter);
 }
 :is(.card, body) input[type=radio]:checked { border-color: var(--brand); }
 :is(.card, body) input[type=radio]:checked::before { transform: scale(1); }
@@ -114,7 +114,7 @@ option { background: var(--bg-floating); color: var(--text); }
 #settings .settings-content button:not(.secondary) { box-shadow: 0 4px 14px color-mix(in srgb, var(--brand) 22%, transparent); }
 #settings .settings-content button.secondary { background: var(--hover-strong); color: var(--text-strong); box-shadow: inset 0 0 0 1px var(--divider); }
 #settings .settings-content button.secondary:hover:not(:disabled) { background: color-mix(in srgb, var(--text) 14%, transparent); }
-#settings .settings-content button:active:not(:disabled) { transform: scale(.97); }
+#settings .settings-content button:active:not(:disabled) { transform: scale(var(--press)); }
 #settings .settings-content button:disabled { opacity: .45; box-shadow: none; }
 
 /* ---------- Seletor de cor como amostra arredondada ---------- */
@@ -135,12 +135,10 @@ input[type=color]::-moz-color-swatch { border: 0; border-radius: 10px; }
 #create-channel .card, .confirm-card, .channel-dialog {
   border: 1px solid var(--divider); border-radius: 16px;
   box-shadow: 0 24px 80px rgba(0, 0, 0, .6), inset 0 1px 0 rgba(255, 255, 255, .04);
-  animation: dialog-in .24s cubic-bezier(.16, 1, .3, 1);
 }
-@keyframes dialog-in { from { opacity: 0; transform: translateY(10px) scale(.97); } }
 #create-channel .card { width: min(480px, 100%); padding: 24px; gap: 14px; }
 #create-channel .card h2, .confirm-card h2, .channel-dialog h2 { font-size: 21px; font-weight: 700; letter-spacing: -.015em; }
-#create-channel .card button.close { width: 32px; height: 32px; place-items: center; border-radius: 50%; transition: background .15s, color .15s, transform .2s; }
+#create-channel .card button.close { width: 32px; height: 32px; place-items: center; border-radius: 50%; transition: background var(--motion-fast), color var(--motion-fast), transform var(--motion-base) var(--ease-enter); }
 #create-channel .card button.close:hover { background: var(--hover-strong); transform: rotate(90deg); }
 #create-channel .field-title, #create-channel .card > label:not(.row):not(.type-option) { font-size: 12px; font-weight: 700; letter-spacing: .04em; color: var(--interactive); }
 #create-channel .optional { font-weight: 500; color: var(--text-muted); letter-spacing: 0; text-transform: none; }
@@ -162,7 +160,7 @@ input[type=color]::-moz-color-swatch { border: 0; border-radius: 10px; }
 
 /* Botões das janelas: mesma altura, peso e resposta ao clique. */
 :is(#create-channel .buttons, .confirm-actions) button { height: 40px; padding: 0 18px; border: 0; border-radius: 10px; font-size: 14px; font-weight: 600; transition: background .15s, color .15s, box-shadow .2s, transform .12s; }
-:is(#create-channel .buttons, .confirm-actions) button:active:not(:disabled) { transform: scale(.97); }
+:is(#create-channel .buttons, .confirm-actions) button:active:not(:disabled) { transform: scale(var(--press)); }
 #create-channel .buttons button:not(.secondary), .confirm-actions .btn-primary { background: var(--brand); color: #fff; box-shadow: 0 6px 18px color-mix(in srgb, var(--brand) 26%, transparent); }
 #create-channel .buttons button:not(.secondary):hover:not(:disabled), .confirm-actions .btn-primary:hover { background: var(--brand-hover); }
 #create-channel .card .buttons button.secondary, .confirm-actions .btn-ghost, .channel-dialog .btn-ghost { background: transparent; color: var(--text); box-shadow: none; }
@@ -195,7 +193,7 @@ input[type=color]::-moz-color-swatch { border: 0; border-radius: 10px; }
   position: relative; width: min(440px, 100%); padding: 36px 36px 30px; gap: 16px; border-radius: 20px;
   background: var(--bg-main);
   border: 1px solid var(--divider); box-shadow: 0 24px 64px rgba(0, 0, 0, .35);
-  animation: dialog-in .45s cubic-bezier(.16, 1, .3, 1);
+  animation: dialog-in var(--motion-large) var(--ease-enter);
 }
 /* margin:auto centraliza sem cortar: quando o cartão é mais alto que a tela (criar conta no celular,
    teclado aberto), o topo ficava acima da tela e a rolagem não chegava nele. */
@@ -218,10 +216,10 @@ input[type=color]::-moz-color-swatch { border: 0; border-radius: 10px; }
 .auth-card .btn-primary {
   height: 48px; padding: 0 16px; border-radius: 10px; font-weight: 600; background: var(--brand);
   box-shadow: none;
-  transition: background .15s, transform .15s;
+  transition: background var(--motion-fast), transform var(--motion-fast) var(--ease-enter);
 }
 .auth-card .btn-primary:hover { background: var(--brand-hover); transform: translateY(-1px); }
-.auth-card .btn-primary:active { transform: translateY(0) scale(.99); }
+.auth-card .btn-primary:active { transform: translateY(0) scale(var(--press)); }
 .auth-card .switch a, .auth-card .auth-forgot { font-weight: 600; color: color-mix(in srgb, var(--brand) 70%, #fff); }
 .auth-card .notice { border-radius: 10px; }
 .auth-card .notice.info { background: color-mix(in srgb, var(--brand) 12%, transparent); border-color: color-mix(in srgb, var(--brand) 45%, transparent); color: var(--text-strong); }

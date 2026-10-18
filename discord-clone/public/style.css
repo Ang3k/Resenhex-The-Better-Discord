@@ -82,13 +82,11 @@ html.moving body { visibility: hidden; } /* mudando para o endereço oficial do 
   position: fixed; z-index: 40; pointer-events: none;
   background: var(--bg-floating); color: var(--text); font-size: 14px; font-weight: 600;
   padding: 6px 10px; border-radius: 5px; box-shadow: var(--shadow-float); max-width: 240px;
-  animation: pop .1s ease-out;
 }
 #tooltip::after { content: ''; position: absolute; border: 5px solid transparent; }
 #tooltip.top::after { top: 100%; left: 50%; margin-left: -5px; border-top-color: var(--bg-floating); }
 #tooltip.right::after { right: 100%; top: 50%; margin-top: -5px; border-right-color: var(--bg-floating); }
 #tooltip.bottom::after { bottom: 100%; left: 50%; margin-left: -5px; border-bottom-color: var(--bg-floating); }
-@keyframes pop { from { opacity: 0; transform: scale(.96); } to { opacity: 1; transform: none; } }
 
 /* ---------- Entrada / cadastro ---------- */
 .auth {
@@ -102,7 +100,6 @@ html.moving body { visibility: hidden; } /* mudando para o endereço oficial do 
 .auth-card {
   width: min(480px, 100%); background: var(--bg-main); border-radius: 8px; padding: 32px;
   box-shadow: 0 2px 10px rgba(0, 0, 0, .2); display: flex; flex-direction: column; gap: 14px;
-  animation: pop .2s ease-out;
 }
 .auth-card h1 { margin: 4px 0 0; font-size: 24px; font-weight: 600; color: var(--text-strong); text-align: center; }
 .auth-card p { margin: 0; text-align: center; color: var(--interactive); }
@@ -152,11 +149,11 @@ html.moving body { visibility: hidden; } /* mudando para o endereço oficial do 
 .rail-item.home:hover .brand-icon { background: var(--brand-gradient); color: #fff; --logo-cut: #8a58f4; }
 .rail-sep { width: 32px; height: 2px; border-radius: 1px; background: var(--bg-panel); }
 .rail-pill {
-  position: absolute; left: 0; top: 50%; width: 4px; height: 8px; margin-top: -4px; border-radius: 0 4px 4px 0; background: #fff;
-  transform: scale(0); transition: transform .15s, height .15s, margin-top .15s;
+  position: absolute; left: 0; top: 50%; width: 4px; height: 40px; margin-top: -20px; border-radius: 0 4px 4px 0; background: #fff;
+  transform: scale(0, .2);
 }
-.rail-item:hover .rail-pill { transform: none; height: 20px; margin-top: -10px; }
-.rail-item.active .rail-pill { transform: none; height: 40px; margin-top: -20px; }
+.rail-item:hover .rail-pill { transform: scaleY(.5); }
+.rail-item.active .rail-pill { transform: none; }
 .rail-badge { position: absolute; right: 8px; bottom: -2px; box-shadow: 0 0 0 4px var(--bg-rail); }
 /* Servidor onde está a chamada (dá para navegar pelos outros sem sair dela). */
 .rail-call { position: absolute; left: 8px; bottom: -2px; width: 20px; height: 20px; border-radius: 50%; display: grid; place-items: center; background: var(--green); color: #fff; box-shadow: 0 0 0 3px var(--bg-rail); pointer-events: none; }
@@ -258,7 +255,7 @@ html.moving body { visibility: hidden; } /* mudando para o endereço oficial do 
 .mic-test { display: flex; align-items: center; gap: 12px; }
 .card .mic-test button { flex-shrink: 0; }
 .mic-meter { flex: 1; height: 8px; border-radius: 4px; background: var(--bg-rail); overflow: hidden; }
-#mic-meter-fill { height: 100%; width: 0; background: var(--green); transition: width .05s linear; }
+#mic-meter-fill { height: 100%; background: var(--green); transform: scaleX(0); transform-origin: left; transition: transform 100ms linear; }
 #mic-meter-fill.closed { background: #80848e; }
 .mic-meter { position: relative; }
 #sens-mark { position: absolute; top: -3px; bottom: -3px; width: 3px; margin-left: -1px; background: #fff; border-radius: 2px; }
@@ -478,10 +475,17 @@ blockquote { margin: 2px 0; padding: 0 8px 0 12px; border-left: 4px solid color-
 .tc-btn.active { background: var(--brand); }
 .tc-btn.off { color: var(--red); }
 .tc-btn .slash { stroke: currentColor; }
-.tc-volume { display: flex; align-items: center; border-radius: 8px; background: rgba(0, 0, 0, .65); }
+.tc-volume { position: relative; display: flex; align-items: center; border-radius: 8px; background: rgba(0, 0, 0, .65); }
 .tc-volume .tc-btn { background: transparent; }
-.tc-slider { width: 0; opacity: 0; margin: 0; accent-color: #fff; transition: width .15s, opacity .15s, margin .15s; cursor: pointer; }
-.tc-volume:hover .tc-slider, .tc-slider:focus { width: 96px; opacity: 1; margin-right: 10px; }
+/* .tc-volume na frente: vence o fundo transparente e a altura de input[type=range] (controls.css). */
+.tc-volume .tc-slider {
+  position: absolute; right: 100%; top: 0; bottom: 0; width: 116px; height: auto; margin: 0; padding: 0 10px 0 12px;
+  border-radius: 8px 0 0 8px; background: rgba(0, 0, 0, .65); accent-color: #fff; cursor: pointer;
+  opacity: 0; transform: scaleX(.6); transform-origin: right center; pointer-events: none;
+  transition: opacity var(--motion-fast) var(--ease-exit), transform var(--motion-fast) var(--ease-exit);
+}
+.tc-volume:is(:hover, :focus-within) { border-radius: 0 8px 8px 0; }
+.tc-volume:is(:hover, :focus-within) .tc-slider { opacity: 1; transform: none; pointer-events: auto; transition-timing-function: var(--ease-enter); }
 .watch-overlay {
   position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px;
   background: #111214; text-align: center; padding: 16px; color: var(--interactive);
@@ -537,7 +541,7 @@ blockquote { margin: 2px 0; padding: 0 8px 0 12px; border-left: 4px solid color-
 .card {
   background: var(--bg-main); border-radius: 8px; padding: 24px; width: min(460px, 100%); max-height: calc(100vh - 32px);
   display: flex; flex-direction: column; gap: 16px; box-shadow: 0 0 0 1px rgba(32, 34, 37, .6), 0 2px 10px rgba(0, 0, 0, .2);
-  animation: pop .15s ease-out;
+  animation: pop var(--motion-base) var(--ease-enter);
 }
 .card h2 { margin: 0; font-size: 20px; font-weight: 600; color: var(--text-strong); }
 .card p { margin: 0; color: var(--text-muted); }
@@ -595,7 +599,6 @@ blockquote { margin: 2px 0; padding: 0 8px 0 12px; border-left: 4px solid color-
 #context-menu {
   position: fixed; z-index: 30; width: 240px; max-width: calc(100vw - 16px); max-height: calc(100vh - 16px); overflow-y: auto;
   background: var(--bg-floating); border-radius: 4px; padding: 6px 8px; box-shadow: var(--shadow-float), 0 0 0 1px rgba(255, 255, 255, .02);
-  animation: pop .08s ease-out;
 }
 .menu-head { display: flex; gap: 10px; padding: 6px 2px 8px; align-items: flex-start; }
 .menu-head .sub { font-size: 12px; color: var(--yellow); }
@@ -634,7 +637,7 @@ blockquote { margin: 2px 0; padding: 0 8px 0 12px; border-left: 4px solid color-
 #toast {
   position: fixed; left: 50%; bottom: 24px; transform: translateX(-50%); z-index: 50;
   background: var(--red-dark); color: #fff; padding: 10px 16px; border-radius: 8px; max-width: calc(100vw - 32px);
-  font-size: 14px; font-weight: 500; box-shadow: var(--shadow-float); animation: pop .15s ease-out;
+  font-size: 14px; font-weight: 500; box-shadow: var(--shadow-float);
 }
 #toast.info { background: var(--bg-floating); }
 #conn-banner {

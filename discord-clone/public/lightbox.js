@@ -124,7 +124,7 @@ window.Lightbox = ({ el, Icon, root }) => {
     if (!isOpen()) return;
     root.classList.add('hidden');
     document.removeEventListener('keydown', onKey, true);
-    ui.img.removeAttribute('src');
+    Motion.afterHide(root, () => ui.img.removeAttribute('src'));
     returnFocus?.focus?.({ preventScroll: true });
   }
 
