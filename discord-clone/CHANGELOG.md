@@ -3,6 +3,21 @@
 Histórico de versões. A mesma lista aparece dentro do app em **Novidades** (menu do servidor ou rodapé das Configurações).
 O Resenhex chegou à versão 1.0 em 4 de outubro de 2026.
 
+## v1.8.6 — Animações mais suaves
+
+18 de outubro de 2026.
+
+Menus, janelas, folhas e telas entram e saem com o mesmo movimento suave, no computador e no celular.
+
+### Melhorias
+
+- Menus, cartões de perfil, seletor de emoji, dicas e avisos agora também saem com animação, em vez de sumir de uma vez.
+- Janelas de confirmação, criar canal, configurações e Novidades: o fundo escurece e o cartão sobe de leve ao abrir, e encolhe ao fechar.
+- Trocar de canal faz a conversa entrar subindo de leve; num canal que ainda não foi aberto, ela espera as mensagens chegarem para não piscar vazia.
+- Celular: as gavetas de canais e de membros deslizam ao abrir e ao fechar, e a folha de ações da mensagem desce ao sair.
+- O volume de uma transmissão abre ao lado do botão sem empurrar os outros, e os interruptores, a pílula dos servidores e as barras de quem fala ficaram mais leves para o navegador.
+- "Reduzir animações" (em Acessibilidade) e a mesma opção do sistema continuam desligando todo o movimento.
+
 ## v1.8.5 — Recorte de efeito sonoro e celular revisado
 
 18 de outubro de 2026.

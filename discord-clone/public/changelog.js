@@ -4,6 +4,20 @@
 // O título deve destacar as principais funcionalidades ou correções, com termos objetivos.
 window.CHANGELOG = [
   {
+    version: '1.8.6', date: '2026-10-18', name: 'Animações mais suaves',
+    summary: 'Menus, janelas, folhas e telas entram e saem com o mesmo movimento suave, no computador e no celular.',
+    sections: [
+      { kind: 'improved', items: [
+        'Menus, cartões de perfil, seletor de emoji, dicas e avisos agora também saem com animação, em vez de sumir de uma vez.',
+        'Janelas de confirmação, criar canal, configurações e Novidades: o fundo escurece e o cartão sobe de leve ao abrir, e encolhe ao fechar.',
+        'Trocar de canal faz a conversa entrar subindo de leve; num canal que ainda não foi aberto, ela espera as mensagens chegarem para não piscar vazia.',
+        'Celular: as gavetas de canais e de membros deslizam ao abrir e ao fechar, e a folha de ações da mensagem desce ao sair.',
+        'O volume de uma transmissão abre ao lado do botão sem empurrar os outros, e os interruptores, a pílula dos servidores e as barras de quem fala ficaram mais leves para o navegador.',
+        '"Reduzir animações" (em Acessibilidade) e a mesma opção do sistema continuam desligando todo o movimento.',
+      ] },
+    ],
+  },
+  {
     version: '1.8.5', date: '2026-10-18', name: 'Recorte de efeito sonoro e celular revisado',
     summary: 'Crie um efeito sonoro a partir de qualquer áudio ou vídeo e escolha o trecho na onda, como no Discord. No celular, a barra da chamada, os menus e várias telas foram acertados.',
     sections: [
