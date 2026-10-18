@@ -315,6 +315,21 @@
     }
   }).observe(document.body, { childList: true, subtree: true });
 
+  // Em tela cheia o navegador só desenha o bloco que está nela, e menus e dicas abriam invisíveis.
+  // Enquanto isso eles viram popover: a camada do topo fica por cima da tela cheia, e o elemento
+  // continua no mesmo lugar da página (cliques e arrastos não passam pelo bloco).
+  function overFullscreen(node) {
+    const full = document.fullscreenElement;
+    if (!full || full.contains(node) || !node.showPopover) return;
+    node.popover = 'manual';
+    if (!node.matches(':popover-open')) node.showPopover();
+  }
+  function leaveTopLayer(node) {
+    if (!node.popover) return;
+    if (node.matches(':popover-open')) node.hidePopover();
+    node.removeAttribute('popover');
+  }
+
   // Dicas flutuantes (tooltip) para qualquer elemento com data-tip.
   let tipTarget = null;
   function showTip(target) {
@@ -323,6 +338,7 @@
     tip.textContent = target.dataset.tip;
     const pos = target.dataset.tipPos || 'top';
     tip.className = pos;
+    overFullscreen(tip);
     const r = target.getBoundingClientRect();
     const t = tip.getBoundingClientRect();
     let x = r.left + r.width / 2 - t.width / 2;
@@ -334,7 +350,9 @@
   }
   function hideTip() {
     tipTarget = null;
-    $('#tooltip').classList.add('hidden'); // mantém o lado da seta enquanto a dica esmaece
+    const tip = $('#tooltip');
+    tip.classList.add('hidden'); // mantém o lado da seta enquanto a dica esmaece
+    if (tip.popover) Motion.afterHide(tip, () => leaveTopLayer(tip));
   }
   document.addEventListener('mouseover', (e) => {
     // No toque o navegador simula o mouse a cada toque, e a dica ficava presa na tela depois do toque.
@@ -3026,11 +3044,14 @@
     if (!menu.classList.contains('hidden') && $('#server-header').classList.contains('open')) $('#server-header').dataset.closedAt = Date.now();
     Motion.fadeCopy(menu);
     menu.classList.add('hidden');
+    leaveTopLayer(menu);
     menu.classList.remove('member-menu', 'status-menu', 'device-menu', 'audio-device-menu', 'sheet-menu');
     menu.style.width = '';
     closeSubmenu();
     $('#server-header').classList.remove('open');
   }
+  // Entrar ou sair da tela cheia muda o lugar dos botões: o menu e a dica abertos ficariam soltos.
+  document.addEventListener('fullscreenchange', () => { closeMenu(); hideTip(); });
   document.addEventListener('click', (e) => {
     if (!e.target.closest('#context-menu, #context-submenu')) {
       // A folha do celular fica sobre um véu: o toque fora só fecha, sem acionar o que está atrás.
@@ -3444,7 +3465,9 @@
   let submenuTimer = null;
   function closeSubmenu() {
     clearTimeout(submenuTimer);
-    $('#context-submenu').classList.add('hidden');
+    const sub = $('#context-submenu');
+    sub.classList.add('hidden');
+    if (sub.popover) Motion.afterHide(sub, () => leaveTopLayer(sub));
     document.querySelectorAll('#context-menu .menu-item.sub-open').forEach((n) => n.classList.remove('sub-open'));
   }
   function menuSub(label, icon, build) {
@@ -3458,6 +3481,7 @@
       item.classList.add('sub-open');
       sub.replaceChildren(...build());
       sub.classList.remove('hidden');
+      overFullscreen(sub);
       const r = item.getBoundingClientRect();
       const w = sub.offsetWidth, h = sub.offsetHeight;
       const left = r.right + 6 + w > innerWidth - 8 ? r.left - w - 6 : r.right + 6;
@@ -3716,6 +3740,7 @@
   function showMenuAt(x, y) {
     const menu = $('#context-menu');
     menu.classList.remove('hidden');
+    overFullscreen(menu);
     menu.style.left = Math.max(8, Math.min(x, innerWidth - menu.offsetWidth - 8)) + 'px';
     menu.style.top = Math.max(8, Math.min(y, innerHeight - menu.offsetHeight - 8)) + 'px';
   }

@@ -32,6 +32,8 @@ window.Motion = (() => {
       const copy = node.cloneNode(true);
       copy.setAttribute('aria-hidden', 'true');
       node.after(copy);
+      // Menu por cima da tela cheia (popover): a cópia também vai para a camada do topo.
+      if (copy.popover && node.matches(':popover-open')) copy.showPopover();
       api.leave(copy);
     },
     // Roda fn quando um painel escondido com .hidden termina de sair, se ninguém o reabriu no meio.
