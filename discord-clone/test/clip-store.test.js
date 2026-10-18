@@ -20,10 +20,11 @@ test('só destinatários veem e recebem token', () => {
   assert.equal(typeof store.issueToken(clip.id, 'b'), 'string');
 });
 
-test('token vale uma vez e por 2 minutos', () => {
+test('token vale até 3 vezes e por 2 minutos', () => {
   const { store, clip, advance } = setup();
   const t = store.issueToken(clip.id, 'b');
-  assert.equal(store.consumeToken(clip.id, t)?.id, clip.id);
+  // O app de Android lê o link no WebView antes de passar o download ao navegador: o mesmo link é aberto duas vezes.
+  for (let i = 0; i < 3; i++) assert.equal(store.consumeToken(clip.id, t)?.id, clip.id, `uso ${i + 1}`);
   assert.equal(store.consumeToken(clip.id, t), null);
   const late = store.issueToken(clip.id, 'b');
   advance(TOKEN_TTL_MS + 1);

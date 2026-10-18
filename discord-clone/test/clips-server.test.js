@@ -79,6 +79,8 @@ test('clipes: envio, aviso só na sala, recusas, download de uso único, lista e
     assert.equal(download.headers.get('content-type'), 'video/mp4');
     assert.match(download.headers.get('content-disposition'), /^attachment; filename="resenhex-clipe-sala-1-\d{4}-\d{2}-\d{2}-\d{4}\.mp4"$/);
     assert.equal((await download.arrayBuffer()).byteLength, 1000);
+    assert.equal((await fetch(base + url)).status, 200, 'o app de Android abre o link de novo no navegador');
+    assert.equal((await fetch(base + url)).status, 200);
     assert.equal((await fetch(base + url)).status, 410);
     assert.equal((await fetch(`${base}/clips/${id}`)).status, 410);
 
@@ -102,6 +104,11 @@ test('clipes: envio, aviso só na sala, recusas, download de uso único, lista e
     assert.equal(refused.status, 403);
     assert.match((await refused.json()).error, /não quer/);
     assert.equal((await postClip(host, { ...meta, participants: [host.accountId] })).status, 200);
+    // Corte feito noutra chamada (a pessoa foi movida com o corte aberto): recusado.
+    const moved = await postClip(host, { ...meta, participants: [host.accountId], voice: rooms[1].id });
+    assert.equal(moved.status, 409);
+    assert.match((await moved.json()).error, /mudou de chamada/);
+    assert.equal((await postClip(host, { ...meta, participants: [host.accountId], voice: rooms[0].id })).status, 200);
   } finally {
     for (const socket of clients) socket.close();
     child.kill();

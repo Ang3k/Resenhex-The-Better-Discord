@@ -4,6 +4,8 @@ const crypto = require('node:crypto');
 
 const CLIP_TTL_MS = 24 * 60 * 60 * 1000;
 const TOKEN_TTL_MS = 120_000;
+// O app de Android abre o link no WebView e depois no navegador (DownloadListener): poucos usos, no mesmo prazo.
+const TOKEN_USES = 3;
 const MAX_CLIP_BYTES = 25 * 1024 * 1024;
 const MAX_THUMB_BYTES = 40 * 1024;
 const MAX_CLIP_SECONDS = 31;
@@ -26,14 +28,14 @@ function createClipStore({ root, now = Date.now, randomId, serverExists = () => 
     const clip = root.clips[id];
     if (!clip || !clip.recipients.includes(accountId)) return null;
     const token = crypto.randomBytes(24).toString('hex');
-    tokens.set(token, { id, accountId, expires: now() + TOKEN_TTL_MS });
+    tokens.set(token, { id, accountId, expires: now() + TOKEN_TTL_MS, uses: TOKEN_USES });
     return token;
   }
 
   function consumeToken(id, token) {
     const entry = tokens.get(token);
     if (!entry) return null;
-    tokens.delete(token);
+    if (--entry.uses <= 0) tokens.delete(token);
     if (entry.id !== id || entry.expires < now()) return null;
     return root.clips[id] || null;
   }

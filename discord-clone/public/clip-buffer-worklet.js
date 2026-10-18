@@ -41,6 +41,9 @@ if (typeof registerProcessor === 'function') {
       super();
       this.ring = new ClipRing(sampleRate, 30);
       this.port.onmessage = ({ data }) => {
+        // stop: a pessoa foi esquecida; sem isto o processador ficaria vivo (process devolve true) para sempre.
+        if (data.type === 'stop') { this.ring = null; return; }
+        if (!this.ring) return;
         if (data.type === 'clear') this.ring.clear();
         if (data.type === 'snapshot') {
           const { pcm, samples } = this.ring.snapshot();
@@ -51,6 +54,7 @@ if (typeof registerProcessor === 'function') {
 
     // Sem entrada (a pessoa saiu ou o stream trocou), grava silêncio: todos os anéis andam juntos.
     process(inputs) {
+      if (!this.ring) return false;
       this.ring.push(inputs[0]?.[0] || SILENCE);
       return true;
     }

@@ -41,8 +41,8 @@ function harness({ recorded = 10, supported = true, context = {}, post } = {}) {
     node.append(...children.flat().filter((c) => c != null && c !== false));
     return node;
   };
-  const toasts = [], calls = [], renders = [], posts = [];
-  const ctx = { selfId: 'a', selfAllow: true, localMuted: new Set(), allowNow: () => true, silencedNow: () => false, channelName: 'Sala 1', deafened: false, ...context };
+  const toasts = [], calls = [], renders = [], posts = [], mixes = [];
+  const ctx = { selfId: 'a', selfAllow: true, localMuted: new Set(), allowNow: () => true, silencedNow: () => false, channelName: 'Sala 1', channelId: 'room-1', deafened: false, ...context };
   const ui = w.ClipUI({
     el, Icon: () => w.document.createElement('span'),
     toast: (text, kind) => toasts.push({ text, kind }),
@@ -52,7 +52,7 @@ function harness({ recorded = 10, supported = true, context = {}, post } = {}) {
     model: w.ClipModel,
     render: {
       supported: async () => supported,
-      mix: async () => ({}),
+      mix: async () => { mixes.push(1); return {}; },
       drawFrame: () => {},
       render: async (args) => { renders.push(args); return { mp4: new w.Blob([new Uint8Array([0, 0, 0, 24, 102, 116, 121, 112])]), thumb: new w.Blob([new Uint8Array(80).fill(0xff)]), duration: args.end - args.start }; },
     },
@@ -63,7 +63,7 @@ function harness({ recorded = 10, supported = true, context = {}, post } = {}) {
   });
   const d = w.document;
   const button = (text) => [...d.querySelectorAll('button')].find((b) => b.textContent.trim() === text);
-  return { w, d, ui, ctx, toasts, calls, renders, posts, button };
+  return { w, d, ui, ctx, toasts, calls, renders, posts, mixes, button };
 }
 
 test('o atalho Clipar existe, é global e usa Alt+C', () => {
@@ -103,7 +103,7 @@ test('quem desligou durante o corte não vai para o vídeo', async () => {
   assert.equal(h.posts.length, 1);
   assert.equal(h.posts[0].url, '/clips');
   assert.equal(h.posts[0].init.headers['x-token'], 'tok');
-  assert.deepEqual(JSON.parse(decodeURIComponent(h.posts[0].init.headers['x-clip'])), { duration: 30, participants: ['a'] });
+  assert.deepEqual(JSON.parse(decodeURIComponent(h.posts[0].init.headers['x-clip'])), { duration: 30, participants: ['a'], voice: 'room-1' });
   const body = await new Promise((resolve) => {
     const reader = new h.w.FileReader();
     reader.onload = () => resolve(new Uint8Array(reader.result));
@@ -137,6 +137,42 @@ test('erro ao enviar mantém o corte aberto e avisa', async () => {
   assert.deepEqual(plain(h.toasts.at(-1)), { text: 'Alguém no clipe não quer ser clipado.' });
   assert.equal(release.disabled, false);
   assert.equal(release.textContent.trim(), 'Soltar para a chamada');
+});
+
+test('Espaço logo ao abrir toca o trecho, não solta o clipe', async () => {
+  const h = harness();
+  h.ui.open(snapshotOf(['a', 'b'])); await settle();
+  assert.equal(h.d.activeElement.classList.contains('clip-release'), false, 'o foco não começa em "Soltar"');
+  assert.ok(h.d.activeElement.classList.contains('clip-handle'), 'começa na alça do fim');
+  h.d.activeElement.dispatchEvent(new h.w.KeyboardEvent('keydown', { key: ' ', bubbles: true })); await settle();
+  assert.equal(h.mixes.length, 1, 'tocou');
+  assert.equal(h.renders.length, 0, 'não gerou o clipe');
+});
+
+test('mudou de chamada com o corte aberto: descarta em vez de mandar para a outra', async () => {
+  const h = harness();
+  h.ui.open(snapshotOf(['a', 'b'])); await settle();
+  h.ctx.channelId = 'room-2';
+  h.button('Soltar para a chamada').click(); await settle();
+  assert.equal(h.renders.length, 0);
+  assert.equal(h.posts.length, 0);
+  assert.equal(h.d.querySelector('.clip-overlay'), null);
+  assert.match(h.toasts.at(-1).text, /mudou de chamada/);
+});
+
+test('start: não troca um corte aberto, explica o que impede e avisa se a foto falhar', async () => {
+  const h = harness();
+  h.ui.prepare(); await settle();
+  assert.equal(await h.ui.start(async () => snapshotOf(['a', 'b'])), true);
+  assert.equal(await h.ui.start(async () => snapshotOf(['a'])), false, 'já tem um corte aberto');
+  assert.equal(h.d.querySelector('.clip-who').textContent, 'No clipe: A, B');
+  h.ui.discard();
+  assert.equal(h.d.querySelector('.clip-overlay'), null);
+  assert.equal(await h.ui.start(async () => { throw new Error('worklet'); }), false);
+  assert.equal(h.toasts.at(-1).text, 'Não foi possível abrir o corte. Tente de novo.');
+  h.ctx.deafened = true;
+  assert.equal(await h.ui.start(async () => snapshotOf(['a'])), false);
+  assert.equal(h.toasts.at(-1).text, 'Ligue o fone para clipar.');
 });
 
 test('texto da seleção usa vírgula e segundos relativos', async () => {

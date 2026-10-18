@@ -819,6 +819,7 @@ app.post('/clips', express.raw({ type: () => true, limit: MAX_CLIP_BYTES + MAX_T
   const thumb = body.subarray(4, 4 + thumbLength), mp4 = body.subarray(4 + thumbLength);
   if (thumbLength < 64 || thumbLength > MAX_THUMB_BYTES || thumb[0] !== 0xff || thumb[1] !== 0xd8 || thumb[2] !== 0xff) return clipError(res, 400, 'Clipe inválido.');
   if (mp4.length < 16 || mp4.length > MAX_CLIP_BYTES || mp4.toString('latin1', 4, 8) !== 'ftyp') return clipError(res, 400, 'Clipe inválido.');
+  if (meta.voice != null && meta.voice !== s.voice) return clipError(res, 409, 'Você mudou de chamada: o clipe foi descartado.');
   const room = [...online.values()].filter((x) => x.voice === s.voice && x.voiceServerId === s.voiceServerId);
   if (room.some((x) => participants.includes(x.accountId) && x.allowClips === false)) return clipError(res, 403, 'Alguém no clipe não quer ser clipado.');
   if (!allow('clip:' + acc.id, 6, 60_000) || !allow('clip-h:' + acc.id, 30, 60 * 60 * 1000)) return clipError(res, 429, 'Clipes demais seguidos. Espere um pouco.');

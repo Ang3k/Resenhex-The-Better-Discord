@@ -4761,19 +4761,26 @@
       return {
         selfId: state.me?.accountId, selfAllow: state.allowClips, localMuted: state.localMuted, deafened: state.deafened || !!callMe()?.serverDeafened,
         allowNow: (id) => byAccount.get(id)?.allowClips !== false, silencedNow: (id) => !!byAccount.get(id)?.silenced,
-        channelName: callInfo()?.dm ? 'Chamada' : callChannelName() || 'Chamada',
+        channelName: callInfo()?.dm ? 'Chamada' : callChannelName() || 'Chamada', channelId: state.voiceChannel,
       };
     },
   });
   async function startClip() {
-    if (!state.voiceChannel) return;
-    const verdict = clipUi.canClip();
-    if (!verdict.ok) { toast(verdict.reason, 'info'); return; }
+    if (!state.voiceChannel || !await clipUi.start(() => clipBuffer.snapshot())) return;
     const button = $('#sc-clip');
     button.classList.add('clipping');
     setTimeout(() => button.classList.remove('clipping'), 1000);
     window.resenhexDesktop?.focus?.(); // pelo atalho global, o corte aparece mesmo com o jogo na frente
-    clipUi.open(await clipBuffer.snapshot());
+  }
+  // Acabou a chamada (ou trocou de sala): o áudio, a lista e um corte aberto eram daquela chamada.
+  let clipChannel = null;
+  function clipEnd() {
+    clipBuffer.stop();
+    clipStreams.clear();
+    clipChannel = null;
+    state.clips = [];
+    clipUi.setList([]);
+    clipUi.discard();
   }
   async function loadClips() {
     const res = await call('clip:list');
@@ -4945,6 +4952,7 @@
   }
   // A pessoa saiu de vez (ou não há chamada para voltar): solta o microfone e desliga o serviço da call.
   function endCall() {
+    if (clipChannel && !state.voiceChannel) clipEnd(); // a volta da chamada desistiu
     callTarget = null;
     rejoinVoice = null;
     clearTimeout(rejoinGiveUp);
@@ -5040,6 +5048,8 @@
     // Quem entra inicia a conexão com todos que já estavam na sala.
     for (const sid of peers) getPeer(sid);
     sendVoiceState();
+    if (clipChannel !== channel) clipEnd(); // trocou de sala; reconectar na mesma sala continua o mesmo áudio (D12)
+    clipChannel = channel;
     clipUi.prepare();
     loadClips();
     render();
@@ -5086,10 +5096,8 @@
     state.micStream = null;
     attachGate(null);
     unwatchSpeaking(state.me.sid);
-    clipBuffer.stop();
-    clipStreams.clear();
-    state.clips = [];
-    clipUi.setList([]);
+    if (rejoin) clipBuffer.pause(); // reconexão, troca P2P/SFU ou troca de sala: a entrada decide se o áudio continua
+    else clipEnd();
     state.voiceChannel = null;
     state.voiceSnapshot = null;
     stopCallTime();

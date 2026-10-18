@@ -14,6 +14,7 @@ window.ClipBuffer = ({ getCtx, now = () => performance.now(), maxPeople = 12 } =
     people.delete(accountId);
     p.source?.disconnect();
     p.node.port.postMessage({ type: 'clear' });
+    p.node.port.postMessage({ type: 'stop' });
     p.node.disconnect();
     p.mute.disconnect();
   }
@@ -57,6 +58,13 @@ window.ClipBuffer = ({ getCtx, now = () => performance.now(), maxPeople = 12 } =
     p.source?.disconnect();
     p.source = null;
     p.leftAt = now();
+  }
+
+  // Reconexão ou troca entre P2P e SFU: solta os streams da conexão antiga e mantém os anéis (D12).
+  // Quem voltar em até 30 s continua o mesmo anel; quem não voltar sai como quem deixou a chamada.
+  function pause() {
+    for (const id of [...people.keys()]) untrack(id);
+    waiting.clear();
   }
 
   // states: Map accountId -> { muted, silenced, allowClips, speaking }
@@ -107,7 +115,8 @@ window.ClipBuffer = ({ getCtx, now = () => performance.now(), maxPeople = 12 } =
       const { pcm, samples } = rings[i];
       const offset = total - samples, data = new Float32Array(total);
       for (let k = 0; k < samples; k++) data[offset + k] = pcm[k] / 32767;
-      return { accountId, profile: p.profile, pcm: data, offset, allowClips: !blocked.has(accountId), left: p.leftAt != null };
+      const leftAt = p.leftAt != null ? (p.leftAt - (takenAt - (total / sampleRate) * 1000)) / 1000 : null;
+      return { accountId, profile: p.profile, pcm: data, offset, allowClips: !blocked.has(accountId), left: p.leftAt != null, leftAt };
     });
     return { sampleRate, takenAt, seconds: total / sampleRate, people: out, states: states.slice() };
   }
@@ -118,5 +127,5 @@ window.ClipBuffer = ({ getCtx, now = () => performance.now(), maxPeople = 12 } =
     states = [];
   }
 
-  return { track, untrack, forget, sample, recorded, snapshot, stop };
+  return { track, untrack, forget, pause, sample, recorded, snapshot, stop };
 };

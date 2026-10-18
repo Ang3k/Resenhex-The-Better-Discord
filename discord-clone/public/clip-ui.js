@@ -39,9 +39,27 @@ window.ClipUI = ({ el, Icon, toast, call, token, buffer, model, render, getConte
   }, Icon('download', 16), el('span', { textContent: 'Baixar' }));
 
   // ---------- Tela de corte ----------
+  // Botão ou atalho: um corte por vez; o que impede clipar vira um aviso, e uma falha na foto também.
+  async function start(takeSnapshot) {
+    if (document.querySelector('.clip-overlay')) return false;
+    const verdict = canClip();
+    if (!verdict.ok) { toast(verdict.reason, 'info'); return false; }
+    let snapshot;
+    try { snapshot = await takeSnapshot(); } catch { toast('Não foi possível abrir o corte. Tente de novo.'); return false; }
+    if (document.querySelector('.clip-overlay')) return false;
+    open(snapshot);
+    return true;
+  }
+
+  // Saiu da chamada: o corte aberto é descartado (o áudio é daquela chamada).
+  function discard() {
+    document.querySelector('.clip-overlay')?.dispatchEvent(new CustomEvent('clip-discard'));
+  }
+
   function open(snapshot) {
     document.querySelector('.clip-overlay')?.remove();
     const total = snapshot.seconds;
+    const channelId = getContext().channelId; // o clipe só vai para a chamada onde a foto foi tirada
     let sel = model.clampSelection({ start: 0, end: total }, { total });
     let playing = null, busy = false, lastFocus = document.activeElement;
     const takenAt = Date.now(); // a foto usa o relógio da página (performance.now); a marca do vídeo, a hora de verdade
@@ -78,6 +96,7 @@ window.ClipUI = ({ el, Icon, toast, call, token, buffer, model, render, getConte
       el('div', { class: 'confirm-actions clip-actions' }, listen, el('span', { class: 'clip-spacer' }), discard, release));
     const overlay = el('div', { class: 'confirm-overlay clip-overlay', onmousedown: (e) => e.target === overlay && !busy && close() }, card);
     overlay.addEventListener('keydown', onKey);
+    overlay.addEventListener('clip-discard', () => close());
     document.body.append(overlay);
 
     function drawWave() {
@@ -197,6 +216,7 @@ window.ClipUI = ({ el, Icon, toast, call, token, buffer, model, render, getConte
     async function submit() {
       if (busy) return;
       stop();
+      if (getContext().channelId !== channelId) { close(); toast('Você mudou de chamada: o clipe foi descartado.'); return; }
       const list = people();
       if (!list.length) { toast('Ninguém neste trecho pode entrar no clipe.'); return; }
       busy = true;
@@ -210,7 +230,7 @@ window.ClipUI = ({ el, Icon, toast, call, token, buffer, model, render, getConte
           method: 'POST',
           headers: {
             'content-type': 'application/octet-stream', 'x-token': token(),
-            'x-clip': encodeURIComponent(JSON.stringify({ duration: Math.round(clip.duration * 1000) / 1000, participants: list.map((p) => p.accountId) })),
+            'x-clip': encodeURIComponent(JSON.stringify({ duration: Math.round(clip.duration * 1000) / 1000, participants: list.map((p) => p.accountId), voice: channelId })),
           },
           body: new Blob([head, clip.thumb, clip.mp4]),
         });
@@ -237,7 +257,8 @@ window.ClipUI = ({ el, Icon, toast, call, token, buffer, model, render, getConte
       }, () => {});
     }
     update();
-    release.focus();
+    // Foco na alça do fim: Espaço toca o trecho (no botão "Soltar" ele mandaria o clipe para a chamada).
+    endHandle.focus();
   }
 
   // ---------- Aviso de clipe novo ----------
@@ -309,5 +330,5 @@ window.ClipUI = ({ el, Icon, toast, call, token, buffer, model, render, getConte
     else if (listMenu) { closeList(); openList(button); }
   }
 
-  return { prepare, canClip, open, showNotice, setList, clips: () => clips };
+  return { prepare, canClip, start, open, discard, showNotice, setList, clips: () => clips };
 };

@@ -5,7 +5,8 @@
   const THRESHOLD = 4 / 128;   // rms > 4 nos 8 bits do getByteTimeDomainData
   const HOLD = 0.3;            // segura aceso 300 ms
 
-  const hasAudioIn = (p, sampleRate, { end }) => p.offset / sampleRate < end;
+  // Esteve na chamada em algum ponto do trecho: entrou antes do fim e não tinha saído antes do começo.
+  const hasAudioIn = (p, sampleRate, { start, end }) => p.offset / sampleRate < end && (p.leftAt == null || p.leftAt > start);
 
   function included(snapshot, { allowNow, localMuted, silencedNow, selfId, selfAllow }, range) {
     return snapshot.people.filter((p) => {

@@ -29,6 +29,13 @@ test('quem não tem áudio no trecho escolhido fica fora', () => {
   assert.deepEqual(ids(ClipModel.included(s, opts(), { start: 0, end: 2.5 })), ['me', 'late']);
 });
 
+test('quem saiu antes do trecho escolhido fica fora', () => {
+  const gone = { ...person('gone'), leftAt: 1.0 };
+  const s = snap([person('me'), gone]);
+  assert.deepEqual(ids(ClipModel.included(s, opts(), { start: 2, end: 3 })), ['me']);
+  assert.deepEqual(ids(ClipModel.included(s, opts(), { start: 0.5, end: 3 })), ['me', 'gone']);
+});
+
 test('chamada de uma pessoa só ainda gera clipe', () => {
   assert.equal(ClipModel.included(snap([person('me')]), opts(), { start: 0, end: 3 }).length, 1);
 });

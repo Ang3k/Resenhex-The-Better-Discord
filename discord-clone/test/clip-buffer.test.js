@@ -123,6 +123,54 @@ test('quem religa a opção volta a ser gravado sem precisar reconectar', async 
   assert.deepEqual(Array.from((await h.buffer.snapshot()).people, (p) => p.accountId), ['a']);
 });
 
+test('o processador do worklet para de vez quando a pessoa é esquecida', () => {
+  let Processor = null;
+  const ctx = vm.createContext({ Int16Array, Float32Array, Math, sampleRate: 100,
+    AudioWorkletProcessor: class { constructor() { this.port = { postMessage() {} }; } },
+    registerProcessor: (name, cls) => { Processor = cls; } });
+  vm.runInContext(read('clip-buffer-worklet.js'), ctx);
+  const node = new Processor();
+  assert.equal(node.process([[new Float32Array(128)]]), true);
+  node.port.onmessage({ data: { type: 'stop' } });
+  assert.equal(node.process([[new Float32Array(128)]]), false, 'devolve false: o navegador libera o processador');
+  assert.equal(node.ring, null, 'solta a memória do anel');
+});
+
+test('esquecer manda o worklet parar', async () => {
+  const h = harness();
+  await h.buffer.track('a', { id: 's1' }, profile('Ana'));
+  h.buffer.forget('a');
+  assert.ok(h.nodes[0].messages.includes('stop'));
+});
+
+test('reconectar (pause) mantém os anéis; quem volta continua o mesmo anel', async () => {
+  const h = harness();
+  await h.buffer.track('a', { id: 's1' }, profile('Ana'));
+  h.nodes[0].ring.push(new Float32Array(50).fill(0.5));
+  h.buffer.pause();
+  assert.equal(h.sources[0].off, true, 'solta o stream da conexão antiga');
+  assert.equal((await h.buffer.snapshot()).people.length, 1, 'o áudio continua para clipar');
+  await h.buffer.track('a', { id: 's2' }, profile('Ana'));
+  assert.equal(h.nodes.length, 1);
+  const snap = await h.buffer.snapshot();
+  assert.equal(snap.people[0].left, false);
+  assert.equal(snap.people[0].pcm.length, 50);
+});
+
+test('a foto marca quando cada pessoa saiu, em segundos desde o começo dela', async () => {
+  const h = harness();
+  await h.buffer.track('a', { id: 's1' }, profile('Ana'));
+  await h.buffer.track('b', { id: 's2' }, profile('Bia'));
+  h.nodes[0].ring.push(new Float32Array(300).fill(0.1));
+  h.nodes[1].ring.push(new Float32Array(300).fill(0.1));
+  h.advance(1_000);
+  h.buffer.untrack('b');
+  h.advance(2_000);
+  const snap = await h.buffer.snapshot();
+  assert.equal(snap.people.find((p) => p.accountId === 'a').leftAt, null);
+  assert.ok(Math.abs(snap.people.find((p) => p.accountId === 'b').leftAt - 1) < 1e-9, 'saiu 2 s antes do fim de uma foto de 3 s');
+});
+
 test('acima do limite ficam as pessoas que falaram por último', async () => {
   const h = harness({ maxPeople: 2 });
   await h.buffer.track('a', { id: 's1' }, profile('Ana'));
