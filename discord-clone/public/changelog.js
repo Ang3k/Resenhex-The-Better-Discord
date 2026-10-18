@@ -4,39 +4,15 @@
 // O título deve destacar as principais funcionalidades ou correções, com termos objetivos.
 window.CHANGELOG = [
   {
-    version: '1.8.2', date: '2026-10-18', name: 'Sair dos clipes pelo Clipar',
-    summary: 'A opção de sair dos clipes agora fica dentro do Clipar.',
-    sections: [
-      { kind: 'new', items: [
-        'Pode clipar meu áudio também na janela Clipar, nas duas abas. Muda a mesma opção de Voz e vídeo.',
-      ] },
-      { kind: 'fixed', items: [
-        'A animação da claquete não fica mais cortada em cima.',
-        'A claquete não mostra mais o número roxo de clipes.',
-      ] },
-    ],
-  },
-  {
-    version: '1.8.1', date: '2026-10-18', name: 'Clipes dentro do Clipar',
-    summary: 'Os clipes da chamada foram para dentro do Clipar, e a janela ganhou visual novo.',
-    sections: [
-      { kind: 'improved', items: [
-        'Os clipes da chamada agora ficam numa aba dentro da janela Clipar, em cartões com miniatura maior e a duração em cima.',
-        'A claquete mostra quantos clipes a chamada tem. Sem poder clipar (fone desligado, por exemplo), ela abre direto nos clipes que já existem.',
-        'Janela Clipar com visual novo: abas, régua de tempo embaixo da onda e a duração do trecho em destaque.',
-        'A claquete bate fechando e abre de novo, como no cinema, ao passar o mouse e ao clipar.',
-      ] },
-    ],
-  },
-  {
     version: '1.8.0', date: '2026-10-17', name: 'Clipar',
     summary: 'Pegue os últimos 30 segundos da chamada e solte um vídeo para a galera baixar.',
     sections: [
       { kind: 'new', items: [
-        'Botão Clipar (claquete) na barra da chamada e atalho Alt+C, que funciona com o jogo aberto no app do Windows.',
-        'Corte o trecho que quiser dentro dos últimos 30 segundos antes de soltar.',
+        'Botão Clipar (claquete) na barra da chamada e atalho Alt+C, que funciona com o jogo aberto no app do Windows. A claquete bate fechando e abre de novo, como no cinema.',
+        'Corte o trecho que quiser dentro dos últimos 30 segundos antes de soltar, com régua de tempo embaixo da onda e a duração do trecho em destaque.',
         'O clipe vira um vídeo com os perfis de quem estava na chamada, acendendo verde em quem fala, e só quem estava lá pode baixar.',
-        'Nova opção em Voz e vídeo: Pode clipar meu áudio. Desligada, você some dos clipes.',
+        'Os clipes da chamada ficam na aba Clipes da chamada, dentro da janela Clipar, por 24 horas. Sem poder clipar (fone desligado, por exemplo), a claquete abre direto neles.',
+        'Nova opção Pode clipar meu áudio, em Voz e vídeo e na própria janela Clipar. Desligada, você some dos clipes.',
       ] },
     ],
   },
