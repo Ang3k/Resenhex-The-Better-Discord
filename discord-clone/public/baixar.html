@@ -35,12 +35,17 @@
       <p class="dl-lead only-windows">É o mesmo Resenhex do site, com sua conta, seus servidores e suas chamadas. O app fica na bandeja, mostra as menções na barra de tarefas e mantém o push-to-talk funcionando mesmo com um jogo aberto.</p>
       <p class="dl-lead only-android">É o mesmo Resenhex do site, com sua conta, seus servidores e suas chamadas. A call continua com a tela bloqueada e as mensagens chegam como notificação do celular.</p>
       <div class="dl-cta only-windows">
-        <a class="dl-button" id="dl-button" href="/download/Resenhex-Setup.exe" download>
-          <span class="dl-button-icon" data-icon="download" data-size="20"></span>
-          <span>Baixar para Windows</span>
-        </a>
+        <div class="dl-buttons">
+          <a class="dl-button" id="dl-button" href="/download/Resenhex-Setup.exe" download>
+            <span class="dl-button-icon" data-icon="download" data-size="20"></span>
+            <span>Baixar instalador (.exe)</span>
+          </a>
+          <a class="dl-button hidden" id="dl-store" href="https://apps.microsoft.com/detail/9NG3QRZSB1LX">
+            <span class="dl-button-icon" data-icon="store" data-size="20"></span>
+            <span>Baixar pela Microsoft Store</span>
+          </a>
+        </div>
         <p class="dl-meta" id="dl-meta">Windows 10 e 11 (64 bits)</p>
-        <a class="dl-alt hidden" id="dl-direct" href="/download/Resenhex-Setup.exe" download>Prefere o instalador direto (.exe)?</a>
         <a class="dl-alt hidden" id="dl-android-link" href="/download/Resenhex.apk" download>Tem Android? Baixe o app para celular</a>
       </div>
       <div class="dl-cta only-android">
@@ -119,6 +124,26 @@
       <article><span class="dl-feature-icon" data-icon="refresh" data-size="20"></span><h3>Sempre atualizado</h3><p>As novidades do site chegam na hora, sem baixar o app de novo.</p></article>
     </section>
   </main>
+
+  <!-- Antes do .exe: avisa da tela do Windows e oferece a Microsoft Store, que instala sem aviso. -->
+  <dialog class="dl-dialog" id="dl-exe-dialog" aria-labelledby="dl-exe-title">
+    <div class="dl-dialog-body">
+      <button class="dl-dialog-close" type="button" aria-label="Fechar" data-icon="x" data-size="18"></button>
+      <span class="dl-dialog-emblem" data-icon="shieldAlert" data-size="24"></span>
+      <h2 id="dl-exe-title">O Windows vai mostrar um aviso</h2>
+      <p>O instalador .exe não tem assinatura paga, então o Windows diz que o Resenhex é um <strong>aplicativo não reconhecido</strong>. Para continuar, clique em <strong>Mais informações</strong> e depois em <strong>Executar assim mesmo</strong>.</p>
+      <div class="dl-smartscreen" aria-hidden="true">
+        <span class="dl-ss-title">O Windows protegeu o computador</span>
+        <span class="dl-ss-link">Mais informações</span>
+        <span class="dl-ss-button">Executar assim mesmo</span>
+      </div>
+      <p class="dl-dialog-tip"><span data-icon="store" data-size="16"></span><span>Se não se sentir à vontade, baixe pela <strong>Microsoft Store</strong>: o app é verificado pela Microsoft, instala sem aviso e se atualiza sozinho.</span></p>
+    </div>
+    <div class="dl-dialog-actions">
+      <a class="dl-dialog-btn secondary" id="dl-exe-store" href="https://apps.microsoft.com/detail/9NG3QRZSB1LX">Usar a Microsoft Store</a>
+      <a class="dl-dialog-btn primary" id="dl-exe-confirm" href="/download/Resenhex-Setup.exe" download>Baixar mesmo assim</a>
+    </div>
+  </dialog>
 
   <footer class="dl-footer">Resenhex · chat e voz para você e seus amigos · <a href="/privacidade">Privacidade</a></footer>
 

@@ -42,6 +42,9 @@ body.dl-page::before {
 .dl-hero h1 { margin: 4px 0 0; max-width: 720px; color: var(--text-strong); font-size: clamp(32px, 5.2vw, 52px); font-weight: 800; line-height: 1.08; letter-spacing: -.03em; text-wrap: balance; }
 .dl-lead { margin: 0; max-width: 620px; color: var(--text-muted); font-size: 17px; line-height: 1.6; text-wrap: pretty; }
 .dl-cta { display: grid; justify-items: center; gap: 12px; margin-top: 14px; }
+/* .exe e Microsoft Store lado a lado, com a mesma largura. */
+.dl-buttons { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); gap: 12px; }
+.dl-buttons .dl-button { justify-content: center; }
 .dl-button {
   display: inline-flex; align-items: center; gap: 10px; height: 56px; padding: 0 30px 0 24px; border-radius: 16px;
   background: var(--brand); color: #fff; font-size: 17px; font-weight: 700; text-decoration: none;
@@ -115,6 +118,54 @@ body.dl-page::before {
 }
 .dl-ad-switch::after { animation-delay: .9s; }
 
+/* ---------- Aviso antes do .exe ---------- */
+/* Entra em 300 ms com a curva de entrada do app e sai em 150 ms (display/overlay discretos). */
+.dl-dialog {
+  width: min(460px, calc(100% - 32px)); max-height: calc(100dvh - 32px); padding: 0; overflow: auto;
+  border: 1px solid var(--divider); border-radius: 20px; background: var(--bg-sidebar); color: var(--text);
+  box-shadow: 0 24px 64px rgba(0, 0, 0, .45);
+  opacity: 0; transform: translateY(8px) scale(.97);
+  transition: opacity 150ms ease-in, transform 150ms ease-in, overlay 150ms ease-in allow-discrete, display 150ms ease-in allow-discrete;
+}
+.dl-dialog[open] { opacity: 1; transform: none; transition-duration: 300ms; transition-timing-function: cubic-bezier(.22, 1, .36, 1); }
+.dl-dialog::backdrop { background: rgba(0, 0, 0, 0); transition: background 150ms ease-in, overlay 150ms ease-in allow-discrete, display 150ms ease-in allow-discrete; }
+.dl-dialog[open]::backdrop { background: rgba(0, 0, 0, .6); transition-duration: 300ms; }
+@starting-style {
+  .dl-dialog[open] { opacity: 0; transform: translateY(8px) scale(.97); }
+  .dl-dialog[open]::backdrop { background: rgba(0, 0, 0, 0); }
+}
+body.dl-page:has(.dl-dialog[open]) { overflow: hidden; }
+.dl-dialog-body { position: relative; display: grid; gap: 14px; padding: 28px 28px 24px; }
+.dl-dialog-close {
+  position: absolute; top: 14px; right: 14px; display: grid; place-items: center; width: 32px; height: 32px;
+  border: 0; border-radius: 8px; background: transparent; color: var(--text-muted); cursor: pointer; transition: background .15s, color .15s;
+}
+.dl-dialog-close:hover { background: var(--hover-strong); color: var(--text-strong); }
+.dl-dialog-emblem {
+  display: grid; place-items: center; width: 48px; height: 48px; border-radius: 14px;
+  background: color-mix(in srgb, var(--yellow, #f0b232) 16%, transparent); color: var(--yellow, #f0b232);
+}
+.dl-dialog h2 { margin: 0; padding-right: 32px; color: var(--text-strong); font-size: 20px; font-weight: 800; letter-spacing: -.02em; }
+.dl-dialog p { margin: 0; color: var(--text-muted); font-size: 14.5px; line-height: 1.55; }
+.dl-dialog strong { color: var(--text); font-weight: 600; }
+.dl-dialog .dl-smartscreen { margin: 2px 0 4px; }
+.dl-dialog .dl-dialog-tip {
+  display: flex; gap: 10px; padding: 12px 14px; border-radius: 12px; color: var(--text);
+  background: color-mix(in srgb, var(--brand) 12%, transparent); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--brand) 32%, transparent);
+}
+.dl-dialog-tip strong { color: var(--text-strong); }
+.dl-dialog-tip .ico { flex-shrink: 0; margin-top: 3px; color: color-mix(in srgb, var(--brand) 70%, #fff); }
+.dl-dialog-actions { display: flex; justify-content: flex-end; gap: 10px; padding: 16px 24px; border-top: 1px solid var(--divider); }
+.dl-dialog-btn {
+  display: inline-flex; align-items: center; justify-content: center; height: 40px; padding: 0 18px; border-radius: 10px;
+  font-size: 14px; font-weight: 600; white-space: nowrap; text-decoration: none; transition: background .15s, color .15s, transform .12s;
+}
+.dl-dialog-btn:active { transform: scale(.97); }
+.dl-dialog-btn.primary { background: var(--brand); color: #fff; }
+.dl-dialog-btn.primary:hover { background: var(--brand-hover); }
+.dl-dialog-btn.secondary { background: var(--bg-panel); color: var(--text-strong); box-shadow: inset 0 0 0 1px var(--divider); }
+.dl-dialog-btn.secondary:hover { background: color-mix(in srgb, var(--text) 8%, var(--bg-panel)); }
+
 /* Windows ou Android: o script do <head> marca o sistema antes de pintar. */
 :root:not([data-os=android]) .dl-page .only-android, :root[data-os=android] .dl-page .only-windows { display: none !important; }
 
@@ -142,12 +193,16 @@ body.dl-page::before {
   .dl-hero { padding-top: 40px; }
   .dl-lead { font-size: 16px; }
   .dl-button { width: 100%; justify-content: center; }
-  .dl-cta { width: 100%; }
+  .dl-cta, .dl-buttons { width: 100%; }
+  .dl-buttons { grid-auto-flow: row; }
+  .dl-dialog-body { padding: 24px 20px 20px; }
+  .dl-dialog-actions { flex-direction: column-reverse; padding: 14px 20px 18px; }
+  .dl-dialog-btn { height: 44px; }
   .dl-features { grid-template-columns: 1fr; }
   .dl-features article { padding: 16px 4px; }
 }
-:root[data-reduce-motion=true] .dl-page *, .dl-page.reduce-motion * { animation: none !important; transition: none !important; }
-@media (prefers-reduced-motion: reduce) { .dl-page * { animation: none !important; transition: none !important; } }
+:root[data-reduce-motion=true] .dl-page *, .dl-page.reduce-motion *, :root[data-reduce-motion=true] .dl-dialog::backdrop { animation: none !important; transition: none !important; }
+@media (prefers-reduced-motion: reduce) { .dl-page *, .dl-dialog::backdrop { animation: none !important; transition: none !important; } }
 
 /* ---------- Política de privacidade ---------- */
 .pv-doc { max-width: 720px; margin: 0 auto; padding: 40px 24px 64px; color: var(--text); font-size: 15px; line-height: 1.7; }

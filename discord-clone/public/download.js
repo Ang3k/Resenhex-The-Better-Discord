@@ -37,31 +37,52 @@
       link.classList.remove('hidden');
     }
   };
-  // Com o app na Microsoft Store, o botão principal baixa o instalador da Microsoft (sem aviso do
-  // Windows) e o .exe fica como alternativa.
-  const useStore = (store, directUrl) => {
-    for (const step of document.querySelectorAll('[data-mode]')) step.hidden = step.dataset.mode !== 'store';
-    if (window.resenhexDesktop) return;
-    button.href = store.installer;
-    button.removeAttribute('download');
-    meta.textContent = 'Grátis · pela Microsoft Store · Windows 10 e 11';
-    const direct = document.getElementById('dl-direct');
-    if (directUrl) { direct.href = directUrl; direct.classList.remove('hidden'); }
+  // Os passos de instalação seguem o que a pessoa escolheu: instalador da Microsoft Store ou .exe direto.
+  const showSteps = (mode) => {
+    for (const step of document.querySelectorAll('[data-mode]')) step.hidden = step.dataset.mode !== mode;
+  };
+
+  // Dois botões: o .exe direto e a Microsoft Store (instalador da Microsoft, sem aviso do Windows).
+  // Antes do .exe, uma janela avisa da tela "O Windows protegeu o computador" e oferece a Store.
+  const storeButton = document.getElementById('dl-store');
+  const dialog = document.getElementById('dl-exe-dialog');
+  const confirm = document.getElementById('dl-exe-confirm');
+  const dialogStore = document.getElementById('dl-exe-store');
+  let warnBeforeExe = false;
+  button.addEventListener('click', (event) => {
+    if (!warnBeforeExe || !dialog.showModal) return showSteps('direct');
+    event.preventDefault();
+    dialog.showModal();
+  });
+  storeButton.addEventListener('click', () => showSteps('store'));
+  confirm.addEventListener('click', () => { showSteps('direct'); dialog.close(); });
+  dialogStore.addEventListener('click', () => { showSteps('store'); dialog.close(); });
+  dialog.querySelector('.dl-dialog-close').addEventListener('click', () => dialog.close());
+  dialog.addEventListener('click', (event) => { if (event.target === dialog) dialog.close(); }); // clique fora da janela
+
+  const useStore = (store) => {
+    showSteps('store');
+    storeButton.href = dialogStore.href = store.installer;
+    storeButton.classList.remove('hidden');
   };
 
   fetch('/download/info', { cache: 'no-cache' })
     .then((res) => res.ok ? res.json() : null)
     .then((info) => {
       showAndroid(info?.android);
-      if (info?.store) return useStore(info.store, info.available ? info.url : null);
+      if (window.resenhexDesktop) return;
+      const windowsMeta = 'Windows 10 e 11 (64 bits)';
+      if (info?.store) useStore(info.store);
       if (!info?.available) {
+        if (info?.store) { button.classList.add('hidden'); meta.textContent = `Grátis · ${windowsMeta}`; return; }
         button.classList.add('disabled');
         button.removeAttribute('href');
         document.getElementById('dl-soon').classList.remove('hidden');
         return;
       }
-      if (!window.resenhexDesktop) button.href = info.url;
-      meta.textContent = `Versão ${info.version} · ${megabytes(info.size)} · Windows 10 e 11 (64 bits)`;
+      button.href = confirm.href = info.url;
+      warnBeforeExe = !!info.store;
+      meta.textContent = `Versão ${info.version} · ${megabytes(info.size)} · ${windowsMeta}`;
     })
     .catch(() => {});
 })();
