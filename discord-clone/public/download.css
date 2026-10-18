@@ -18,12 +18,22 @@ body.dl-page::before {
 .dl-brand { display: flex; align-items: center; gap: 10px; color: var(--text-strong); font-size: 17px; font-weight: 800; letter-spacing: -.01em; text-decoration: none; }
 .dl-brand .brand-mark { width: 34px; height: 34px; border-radius: 11px; }
 .dl-open {
-  display: inline-flex; align-items: center; gap: 2px; padding: 8px 10px 8px 14px; border-radius: 999px;
-  color: var(--text); font-size: 14px; font-weight: 600; text-decoration: none; transition: background .15s, color .15s;
+  position: relative; display: inline-flex; align-items: center; gap: 2px; padding: 8px 10px 8px 14px; border-radius: 999px;
+  color: var(--text); font-size: 14px; font-weight: 600; text-decoration: none; transition: color .15s;
 }
-.dl-open:hover { background: var(--hover-strong); color: var(--text-strong); }
+.dl-open:hover { color: var(--text-strong); }
+/* No hover, um traço roxo embaixo, como no menu da página inicial. */
+.dl-open::after {
+  content: ''; position: absolute; left: 14px; right: 10px; bottom: 3px; height: 2px; border-radius: 2px;
+  background: var(--brand); transform: scaleX(0); transition: transform .2s cubic-bezier(.22, 1, .36, 1);
+}
+.dl-open:hover::after { transform: scaleX(1); }
 .dl-open .ico { transition: transform .2s; }
 .dl-open:hover .ico { transform: translateX(2px); }
+
+/* Trecho roxo nos títulos e etiqueta roxa acima deles, como na página inicial. */
+.dl-hl { color: color-mix(in srgb, var(--brand) 70%, #fff); }
+.dl-label { display: block; margin: 0 0 10px; color: color-mix(in srgb, var(--brand) 70%, #fff); font-size: 13px; font-weight: 800; letter-spacing: .12em; text-align: center; text-transform: uppercase; }
 
 .dl-main { max-width: 1080px; margin: 0 auto; padding: 0 24px 48px; display: grid; gap: 72px; }
 

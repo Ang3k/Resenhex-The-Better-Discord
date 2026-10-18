@@ -4,26 +4,24 @@
 // O título deve destacar as principais funcionalidades ou correções, com termos objetivos.
 window.CHANGELOG = [
   {
-    version: '1.8.7', date: '2026-10-18', name: 'Volume no celular e qualidade em tela cheia',
-    summary: 'O volume de cada transmissão volta a aparecer no celular, e o menu de qualidade abre também na tela cheia.',
+    version: '1.8.8', date: '2026-10-18', name: 'Animações mais suaves e páginas do site com as cores do app',
+    summary: 'Menus, janelas e telas entram e saem com o mesmo movimento suave. A página inicial, a de baixar e a de privacidade ganharam o preto com roxo do app, e baixar para Windows agora oferece o .exe ou a Microsoft Store.',
     sections: [
-      { kind: 'fixed', items: [
-        'Celular: o volume de cada transmissão voltou a ficar sempre à mostra ao lado do botão de som. Na 1.8.6 ele tinha sumido, e só dava para baixar uma transmissão pelo volume do aparelho, que abaixa as vozes junto.',
-        'Tela cheia: o menu "Qualidade para assistir", os outros menus e as dicas dos botões agora aparecem por cima da transmissão. Antes eles abriam escondidos atrás dela.',
+      { kind: 'new', items: [
+        'Baixar para Windows: dois botões, o instalador .exe e a Microsoft Store. Antes do .exe, uma janela mostra o aviso que o Windows vai dar e sugere a Store para quem preferir instalar sem ele.',
       ] },
-    ],
-  },
-  {
-    version: '1.8.6', date: '2026-10-18', name: 'Animações mais suaves',
-    summary: 'Menus, janelas, folhas e telas entram e saem com o mesmo movimento suave, no computador e no celular.',
-    sections: [
       { kind: 'improved', items: [
+        'Página inicial, Baixar e Privacidade com as cores do app e da tela de entrar: fundo preto e o roxo do logo nos botões, nos destaques dos títulos e atrás da prévia do app.',
         'Menus, cartões de perfil, seletor de emoji, dicas e avisos agora também saem com animação, em vez de sumir de uma vez.',
         'Janelas de confirmação, criar canal, configurações e Novidades: o fundo escurece e o cartão sobe de leve ao abrir, e encolhe ao fechar.',
         'Trocar de canal faz a conversa entrar subindo de leve; num canal que ainda não foi aberto, ela espera as mensagens chegarem para não piscar vazia.',
         'Celular: as gavetas de canais e de membros deslizam ao abrir e ao fechar, e a folha de ações da mensagem desce ao sair.',
         'O volume de uma transmissão abre ao lado do botão sem empurrar os outros, e os interruptores, a pílula dos servidores e as barras de quem fala ficaram mais leves para o navegador.',
         '"Reduzir animações" (em Acessibilidade) e a mesma opção do sistema continuam desligando todo o movimento.',
+      ] },
+      { kind: 'fixed', items: [
+        'Celular: o volume de cada transmissão fica sempre à mostra ao lado do botão de som, para abaixar uma transmissão sem abaixar as vozes junto.',
+        'Tela cheia: o menu "Qualidade para assistir", os outros menus e as dicas dos botões aparecem por cima da transmissão. Antes eles abriam escondidos atrás dela.',
       ] },
     ],
   },

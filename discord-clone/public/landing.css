@@ -17,6 +17,7 @@
   --ld-ink: #141417;
   --ld-ink-raised: #1e1b23;
   --ld-muted: #aeacb6;
+  --ld-accent: color-mix(in srgb, var(--ld-purple) 70%, #fff); /* roxo claro para texto sobre o preto */
   --ld-line: rgba(255, 255, 255, .08);
   --brand: var(--ld-purple);
   --brand-hover: var(--ld-purple-press);
@@ -45,8 +46,13 @@
 .ld-brand { display: inline-flex; align-items: center; gap: 10px; color: #fff !important; font-family: var(--ld-display); font-size: 17px; font-weight: 700; letter-spacing: -.02em; }
 .ld-brand .brand-mark { width: 36px; height: 36px; border-radius: 12px; }
 .ld-nav { display: flex; gap: 4px; margin: 0 auto; }
-.ld-nav a { padding: 8px 14px; border-radius: 999px; color: #fff !important; font-size: 15px; font-weight: 600; transition: background .15s, color .15s; }
-.ld-nav a:hover { background: rgba(255, 255, 255, .12); }
+.ld-nav a { position: relative; padding: 8px 14px; border-radius: 999px; color: #fff !important; font-size: 15px; font-weight: 600; }
+/* No hover, um traço roxo embaixo do link. */
+.ld-nav a::after {
+  content: ''; position: absolute; left: 14px; right: 14px; bottom: 3px; height: 2px; border-radius: 2px;
+  background: var(--ld-purple); transform: scaleX(0); transition: transform var(--motion-base) var(--ease-enter);
+}
+.ld-nav a:hover::after { transform: scaleX(1); }
 .ld-login {
   display: inline-flex; align-items: center; height: 40px; padding: 0 20px; border-radius: 999px;
   background: var(--ld-purple); color: #fff !important; font-size: 14.5px; font-weight: 700;
@@ -67,7 +73,7 @@
   margin: 0; color: #fff; font-family: var(--ld-display); font-size: clamp(34px, 4.3vw, 58px); font-weight: 800; line-height: 1.04;
   letter-spacing: -.02em; text-transform: uppercase;
 }
-.ld-hero h1 .ld-keep { display: block; color: color-mix(in srgb, var(--ld-purple) 70%, #fff); }
+.ld-hero h1 .ld-keep { display: block; color: var(--ld-accent); }
 .ld-lead { margin: 22px 0 0; max-width: 520px; color: #fff; font-size: 19px; line-height: 1.6; opacity: .9; text-wrap: pretty; }
 .ld-cta { display: flex; flex-wrap: wrap; gap: 14px; margin-top: 34px; }
 
@@ -178,6 +184,9 @@
 .ld-row.in-view, .ld-final.in-view { opacity: 1; transform: none; }
 .ld-row.reverse .ld-art { order: 2; }
 .ld-copy h2 { margin: 0; color: #fff; font-family: var(--ld-display); font-size: clamp(26px, 2.9vw, 38px); font-weight: 700; line-height: 1.12; letter-spacing: -.025em; text-wrap: balance; }
+/* Etiqueta roxa acima do título e o trecho roxo dentro dele, como o "tá na call" do topo. */
+.ld-eyebrow { display: block; margin: 0 0 12px; color: var(--ld-accent); font-size: 13px; font-weight: 800; letter-spacing: .12em; text-transform: uppercase; }
+.ld-hl { color: var(--ld-accent); }
 .ld-copy p { margin: 18px 0 0; max-width: 500px; color: var(--ld-muted); font-size: 18px; line-height: 1.65; text-wrap: pretty; }
 
 .ld-art {
@@ -284,6 +293,7 @@
 .ld-final h2 { margin: 0; color: #fff; font-family: var(--ld-display); font-size: clamp(28px, 4.2vw, 52px); font-weight: 800; line-height: 1.05; letter-spacing: -.02em; text-transform: uppercase; }
 .ld-final p { margin: 18px 0 0; max-width: 520px; color: #fff; font-size: 18px; line-height: 1.6; opacity: .9; }
 .ld-final .ld-cta { justify-content: center; }
+.ld-final .ld-btn-light { color: var(--ld-purple) !important; }
 
 .ld-footer {
   display: flex; align-items: center; justify-content: space-between; gap: 16px; max-width: 1200px; margin: 0 auto; padding: 28px 32px 40px;
