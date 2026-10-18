@@ -1,6 +1,6 @@
 /* Página inicial (primeira visita). Roxo como cor da marca, sempre em cores chapadas: nada de degradê, brilho ou vidro.
-   O topo e o fecho são faixas num roxo suave (o roxo do logo fica na faixa fina do topo e nos detalhes);
-   o resto é um carvão com um toque de roxo, um pouco mais claro que o do app.
+   Fundo no carvão do app e da tela de entrar; o roxo do logo vai nas coisas: faixa fina do topo, Entrar, botão principal,
+   "tá na call", painéis com um toque de roxo e o bloco do fecho.
    O que chama atenção é o próprio app: o chat da prévia anda sozinho e o soundboard toca de verdade.
    Os títulos usam a Archivo larga (Expanded) e pesada; o texto corrido continua na Figtree do app. */
 
@@ -13,10 +13,9 @@
   --ld-display: "Archivo", var(--font);
   --ld-purple: #8e2fd8;
   --ld-purple-press: #7a24bd;
-  --ld-band: #663399;
-  --ld-panel: #26222d;
-  --ld-ink: #1b1920;
-  --ld-ink-raised: #26222d;
+  --ld-panel: #211a2c;
+  --ld-ink: #141417;
+  --ld-ink-raised: #1e1b23;
   --ld-muted: #aeacb6;
   --ld-line: rgba(255, 255, 255, .08);
   --brand: var(--ld-purple);
@@ -39,7 +38,6 @@
 /* ---------- Topo ---------- */
 /* A faixa roxa no topo, como na tela de entrar. */
 #landing::before { content: ''; position: fixed; inset: 0 0 auto; z-index: 5; height: 6px; pointer-events: none; background: var(--ld-purple); }
-.ld-top, .ld-hero { background: var(--ld-band); box-shadow: 0 0 0 100vmax var(--ld-band); clip-path: inset(0 -100vmax); }
 .ld-top {
   position: relative; z-index: 3; display: flex; align-items: center; gap: 24px;
   max-width: 1200px; margin: 0 auto; padding: 20px 32px;
@@ -51,10 +49,10 @@
 .ld-nav a:hover { background: rgba(255, 255, 255, .12); }
 .ld-login {
   display: inline-flex; align-items: center; height: 40px; padding: 0 20px; border-radius: 999px;
-  background: #fff; color: #1e1f22 !important; font-size: 14.5px; font-weight: 700;
-  transition: color .15s, box-shadow .2s, transform .15s;
+  background: var(--ld-purple); color: #fff !important; font-size: 14.5px; font-weight: 700;
+  transition: background .15s, box-shadow .2s, transform .15s;
 }
-.ld-login:hover { color: var(--ld-purple) !important; box-shadow: 0 8px 20px rgba(10, 10, 12, .35); transform: translateY(-1px); }
+.ld-login:hover { background: var(--ld-purple-press); box-shadow: 0 8px 20px rgba(10, 10, 12, .35); transform: translateY(-1px); }
 
 /* ---------- Destaque ---------- */
 .ld-hero {
@@ -69,7 +67,7 @@
   margin: 0; color: #fff; font-family: var(--ld-display); font-size: clamp(34px, 4.3vw, 58px); font-weight: 800; line-height: 1.04;
   letter-spacing: -.02em; text-transform: uppercase;
 }
-.ld-hero h1 .ld-keep { display: block; }
+.ld-hero h1 .ld-keep { display: block; color: color-mix(in srgb, var(--ld-purple) 70%, #fff); }
 .ld-lead { margin: 22px 0 0; max-width: 520px; color: #fff; font-size: 19px; line-height: 1.6; opacity: .9; text-wrap: pretty; }
 .ld-cta { display: flex; flex-wrap: wrap; gap: 14px; margin-top: 34px; }
 
@@ -83,6 +81,11 @@
 .ld-btn-light:hover .ico { animation: ld-nudge .7s ease-in-out infinite; }
 .ld-btn-dark { background: var(--ld-ink); color: #fff !important; }
 .ld-btn-dark:hover { background: var(--ld-ink-raised); box-shadow: 0 10px 28px rgba(10, 10, 12, .4); transform: translateY(-2px); }
+/* No topo escuro, o botão principal fica no roxo do logo e o outro em carvão com contorno (no fecho roxo continuam branco e preto). */
+.ld-hero .ld-btn-light { background: var(--ld-purple); color: #fff !important; }
+.ld-hero .ld-btn-light:hover { background: var(--ld-purple-press); color: #fff !important; }
+.ld-hero .ld-btn-dark { background: var(--ld-ink-raised); box-shadow: inset 0 0 0 1px var(--ld-line); }
+.ld-hero .ld-btn-dark:hover { background: #28252e; box-shadow: inset 0 0 0 1px var(--ld-line), 0 10px 28px rgba(10, 10, 12, .4); }
 @keyframes ld-nudge { 50% { transform: translateY(2px); } }
 
 /* ---------- Prévia do app ---------- */
@@ -273,7 +276,7 @@
 /* ---------- Fecho ---------- */
 .ld-final {
   position: relative; display: grid; justify-items: center; max-width: 1136px; margin: 32px auto 72px; padding: 72px 32px; overflow: hidden; border-radius: 32px; text-align: center;
-  background: var(--ld-band);
+  background: var(--ld-purple);
   opacity: 0; transform: translateY(28px); transition: opacity .7s ease, transform .7s var(--ease-enter);
 }
 .ld-final h2 { margin: 0; color: #fff; font-family: var(--ld-display); font-size: clamp(28px, 4.2vw, 52px); font-weight: 800; line-height: 1.05; letter-spacing: -.02em; text-transform: uppercase; }
