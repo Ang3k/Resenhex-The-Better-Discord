@@ -89,7 +89,9 @@
 @keyframes ld-nudge { 50% { transform: translateY(2px); } }
 
 /* ---------- Prévia do app ---------- */
-.ld-preview { position: relative; animation: ld-rise .8s var(--ease-enter) .1s both; }
+.ld-preview { position: relative; isolation: isolate; animation: ld-rise .8s var(--ease-enter) .1s both; }
+/* Placa roxa atrás da prévia, um pouco deslocada: o ponto de cor do topo escuro. */
+.ld-preview::before { content: ''; position: absolute; inset: 16px -16px -16px 16px; z-index: -1; border-radius: 16px; background: var(--ld-purple); }
 @keyframes ld-rise { from { opacity: 0; transform: translateY(28px) scale(.98); } }
 .ld-window {
   display: grid; grid-template-columns: 58px 176px minmax(0, 1fr); height: 390px; overflow: hidden;
@@ -348,6 +350,7 @@
   .ld-w-side { display: none; }
   .ld-float-call { left: 8px; bottom: -22px; }
   .ld-float-invite { right: 8px; top: -30px; }
+  .ld-preview::before { inset: 10px -10px -10px 10px; }
   .ld-art { min-height: 300px; padding: 28px 16px; border-radius: 22px; }
   .ld-invite { transform: rotate(-2deg) translate(0, 8px); }
   .ld-channels { transform: rotate(2deg) translate(24px, -4px); }
