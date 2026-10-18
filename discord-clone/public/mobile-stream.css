@@ -45,6 +45,12 @@ body.stream-immersive { overflow: hidden; }
 @media (hover: none) {
   .tile-controls { opacity: 1; }
   .tc-btn { width: 40px; height: 40px; }
-  .tc-slider { width: 72px; opacity: 1; margin-right: 10px; }
+  /* O volume da transmissão fica sempre aberto, dentro da pílula do botão. Abrir ao lado ao passar o mouse
+     (style.css) não existe no toque, e sem ele só restava o volume do celular, que abaixa as vozes junto. */
+  .tc-volume .tc-slider {
+    position: static; width: 72px; height: 20px; margin: 0 10px 0 0; padding: 0; border-radius: 0; background: transparent;
+    opacity: 1; transform: none; pointer-events: auto; transition: none;
+  }
+  .tc-volume:is(:hover, :focus-within) { border-radius: 8px; }
   .tile.screen video { cursor: default; }
 }
