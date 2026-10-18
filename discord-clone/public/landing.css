@@ -1,5 +1,5 @@
 /* Página inicial (primeira visita). Roxo como cor da marca, sempre em cores chapadas: nada de degradê, brilho ou vidro.
-   O topo e o fecho são faixas num roxo escuro e calmo (o roxo do logo fica na faixa fina do topo e nos detalhes);
+   O topo e o fecho são faixas num roxo suave (o roxo do logo fica na faixa fina do topo e nos detalhes);
    o resto é um carvão com um toque de roxo, um pouco mais claro que o do app.
    O que chama atenção é o próprio app: o chat da prévia anda sozinho e o soundboard toca de verdade.
    Os títulos usam a Archivo larga (Expanded) e pesada; o texto corrido continua na Figtree do app. */
@@ -13,7 +13,7 @@
   --ld-display: "Archivo", var(--font);
   --ld-purple: #8e2fd8;
   --ld-purple-press: #7a24bd;
-  --ld-band: #4f2680;
+  --ld-band: #663399;
   --ld-panel: #26222d;
   --ld-ink: #1b1920;
   --ld-ink-raised: #26222d;
