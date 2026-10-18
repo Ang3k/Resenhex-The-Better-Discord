@@ -4,6 +4,19 @@
 // O título deve destacar as principais funcionalidades ou correções, com termos objetivos.
 window.CHANGELOG = [
   {
+    version: '1.8.2', date: '2026-10-18', name: 'Sair dos clipes pelo Clipar',
+    summary: 'A opção de sair dos clipes agora fica dentro do Clipar.',
+    sections: [
+      { kind: 'new', items: [
+        'Pode clipar meu áudio também na janela Clipar, nas duas abas. Muda a mesma opção de Voz e vídeo.',
+      ] },
+      { kind: 'fixed', items: [
+        'A animação da claquete não fica mais cortada em cima.',
+        'A claquete não mostra mais o número roxo de clipes.',
+      ] },
+    ],
+  },
+  {
     version: '1.8.1', date: '2026-10-18', name: 'Clipes dentro do Clipar',
     summary: 'Os clipes da chamada foram para dentro do Clipar, e a janela ganhou visual novo.',
     sections: [

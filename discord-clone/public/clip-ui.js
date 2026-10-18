@@ -1,6 +1,6 @@
 // CLIPAR: janela com duas abas, "Novo clipe" (prévia, onda e duas alças) e "Clipes da chamada", e o aviso de clipe novo.
 // Quem entra no vídeo é decidido de novo na hora de soltar: quem desligou "Pode clipar meu áudio" durante o corte fica fora.
-window.ClipUI = ({ el, Icon, toast, call, token, buffer, model, render, getContext, nameOf, loadImage, audioCtx, fetch: send = (...args) => fetch(...args) }) => {
+window.ClipUI = ({ el, Icon, toast, call, token, buffer, model, render, getContext, setAllowClips, nameOf, loadImage, audioCtx, fetch: send = (...args) => fetch(...args) }) => {
   const W = 1280, H = 720, FPS = 30, BARS = 120;
   const NOTICE_MS = 10_000;
   const SUB = { new: 'Escolha o trecho. Só quem está na chamada recebe.', list: 'Ficam aqui por 24 horas, só para quem estava na chamada.' };
@@ -77,6 +77,16 @@ window.ClipUI = ({ el, Icon, toast, call, token, buffer, model, render, getConte
       Icon('layers', 15), el('span', {}, 'Clipes', el('span', { class: 'clip-tab-extra', textContent: ' da chamada' })), count);
     if (!cutter) { tabNew.disabled = true; tabNew.title = reason; }
     const library = el('div', { class: 'clip-panel clip-library', id: 'clip-panel-list', role: 'tabpanel' });
+    // A mesma opção de Voz e vídeo: desligada, eu saio dos clipes dos outros e do que estou cortando agora.
+    const allow = el('input', { type: 'checkbox', class: 'ds-switch', checked: getContext().selfAllow !== false,
+      onchange: () => { setAllowClips?.(allow.checked); cutter?.refresh(); } });
+    const privacy = el('label', { class: 'clip-privacy' },
+      el('span', { class: 'clip-privacy-icon', ariaHidden: 'true' }, Icon(allow.checked ? 'mic' : 'micOff', 16)),
+      el('span', { class: 'clip-privacy-text' },
+        el('strong', { textContent: 'Pode clipar meu áudio' }),
+        el('small', { textContent: 'Desligado, você some dos clipes que os outros fizerem.' })),
+      allow);
+    allow.addEventListener('change', () => privacy.firstChild.replaceChildren(Icon(allow.checked ? 'mic' : 'micOff', 16)));
 
     const card = el('div', { class: 'confirm-card clip-card', role: 'dialog', ariaModal: 'true', ariaLabelledby: 'clip-title' },
       el('div', { class: 'clip-head' },
@@ -84,7 +94,7 @@ window.ClipUI = ({ el, Icon, toast, call, token, buffer, model, render, getConte
         el('div', { class: 'clip-head-text' }, el('h2', { id: 'clip-title', textContent: 'Clipar' }), sub),
         el('button', { type: 'button', class: 'clip-close', ariaLabel: 'Fechar', onclick: () => !cutter?.busy() && close() }, Icon('x', 18))),
       el('div', { class: 'clip-tabs', role: 'tablist', ariaLabel: 'Clipar' }, tabNew, tabList),
-      cutter?.panel, library, cutter?.footer);
+      cutter?.panel, library, privacy, cutter?.footer);
     const overlay = el('div', { class: 'confirm-overlay clip-overlay', onmousedown: (e) => e.target === overlay && !cutter?.busy() && close() }, card);
     overlay.addEventListener('keydown', onKey);
     overlay.addEventListener('clip-discard', () => close());
@@ -358,7 +368,7 @@ window.ClipUI = ({ el, Icon, toast, call, token, buffer, model, render, getConte
       }, () => {});
     }
     update();
-    return { panel, footer, onKey, stop, busy: () => busy, focus: () => endHandle.focus() };
+    return { panel, footer, onKey, stop, refresh: () => { stop(); update(); }, busy: () => busy, focus: () => endHandle.focus() };
   }
 
   // ---------- Aviso de clipe novo ----------
@@ -390,14 +400,9 @@ window.ClipUI = ({ el, Icon, toast, call, token, buffer, model, render, getConte
   }
 
   // ---------- Lista da chamada ----------
-  // O número de clipes aparece na claquete; a lista em si mora na aba "Clipes da chamada".
+  // A lista mora na aba "Clipes da chamada".
   function setList(next) {
     clips = [...next].sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
-    const button = document.getElementById('sc-clip');
-    if (button) {
-      if (clips.length) button.dataset.count = clips.length > 99 ? '99+' : String(clips.length);
-      else delete button.dataset.count;
-    }
     if (!modal) return;
     if (!clips.length && !modal.cutter) modal.close();
     else modal.refresh();

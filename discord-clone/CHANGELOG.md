@@ -3,6 +3,21 @@
 Histórico de versões. A mesma lista aparece dentro do app em **Novidades** (menu do servidor ou rodapé das Configurações).
 O Resenhex chegou à versão 1.0 em 4 de outubro de 2026.
 
+## v1.8.2 — Sair dos clipes pelo Clipar
+
+18 de outubro de 2026.
+
+A opção de sair dos clipes agora fica dentro do Clipar.
+
+### Novidades
+
+- Pode clipar meu áudio também na janela Clipar, nas duas abas. Muda a mesma opção de Voz e vídeo.
+
+### Correções
+
+- A animação da claquete não fica mais cortada em cima.
+- A claquete não mostra mais o número roxo de clipes.
+
 ## v1.8.1 — Clipes dentro do Clipar
 
 18 de outubro de 2026.

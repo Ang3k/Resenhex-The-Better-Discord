@@ -43,7 +43,7 @@ function harness({ recorded = 10, supported = true, context = {}, post } = {}) {
   };
   const toasts = [], calls = [], renders = [], posts = [], mixes = [];
   const ctx = { selfId: 'a', selfAllow: true, localMuted: new Set(), allowNow: () => true, silencedNow: () => false, channelName: 'Sala 1', channelId: 'room-1', deafened: false, ...context };
-  const ui = w.ClipUI({
+  const deps = {
     el, Icon: () => w.document.createElement('span'),
     toast: (text, kind) => toasts.push({ text, kind }),
     call: async (event, payload) => { calls.push({ event, payload }); return event === 'clip:link' ? { url: '/clips/' + payload.id + '?t=abc' } : null; },
@@ -60,10 +60,11 @@ function harness({ recorded = 10, supported = true, context = {}, post } = {}) {
     nameOf: (id) => ({ a: 'Ana', b: 'Bia' })[id] || 'Alguém',
     loadImage: async () => null,
     fetch: async (url, init) => { posts.push({ url, init }); return post ? post() : { ok: true, json: async () => ({ id: 'x' }) }; },
-  });
+  };
+  const ui = w.ClipUI(deps);
   const d = w.document;
   const button = (text) => [...d.querySelectorAll('button')].find((b) => b.textContent.trim() === text);
-  return { w, d, ui, ctx, toasts, calls, renders, posts, mixes, button };
+  return { w, d, ui, deps, ctx, toasts, calls, renders, posts, mixes, button };
 }
 
 test('o atalho Clipar existe, é global e usa Alt+C', () => {
@@ -214,15 +215,23 @@ const twoClips = () => [
 ];
 const tab = (h, text) => [...h.d.querySelectorAll('.clip-tab')].find((b) => b.textContent.includes(text));
 
-test('a claquete mostra quantos clipes a chamada tem', () => {
+test('"Pode clipar meu áudio" dentro do Clipar muda a opção e quem entra no corte', async () => {
   const h = harness();
-  const btn = h.d.querySelector('#sc-clip');
-  h.ui.setList([]);
-  assert.equal(btn.dataset.count, undefined);
-  h.ui.setList(twoClips());
-  assert.equal(btn.dataset.count, '2');
-  h.ui.setList([]);
-  assert.equal(btn.dataset.count, undefined);
+  const changes = [];
+  h.ui.open(snapshotOf(['a', 'b'])); await settle();
+  // O harness não passa setAllowClips: liga um que imita o app.
+  h.d.querySelector('.clip-overlay').remove();
+  const ui = h.w.ClipUI({ ...h.deps, setAllowClips: (on) => { changes.push(on); h.ctx.selfAllow = on; } });
+  ui.open(snapshotOf(['a', 'b'])); await settle();
+  const toggle = h.d.querySelector('.clip-privacy input');
+  assert.equal(toggle.checked, true);
+  assert.equal(h.d.querySelector('.clip-who').textContent, 'No clipe: A, B');
+  toggle.checked = false; toggle.dispatchEvent(new h.w.Event('change'));
+  assert.deepEqual(changes, [false]);
+  assert.equal(h.d.querySelector('.clip-who').textContent, 'No clipe: B', 'eu saio do corte na hora');
+  // Também aparece na aba de clipes.
+  tab(h, 'Clipes da chamada').click();
+  assert.equal(h.d.querySelector('.clip-privacy').hidden, false);
 });
 
 test('os clipes da chamada ficam numa aba do Clipar e baixam cada um', async () => {

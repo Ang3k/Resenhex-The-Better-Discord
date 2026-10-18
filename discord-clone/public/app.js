@@ -4755,6 +4755,14 @@
     el, Icon, toast, call, token: () => localStorage.getItem('token') || '', buffer: clipBuffer, model: window.ClipModel, render: window.ClipRender,
     audioCtx: getAudioCtx,
     nameOf: (id) => (id === state.me?.accountId ? 'Você' : clipProfile(id).name),
+    // "Pode clipar meu áudio" mudado pela janela do Clipar: igual a mudar em Voz e vídeo.
+    setAllowClips: (on) => {
+      state.allowClips = !!on;
+      localStorage.setItem('allowClips', state.allowClips ? '1' : '0');
+      const box = $('#allow-clips');
+      if (box) box.checked = state.allowClips;
+      if (state.voiceChannel) { sendVoiceState(); clipSync(); }
+    },
     loadImage: (url) => new Promise((resolve, reject) => { const img = new Image(); img.onload = () => resolve(img); img.onerror = reject; img.src = url; }),
     getContext: () => {
       const byAccount = new Map(callVoices().map((v) => [v.accountId, v]));

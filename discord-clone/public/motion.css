@@ -7,6 +7,7 @@
 .ico-headphones, .ico-headphonesOff { transform-origin: 50% 70%; }
 
 /* Claquete: a haste abre, bate fechando e abre de novo, como no set de filmagem. Gira na dobradiça da esquerda. */
+.ico-clapperboard { overflow: visible; } /* a haste aberta passa do topo do desenho */
 .ico-clapperboard .clap { transform-box: view-box; transform-origin: 3px 11px; }
 :is(.icon-btn, .sc-btn):hover:not(:disabled) .ico-clapperboard .clap { animation: clap .7s ease-in-out; }
 @keyframes clap {
