@@ -4,6 +4,16 @@
 // O título deve destacar as principais funcionalidades ou correções, com termos objetivos.
 window.CHANGELOG = [
   {
+    version: '1.8.7', date: '2026-10-18', name: 'Volume no celular e qualidade em tela cheia',
+    summary: 'O volume de cada transmissão volta a aparecer no celular, e o menu de qualidade abre também na tela cheia.',
+    sections: [
+      { kind: 'fixed', items: [
+        'Celular: o volume de cada transmissão voltou a ficar sempre à mostra ao lado do botão de som. Na 1.8.6 ele tinha sumido, e só dava para baixar uma transmissão pelo volume do aparelho, que abaixa as vozes junto.',
+        'Tela cheia: o menu "Qualidade para assistir", os outros menus e as dicas dos botões agora aparecem por cima da transmissão. Antes eles abriam escondidos atrás dela.',
+      ] },
+    ],
+  },
+  {
     version: '1.8.6', date: '2026-10-18', name: 'Animações mais suaves',
     summary: 'Menus, janelas, folhas e telas entram e saem com o mesmo movimento suave, no computador e no celular.',
     sections: [

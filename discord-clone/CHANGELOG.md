@@ -3,6 +3,17 @@
 Histórico de versões. A mesma lista aparece dentro do app em **Novidades** (menu do servidor ou rodapé das Configurações).
 O Resenhex chegou à versão 1.0 em 4 de outubro de 2026.
 
+## v1.8.7 — Volume no celular e qualidade em tela cheia
+
+18 de outubro de 2026.
+
+O volume de cada transmissão volta a aparecer no celular, e o menu de qualidade abre também na tela cheia.
+
+### Correções
+
+- Celular: o volume de cada transmissão voltou a ficar sempre à mostra ao lado do botão de som. Na 1.8.6 ele tinha sumido, e só dava para baixar uma transmissão pelo volume do aparelho, que abaixa as vozes junto.
+- Tela cheia: o menu "Qualidade para assistir", os outros menus e as dicas dos botões agora aparecem por cima da transmissão. Antes eles abriam escondidos atrás dela.
+
 ## v1.8.6 — Animações mais suaves
 
 18 de outubro de 2026.
