@@ -342,31 +342,61 @@ window.Sounds = (() => {
     source.start(); return true;
   }
 
-  // Decode any format supported by this browser, then send a bounded, normalized WAV.
-  async function prepareFile(file) {
-    if (!file || file.size > 5 * 1024 * 1024) throw new Error('Escolha um áudio de até 5 MB e 8 segundos.');
-    const url = URL.createObjectURL(file), audio = document.createElement('audio');
-    try {
-      await new Promise((resolve, reject) => {
-        const timer = setTimeout(() => reject(new Error('Não foi possível ler esse áudio.')), 10000);
-        audio.onloadedmetadata = () => { clearTimeout(timer); Number.isFinite(audio.duration) && audio.duration > 0 && audio.duration <= 8 ? resolve() : reject(new Error('O efeito deve ter até 8 segundos.')); };
-        audio.onerror = () => { clearTimeout(timer); reject(new Error('Formato não suportado. Tente MP3, WAV ou OGG.')); };
-        audio.preload = 'metadata'; audio.src = url;
-      });
-    } finally { audio.removeAttribute('src'); audio.load(); URL.revokeObjectURL(url); }
+  // Efeito sonoro em duas etapas: decodeFile lê o arquivo inteiro (áudio ou vídeo) e encodeClip
+  // gera o WAV só do trecho escolhido na janela de recorte.
+  const MAX_SOURCE_MB = 50, MAX_SOURCE_SECONDS = 5 * 60;
+
+  // A duração vem dos metadados antes de decodificar: um vídeo longo ocuparia muita memória.
+  // NaN quando o navegador não lê os metadados; aí quem decide é a decodificação.
+  function mediaDuration(file) {
+    const url = URL.createObjectURL(file), media = document.createElement('audio');
+    return new Promise((resolve) => {
+      const done = (value) => { clearTimeout(timer); media.removeAttribute('src'); media.load(); URL.revokeObjectURL(url); resolve(value); };
+      const timer = setTimeout(() => done(NaN), 10000);
+      media.onloadedmetadata = () => done(media.duration);
+      media.onerror = () => done(NaN);
+      media.preload = 'metadata'; media.src = url;
+    });
+  }
+
+  // Qualquer áudio ou vídeo que o navegador decodifique (MP3, WAV, OGG, M4A, MP4, WEBM…) vira o som em mono.
+  async function decodeFile(file) {
+    if (!file) throw new Error('Escolha um áudio ou vídeo.');
+    if (file.size > MAX_SOURCE_MB * 1024 * 1024) throw new Error(`Escolha um arquivo de até ${MAX_SOURCE_MB} MB.`);
+    const seconds = await mediaDuration(file);
+    if (seconds > MAX_SOURCE_SECONDS) throw new Error('Escolha um arquivo de até 5 minutos.');
     ctx ||= new AudioContext();
-    const decoded = await ctx.decodeAudioData(await file.arrayBuffer());
-    if (decoded.duration > 8 || !decoded.length || decoded.numberOfChannels > 8) throw new Error('O efeito deve ter até 8 segundos.');
-    const rate = 48000, length = Math.floor(decoded.duration * rate), samples = new Float32Array(length);
+    let decoded;
+    try { decoded = await ctx.decodeAudioData(await file.arrayBuffer()); }
+    catch {
+      throw new Error(/^video\//.test(file.type) || /\.(mp4|webm|mov|mkv)$/i.test(file.name || '')
+        ? 'Não deu para tirar o som desse vídeo. Ele pode estar sem áudio ou num formato que o navegador não lê.'
+        : 'Formato não suportado. Tente MP3, WAV, OGG, M4A ou MP4.');
+    }
+    if (!decoded.length || decoded.numberOfChannels > 8) throw new Error('Não foi possível ler esse arquivo.');
+    if (decoded.duration > MAX_SOURCE_SECONDS + 1) throw new Error('Escolha um arquivo de até 5 minutos.');
     const channels = Array.from({ length: decoded.numberOfChannels }, (_, i) => decoded.getChannelData(i));
+    const pcm = new Float32Array(decoded.length);
+    let peak = 0;
+    for (let i = 0; i < pcm.length; i++) {
+      let sample = 0;
+      for (const data of channels) sample += data[i];
+      pcm[i] = sample / channels.length; peak = Math.max(peak, Math.abs(pcm[i]));
+    }
+    if (peak < .0001) throw new Error('Esse arquivo está sem som. Escolha outro.');
+    return { pcm, peak, sampleRate: decoded.sampleRate, duration: decoded.duration };
+  }
+
+  // Corta o trecho [start, end] em segundos e manda um WAV mono de 48 kHz (até 8 s), com o volume normalizado.
+  function encodeClip({ pcm, sampleRate }, start, end) {
+    const rate = 48000, length = Math.max(1, Math.min(8 * rate, Math.floor((end - start) * rate))), samples = new Float32Array(length);
     let peak = 0;
     for (let i = 0; i < length; i++) {
-      const position = i * decoded.sampleRate / rate, index = Math.floor(position), fraction = position - index;
-      let sample = 0;
-      for (const data of channels) sample += (data[index] || 0) * (1 - fraction) + (data[Math.min(index + 1, data.length - 1)] || 0) * fraction;
-      samples[i] = sample / channels.length; peak = Math.max(peak, Math.abs(samples[i]));
+      const position = start * sampleRate + i * sampleRate / rate, index = Math.floor(position), fraction = position - index;
+      samples[i] = (pcm[index] || 0) * (1 - fraction) + (pcm[Math.min(index + 1, pcm.length - 1)] || 0) * fraction;
+      peak = Math.max(peak, Math.abs(samples[i]));
     }
-    if (peak < .0001) throw new Error('Esse áudio está sem som. Escolha outro arquivo.');
+    if (peak < .0001) throw new Error('Esse trecho está sem som. Escolha outra parte.');
     const bytes = new ArrayBuffer(44 + length * 2), view = new DataView(bytes);
     const text = (at, value) => { for (let i = 0; i < value.length; i++) view.setUint8(at + i, value.charCodeAt(i)); };
     text(0, 'RIFF'); view.setUint32(4, bytes.byteLength - 8, true); text(8, 'WAVE'); text(12, 'fmt ');
@@ -394,7 +424,7 @@ window.Sounds = (() => {
     preloadBoard,
     board: BOARD,
     playBoard,
-    playCustom, prepareFile, stopBoard,
+    playCustom, decodeFile, encodeClip, stopBoard,
     get enabled() { return enabled; },
     set enabled(v) {
       enabled = !!v;

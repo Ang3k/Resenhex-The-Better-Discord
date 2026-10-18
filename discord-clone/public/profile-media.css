@@ -56,8 +56,64 @@
 .sound-dialog-card .confirm-actions { justify-content: flex-end; gap: 10px; margin: 0; }
 .sound-preview { padding: 14px; display: grid; gap: 10px; background: var(--bg-panel); border-radius: 12px; }
 .sound-preview-title { display: flex; gap: 8px; align-items: center; color: var(--interactive); font-size: 13px; }
-.sound-audio-preview { width: 100%; height: 40px; }
-@media(max-width: 600px) { .sound-dialog-card { padding: 20px; gap: 16px; } .sound-dialog-head h2 { font-size: 21px; } .sound-dialog-card .confirm-actions { flex-wrap: wrap; } }
+/* Recorte do efeito (sound-trimmer.js): play com a duração embaixo, a onda com as duas bordas e,
+   em arquivo longo, a faixa com o arquivo inteiro. */
+.sound-trim { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 8px 12px; align-items: center; }
+.sound-trim-side { grid-row: 1; display: grid; justify-items: center; gap: 6px; width: 52px; }
+.sound-trim-play { display: grid; place-items: center; width: 44px; height: 44px; border: 0; border-radius: 50%; background: var(--brand); color: #fff; box-shadow: 0 4px 14px color-mix(in srgb, var(--brand) 40%, transparent); transition: transform .12s, background .15s; }
+.sound-trim-play:hover { background: var(--brand-hover, var(--brand)); transform: scale(1.05); }
+.sound-trim-play:active { transform: scale(.96); }
+.sound-trim-play .ico-play { margin-left: 2px; fill: currentColor; }
+.sound-trim-play .ico-stop { fill: currentColor; }
+.sound-trim-length { color: color-mix(in srgb, var(--brand) 60%, white); font-size: 13px; font-weight: 700; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.sound-trim-wave, .sound-trim-overview { grid-column: 2; position: relative; padding: 0 12px; border-radius: 10px; background: var(--bg-floating); border: 1px solid var(--divider); touch-action: none; user-select: none; -webkit-user-select: none; }
+.sound-trim-wave { height: 80px; }
+.sound-trim-track { position: relative; height: 100%; }
+.sound-trim-bars { position: absolute; inset: 10px 0; width: 100%; height: calc(100% - 20px); pointer-events: none; }
+.sound-trim-shade { position: absolute; top: 0; bottom: 0; background: rgba(0, 0, 0, .45); pointer-events: none; }
+.sound-trim-shade.left { left: 0; }
+.sound-trim-shade.right { right: 0; }
+.sound-trim-window {
+  position: absolute; top: 0; bottom: 0; border-block: 2px solid var(--brand); pointer-events: none;
+  background: color-mix(in srgb, var(--brand) 10%, transparent); box-shadow: 0 0 18px color-mix(in srgb, var(--brand) 30%, transparent); transition: box-shadow .15s;
+}
+.sound-trim-wave.dragging .sound-trim-window { box-shadow: 0 0 24px color-mix(in srgb, var(--brand) 50%, transparent); }
+/* As bordas ficam por fora do trecho, como colchetes; quem recebe o arraste é a onda inteira. */
+.sound-trim-handle {
+  position: absolute; top: -2px; bottom: -2px; width: 12px; pointer-events: none;
+  background: linear-gradient(#fff, #fff) center / 2px 20px no-repeat, var(--brand); box-shadow: 0 0 0 1px rgba(0, 0, 0, .3);
+}
+.sound-trim-handle.start { right: 100%; border-radius: 8px 0 0 8px; }
+.sound-trim-handle.end { left: 100%; border-radius: 0 8px 8px 0; }
+.sound-trim-handle:focus { outline: none; }
+.sound-trim-handle:focus-visible { box-shadow: 0 0 0 2px #fff, 0 0 0 5px color-mix(in srgb, var(--brand) 45%, transparent); }
+.sound-trim-playhead { position: absolute; top: 4px; bottom: 4px; width: 2px; margin-left: -1px; border-radius: 1px; background: #fff; pointer-events: none; box-shadow: 0 0 6px rgba(255, 255, 255, .6); }
+.sound-trim-playhead.hidden { display: none; }
+.sound-trim-overview { height: 30px; padding-block: 3px; cursor: pointer; }
+.sound-trim-overview .sound-trim-bars { inset: 2px 0; height: calc(100% - 4px); }
+.sound-trim-lens { position: absolute; top: -1px; bottom: -1px; min-width: 6px; border: 1.5px solid color-mix(in srgb, var(--text-muted) 80%, transparent); border-radius: 6px; background: rgba(255, 255, 255, .06); cursor: grab; }
+.sound-trim-overview.dragging .sound-trim-lens { cursor: grabbing; border-color: var(--text-strong); }
+.sound-trim-lens:focus { outline: none; }
+.sound-trim-lens:focus-visible { box-shadow: 0 0 0 2px var(--brand); }
+.sound-trim-caption { grid-column: 2; display: flex; flex-wrap: wrap; justify-content: space-between; gap: 2px 12px; margin: 0; font-size: 12px; color: var(--text-muted); }
+.sound-trim-times { color: var(--text); font-weight: 600; font-variant-numeric: tabular-nums; }
+.sound-file-field { display: grid; gap: 10px; }
+.sound-field-label { color: var(--interactive); font-size: 12px; font-weight: 700; letter-spacing: .04em; }
+.sound-file-row { display: flex; align-items: center; gap: 10px; min-width: 0; padding: 6px 6px 6px 12px; border: 1px solid var(--divider); border-radius: 8px; background: var(--bg-input); color: var(--interactive); }
+.sound-file-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text-strong); font-size: 14px; }
+.sound-file-row small { flex-shrink: 0; color: var(--text-muted); font-size: 12px; font-variant-numeric: tabular-nums; }
+.sound-file-change { flex-shrink: 0; min-height: 34px; padding: 0 14px; border: 0; border-radius: 8px; background: var(--hover-strong); color: var(--text-strong); box-shadow: inset 0 0 0 1px var(--divider); font-size: 13px; font-weight: 600; transition: background .15s, transform .12s; }
+.sound-file-change:hover:not(:disabled) { background: color-mix(in srgb, var(--text) 14%, transparent); }
+.sound-file-change:active:not(:disabled) { transform: scale(.97); }
+.sound-file-change:disabled { opacity: .45; }
+html.touch .sound-trim-wave { height: 88px; }
+@media(max-width: 600px) {
+  .sound-dialog-card { padding: 20px; gap: 16px; } .sound-dialog-head h2 { font-size: 21px; }
+  .sound-dialog-card .confirm-actions { flex-direction: column-reverse; align-items: stretch; gap: 6px; padding: 14px 16px; }
+  .sound-preview { padding: 12px; }
+  .sound-trim { column-gap: 10px; }
+  .sound-trim-side { width: 44px; }
+}
 .sound-upload { display: grid; gap: 16px; padding: 20px; border-radius: 14px; border: 1px solid var(--divider); background: var(--bg-panel); }
 .sound-upload label { display: grid; gap: 8px; color: var(--text); font-size: 14px; }
 .sound-upload .btn-primary { justify-self: start; }

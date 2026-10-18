@@ -5438,66 +5438,85 @@
     const serverId = state.server.serverId, focus = document.activeElement;
     const roots = [$('#app'), $('#settings'), $('#server-settings')].map((element) => [element, element.inert]);
     roots.forEach(([element]) => { element.inert = true; });
-    let prepared = null, previewUrl = null, epoch = 0, busy = false, closed = false;
+    // Qualquer áudio ou vídeo: o arquivo inteiro é lido uma vez e o recorte escolhe até 8 s dele.
+    let source = null, trimmer = null, autoName = '', epoch = 0, busy = false, closed = false;
     const status = el('p', { class: 'sound-status', role: 'status', ariaLive: 'polite' });
     const name = el('input', { id: 'sound-upload-name', type: 'text', maxLength: 32, required: true, placeholder: 'Ex.: risada da turma', autocomplete: 'off' });
-    const file = el('input', { id: 'sound-upload-file', type: 'file', accept: 'audio/*,.mp3,.wav,.ogg,.m4a', hidden: true });
-    const chosen = el('strong', { textContent: 'Escolha um áudio' });
-    const details = el('small', { textContent: 'MP3, WAV, OGG ou M4A · até 5 MB' });
-    const audio = el('audio', { controls: true, preload: 'metadata', class: 'sound-audio-preview', volume: state.sbVolume });
-    const preview = el('div', { class: 'sound-preview hidden' }, el('div', { class: 'sound-preview-title' }, Icon('headphones', 16), 'Pré-escuta · só você ouve'), audio);
+    const file = el('input', { id: 'sound-upload-file', type: 'file', accept: 'audio/*,video/*,.mp3,.wav,.ogg,.m4a,.mp4,.webm,.mov', hidden: true });
+    const chosen = el('strong', { textContent: 'Escolha um áudio ou vídeo' });
+    const details = el('small', { textContent: 'MP3, WAV, OGG, M4A, MP4 ou WEBM · até 50 MB' });
+    const audio = el('audio', { preload: 'none', hidden: true, volume: state.sbVolume });
+    const trimSlot = el('div');
+    const preview = el('div', { class: 'sound-preview hidden' }, el('div', { class: 'sound-preview-title' }, Icon('headphones', 16), 'Pré-escuta · só você ouve'), trimSlot, audio);
+    const fileIcon = el('span', { style: { display: 'contents' } }), fileName = el('span', { class: 'sound-file-name' }), fileLength = el('small');
+    const change = el('button', { type: 'button', class: 'sound-file-change', textContent: 'Trocar', ariaLabel: 'Trocar arquivo', onclick: () => file.click() });
+    const fileField = el('div', { class: 'sound-file-field hidden' }, el('span', { class: 'sound-field-label', textContent: 'ARQUIVO' }),
+      el('div', { class: 'sound-file-row' }, fileIcon, fileName, fileLength, change));
     const submit = el('button', { type: 'submit', class: 'btn-primary', textContent: 'Adicionar ao servidor', disabled: true });
     const choose = el('button', { type: 'button', class: 'sound-dropzone', onclick: () => file.click() },
       el('span', { class: 'sound-upload-icon' }, Icon('upload', 28)), chosen, details, el('span', { textContent: 'Selecionar arquivo', class: 'sound-select-label' }));
+    const readyText = () => (source?.duration > SoundTrimmer.MAX ? 'Escolha o trecho e dê um nome ao efeito.' : 'Confira a pré-escuta e dê um nome ao efeito.');
+    const isVideo = (selected) => /^video\//.test(selected.type) || /\.(mp4|webm|mov|mkv)$/i.test(selected.name || '');
     async function selectFile(selected) {
       if (!selected || busy) return;
-      const current = ++epoch; prepared = null; submit.disabled = true; audio.pause();
-      if (previewUrl) URL.revokeObjectURL(previewUrl); previewUrl = null;
-      preview.classList.add('hidden'); status.textContent = 'Preparando o áudio…';
-      chosen.textContent = selected.name || 'Áudio selecionado';
+      const current = ++epoch; source = null; submit.disabled = true;
+      trimmer?.destroy(); trimmer = null; trimSlot.replaceChildren();
+      preview.classList.add('hidden'); fileField.classList.add('hidden'); choose.classList.remove('hidden');
+      chosen.textContent = selected.name || 'Arquivo selecionado';
+      status.textContent = isVideo(selected) ? 'Tirando o som do vídeo…' : 'Lendo o áudio…';
       try {
-        const result = await Sounds.prepareFile(selected);
+        const result = await Sounds.decodeFile(selected);
         if (closed || current !== epoch) return;
-        prepared = result; previewUrl = URL.createObjectURL(result.blob); audio.src = previewUrl;
-        if (!name.value) name.value = (selected.name || 'Meu efeito').replace(/\.[^.]+$/, '').slice(0, 32);
-        details.textContent = `${result.duration.toFixed(1).replace('.', ',')} s · pronto para a chamada`;
-        preview.classList.remove('hidden'); submit.disabled = false; status.textContent = 'Confira a pré-escuta e dê um nome ao efeito.';
+        source = result;
         setSinkId(audio);
-      } catch (error) { if (!closed && current === epoch) status.textContent = error.message || 'Não foi possível preparar esse áudio.'; }
+        trimmer = SoundTrimmer.create({ el, Icon, source, audio, encode: Sounds.encodeClip, onChange: () => { status.textContent = readyText(); }, onError: (message) => { status.textContent = message; } });
+        trimSlot.replaceChildren(trimmer.node);
+        // O nome sugerido acompanha a troca de arquivo até a pessoa escrever o dela.
+        if (!name.value || name.value === autoName) name.value = autoName = (selected.name || 'Meu efeito').replace(/\.[^.]+$/, '').slice(0, 32);
+        fileIcon.replaceChildren(Icon(isVideo(selected) ? 'clapperboard' : 'music', 18));
+        fileName.textContent = fileName.title = selected.name || 'Arquivo selecionado';
+        fileLength.textContent = SoundTrimmer.clock(result.duration);
+        choose.classList.add('hidden'); preview.classList.remove('hidden'); fileField.classList.remove('hidden');
+        submit.disabled = false; status.textContent = readyText();
+      } catch (error) { if (!closed && current === epoch) status.textContent = error.message || 'Não foi possível ler esse arquivo.'; }
     }
     file.onchange = () => { selectFile(file.files[0]); file.value = ''; };
-    choose.ondragover = (event) => { event.preventDefault(); choose.classList.add('dragging'); };
-    choose.ondragleave = () => choose.classList.remove('dragging');
-    choose.ondrop = (event) => { event.preventDefault(); choose.classList.remove('dragging'); selectFile(event.dataTransfer.files[0]); };
     const close = () => {
-      if (busy || closed) return; closed = true; epoch++; audio.pause(); audio.removeAttribute('src'); audio.load();
-      if (previewUrl) URL.revokeObjectURL(previewUrl);
+      if (busy || closed) return; closed = true; epoch++; trimmer?.destroy(); source = null;
       overlay.remove(); roots.forEach(([element, inert]) => { element.inert = inert; });
       document.removeEventListener('keydown', onKey, true); soundUploadSession = null; focus?.focus();
     };
     const cancel = el('button', { type: 'button', class: 'btn-ghost', textContent: 'Cancelar', onclick: close });
     const form = el('form', { class: 'sound-dialog-card', role: 'dialog', ariaModal: 'true', ariaLabelledby: 'sound-upload-title', onsubmit: async (event) => {
-      event.preventDefault(); if (!prepared || busy) return;
-      busy = true; submit.disabled = choose.disabled = cancel.disabled = name.disabled = true; audio.pause(); status.textContent = 'Adicionando o efeito ao servidor…';
+      event.preventDefault(); if (!source || !trimmer || busy) return;
+      let clip;
+      try { const { start, end } = trimmer.range(); clip = Sounds.encodeClip(source, start, end); }
+      catch (error) { status.textContent = error.message; return; }
+      busy = true; submit.disabled = change.disabled = cancel.disabled = name.disabled = true; trimmer.stop(); trimSlot.inert = true;
+      status.textContent = 'Adicionando o efeito ao servidor…';
       try {
-        const response = await fetch('/servers/' + serverId + '/sounds', { method: 'POST', headers: { 'x-token': localStorage.getItem('token'), 'x-sound-name': encodeURIComponent(name.value.trim()) }, body: prepared.blob });
+        const response = await fetch('/servers/' + serverId + '/sounds', { method: 'POST', headers: { 'x-token': localStorage.getItem('token'), 'x-sound-name': encodeURIComponent(name.value.trim()) }, body: clip.blob });
         const body = await response.json().catch(() => ({}));
         if (!response.ok) throw new Error(body.error || 'Não foi possível adicionar o efeito.');
         busy = false; close(); toast('Efeito sonoro adicionado ao servidor!', 'info');
         if (adminOpen() && admin.page === 'soundboard') renderServerSettings(true);
       } catch (error) { status.textContent = error.message || 'Confira a conexão e tente novamente.'; }
-      finally { busy = false; submit.disabled = choose.disabled = cancel.disabled = name.disabled = false; }
+      finally { busy = false; submit.disabled = change.disabled = cancel.disabled = name.disabled = false; trimSlot.inert = false; }
     } },
     el('div', { class: 'sound-dialog-head' }, el('span', { class: 'sound-dialog-emblem' }, Icon('music', 28)),
       el('div', {}, el('h2', { id: 'sound-upload-title', textContent: 'Adicionar efeito sonoro' }), el('p', { textContent: 'Um som com a cara de ' + serverName() + '.' }))),
-    el('div', { class: 'sound-limit-note' }, Icon('info', 16), 'Até 8 segundos. Disponível para a turma nos canais de voz.'),
-    choose, file, preview, el('label', { htmlFor: name.id, textContent: 'NOME DO EFEITO' }, name), status,
+    el('div', { class: 'sound-limit-note' }, Icon('info', 16), 'Escolha até 8 segundos de qualquer áudio ou vídeo. Disponível para a turma nos canais de voz.'),
+    choose, file, preview, fileField, el('label', { htmlFor: name.id, textContent: 'NOME DO EFEITO' }, name), status,
     el('div', { class: 'confirm-actions' }, cancel, submit));
+    // Soltar um arquivo em qualquer ponto da janela também serve, antes ou depois de escolher.
+    form.ondragover = (event) => { event.preventDefault(); choose.classList.add('dragging'); };
+    form.ondragleave = (event) => { if (!form.contains(event.relatedTarget)) choose.classList.remove('dragging'); };
+    form.ondrop = (event) => { event.preventDefault(); choose.classList.remove('dragging'); selectFile(event.dataTransfer.files[0]); };
     const overlay = el('div', { class: 'confirm-overlay sound-upload-overlay', onmousedown: (event) => { if (event.target === overlay) close(); } }, form);
     const onKey = (event) => {
       if (event.key === 'Escape') { event.preventDefault(); event.stopImmediatePropagation(); close(); }
       if (event.key === 'Tab') {
-        const nodes = [...form.querySelectorAll('button, input:not([hidden]), audio')].filter((n) => !n.disabled && !n.closest('.hidden'));
+        const nodes = [...form.querySelectorAll('button, input:not([hidden]), [tabindex="0"]')].filter((n) => !n.disabled && !n.closest('.hidden'));
         const first = nodes[0], last = nodes.at(-1);
         if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last.focus(); }
         else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first.focus(); }
@@ -5511,7 +5530,7 @@
     const sounds = state.server.soundboard || [];
     return el('section', {}, pageHead('Efeitos sonoros', 'Os sons desta turma ficam disponíveis no painel de efeitos das chamadas.'),
       el('div', { class: 'sound-upload' }, el('strong', { textContent: `${sounds.length} de 32 efeitos personalizados` }),
-        el('p', { class: 'section-description', textContent: 'Envie um áudio de até 8 segundos. A pré-escuta toca só para você.' }),
+        el('p', { class: 'section-description', textContent: 'Envie um áudio ou vídeo e escolha até 8 segundos dele. A pré-escuta toca só para você.' }),
         el('button', { type: 'button', class: 'btn-primary', onclick: openSoundUpload }, Icon('plus', 18), 'Adicionar efeito sonoro')),
       el('div', { class: 'server-sound-list' }, sounds.length ? sounds.map((sound) => el('div', { class: 'server-sound-row' },
         Icon('music', 22), el('div', { class: 'sound-title' }, el('strong', { textContent: sound.name }), el('small', { textContent: sound.duration.toFixed(1).replace('.', ',') + ' segundos' })),
