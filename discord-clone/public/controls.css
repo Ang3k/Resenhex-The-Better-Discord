@@ -197,6 +197,14 @@ input[type=color]::-moz-color-swatch { border: 0; border-radius: 10px; }
   border: 1px solid var(--divider); box-shadow: 0 24px 64px rgba(0, 0, 0, .35);
   animation: dialog-in .45s cubic-bezier(.16, 1, .3, 1);
 }
+/* margin:auto centraliza sem cortar: quando o cartão é mais alto que a tela (criar conta no celular,
+   teclado aberto), o topo ficava acima da tela e a rolagem não chegava nele. */
+.auth-card { margin: auto; }
+@media (max-width: 480px) {
+  .auth { padding: 20px 12px; }
+  .auth-card { padding: 28px 20px 22px; gap: 14px; }
+  .auth-card h1 { font-size: 24px; }
+}
 .auth-card .brand-mark { box-shadow: none; }
 .auth-card h1 { font-size: 26px; font-weight: 700; letter-spacing: -.02em; }
 .auth-card p { font-size: 14.5px; line-height: 1.5; }
@@ -247,8 +255,12 @@ html.touch #messages .msg .msg-edit { -webkit-user-select: text; user-select: te
 .sheet-item.danger, .sheet-item.danger .ico { color: var(--red); }
 .sheet-item:active, .sheet-reaction:active { background: var(--hover-strong); }
 
-/* Menu de contexto como folha (ex.: aviso de "Compartilhar tela" no celular), dentro da tela e longe da gaveta. */
+/* Menu de contexto como folha (ex.: aviso de "Compartilhar tela" e efeitos sonoros no celular), dentro da tela e longe da gaveta.
+   O véu escuro em volta mostra que tocar fora fecha a folha, como na folha de ações da mensagem. */
 #context-menu.sheet-menu {
   left: 8px !important; right: 8px; top: auto !important; bottom: max(8px, env(safe-area-inset-bottom)); width: auto !important; max-width: none;
-  z-index: 60; padding: 10px 12px; border-radius: 14px;
+  max-height: calc(100dvh - 16px); z-index: 60; padding: 10px 12px; border-radius: 14px;
+  box-shadow: 0 0 0 100vmax rgba(0, 0, 0, .5), 0 -12px 40px rgba(0, 0, 0, .45);
 }
+/* Toque: itens de menu com altura de dedo (32 px era alvo de mouse). */
+html.touch .menu-item { min-height: 40px; }

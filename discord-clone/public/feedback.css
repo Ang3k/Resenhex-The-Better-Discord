@@ -64,7 +64,8 @@ body.stream-immersive .feedback-link { display: none !important; }
   .feedback-overlay { padding: 12px; }
   .feedback-card { padding: 24px 20px; max-height: calc(100dvh - 24px); }
   /* No celular, o rodapé das Configurações vira uma fileira abaixo das abas: é aqui que Propor Melhorias mora. */
-  #settings .settings-nav-bottom { display: flex; flex-direction: row; gap: 6px; margin: 0; padding: 8px 0 0; overflow-x: auto; scrollbar-width: none; }
+  /* Quebra em duas linhas em vez de rolar de lado: "Sair da conta" aparecia cortado no meio da palavra, sem sinal de que havia mais. */
+  #settings .settings-nav-bottom { display: flex; flex-direction: row; flex-wrap: wrap; gap: 4px 6px; margin: 0; padding: 8px 0 0; }
   #settings .settings-nav-bottom button { width: auto; flex-shrink: 0; gap: 6px; padding: 8px 10px; font-size: 12px; white-space: nowrap; }
   #settings .settings-nav-bottom .settings-version { display: block; width: auto; padding: 8px 4px; }
 }

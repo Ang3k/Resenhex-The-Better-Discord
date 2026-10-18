@@ -179,6 +179,7 @@
 
 @media (max-width: 640px) {
   .clip-head { padding: 14px 14px 0; }
+  .clip-card .clip-sub { white-space: normal; text-wrap: pretty; }
   .clip-tabs { margin: 12px 14px 0; }
   .clip-tab { padding: 0 8px; gap: 6px; }
   .clip-tab-extra { display: none; }

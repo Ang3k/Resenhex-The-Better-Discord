@@ -133,6 +133,10 @@
 #toast.error { border-color: color-mix(in srgb, var(--red) 35%, transparent); }
 @keyframes toast-in { from { opacity: 0; transform: translate(-50%, 16px) scale(.96); } to { transform: translateX(-50%); } }
 #app:has(#voice-view:not(.hidden)) ~ #toast { bottom: 108px; }
+/* max-content: com left 50%, a largura "cabia" só na metade da tela e o aviso quebrava em 4 linhas no celular. */
+#toast { width: max-content; max-width: min(640px, calc(100vw - 32px)); }
+/* Celular: o aviso sobe acima da caixa de mensagem, em vez de cobri-la. */
+@media (max-width: 640px) { #toast { bottom: calc(84px + env(safe-area-inset-bottom)); } }
 
 /* Faixa de reconexão */
 #conn-banner { animation: banner-in .3s var(--ease-out); }

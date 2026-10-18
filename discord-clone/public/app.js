@@ -337,6 +337,8 @@
     $('#tooltip').className = 'hidden';
   }
   document.addEventListener('mouseover', (e) => {
+    // No toque o navegador simula o mouse a cada toque, e a dica ficava presa na tela depois do toque.
+    if (!hasMouse()) return;
     const target = e.target.closest?.('[data-tip]');
     if (target === tipTarget) return;
     if (target && target.dataset.tip) showTip(target);
@@ -544,7 +546,8 @@
   // A página inicial (landing.js) abre o cartão em "Entrar" ou "Criar conta".
   window.addEventListener('resenhex:auth-mode', (e) => {
     setLoginMode(config.hasOwner ? e.detail : 'register');
-    $('#login-name').focus();
+    // No celular o teclado só abre quando a pessoa toca no campo: assim o cartão aparece inteiro.
+    if (hasMouse()) $('#login-name').focus();
   });
 
   $('#login-form').addEventListener('submit', (e) => {
@@ -3026,7 +3029,12 @@
     $('#server-header').classList.remove('open');
   }
   document.addEventListener('click', (e) => {
-    if (!e.target.closest('#context-menu, #context-submenu')) closeMenu();
+    if (!e.target.closest('#context-menu, #context-submenu')) {
+      // A folha do celular fica sobre um véu: o toque fora só fecha, sem acionar o que está atrás.
+      const sheet = $('#context-menu').matches('.sheet-menu:not(.hidden)');
+      closeMenu();
+      if (sheet) { e.preventDefault(); e.stopPropagation(); }
+    }
     if (!e.target.closest('#emoji-picker')) $('#emoji-picker').classList.add('hidden');
   }, true);
   const feedback = createFeedback({ token: () => localStorage.getItem('token'), prepare: () => { closeMenu(); closeProfile(); } });
@@ -3199,7 +3207,7 @@
     const r = meCard.getBoundingClientRect();
     openStatusMenu(r.left, r.top - 8 - 330);
     const menu = $('#context-menu');
-    menu.style.top = Math.max(8, r.top - menu.getBoundingClientRect().height - 8) + 'px';
+    menu.style.top = Math.max(8, r.top - menu.offsetHeight - 8) + 'px';
   };
   meCard.onkeydown = (e) => {
     if (e.key !== 'Enter' && e.key !== ' ') return;
@@ -3691,15 +3699,22 @@
   document.addEventListener('mousedown', (e) => {
     if (!profileFor || e.target.closest('#profile-card, #context-menu, #context-submenu, .confirm-overlay')) return;
     closeProfile();
+    // No toque o cartão fica sobre um véu escuro: tocar fora só fecha o cartão, sem abrir o link ou o perfil que está atrás.
+    if (!hasMouse()) {
+      const swallow = (ev) => { ev.preventDefault(); ev.stopPropagation(); };
+      document.addEventListener('click', swallow, { capture: true, once: true });
+      setTimeout(() => document.removeEventListener('click', swallow, true), 400);
+    }
   }, true);
   document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && profileFor) closeProfile(); });
 
+  // offsetWidth/Height: o tamanho real do menu. O retângulo da tela ainda está na escala da animação
+  // de entrada, e com ele o menu passava alguns pixels da borda (no celular, cortado do lado direito).
   function showMenuAt(x, y) {
     const menu = $('#context-menu');
     menu.classList.remove('hidden');
-    const rect = menu.getBoundingClientRect();
-    menu.style.left = Math.max(8, Math.min(x, innerWidth - rect.width - 8)) + 'px';
-    menu.style.top = Math.max(8, Math.min(y, innerHeight - rect.height - 8)) + 'px';
+    menu.style.left = Math.max(8, Math.min(x, innerWidth - menu.offsetWidth - 8)) + 'px';
+    menu.style.top = Math.max(8, Math.min(y, innerHeight - menu.offsetHeight - 8)) + 'px';
   }
 
   // ---------------- configurações do servidor e do canal (estilo Discord) ----------------
@@ -5632,9 +5647,11 @@
       menuItem('Parar pré-escuta', 'headphones', () => Sounds.stopBoard()),
       menuItem(state.sbMuted ? 'Ativar efeitos sonoros dos outros' : 'Silenciar efeitos sonoros', state.sbMuted ? 'volume' : 'volumeX', () => setSbMuted(!state.sbMuted)));
     menu.style.width = '320px';
+    // No celular os efeitos abrem como folha embaixo, na largura da tela, por cima dos botões da chamada.
+    menu.classList.toggle('sheet-menu', !hasMouse() && matchMedia('(max-width:640px)').matches);
     const r = anchor.getBoundingClientRect();
     menu.classList.remove('hidden');
-    showMenuAt(r.left + r.width / 2 - 160, r.top - menu.getBoundingClientRect().height - 8);
+    showMenuAt(r.left + r.width / 2 - 160, r.top - menu.offsetHeight - 8);
   }
 
   // CLIPAR: clipe novo na chamada (inclusive o meu): entra na lista e aparece o aviso para baixar.
@@ -5718,7 +5735,7 @@
       el('div', { class: 'menu-tip', textContent: 'A qualidade acompanha sua reprodução. Em segundo plano o vídeo economiza recursos e o áudio continua.' }));
     const rect = anchor.getBoundingClientRect();
     menu.classList.remove('hidden');
-    showMenuAt(rect.left, rect.top - menu.getBoundingClientRect().height - 8);
+    showMenuAt(rect.left, rect.top - menu.offsetHeight - 8);
   }
 
   // Leva vozes, transmissões e efeitos para a saída de áudio escolhida.
@@ -5737,7 +5754,7 @@
     const width = kind === 'audio' ? 320 : 280;
     const positionMenu = () => {
       const rect = anchor.getBoundingClientRect(), top = (anchor.closest('#stage-controls') || anchor).getBoundingClientRect().top;
-      showMenuAt(rect.left + rect.width / 2 - width / 2, top - menu.getBoundingClientRect().height - 8);
+      showMenuAt(rect.left + rect.width / 2 - width / 2, top - menu.offsetHeight - 8);
     };
     const choices = (deviceKind, key, fallback, apply, compact = false) => {
       // "default"/"communications" do Chrome repetem um aparelho real; "Padrão do sistema" já cobre.
@@ -5892,7 +5909,7 @@
       // No celular o aviso abre como folha embaixo, sem vazar da gaveta de canais para cima do chat.
       menu.classList.toggle('sheet-menu', !hasMouse() && matchMedia('(max-width:640px)').matches);
       menu.classList.remove('hidden');
-      showMenuAt(rect.left, rect.top - menu.getBoundingClientRect().height - 8);
+      showMenuAt(rect.left, rect.top - menu.offsetHeight - 8);
       return;
     }
     menu.replaceChildren(
@@ -5912,7 +5929,7 @@
         : [el('div', { class: 'menu-tip', textContent: 'Dica: para jogos, escolha "Tela inteira" e use o jogo em modo janela sem bordas. Se você compartilhar só uma janela e minimizá-la, a transmissão pausa.' })]));
     const rect = anchor.getBoundingClientRect();
     menu.classList.remove('hidden');
-    showMenuAt(rect.left, rect.top - menu.getBoundingClientRect().height - 8);
+    showMenuAt(rect.left, rect.top - menu.offsetHeight - 8);
   }
 
   // ---------------- botões ----------------
