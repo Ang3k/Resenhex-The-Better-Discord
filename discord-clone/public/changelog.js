@@ -4,7 +4,7 @@
 // O título deve destacar as principais funcionalidades ou correções, com termos objetivos.
 window.CHANGELOG = [
   {
-    version: '1.9.0', date: '2026-10-18', name: 'Recorte de efeito sonoro e celular revisado',
+    version: '1.8.5', date: '2026-10-18', name: 'Recorte de efeito sonoro e celular revisado',
     summary: 'Crie um efeito sonoro a partir de qualquer áudio ou vídeo e escolha o trecho na onda, como no Discord. No celular, a barra da chamada, os menus e várias telas foram acertados.',
     sections: [
       { kind: 'new', items: [

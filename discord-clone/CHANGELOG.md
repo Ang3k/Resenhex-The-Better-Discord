@@ -3,7 +3,7 @@
 Histórico de versões. A mesma lista aparece dentro do app em **Novidades** (menu do servidor ou rodapé das Configurações).
 O Resenhex chegou à versão 1.0 em 4 de outubro de 2026.
 
-## v1.9.0 — Recorte de efeito sonoro e celular revisado
+## v1.8.5 — Recorte de efeito sonoro e celular revisado
 
 18 de outubro de 2026.
 
