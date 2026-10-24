@@ -443,3 +443,25 @@ test('only the site owner sees every call: server, room and people, with private
   const back = await connect({ token: owner.auth.token });
   assert.equal(back.auth.siteOwner, true);
 });
+
+test('an invite link shows its server in chat previews, escaped; other links keep the site preview', async (t) => {
+  const { connect, base } = await fixture(t);
+  const owner = await connect('Dono');
+  await connect('Visitante');
+  assert.ok(!(await owner.call('server:update', { name: 'Tropa "do" <b>Nobre</b>' })).error);
+  const { code } = await owner.call('server:invite');
+  const html = await (await fetch(`${base}/?invite=${code}`)).text();
+  const meta = (property) => html.match(new RegExp(`<meta (?:property|name)="${property}" content="([^"]*)">`))?.[1];
+  assert.equal(meta('og:title'), 'Convite para Tropa &quot;do&quot; &lt;b&gt;Nobre&lt;/b&gt;');
+  assert.match(meta('og:description'), /^2 membros\./);
+  assert.ok(meta('og:url').endsWith('/?invite=' + code));
+  assert.ok(!html.includes('<b>Nobre</b>'), 'server names never become markup');
+  assert.equal(html.match(/og:title/g).length, 1, 'the site preview block is replaced, not duplicated');
+  assert.match(html, /<div id="landing"/, 'the page itself is still the app');
+  for (const url of [`${base}/`, `${base}/?invite=revogado-ou-inventado`]) {
+    const page = await (await fetch(url)).text();
+    assert.match(page, /<meta property="og:title" content="Resenhex: a galera já tá na call">/);
+    assert.match(page, /og-resenhex\.png/);
+  }
+  assert.equal((await fetch(`${base}/og-resenhex.png`)).headers.get('content-type'), 'image/png');
+});

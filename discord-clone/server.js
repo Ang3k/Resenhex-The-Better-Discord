@@ -392,6 +392,30 @@ app.use((req, _res, next) => {
   const account = communities.root.accounts[db.sessions[req.get('x-token')]];
   communities.run(req.get('x-server-id') || account?.lastServerId || communities.root.defaultServerId, next);
 });
+// Link de convite colado no WhatsApp, Discord, X…: a prévia mostra o servidor (nome, ícone e membros), como no Discord.
+// Troca só o bloco de prévia do index.html; convite inválido, revogado ou consulta demais ficam com a prévia do site.
+const escapeHtml = (text) => String(text).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
+app.get('/', (req, res, next) => {
+  const code = req.query.invite;
+  if (typeof code !== 'string' || !allow('invite-preview:' + clientIp(req.headers, req.socket.remoteAddress), 60, 60_000)) return next();
+  const community = communities.byInvite(code);
+  if (!community) return next();
+  const base = SITE_URL || 'https://' + req.get('host');
+  const members = Object.values(community.members).filter((m) => m.active && !m.banned).length;
+  const image = community.serverIcon ? `${base}/avatars/${community.serverIcon}` : `${base}/og-resenhex.png`;
+  const tags = [
+    ['og:type', 'website'], ['og:site_name', 'Resenhex'], ['og:locale', 'pt_BR'],
+    ['og:url', `${base}/?invite=${encodeURIComponent(code)}`],
+    ['og:title', `Convite para ${community.serverName}`],
+    ['og:description', `${members} ${members === 1 ? 'membro' : 'membros'}. Entre no servidor ${community.serverName} no Resenhex: chat, voz e transmissão de tela com os amigos.`],
+    ['og:image', image],
+    ...(community.serverIcon ? [] : [['og:image:width', '1200'], ['og:image:height', '630']]),
+  ].map(([property, content]) => `  <meta property="${property}" content="${escapeHtml(content)}">`);
+  tags.push(`  <meta name="twitter:card" content="${community.serverIcon ? 'summary' : 'summary_large_image'}">`);
+  const html = fs.readFileSync(path.join(__dirname, 'public', 'index.html'), 'utf8');
+  res.set('Cache-Control', 'no-store');
+  res.type('html').send(html.replace(/ {2}<!-- prévia do link[\s\S]*?<!-- \/prévia do link -->\r?\n/, () => tags.join('\n') + '\n'));
+});
 app.use(express.static(path.join(__dirname, 'public')));
 app.use(downloadRoutes(DOWNLOAD_DIR, { storeId: process.env.MS_STORE_ID }));
 app.get('/baixar', (_req, res) => res.sendFile(path.join(__dirname, 'public', 'baixar.html')));
