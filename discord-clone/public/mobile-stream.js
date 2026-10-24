@@ -1,6 +1,6 @@
 /* Transmissão de tela no celular: tela cheia imersiva, pinça para aproximar, toque duplo, controles por
    toque, tela sempre acesa, codec decodificado por hardware e um pequeno buffer para reprodução fluida. */
-window.MobileStream = function ({ state, el, Icon, toast, member, voiceEntry, syncViewerQuality, openWatchQualityMenu, toggleStreamMute, togglePip }) {
+window.MobileStream = function ({ state, el, Icon, toast, member, voiceEntry, syncViewerQuality, openWatchQualityMenu, toggleStreamMute, streamSound, togglePip }) {
   const touch = matchMedia('(pointer: coarse)').matches || navigator.maxTouchPoints > 0 && matchMedia('(hover: none)').matches;
   const MAX_ZOOM = 5, ZOOM_STEP = 2.5;
   // Buffer mínimo de reprodução para a tela recebida: absorve a variação do Wi-Fi/4G (menos engasgos)
@@ -218,8 +218,8 @@ window.MobileStream = function ({ state, el, Icon, toast, member, voiceEntry, sy
     const tile = view.tile;
     if (!tile) return;
     const sid = tile.dataset.sid, entry = voiceEntry(sid), m = entry && member(entry.accountId);
-    const muted = !!m && state.streamMuted.has(m.id);
-    const sig = JSON.stringify([sid, m?.name, muted, document.pictureInPictureEnabled]);
+    const sound = m ? streamSound(m.id) : null, muted = !!sound?.muted;
+    const sig = JSON.stringify([sid, m?.name, sound, document.pictureInPictureEnabled]);
     let bar = tile.querySelector('.imm-bar');
     if (bar?.dataset.sig === sig) return;
     const button = (label, icon, onclick, cls = '') => el('button', { class: 'imm-btn ' + cls, ariaLabel: label, title: label,
@@ -228,7 +228,7 @@ window.MobileStream = function ({ state, el, Icon, toast, member, voiceEntry, sy
       button('Sair da tela cheia', 'chevronDown', () => close(), 'imm-close'),
       el('div', { class: 'imm-title', textContent: m ? 'Tela de ' + m.name : 'Transmissão' }),
       el('button', { class: 'imm-zoom hidden', ariaLabel: 'Voltar ao tamanho original', onclick: (e) => { e.stopPropagation(); resetZoom(); } }),
-      m ? button(muted ? 'Ativar som da transmissão' : 'Silenciar transmissão', muted ? 'volumeX' : 'volume', () => toggleStreamMute(m.id), muted ? 'off' : '') : '',
+      m ? button(sound.label, muted ? 'volumeX' : 'volume', () => toggleStreamMute(m.id), muted ? 'off' : '') : '',
       button('Qualidade para assistir', 'settings', (e) => openWatchQualityMenu(sid, e.currentTarget)),
       document.pictureInPictureEnabled ? button('Janela flutuante', 'pip', () => { const video = view.video; close(); togglePip(video); }) : '');
     bar ? bar.replaceWith(next) : tile.append(next);

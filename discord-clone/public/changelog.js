@@ -4,6 +4,18 @@
 // O título deve destacar as principais funcionalidades ou correções, com termos objetivos.
 window.CHANGELOG = [
   {
+    version: '1.8.9', date: '2026-10-24', name: 'Ouvir a transmissão ensurdecido e voltar à chamada pelo painel',
+    summary: 'Ensurdecido, dá para ligar só o som da transmissão que você está assistindo. E o nome da sala no painel Voz conectada leva de volta para a chamada, como no Discord.',
+    sections: [
+      { kind: 'new', items: [
+        'Ensurdecer continua calando tudo, mas o alto-falante da transmissão liga o som dela de novo: você ouve só a transmissão, com as vozes ainda caladas. Ao desligar a surdez, tudo volta ao normal. Na primeira vez, um aviso mostra onde fica o botão.',
+      ] },
+      { kind: 'improved', items: [
+        'Painel Voz conectada: o nome da sala e do servidor virou link. Um clique leva de volta para a chamada de qualquer canal, servidor ou conversa, também no celular.',
+      ] },
+    ],
+  },
+  {
     version: '1.8.8', date: '2026-10-18', name: 'Animações mais suaves e páginas do site com as cores do app',
     summary: 'Menus, janelas e telas entram e saem com o mesmo movimento suave. A página inicial, a de baixar e a de privacidade ganharam o preto com roxo do app, e baixar para Windows agora oferece o .exe ou a Microsoft Store.',
     sections: [

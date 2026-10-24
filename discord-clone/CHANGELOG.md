@@ -3,6 +3,20 @@
 Histórico de versões. A mesma lista aparece dentro do app em **Novidades** (menu do servidor ou rodapé das Configurações).
 O Resenhex chegou à versão 1.0 em 4 de outubro de 2026.
 
+## v1.8.9 — Ouvir a transmissão ensurdecido e voltar à chamada pelo painel
+
+24 de outubro de 2026.
+
+Ensurdecido, dá para ligar só o som da transmissão que você está assistindo. E o nome da sala no painel Voz conectada leva de volta para a chamada, como no Discord.
+
+### Novidades
+
+- Ensurdecer continua calando tudo, mas o alto-falante da transmissão liga o som dela de novo: você ouve só a transmissão, com as vozes ainda caladas. Ao desligar a surdez, tudo volta ao normal. Na primeira vez, um aviso mostra onde fica o botão.
+
+### Melhorias
+
+- Painel Voz conectada: o nome da sala e do servidor virou link. Um clique leva de volta para a chamada de qualquer canal, servidor ou conversa, também no celular.
+
 ## v1.8.8 — Animações mais suaves e páginas do site com as cores do app
 
 18 de outubro de 2026.

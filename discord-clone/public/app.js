@@ -116,6 +116,7 @@
     stageGrid: false, // permite manter a grade mesmo com uma única transmissão
     streamVolume: savedJson('streamVolume', {}), // accountId -> 0..1 (áudio da transmissão)
     streamMuted: new Set(savedJson('streamMuted', [])),
+    streamHeardDeaf: new Set(), // accountIds das transmissões ligadas no próprio bloco enquanto ensurdecido
     hiddenStreams: new Set(), // sids das transmissões que parei de assistir
     collapsed: new Set(savedJson('collapsed', [])), // categorias recolhidas
     home: false, // true = tela Início (amigos e mensagens diretas)
@@ -2694,16 +2695,33 @@
     }
   }
 
+  // Som de uma transmissão assistida. Ensurdecer cala a transmissão também, mas o botão de som dela a liga
+  // de novo (só ela, as vozes seguem caladas) até a surdez acabar. Quem foi ensurdecido pelo servidor não liga.
+  function streamSound(accountId) {
+    if (callMe()?.serverDeafened) return { muted: true, locked: true, label: 'Ensurdecido pelo servidor' };
+    const muted = state.streamMuted.has(accountId) || (state.deafened && !state.streamHeardDeaf.has(accountId));
+    return { muted, label: !muted ? 'Silenciar transmissão' : state.deafened ? 'Ouvir a transmissão mesmo ensurdecido' : 'Ativar som da transmissão' };
+  }
+
   function setStreamVolume(accountId, value) {
     state.streamVolume[accountId] = value;
-    if (value > 0) state.streamMuted.delete(accountId);
+    if (value > 0) {
+      state.streamMuted.delete(accountId);
+      if (state.deafened) state.streamHeardDeaf.add(accountId);
+    }
     localStorage.setItem('streamVolume', JSON.stringify(state.streamVolume));
     localStorage.setItem('streamMuted', JSON.stringify([...state.streamMuted]));
     applyAudio();
   }
 
   function toggleStreamMute(accountId) {
-    state.streamMuted.has(accountId) ? state.streamMuted.delete(accountId) : state.streamMuted.add(accountId);
+    const sound = streamSound(accountId);
+    if (sound.locked) return;
+    if (sound.muted) {
+      state.streamMuted.delete(accountId);
+      if (state.deafened) state.streamHeardDeaf.add(accountId);
+    } else if (state.deafened) state.streamHeardDeaf.delete(accountId);
+    else state.streamMuted.add(accountId);
     localStorage.setItem('streamMuted', JSON.stringify([...state.streamMuted]));
     applyAudio();
     renderStage();
@@ -2712,9 +2730,9 @@
   // Botões que aparecem ao passar o mouse sobre um bloco.
   function renderTileControls(tile, o) {
     const pinned = state.pinned === tile.dataset.key;
-    const muted = state.streamMuted.has(o.accountId);
+    const sound = streamSound(o.accountId), muted = sound.muted;
     const vol = state.streamVolume[o.accountId] ?? 1;
-    const sig = JSON.stringify([o, pinned, muted, !!document.fullscreenElement]);
+    const sig = JSON.stringify([o, pinned, sound, !!document.fullscreenElement]);
     if (tile.dataset.ctl === sig) return;
     tile.dataset.ctl = sig;
     const box = tile.querySelector('.tile-controls');
@@ -2726,7 +2744,8 @@
       slider.oninput = (e) => { e.stopPropagation(); setStreamVolume(o.accountId, slider.value / 100); };
       slider.onclick = (e) => e.stopPropagation();
       items.push(el('div', { class: 'tc-volume' },
-        btn(muted ? 'Ativar som da transmissão' : 'Silenciar transmissão', muted ? 'volumeX' : 'volume', () => toggleStreamMute(o.accountId), 'tc-mute' + (muted ? ' off' : '')), slider));
+        btn(sound.label, muted ? 'volumeX' : 'volume', () => toggleStreamMute(o.accountId), 'tc-mute' + (muted ? ' off' : '') + (sound.locked ? ' locked' : '')), slider));
+      slider.disabled = !!sound.locked;
     }
     if (o.kind === 'screen' && o.self) {
       items.push(btn('Qualidade / trocar tela', 'settings', (e) => openShareMenu(e.currentTarget), 'tc-quality'));
@@ -2759,7 +2778,8 @@
     const menu = $('#context-menu');
     const items = [el('div', { class: 'menu-section', textContent: self ? 'SUA TRANSMISSÃO' : 'TRANSMISSÃO DE ' + m.name.toUpperCase() })];
     if (!self && !hidden) {
-      const vol = Math.round((state.streamMuted.has(m.id) ? 0 : state.streamVolume[m.id] ?? 1) * 100);
+      const sound = streamSound(m.id);
+      const vol = Math.round((sound.muted ? 0 : state.streamVolume[m.id] ?? 1) * 100);
       const label = el('span', { textContent: `Volume da transmissão: ${vol}%` });
       const range = el('input', { type: 'range', min: 0, max: 100, value: vol });
       range.oninput = () => {
@@ -2768,8 +2788,9 @@
         tile.dataset.ctl = '';
         renderStage();
       };
-      items.push(el('div', { class: 'menu-range' }, label, range),
-        menuItem(state.streamMuted.has(m.id) ? 'Ativar som da transmissão' : 'Silenciar transmissão', state.streamMuted.has(m.id) ? 'volume' : 'volumeX', () => toggleStreamMute(m.id)));
+      range.disabled = !!sound.locked;
+      items.push(el('div', { class: 'menu-range' }, label, range));
+      if (!sound.locked) items.push(menuItem(sound.label, sound.muted ? 'volume' : 'volumeX', () => toggleStreamMute(m.id)));
       items.push(menuItem('Qualidade para assistir', 'settings', () => openWatchQualityMenu(v.sid, tile)));
     }
     items.push(menuItem(pinned ? 'Desafixar' : 'Fixar', pinned ? 'pinOff' : 'pin', () => togglePin(tile.dataset.key)));
@@ -2805,7 +2826,9 @@
     syncAndroidCall(micOff);
     const deaf = state.deafened || me.serverDeafened;
     $('#voice-panel').classList.toggle('hidden', !inVoice);
-    $('#voice-room-name').textContent = inVoice ? `${callChannelName()} / ${callInfo()?.serverName || serverName()}` : '';
+    const roomName = inVoice ? `${callChannelName()} / ${callInfo()?.serverName || serverName()}` : '';
+    $('#voice-room-name').textContent = roomName;
+    $('#voice-room-name').setAttribute('aria-label', 'Voltar à chamada: ' + roomName);
 
     const mute = $('#btn-mute');
     setControlIcon(mute, micOff ? 'micOff' : 'mic');
@@ -4715,7 +4738,7 @@
       const video = document.querySelector(`[data-key="screen-${sid}"] video`);
       if (video) {
         routeAudio('screen-' + sid, video, video.srcObject,
-          iCantHear || !v || state.localMuted.has(v.accountId) || state.streamMuted.has(v.accountId) || !isWatching(sid),
+          !v || state.localMuted.has(v.accountId) || streamSound(v.accountId).muted || !isWatching(sid),
           (v ? state.streamVolume[v.accountId] ?? 1 : 1) * state.outputVolume / 100);
       } else dropRoute('screen-' + sid);
     }
@@ -5751,7 +5774,7 @@
   // Prévia da transmissão para quem está na chamada sem assistir: a última foto da tela de quem transmite.
   const streamPreview = StreamPreview({ state, socket, el, voiceEntry, roomEntries: () => voiceEntries(state.voiceChannel), onPreview: () => { if (state.view === 'voice') renderStage(); } });
   const streamZoom = StreamZoom({ el, Icon, syncViewerQuality });
-  const mobileStream = MobileStream({ state, el, Icon, toast, member: callMember, voiceEntry, syncViewerQuality, openWatchQualityMenu, toggleStreamMute, togglePip });
+  const mobileStream = MobileStream({ state, el, Icon, toast, member: callMember, voiceEntry, syncViewerQuality, openWatchQualityMenu, toggleStreamMute, streamSound, togglePip });
 
   function openWatchQualityMenu(sid, anchor) {
     const menu = $('#context-menu');
@@ -5961,9 +5984,22 @@
   }
 
   // ---------------- botões ----------------
+  // As transmissões ligadas durante a surdez voltam ao som normal quando ela acaba.
+  let deafStreamHint = false;
+  function setDeafened(on) {
+    state.deafened = on;
+    if (!on) state.streamHeardDeaf.clear();
+    const watched = voiceEntries(state.voiceChannel).some((v) => v.sharing && v.sid !== state.me.sid && isWatching(v.sid));
+    if (on && watched && !deafStreamHint) {
+      deafStreamHint = true;
+      toast(`A transmissão também ficou muda. Para ouvir só ela, ${hasMouse() ? 'clique' : 'toque'} no alto-falante da transmissão.`, 'info');
+    }
+    if (state.voiceChannel) renderStage();
+  }
+
   $('#btn-mute').onclick = () => {
     if (state.deafened) {
-      state.deafened = false;
+      setDeafened(false);
       state.muted = false;
     } else {
       state.muted = !state.muted;
@@ -5975,7 +6011,7 @@
   };
 
   $('#btn-deafen').onclick = () => {
-    state.deafened = !state.deafened;
+    setDeafened(!state.deafened);
     Sounds.play(state.deafened ? 'deafen' : 'undeafen');
     applyAudio();
     sendVoiceState();
@@ -6978,6 +7014,7 @@
   };
   $('#btn-salon').onclick = () => setMudaeSimple(false);
   $('#btn-return-call').onclick = () => returnToCall();
+  $('#voice-room-name').onclick = () => { closePanels(); returnToCall(); };
   document.addEventListener('keydown', (event) => { if (event.key === 'Escape') closePanels(); });
 
   // ---------------- botão Voltar do celular ----------------
