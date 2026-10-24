@@ -186,19 +186,37 @@ for (const sig of ['SIGINT', 'SIGTERM']) {
 // Medidor de saúde (server/health.js): conexões e contas online são lidas na hora de cada amostra.
 const health = createHealth({ connections: () => io.engine.clientsCount, online: () => new Set([...online.values()].map((s) => s.accountId)).size });
 
+// Grava 300 ms depois da última mudança, mas nunca espera mais de 2 s com o site sem pausa (antes, atividade
+// contínua adiava a gravação para sempre). Uma gravação só começa quando a anterior terminou: as duas
+// escreviam no mesmo .tmp, e a segunda falhava ou deixava um arquivo misturado.
+const SAVE_QUIET_MS = 300;
+const SAVE_MAX_WAIT_MS = 2000;
 let saveTimer = null;
+let pendingSince = 0; // quando chegou a mudança mais antiga ainda não gravada
+let writing = false;
+let writeAgain = false;
 function save() {
+  const now = Date.now();
+  pendingSince ||= now;
   clearTimeout(saveTimer);
-  saveTimer = setTimeout(() => {
-    const tmp = DATA_FILE + '.tmp';
-    const started = performance.now();
-    const json = JSON.stringify(communities.root);
-    health.saved(performance.now() - started); // o tempo em que o servidor fica parado preparando o arquivo
-    fs.writeFile(tmp, json, (err) => {
-      if (err) return console.error('Falha ao salvar dados:', err);
-      fs.rename(tmp, DATA_FILE, (err2) => err2 && console.error('Falha ao salvar dados:', err2));
-    });
-  }, 300);
+  saveTimer = setTimeout(writeData, Math.max(0, Math.min(SAVE_QUIET_MS, pendingSince + SAVE_MAX_WAIT_MS - now)));
+}
+function writeData() {
+  clearTimeout(saveTimer);
+  saveTimer = null;
+  if (writing) { writeAgain = true; return; }
+  writing = true;
+  pendingSince = 0;
+  const tmp = DATA_FILE + '.tmp';
+  const started = performance.now();
+  const json = JSON.stringify(communities.root);
+  health.saved(performance.now() - started); // o tempo em que o servidor fica parado preparando o arquivo
+  const done = (err) => {
+    if (err) console.error('Falha ao salvar dados:', err);
+    writing = false;
+    if (writeAgain) { writeAgain = false; writeData(); }
+  };
+  fs.writeFile(tmp, json, (err) => (err ? done(err) : fs.rename(tmp, DATA_FILE, done)));
 }
 
 // ---------------- senhas e sessões ----------------
@@ -402,11 +420,40 @@ app.use((req, _res, next) => {
 // Link de convite colado no WhatsApp, Discord, X…: a prévia mostra o servidor (nome, ícone e membros), como no Discord.
 // Troca só o bloco de prévia do index.html; convite inválido, revogado ou consulta demais ficam com a prévia do site.
 const escapeHtml = (text) => String(text).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
-app.get('/', (req, res, next) => {
+// A página inicial põe a marca do conteúdo de cada script e estilo no endereço (style.css?v=1a2b3c4d5e).
+// Na publicação o Caddy entrega esses arquivos e guarda os marcados por 1 ano no cache do navegador:
+// mudou o arquivo, mudou o endereço. Os arquivos só mudam numa publicação, que reinicia o servidor.
+const PUBLIC_DIR = path.join(__dirname, 'public');
+const marks = new Map();
+function markOf(file) {
+  if (!marks.has(file)) {
+    try { marks.set(file, crypto.createHash('sha1').update(fs.readFileSync(path.join(PUBLIC_DIR, file))).digest('hex').slice(0, 10)); }
+    catch { marks.set(file, null); }
+  }
+  return marks.get(file);
+}
+// Monta de novo quando o index.html muda (durante o desenvolvimento); sem o Caddy, o Node não guarda
+// os marcados no cache por muito tempo, então uma marca desatualizada no desenvolvimento não atrapalha.
+const home = { at: 0, html: '' };
+function homeHtml() {
+  const file = path.join(PUBLIC_DIR, 'index.html');
+  const at = fs.statSync(file).mtimeMs;
+  if (at !== home.at) {
+    marks.clear();
+    home.html = fs.readFileSync(file, 'utf8').replace(/(<(?:script|link)\b[^>]*?\s(?:src|href)=")([a-z0-9-]+\.(?:js|css))"/g, (all, before, name) => {
+      const mark = markOf(name);
+      return mark ? `${before}${name}?v=${mark}"` : all;
+    });
+    home.at = at;
+  }
+  return home.html;
+}
+app.get('/', (req, res) => {
+  const page = () => { res.set('Cache-Control', 'no-cache'); res.type('html').send(homeHtml()); };
   const code = req.query.invite;
-  if (typeof code !== 'string' || !allow('invite-preview:' + clientIp(req.headers, req.socket.remoteAddress), 60, 60_000)) return next();
+  if (typeof code !== 'string' || !allow('invite-preview:' + clientIp(req.headers, req.socket.remoteAddress), 60, 60_000)) return page();
   const community = communities.byInvite(code);
-  if (!community) return next();
+  if (!community) return page();
   const base = SITE_URL || 'https://' + req.get('host');
   const members = Object.values(community.members).filter((m) => m.active && !m.banned).length;
   const image = community.serverIcon ? `${base}/avatars/${community.serverIcon}` : `${base}/og-resenhex.png`;
@@ -419,11 +466,10 @@ app.get('/', (req, res, next) => {
     ...(community.serverIcon ? [] : [['og:image:width', '1200'], ['og:image:height', '630']]),
   ].map(([property, content]) => `  <meta property="${property}" content="${escapeHtml(content)}">`);
   tags.push(`  <meta name="twitter:card" content="${community.serverIcon ? 'summary' : 'summary_large_image'}">`);
-  const html = fs.readFileSync(path.join(__dirname, 'public', 'index.html'), 'utf8');
   res.set('Cache-Control', 'no-store');
-  res.type('html').send(html.replace(/ {2}<!-- prévia do link[\s\S]*?<!-- \/prévia do link -->\r?\n/, () => tags.join('\n') + '\n'));
+  res.type('html').send(homeHtml().replace(/ {2}<!-- prévia do link[\s\S]*?<!-- \/prévia do link -->\r?\n/, () => tags.join('\n') + '\n'));
 });
-app.use(express.static(path.join(__dirname, 'public')));
+app.use(express.static(PUBLIC_DIR));
 app.use(downloadRoutes(DOWNLOAD_DIR, { storeId: process.env.MS_STORE_ID }));
 app.get('/baixar', (_req, res) => res.sendFile(path.join(__dirname, 'public', 'baixar.html')));
 // Prova de que o app Android (que abre o site em tela cheia) é do mesmo dono do site. Sem ela,

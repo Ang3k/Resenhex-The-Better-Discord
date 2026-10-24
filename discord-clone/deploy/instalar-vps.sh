@@ -142,7 +142,12 @@ fi
 # ---------- app ----------
 say "Copiando o Resenhex para $APP_DIR"
 id resenhex >/dev/null 2>&1 || useradd --system --home "$DATA_DIR" --shell /usr/sbin/nologin resenhex
-install -d -o resenhex -g resenhex -m 750 "$DATA_DIR" "$DATA_DIR/uploads"
+# O Caddy entrega os instaladores direto de $DATA_DIR/downloads: a pasta de dados deixa outros usuários
+# atravessarem (751, sem listar), mas o banco e os uploads continuam só do resenhex (o serviço grava com
+# UMask=0027, e o que já existe perde a leitura para outros).
+install -d -o resenhex -g resenhex -m 751 "$DATA_DIR"
+install -d -o resenhex -g resenhex -m 750 "$DATA_DIR/uploads"
+find "$DATA_DIR" -maxdepth 1 -type f -exec chmod o-rwx {} +
 # Instalador e atualizações do app de Windows (enviados por deploy/publicar-app.ps1).
 install -d -o resenhex -g resenhex -m 755 "$DATA_DIR/downloads"
 install -d "$APP_DIR"
@@ -167,6 +172,7 @@ WorkingDirectory=$APP_DIR
 ExecStart=$(command -v node) $APP_DIR/server.js
 Restart=always
 RestartSec=3
+UMask=0027
 NoNewPrivileges=true
 ProtectSystem=full
 ReadWritePaths=$DATA_DIR
@@ -183,17 +189,54 @@ fi
 say "Configurando HTTPS para $DOMAIN"
 SITE_HOSTS="$DOMAIN"
 for d in $OLD_DOMAINS; do SITE_HOSTS="$SITE_HOSTS, $d"; done
+# Com o SFU ligado, a sinalização do LiveKit passa pelo mesmo endereço.
+RTC_ROUTE=""
+if [ -f /etc/resenhex-livekit.env ]; then
+  RTC_ROUTE=$'\thandle /rtc* {\n\t\treverse_proxy 127.0.0.1:7880\n\t}\n'
+fi
+# Arquivos saem direto do disco, sem passar pelo Node, que fica com o tempo real e o que precisa de login.
+# - Instaladores do app: a versão está no nome, então nunca mudam. O Caddy atende pedidos de várias
+#   faixas de uma vez, que a atualização do app usa para baixar só os trechos que mudaram.
+# - Páginas, scripts, estilos, sons e imagens do site. A página inicial (/) continua no Node: ela monta
+#   a prévia dos convites e põe a marca do conteúdo de cada script e estilo no endereço (?v=…), e os
+#   endereços com marca podem ficar 1 ano no cache. Os sem marca são conferidos a cada uso (ETag).
 cat > /etc/caddy/Caddyfile <<EOF
 $SITE_HOSTS {
-	encode gzip
-	reverse_proxy 127.0.0.1:3000
+	encode zstd gzip
+${RTC_ROUTE}	@installer path_regexp ^/download/(Resenhex-Setup-[0-9.]+\.exe(\.blockmap)?|Resenhex-[0-9.]+\.apk)$
+	handle @installer {
+		root * $DATA_DIR/downloads
+		uri strip_prefix /download
+		header Cache-Control "public, max-age=31536000, immutable"
+		@exe path *.exe
+		header @exe Content-Type application/vnd.microsoft.portable-executable
+		@apk path *.apk
+		header @apk Content-Type application/vnd.android.package-archive
+		file_server
+	}
+	@public {
+		not path /
+		file {
+			root $APP_DIR/public
+		}
+	}
+	handle @public {
+		root * $APP_DIR/public
+		@versioned expression {query.v} != ""
+		@unversioned expression {query.v} == ""
+		header @versioned Cache-Control "public, max-age=31536000, immutable"
+		header @unversioned Cache-Control "public, max-age=0"
+		# A lista de tipos que o Caddy usa no Ubuntu não conhece o manifesto do app instalável.
+		@manifest path *.webmanifest
+		header @manifest Content-Type application/manifest+json
+		file_server
+	}
+	handle {
+		reverse_proxy 127.0.0.1:3000
+	}
 }
 EOF
 # Com domínio próprio, o endereço gratuito antigo continua funcionando e redireciona para o novo.
-if [ -f /etc/resenhex-livekit.env ]; then
-  sed -i '/encode gzip/a\	handle /rtc* {\n\t\treverse_proxy 127.0.0.1:7880\n\t}' /etc/caddy/Caddyfile
-  sed -i 's/^\treverse_proxy 127.0.0.1:3000/\thandle {\n\t\treverse_proxy 127.0.0.1:3000\n\t}/' /etc/caddy/Caddyfile
-fi
 # www.dominio leva para o domínio sem www, quando o www também aponta para este servidor.
 if [[ "$DOMAIN" != www.* ]] && getent ahostsv4 "www.$DOMAIN" 2>/dev/null | awk '{ print $1 }' | grep -qx "$PUBLIC_IP"; then
   cat >> /etc/caddy/Caddyfile <<EOF

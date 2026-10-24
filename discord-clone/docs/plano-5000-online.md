@@ -227,19 +227,19 @@ Sem isso, cada mudança é fé. Vem primeiro.
 3. **Início rápido** (pronto, falta publicar).
    - O laço do `scheduleTimeoutEnd` passa a percorrer só os membros de cada servidor que têm castigo (`timeoutUntil`), em vez de servidores × contas (problema 3).
    - Medido no PC: com 10 mil contas e 2 mil servidores, de 20 s para 1 s; com 50 mil contas e 10 mil servidores, 1,3 s.
-4. **Gravação garantida.** Até a Fase 2 chegar:
+4. **Gravação garantida** (pronto, falta publicar). Até a Fase 2 chegar:
    - O `save()` grava no máximo a cada 2 s, mesmo com atividade sem pausa.
    - Uma gravação nunca começa antes da anterior terminar.
-5. **Arquivos pelo Caddy, não pelo Node:**
-   - Páginas, scripts, fotos, emojis, sons e instaladores saem direto do disco, com compressão (gzip + zstd).
-   - As fotos já têm nome de hash, então podem ter cache de 1 ano.
-   - Scripts e CSS levam a versão no endereço (`?v=1.9.0`) e também podem ter cache longo.
-   - O Node fica só com o tempo real e as rotas que precisam de login.
-6. **Instaladores do Windows (104 MB):** servidos pelo Caddy, ou pelo GitHub Releases (rede grátis e ilimitada) se o repositório for público. Manter as atualizações em partes (blockmap), para quem já tem o app baixar só o que mudou.
-7. **Backups dos uploads:**
-   - Parar de empacotar todos os arquivos a cada publicação.
-   - Como o nome é o hash, uma cópia incremental (rsync) só leva os novos.
-   - O banco continua com cópia a cada publicação.
+5. **Arquivos pelo Caddy, não pelo Node** (pronto, falta publicar; testado com o Caddy 2.11.7 do servidor, numa instância temporária):
+   - Páginas, scripts, estilos, sons e imagens do `public/` saem direto do disco, com compressão (zstd + gzip).
+   - A página inicial continua no Node: ela põe a marca do conteúdo de cada script e estilo no endereço (`app.js?v=1a2b3c4d5e`). Os marcados ficam 1 ano no cache; os outros são conferidos a cada uso (ETag).
+   - Fotos, emojis e sons enviados pelas pessoas continuam no Node, porque ele confere se o arquivo ainda está em uso. Eles já tinham cache de 1 ano.
+   - O Node fica com o tempo real, a página inicial e as rotas que precisam de login ou consulta ao banco.
+   - A pasta de dados passa a deixar o Caddy atravessar até os instaladores (751); o banco e os uploads continuam só do serviço (`UMask=0027` e leitura tirada de outros).
+6. **Instaladores do Windows (104 MB)** (pronto, falta publicar): servidos pelo Caddy, que atende pedidos de várias faixas, na ordem pedida. As atualizações em partes (blockmap) continuam funcionando. O `latest.yml`, o `android.json` e os links fixos (`Resenhex-Setup.exe`) continuam no Node.
+7. **Backups dos uploads** (pronto, falta publicar):
+   - A publicação empacota só o banco. Os uploads vão para `/var/backups/resenhex/uploads` por cópia incremental (rsync): só os novos viajam.
+   - A cópia guarda também os arquivos que o site apagou. Só o root lê os backups.
 
 **Pronto quando:**
 - o coturn não registra mais falta de portas;

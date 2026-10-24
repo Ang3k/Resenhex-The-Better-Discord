@@ -494,6 +494,21 @@ test('only the site owner sees every call: server, room and people, with private
   assert.equal(back.auth.siteOwner, true);
 });
 
+test('nonstop activity still reaches the disk within about 2 seconds', async (t) => {
+  const app = await fixture(t);
+  const owner = await app.connect('Dono');
+  const file = path.join(app.dir, 'data.json');
+  // Uma mudança a cada 200 ms: antes, cada uma adiava a gravação mais 300 ms e nada chegava ao disco.
+  const started = Date.now();
+  let landed = null;
+  for (let i = 0; Date.now() - started < 3000; i++) {
+    assert.ok(!(await owner.call('presence', { statusText: 'frase ' + i })).error);
+    if (landed === null && fs.existsSync(file) && /"statusText":"frase \d+"/.test(fs.readFileSync(file, 'utf8'))) landed = Date.now() - started;
+    await wait(200);
+  }
+  assert.ok(landed !== null && landed < 2700, `a primeira mudança chegou ao disco em ${landed} ms`);
+});
+
 test('only the site owner reads the server health meter', async (t) => {
   const { connect } = await fixture(t);
   const owner = await connect('Dono'); const guest = await connect('Visitante');
@@ -525,4 +540,19 @@ test('an invite link shows its server in chat previews, escaped; other links kee
     assert.match(page, /og-resenhex\.png/);
   }
   assert.equal((await fetch(`${base}/og-resenhex.png`)).headers.get('content-type'), 'image/png');
+});
+
+test('the home page marks each script and stylesheet with its content, so the long cache never serves an old file', async (t) => {
+  const { base } = await fixture(t);
+  const res = await fetch(`${base}/`);
+  assert.equal(res.headers.get('cache-control'), 'no-cache');
+  const html = await res.text();
+  const sha = (file) => crypto.createHash('sha1').update(fs.readFileSync(path.join(__dirname, '..', 'public', file))).digest('hex').slice(0, 10);
+  assert.ok(html.includes(`<link rel="stylesheet" href="style.css?v=${sha('style.css')}">`));
+  assert.ok(html.includes(`<script src="app.js?v=${sha('app.js')}">`));
+  assert.doesNotMatch(html, /(?:src|href)="[a-z0-9-]+\.(?:js|css)"/, 'every local script and stylesheet carries a mark');
+  assert.match(html, /src="\/socket\.io\/socket\.io\.min\.js"/, 'files outside public/ stay as they are');
+  // O mesmo vale para a página de convite, e o arquivo marcado continua sendo servido.
+  assert.ok((await (await fetch(`${base}/?invite=inexistente`)).text()).includes(`app.js?v=${sha('app.js')}`));
+  assert.equal((await fetch(`${base}/app.js?v=${sha('app.js')}`)).status, 200);
 });

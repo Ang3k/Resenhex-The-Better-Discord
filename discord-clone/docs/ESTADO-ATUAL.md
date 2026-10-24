@@ -7,7 +7,7 @@ Resumo para retomar o trabalho em outra sessão do Claude sem depender da conver
 Deixar o Resenhex aguentar **5 mil pessoas online ao mesmo tempo**, espalhadas em vários servidores, **sem gastar nada**: na mesma máquina grátis da Oracle.
 
 - O plano completo, com medições, metas e 7 fases, está em [plano-5000-online.md](plano-5000-online.md).
-- Prontos e não publicados: os itens 1, 2 e 3 da Fase 1 (avisos só para quem foi afetado, portas do retransmissor, início rápido) e a Fase 0 (medidor de saúde e simulador). Próximos: o resto da Fase 1, depois a Fase 4a.
+- Prontos e não publicados: a Fase 0 (medidor de saúde e simulador) e a Fase 1 inteira (avisos só para quem foi afetado, portas do retransmissor, início rápido, gravação garantida, arquivos pelo Caddy, backups dos uploads). Próxima: a Fase 4a.
 - **Teto medido com o simulador: entre 200 e 300 online** (com 10 contas cadastradas por pessoa online). Com o banco da meta, de 50 mil contas, nem 25 online passam nas metas.
 
 ## O que está no ar
@@ -30,7 +30,8 @@ Tudo na branch `claude/chamada-atual` (pasta `.claude/worktrees/chamada-atual`),
 | `e3a850c` | Este resumo, o plano e a ferramenta `tools/carga-teste.js` |
 | `6253ba0` | Plano revisado: varreduras no site inteiro (o próximo teto, ~400–600 online), início lento, senha fixa do TURN; ferramenta `tools/varreduras.js` |
 | `455edc0` | Fase 1, itens 2 e 3: portas e ajustes do retransmissor, TURN por TCP só na segunda tentativa, início rápido |
-| este commit | Fase 0: medidor de saúde (aba "Saúde do servidor" do dono) e simulador v2 com o banco do tamanho da meta; primeira medição do teto |
+| `f023dc0` | Fase 0: medidor de saúde (aba "Saúde do servidor" do dono) e simulador v2 com o banco do tamanho da meta; primeira medição do teto |
+| este commit | Fase 1, itens 4 a 7: gravação garantida, arquivos e instaladores pelo Caddy, backups dos uploads só com os novos |
 
 O dono pediu para **publicar só quando ele mandar, e só com o plano inteiro pronto** (24/10): nada de publicar fase por fase.
 
@@ -52,6 +53,12 @@ O que já está no código (este commit):
    - `sudo grep -E "min-port|max-port|allowed-peer" /etc/turnserver.conf` mostra `49152`, `65535` e `10.0.0.200`;
    - depois de uma call, `sudo journalctl -u coturn --since -1h | grep -c usage` passa de 0;
    - `sudo journalctl -u coturn --since -1h | grep -c "10.0.0.200 denied"` fica em 0.
+4. Conferir os arquivos pelo Caddy (Fase 1, itens 5 e 6):
+   - `curl -sI https://resenhex.com.br/style.css` responde com `server: Caddy` e sem `x-powered-by: Express`;
+   - a página inicial traz os scripts com `?v=` (`curl -s https://resenhex.com.br/ | grep -c '?v='` passa de 60), e `curl -sI "https://resenhex.com.br/app.js?v=x"` mostra `max-age=31536000`;
+   - `curl -sI https://resenhex.com.br/download/Resenhex-Setup.exe` redireciona para o instalador da versão, e esse responde 200 com `server: Caddy`;
+   - `sudo ls -l /var/lib/resenhex` mostra `drwxr-x--x` na pasta e o `data.json` sem leitura para outros (`-rw-r-----`).
+5. Na primeira publicação, o backup copia todos os uploads (~111 MB) para `/var/backups/resenhex/uploads`; nas seguintes, só os novos.
 
 ## Como publicar sem susto
 
