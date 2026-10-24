@@ -3,20 +3,6 @@
 Histórico de versões. A mesma lista aparece dentro do app em **Novidades** (menu do servidor ou rodapé das Configurações).
 O Resenhex chegou à versão 1.0 em 4 de outubro de 2026.
 
-## v1.9.1 — Painel "Chamadas agora" para o administrador do Resenhex
-
-24 de outubro de 2026.
-
-O administrador do Resenhex ganhou uma seção nas Configurações com quem está em chamada agora, em qual servidor e sala. Chamadas privadas entram só na contagem, e a política de privacidade explica isso.
-
-### Novidades
-
-- Chamadas agora (só para o administrador do Resenhex): cada servidor com gente em chamada, as salas e quem está nelas, com microfone, áudio, transmissão, câmera e há quanto tempo cada um entrou. A lista se atualiza sozinha enquanto a seção está aberta.
-
-### Melhorias
-
-- Privacidade: chamadas privadas entre amigos aparecem no painel só como um número, sem nomes. O painel não guarda histórico nem dá acesso ao áudio, ao vídeo ou à tela, e a política de privacidade foi atualizada.
-
 ## v1.9.0 — Ouvir a transmissão ensurdecido, voltar à chamada pelo painel e menus na tela cheia
 
 24 de outubro de 2026.
