@@ -1,29 +1,32 @@
 # Plano: 5 mil pessoas online no Resenhex, sem gastar nada
 
-Escrito em 24/10/2026. Meta: **5.000 pessoas online ao mesmo tempo, espalhadas em vários servidores**, sem travar e na mesma máquina grátis da Oracle (2 núcleos ARM, 12 GB de memória, 10 TB de rede por mês, até 200 GB de disco).
+Escrito em 24/10/2026 e revisado no mesmo dia, com a medição das varreduras (problemas 2 e 3). Meta: **5.000 pessoas online ao mesmo tempo, espalhadas em vários servidores**, sem travar e na mesma máquina grátis da Oracle (2 núcleos ARM, 12 GB de memória, 10 TB de rede por mês, até 200 GB de disco).
 
 ## Resumo
 
 A máquina aguenta. O que impede hoje é o jeito como o código trabalha:
 
 - ele mandava o estado inteiro para todo mundo a cada mudança (já corrigido, falta publicar);
+- para montar o estado de cada pessoa, ele percorre todas as contas, amizades, conversas e servidores do site. Isso cresce com quantas contas existem, não com quantas estão online, e é o próximo teto (~400–600 online);
+- ao ligar, ele percorre servidores × contas: na meta, cada publicação deixaria o site fora do ar por ~15 min;
 - ele regrava o banco de dados inteiro a cada mudança;
 - ele percorre todo mundo online para entregar cada mensagem.
 
-O plano tem 7 fases. A Fase 0 cria o medidor e o simulador. Com eles, cada mudança é medida antes e depois, e a meta só conta como batida quando o simulador mostrar 5 mil pessoas sem travar.
+Além da Fase 0, que cria o medidor e o simulador, o plano tem 7 fases (a 4 dividida em duas partes). Com o medidor e o simulador, cada mudança é medida antes e depois, e a meta só conta como batida quando o simulador mostrar 5 mil pessoas sem travar.
 
 | Fase | O quê | Tamanho | Ganho |
 |---|---|---|---|
 | 0 | Medidor de saúde no servidor + simulador de 5 mil pessoas | M | Saber, em vez de chutar |
-| 1 | Consertos rápidos: avisos por servidor (pronto), portas das chamadas, arquivos pelo Caddy, gravação garantida | P | Tira o teto de ~400 e conserta falhas que já acontecem |
-| 2 | Banco de dados SQLite, gravando só o que mudou | G | Tira o teto de ~1.000 (travadas ao salvar) |
+| 1 | Consertos rápidos: avisos por servidor (pronto), portas das chamadas, início rápido, arquivos pelo Caddy, gravação garantida | P | Tira o teto de ~400 do estado inteiro e conserta falhas que já acontecem |
+| 2 | Banco de dados SQLite, gravando só o que mudou | G | Tira as travadas ao salvar (~0,2 s com um banco de 50 MB, ~1,3 s com 300 MB) |
 | 3 | Avisos pequenos ("fulano mutou") entregues por sala | G | Processador e rede ~10–50× menores por mudança |
-| 4 | Tirar do caminho o que trava: índices, fotos em outro núcleo, prévias mais leves | M | Custo por mudança não cresce com o total de pessoas |
-| 5 | Chamadas e rede: medir e limitar o que passa pelo servidor | M | Não estourar os 10 TB grátis |
+| 4a | Parar de percorrer o site inteiro: índices e o que roda em toda mudança | M | Tira o próximo teto, de ~400–600 online |
+| 4b | Fotos em outro núcleo, prévias mais leves, memória | M | Custo por mudança não cresce com o total de pessoas |
+| 5 | Chamadas e rede: senha temporária no retransmissor, medir e limitar o que passa pelo servidor | M | Não estourar os 10 TB grátis |
 | 6 | Servidores grandes (só se aparecerem) | M | Comunidades com centenas online |
 | 7 | Proteção e operação: reconexão em massa, alarmes, disco | P/M | Publicar sem derrubar todo mundo; dormir tranquilo |
 
-P = horas, M = 1–2 dias, G = vários dias. Cada fase é testada e publicada sozinha.
+P = horas, M = 1–2 dias, G = vários dias. Cada fase é testada e publicada sozinha. A ordem de trabalho não segue os números: a Fase 4a vem antes da Fase 2, porque o teto dela chega primeiro (seção 4).
 
 ---
 
@@ -47,17 +50,39 @@ P = horas, M = 1–2 dias, G = vários dias. Cada fase é testada e publicada so
 1. **Estado inteiro para todo mundo.** Cada mudança (mutar, entrar na call, conectar) mandava canais, cargos e a lista de membros para todas as pessoas online, inclusive de outros servidores.
    - Teto: ~300–400 online.
    - Já corrigido no commit `9765b48` (avisa só quem é afetado). Medido com 800 online: 206 ms → ~20 ms por mudança. **Falta publicar.**
-2. **Banco num arquivo só, regravado inteiro.**
+   - Esse teste só tinha contas online, sem amizades nem conversas. Por isso não mostrou o problema 2.
+2. **O site inteiro é percorrido a cada envio.**
+   - Para montar o estado de cada pessoa que recebe um aviso, o servidor percorre todas as amizades e conversas do site (`socialFor`), todos os servidores (`communities.list`) e todas as conexões (`publicProfiles`).
+   - Uma vez por envio, o `sharedState` percorre todas as contas do site. O `Object.values(db.accounts)` ainda cria um Proxy por conta.
+   - O `notifyAccount` percorre todas as amizades, conversas, bloqueios e servidores a cada mudança de presença.
+   - Medido no PC com o `communities.js` de verdade, com uma amizade e uma conversa por conta em média (`tools/varreduras.js`; o ARM é ~1,7× mais lento):
+
+     | Banco | `socialFor` (por pessoa que recebe) | `sharedState` (por envio) | `notifyAccount` |
+     |---|---|---|---|
+     | 10 mil contas, 2 mil servidores | 8 ms | 7 ms | 8 ms |
+     | 50 mil contas, 10 mil servidores (meta) | 66 ms | 42 ms | 56 ms |
+
+   - Com ~1.000 online (~10 mil contas), uma mudança num servidor com 20 pessoas olhando custa ~0,3 s no ARM, e chegam ~8 mudanças por segundo.
+   - **Teto estimado depois do `9765b48`: ~400–600 online.** Ele depende de quantas contas existem, não de quantas estão online.
+3. **O início percorre servidores × contas.**
+   - O laço que agenda o fim dos castigos (`scheduleTimeoutEnd`, no `server.js`) passa por todas as contas em cada servidor. Ele roda antes do `listen`: ninguém entra enquanto ele não termina.
+   - Medido no PC: ~13 s com 2 mil servidores e 10 mil contas. Na meta (10 mil × 50 mil): **~9 min no PC, ~15 min no ARM, a cada publicação.**
+4. **Banco num arquivo só, regravado inteiro.**
    - O servidor fica parado enquanto prepara o arquivo: ~0,2 s com 50 MB e ~1,3 s com 300 MB.
    - Na proporção de hoje (6,2 KB por conta, e os canais ainda longe do limite de 300 mensagens), 5 mil online dariam de 50 a 300 MB.
    - Tem também um defeito: o `save()` adia a gravação a cada mudança nova. **Com atividade sem pausa de 0,3 s ele não grava nunca**, e se o servidor cair, perde tudo desde a última pausa.
    - E duas gravações podem se atropelar no mesmo arquivo temporário.
-3. **Retransmissor de chamadas sem portas.**
-   - O coturn (o servidor que passa as chamadas de quem está atrás de rede restrita) tem só **41 portas** (49160–49200).
-   - Cada conexão de chamada pede 2 portas (UDP e TCP). Uma sala de 5 pessoas pode ocupar as 41 sozinha.
+5. **Retransmissor de chamadas sem portas.**
+   - O coturn (o servidor que passa as chamadas de quem está atrás de rede restrita) tem só **41 portas** (49160–49200), definidas em `deploy/instalar-vps.sh`.
+   - O site oferece o TURN por UDP e por TCP, então cada conexão de chamada pede 2 portas.
+   - Todo mundo pede portas, não só quem precisa do retransmissor: o navegador aloca ao montar cada conexão. Numa sala de n pessoas são n × (n − 1) × 2 portas. Uma sala de 5 pessoas chega a ocupar 40 das 41.
    - **Ficou sem portas 435 vezes na noite de sexta, 23/10, entre 21h e 2h, e mais 21 vezes no sábado à tarde.** Nessas horas, quem precisava do retransmissor não conseguia se conectar na call.
-4. **Mensagens e "digitando" percorrem todo mundo online.** Para cada mensagem, o servidor passa por todas as conexões e confere a permissão uma a uma (`emitToViewers`). Há 16 laços assim no `server.js`.
-5. **Fotos de perfil processadas no mesmo núcleo do servidor.** O `pngjs` recodifica cada imagem e deixa o servidor parado:
+   - A senha do retransmissor é fixa e igual para todos (`user=` no `turnserver.conf`) e vai para toda conta logada. Qualquer um pode copiá-la e usar o retransmissor para outra coisa, gastando a rede grátis.
+6. **Laços sobre todo mundo online.**
+   - Para cada mensagem, o servidor passa por todas as conexões e confere a permissão uma a uma (`emitToViewers`). Há 26 trechos no `server.js` que percorrem todas as conexões.
+   - Toda mudança, até uma troca de status, roda o `enforceVoice()` (confere a permissão de cada pessoa em call) e o `syncDjRooms()` (conta todo mundo online).
+   - O `viewers` de cada pessoa em call percorre todas as conexões: o custo cresce com quem está em call × quem está online.
+7. **Fotos de perfil processadas no mesmo núcleo do servidor.** O `pngjs` recodifica cada imagem e deixa o servidor parado:
 
    | Imagem | Tempo parado no servidor |
    |---|---|
@@ -65,14 +90,14 @@ P = horas, M = 1–2 dias, G = vários dias. Cada fase é testada e publicada so
    | 512 px | ~57 ms |
    | 1024 px | ~220 ms |
 
-6. **O Node serve arquivos.**
+8. **O Node serve arquivos.**
    - Páginas, scripts (1,5 MB, 0,4 MB comprimido), fotos e os instaladores do Windows (104 MB cada) passam pelo processo que também cuida do tempo real.
    - Os scripts não têm cache longo.
-7. **Prévias das transmissões passam pelo servidor.**
+9. **Prévias das transmissões passam pelo servidor.**
    - É uma foto de 768×432 a cada 8 s, para todos na sala, mesmo quem já está assistindo.
    - Com 150 pessoas transmitindo, dá ~1–3 MB/s.
-8. **Backups.** Cada publicação empacota o banco **e todos os uploads**. Hoje são 112 MB por publicação; com 50 mil contas, seriam dezenas de GB.
-   - A retenção de só os 10 mais novos já está pronta no `9765b48`.
+10. **Backups.** Cada publicação empacota o banco **e todos os uploads**. Hoje são 112 MB por publicação; com 50 mil contas, seriam dezenas de GB.
+    - A retenção de só os 10 mais novos já está pronta no `9765b48`.
 
 ---
 
@@ -108,7 +133,7 @@ P = horas, M = 1–2 dias, G = vários dias. Cada fase é testada e publicada so
 ### A conta, depois do plano (estimativa, a confirmar na Fase 0)
 
 - **Processador:**
-  - Uma mudança custa ~0,2–0,5 ms (aviso pequeno, montado uma vez e entregue à sala).
+  - Uma mudança custa ~0,2–0,5 ms (aviso pequeno, montado uma vez e entregue à sala). Isso conta com os índices da Fase 4a: sem eles, só o `socialFor` de uma pessoa custaria ~110 ms no ARM com 50 mil contas.
   - Juntando 83 mudanças/s, 28 mensagens/s, 55 "digitando"/s, 83 trocas de servidor/s, os pings do socket.io (200/s) e a gravação no SQLite: **~130 ms por segundo ≈ 13% de um núcleo**.
   - A meta é ficar abaixo de 50%.
 - **Memória:**
@@ -129,9 +154,13 @@ P = horas, M = 1–2 dias, G = vários dias. Cada fase é testada e publicada so
   - Costuma-se estimar que 10–25% das conexões precisam dele.
   - Uma transmissão de tela retransmitida a 3 Mbps para 3 pessoas dá ~4 GB por hora.
   - Sem limite, ele sozinho poderia passar de 10 TB por mês.
-  - A Fase 5 mede e põe teto, para o site e o retransmissor juntos ficarem abaixo de 7 TB.
+  - Com a senha fixa de hoje, quem não é do Resenhex também pode gastar essa rede.
+  - A Fase 5 troca a senha, mede e põe teto, para o site e o retransmissor juntos ficarem abaixo de 7 TB.
 - **Disco:** 111 MB para 88 contas → ~60 GB para 50 mil. A Oracle dá até 200 GB grátis.
-- **Conexões:** sobra (524 mil permitidas; 16 mil portas no retransmissor depois da Fase 1).
+- **Conexões:** sobra (524 mil permitidas).
+- **Portas do retransmissor:** ~16 mil depois da Fase 1, mas cada sala de n pessoas ocupa n × (n − 1) × 2.
+  - ~250 salas de 4 pessoas: ~6 mil portas. Uma sala de 8 ocupa 112.
+  - Sem o TURN por TCP na primeira tentativa (Fase 1), cai pela metade.
 
 ---
 
@@ -154,6 +183,7 @@ Sem isso, cada mudança é fé. Vem primeiro.
 
 **0.2 Simulador de carga v2** (evolução do `carga-teste.js` usado em 24/10)
 - Cria contas e servidores direto no banco de teste: muitos servidores pequenos, alguns médios e um ou dois de 500.
+- **O banco de teste precisa ter o tamanho do site, não só de quem está online:** ~10 contas cadastradas para cada pessoa online (50 mil para 5 mil), com amizades, conversas e bloqueios. O teste de 24/10 só criava contas online e sem amigos, e por isso não viu os problemas 2 e 3.
 - Cada pessoa simulada segue o roteiro das premissas: conversa, digita, entra e sai de call, muta, troca de servidor, muda status e reconecta.
 - Tem um modo de **reconexão em massa** (todo mundo cai e volta em 1 minuto).
 - Roda em vários processos, porque um só não aguenta 5 mil conexões. Gera um relatório com as metas da tabela acima: passou ou não passou.
@@ -162,31 +192,39 @@ Sem isso, cada mudança é fé. Vem primeiro.
   - Ao fim de cada fase, uma rodada no próprio servidor ARM de madrugada: numa cópia separada (outra porta, dados de teste, sem tocar no Resenhex de verdade), com o gerador no PC.
 - **Armadilha conhecida:** criar servidor tem limite de 5 por minuto. Os servidores de teste precisam ser criados direto no banco, senão o teste mede outra coisa.
 
-**Pronto quando:** o simulador reproduz os números de 24/10 e mostra onde está o teto atual.
+**Pronto quando:** o simulador reproduz os números de 24/10, mostra onde está o teto atual (esperado: as varreduras do problema 2) e mede quanto o servidor leva para ligar com o banco da meta.
 
 ### Fase 1 — Consertos rápidos (P cada)
 
 1. **Publicar "avisar só quem é afetado"** (`9765b48`, pronto). Antes, conferir quem está online, porque a publicação derruba as calls.
 2. **Portas do retransmissor de chamadas** (já falha hoje):
    - Ampliar de 49160–49200 (41 portas) para 49152–65535 (~16 mil).
-   - Liberar na regra do iptables do servidor e na lista de segurança da Oracle (pela API, com a chave que já existe).
+   - **Mudar em `deploy/instalar-vps.sh`** (`TURN_MIN_PORT` e `TURN_MAX_PORT`). Cada publicação reescreve o `turnserver.conf`, o iptables e o ufw a partir dali, então uma edição feita só no servidor some na publicação seguinte.
+   - Liberar também na lista de segurança da Oracle (pela API, com a chave que já existe). Essa o instalador não toca.
    - Ligar o log de uso do coturn, para medir quanto tráfego passa por ele.
-   - Avaliar se o TURN por TCP precisa ser oferecido sempre, porque ele dobra as portas por conexão.
-3. **Gravação garantida.** Até a Fase 2 chegar:
+   - Tirar o TURN por TCP da primeira tentativa, porque ele dobra as portas por conexão. O app oferece o TCP só se a conexão falhar com UDP (reinício do ICE), para não deixar de fora quem está numa rede que só passa TCP.
+   - Reiniciar o coturn derruba as calls que passam por ele. Se a senha temporária (Fase 5, item 2) já estiver pronta, entra no mesmo reinício.
+3. **Início rápido.**
+   - O laço do `scheduleTimeoutEnd` passa a percorrer só os membros de cada servidor que têm castigo (`timeoutUntil`), em vez de servidores × contas (problema 3).
+   - É uma mudança de poucas linhas, e sem ela cada publicação na meta deixaria o site fora do ar por ~15 min.
+4. **Gravação garantida.** Até a Fase 2 chegar:
    - O `save()` grava no máximo a cada 2 s, mesmo com atividade sem pausa.
    - Uma gravação nunca começa antes da anterior terminar.
-4. **Arquivos pelo Caddy, não pelo Node:**
+5. **Arquivos pelo Caddy, não pelo Node:**
    - Páginas, scripts, fotos, emojis, sons e instaladores saem direto do disco, com compressão (gzip + zstd).
    - As fotos já têm nome de hash, então podem ter cache de 1 ano.
    - Scripts e CSS levam a versão no endereço (`?v=1.9.0`) e também podem ter cache longo.
    - O Node fica só com o tempo real e as rotas que precisam de login.
-5. **Instaladores do Windows (104 MB):** servidos pelo Caddy, ou pelo GitHub Releases (rede grátis e ilimitada) se o repositório for público. Manter as atualizações em partes (blockmap), para quem já tem o app baixar só o que mudou.
-6. **Backups dos uploads:**
+6. **Instaladores do Windows (104 MB):** servidos pelo Caddy, ou pelo GitHub Releases (rede grátis e ilimitada) se o repositório for público. Manter as atualizações em partes (blockmap), para quem já tem o app baixar só o que mudou.
+7. **Backups dos uploads:**
    - Parar de empacotar todos os arquivos a cada publicação.
    - Como o nome é o hash, uma cópia incremental (rsync) só leva os novos.
    - O banco continua com cópia a cada publicação.
 
-**Pronto quando:** o simulador passa de ~400 online sem travar e o coturn não registra mais falta de portas.
+**Pronto quando:**
+- o coturn não registra mais falta de portas;
+- o servidor liga em menos de 5 s com o banco simulado da meta;
+- o simulador mostra o teto que sobra. O esperado é o das varreduras (~400–600 online), que a Fase 4a tira.
 
 ### Fase 2 — Banco de dados sem travar (G)
 
@@ -214,6 +252,7 @@ O Node 22.23 do servidor já traz SQLite embutido (`node:sqlite`, sem instalar n
 
 1. **Salas do socket.io por servidor e por chamada.**
    - Quem está vendo o servidor X fica na sala "servidor X"; quem está numa call fica na sala da call.
+   - As salas de call já existem (`voice:<canal>`, usadas para conectar as chamadas e para as prévias). Faltam as salas por servidor e por canal de texto.
    - Conferido no código do socket.io instalado (`socket.io-adapter` 2.5.8): mandar para uma sala **monta a mensagem uma vez** e entrega a todos.
    - Hoje o `flushBroadcast` monta uma mensagem por pessoa.
 2. **Mandar só o que mudou:**
@@ -231,32 +270,48 @@ O Node 22.23 do servidor já traz SQLite embutido (`node:sqlite`, sem instalar n
 - os bytes por mudança ficam em ~0,3 KB × quem precisa ver;
 - os testes de privacidade de canal passam.
 
-### Fase 4 — Tirar do caminho o que trava (M)
+### Fase 4a — Parar de percorrer o site inteiro (M)
+
+Vem logo depois da Fase 1, antes do banco: é o teto que chega primeiro (problema 2).
 
 1. **Índices em vez de varreduras:**
    - conexões por conta e por servidor;
    - amizades e conversas por conta;
-   - membros por servidor.
-   - Hoje `notifyAccount`, `socialFor`, `sharedState` e `publicProfiles` percorrem todas as contas, amizades ou conexões a cada aviso, e isso cresce com o tamanho do site, não com o tamanho do servidor.
-2. **Trabalho pesado no segundo núcleo** (`worker_threads`): recodificar fotos e banners, e qualquer outra coisa que leve mais de ~10 ms. Hoje o segundo núcleo fica quase parado.
-3. **Prévias de transmissão:**
+   - membros por servidor;
+   - servidores por conta.
+   - Hoje `socialFor`, `communities.list`, `publicProfiles`, `sharedState` e `notifyAccount` percorrem todas as contas, amizades, conversas, servidores ou conexões a cada aviso. Isso cresce com o tamanho do site, não com o tamanho do servidor.
+   - O `sharedState` passa a ler os membros do próprio servidor (`server.members`), sem criar um Proxy para cada conta do site.
+2. **O que roda em toda mudança:**
+   - O `enforceVoice()` passa a rodar só quando muda cargo, canal ou castigo, e o `syncDjRooms()` só quando alguém entra ou sai de uma call.
+   - Quem assiste cada transmissão (`viewers`) vem de um índice, em vez de percorrer todas as conexões para cada pessoa em call.
+
+**Pronto quando:** com 50 mil contas e 10 mil servidores no banco simulado, montar o estado de uma pessoa custa menos de 1 ms, e uma mudança custa o mesmo com 5 mil e com 50 mil contas.
+
+### Fase 4b — Fotos, prévias e memória (M)
+
+1. **Trabalho pesado no segundo núcleo** (`worker_threads`): recodificar fotos e banners, e qualquer outra coisa que leve mais de ~10 ms. Hoje o segundo núcleo fica quase parado.
+2. **Prévias de transmissão:**
    - Só para quem está na sala e **não** está assistindo.
    - A cada 15 s em vez de 8 s.
    - Menores (~480 px, WebP).
    - Deve cortar a rede delas em ~4×.
-4. **Memória do Node:** definir `--max-old-space-size` (ex.: 6 GB) no serviço, com alarme acima de 70%.
-5. **Ajustes do socket.io recomendados na documentação:**
+3. **Memória do Node:** definir `--max-old-space-size` (ex.: 6 GB) no serviço, com alarme acima de 70%.
+4. **Ajustes do socket.io recomendados na documentação:**
    - soltar a requisição HTTP inicial guardada em cada conexão (`rawSocket.request = null`, depois de conferir que o login não depende dela);
    - manter a compressão por mensagem desligada (custa processador e memória por conexão).
 
-**Pronto quando:** o custo por mudança é o mesmo com 500 e com 5.000 online simuladas.
+**Pronto quando:** nenhuma foto trava o servidor por mais de 5 ms, e o custo por mudança é o mesmo com 500 e com 5.000 online simuladas.
 
 ### Fase 5 — Chamadas e rede (M)
 
 1. **Medir o retransmissor** com o log ligado na Fase 1: quantas conexões passam por ele e quantos GB por dia.
-2. **Teto de banda no coturn** (`bps-capacity` / `max-bps`), calculado para o mês nunca passar de ~7 TB somando tudo. Passar dos 10 TB custa dinheiro.
-3. **Transmissão retransmitida mais leve.** Quando o app detecta que a ligação passa pelo servidor (candidato `relay` no `getStats`), a transmissão cai para 720p, ~1,5 Mbps. Quem conecta direto continua com a qualidade cheia.
-4. **Salas grandes.** Na malha P2P de hoje, cada pessoa envia para cada outra. Acima de ~5–6 pessoas com câmera ou transmissão, quem pesa é a internet de quem está na sala, não o servidor.
+2. **Senha temporária no retransmissor** (P; pode ir junto com a Fase 1, item 2):
+   - Hoje a senha é fixa e igual para todos (problema 5).
+   - Trocar por `use-auth-secret` + `static-auth-secret`: a cada login, o servidor gera um usuário e uma senha que valem algumas horas. O app pede novos ao entrar numa call, se os seus já venceram.
+   - Limitar alocações por usuário e no total (`user-quota`, `total-quota`).
+3. **Teto de banda no coturn** (`bps-capacity` / `max-bps`), calculado para o mês nunca passar de ~7 TB somando tudo. Passar dos 10 TB custa dinheiro.
+4. **Transmissão retransmitida mais leve.** Quando o app detecta que a ligação passa pelo servidor (candidato `relay` no `getStats`), a transmissão cai para 720p, ~1,5 Mbps. Quem conecta direto continua com a qualidade cheia.
+5. **Salas grandes.** Na malha P2P de hoje, cada pessoa envia para cada outra. Acima de ~5–6 pessoas com câmera ou transmissão, quem pesa é a internet de quem está na sala, não o servidor.
    - Fora da meta (que é de pessoas espalhadas).
    - Se virar problema, as opções são limitar quantos transmitem por sala ou religar o SFU só para salas grandes. O SFU gasta banda do servidor: é uma decisão separada.
 
@@ -276,6 +331,7 @@ Quem não está olhando um servidor não recebe nada dele (o Discord chama isso 
 
 1. **Publicar sem derrubar todos de uma vez.**
    - O cliente espera um tempo aleatório (0–30 s) antes de reconectar quando o servidor some.
+   - O cliente conecta direto por websocket (`transports: ['websocket']` com `tryAllTransports`, que volta ao modo de requisições HTTP se o websocket falhar). Hoje ele começa por requisições HTTP repetidas e só depois troca, o que dobra as requisições na volta em massa.
    - O servidor aceita as entradas sem travar: o simulador testa com 5 mil voltando juntas.
 2. **Limites contra abuso:**
    - conexões por IP;
@@ -298,15 +354,16 @@ Quem não está olhando um servidor não recebe nada dele (o Discord chama isso 
 
 ## 4. Ordem sugerida
 
-1. Fase 1, itens 1 e 2 (avisos por servidor e portas das chamadas): já resolvem problemas de hoje.
-2. Fase 0 (medidor + simulador).
+1. Fase 1, itens 1, 2 e 3 (avisos por servidor, portas das chamadas, início rápido): resolvem problemas de hoje ou são de poucas linhas. Se der, a senha temporária do retransmissor (Fase 5, item 2) vai junto, para reiniciar o coturn uma vez só.
+2. Fase 0 (medidor + simulador, com o banco do tamanho da meta).
 3. Fase 1, o resto.
-4. Fase 2 (banco).
-5. Fase 3 (avisos pequenos).
-6. Fase 4.
-7. Fase 5.
-8. Fase 7.
-9. Fase 6 só quando aparecer um servidor grande.
+4. Fase 4a (parar de percorrer o site inteiro): é o próximo teto, ~400–600 online.
+5. Fase 2 (banco).
+6. Fase 3 (avisos pequenos).
+7. Fase 4b.
+8. Fase 5, o resto.
+9. Fase 7.
+10. Fase 6 só quando aparecer um servidor grande.
 
 Depois de cada fase: simulador, publicação em horário calmo (conferindo quem está online antes), e uma rodada do simulador no servidor ARM de madrugada.
 
@@ -325,6 +382,7 @@ O teste final no servidor ARM, numa cópia separada e de madrugada:
 - **Calls grandes** dependem da internet de quem está nelas (P2P), não do servidor.
 - **O `node:sqlite` é experimental no Node 22:** a mitigação está na Fase 2.
 - **O gerador de carga num PC de casa** pode não aguentar 5 mil conexões, por causa do roteador e das portas. Se for o caso, dividir entre o PC e o próprio servidor, sabendo que a parte no servidor rouba processador da medição.
+- **Os tetos deste plano são estimativas** feitas a partir de medições de partes isoladas (o estado inteiro, as varreduras, a gravação). A Fase 0 confirma cada um com o simulador.
 - **As premissas de uso vêm de 8–19 pessoas reais.** O medidor da Fase 0 em produção vai mostrando o ritmo real conforme o site cresce, e o plano se ajusta.
 - **A Oracle já cortou o plano grátis uma vez** (junho de 2026: de 4 para 2 núcleos). Se cortar de novo, o plano continua valendo, mas a folga diminui.
 
