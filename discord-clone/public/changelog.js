@@ -4,6 +4,18 @@
 // O título deve destacar as principais funcionalidades ou correções, com termos objetivos.
 window.CHANGELOG = [
   {
+    version: '1.9.1', date: '2026-10-24', name: 'Painel "Chamadas agora" para o administrador do Resenhex',
+    summary: 'O administrador do Resenhex ganhou uma seção nas Configurações com quem está em chamada agora, em qual servidor e sala. Chamadas privadas entram só na contagem, e a política de privacidade explica isso.',
+    sections: [
+      { kind: 'new', items: [
+        'Chamadas agora (só para o administrador do Resenhex): cada servidor com gente em chamada, as salas e quem está nelas, com microfone, áudio, transmissão, câmera e há quanto tempo cada um entrou. A lista se atualiza sozinha enquanto a seção está aberta.',
+      ] },
+      { kind: 'improved', items: [
+        'Privacidade: chamadas privadas entre amigos aparecem no painel só como um número, sem nomes. O painel não guarda histórico nem dá acesso ao áudio, ao vídeo ou à tela, e a política de privacidade foi atualizada.',
+      ] },
+    ],
+  },
+  {
     version: '1.9.0', date: '2026-10-24', name: 'Ouvir a transmissão ensurdecido, voltar à chamada pelo painel e menus na tela cheia',
     summary: 'Ensurdecido, dá para ligar só o som da transmissão que você está assistindo. O nome da sala no painel Voz conectada leva de volta para a chamada, como no Discord. E, com a transmissão em tela cheia, o menu de qualidade volta a aceitar clique.',
     sections: [

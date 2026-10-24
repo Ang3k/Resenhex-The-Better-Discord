@@ -24,6 +24,9 @@ function communityStore(root, newId, defaultDb) {
     root.defaultServerId = id;
   }
   root.schemaVersion = 2;
+  // Dono do Resenhex (não de um servidor): quem criou o servidor original. Fica gravado à parte,
+  // para não mudar se aquele servidor trocar de dono.
+  root.siteOwnerId ??= root.servers[root.defaultServerId]?.ownerId ?? null;
   for (const server of Object.values(root.servers)) {
     migrateChannels(server);
     server.members ||= {};

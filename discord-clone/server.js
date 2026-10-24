@@ -257,6 +257,8 @@ function createSession(accountId) {
 // ---------------- permissões ----------------
 const roleIndex = (id) => db.roles.findIndex((r) => r.id === id);
 const isOwner = (acc) => acc.id === db.ownerId;
+// Dono do Resenhex inteiro (vê o painel de chamadas), não de um servidor.
+const isSiteOwner = (acc) => !!acc && acc.id === communities.root.siteOwnerId;
 
 function topPosition(acc) {
   if (isOwner(acc)) return Infinity;
@@ -1092,6 +1094,7 @@ function leaveVoice(socket) {
   const left = { server: s.voiceServerId, channel: s.voice };
   s.voice = null;
   s.voiceServerId = null;
+  s.voiceSince = null;
   if (![...online.values()].some((o) => o.voice === left.channel && o.voiceServerId === left.server)) media.vacate(left.server, left.channel);
   s.sharing = false;
   s.preview = null;
@@ -1382,6 +1385,7 @@ io.on('connection', (socket) => {
         if (legacy && !legacy.ownerId) {
           communities.join(acc.id, legacy);
           legacy.ownerId = acc.id;
+          communities.root.siteOwnerId ??= acc.id;
         }
       } else {
         const key = ip + '|' + name.toLowerCase();
@@ -1401,7 +1405,7 @@ io.on('connection', (socket) => {
     const serverId = communities.choose(acc.id, payload.serverId || acc.lastServerId);
     online.set(socket.id, { accountId: acc.id, serverId, voice: null, voiceServerId: null, muted: false, deafened: false, sharing: false, camera: false });
     save();
-    ack({ token, accountId: acc.id, name: acc.name, since: acc.createdAt || null, serverId, sid: socket.id, presence: acc.presence || 'online', statusText: acc.statusText || '', iceServers: iceServers(), permNames: PERMS, maxUploadMb: MAX_UPLOAD_MB, version: APP_VERSION, gifKey: process.env.KLIPY_KEY || null, ...recovery.view(acc), mailEnabled: recovery.enabled });
+    ack({ token, accountId: acc.id, name: acc.name, since: acc.createdAt || null, serverId, sid: socket.id, presence: acc.presence || 'online', statusText: acc.statusText || '', iceServers: iceServers(), permNames: PERMS, maxUploadMb: MAX_UPLOAD_MB, version: APP_VERSION, gifKey: process.env.KLIPY_KEY || null, siteOwner: isSiteOwner(acc), ...recovery.view(acc), mailEnabled: recovery.enabled });
     // Páginas de antes da 0.99.3 não mandam a versão nem sabem mostrar o aviso de atualização.
     if (!payload.version) socket.emit('notice', 'Saiu uma versão nova do Resenhex. Aperte F5 para atualizar.');
     socket.emit('social', socialFor(acc));
@@ -1952,6 +1956,7 @@ io.on('connection', (socket) => {
       socket.join(room);
       s.voice = c.id;
       s.voiceServerId = target;
+      s.voiceSince = Date.now();
       const dropped = dropOtherVoiceSessions(socket, acc.id);
       broadcastState();
       sendPreviews(peers);
@@ -1971,6 +1976,7 @@ io.on('connection', (socket) => {
     socket.join(room);
     s.voice = dm;
     s.voiceServerId = null;
+    s.voiceSince = Date.now();
     // A aba antiga sai depois desta entrar: com a conta ainda na sala, a chamada não acaba.
     const dropped = dropOtherVoiceSessions(socket, acc.id);
     dmCalls.joined(dm, acc.id, conversation.users.find((u) => u !== acc.id), { first: !peers.length, silent });
@@ -2009,6 +2015,36 @@ io.on('connection', (socket) => {
   on('voice:leave', () => {
     leaveVoice(socket);
     broadcastState();
+  });
+
+  // Painel do dono do Resenhex: quem está em chamada agora, em qual servidor e sala.
+  // Chamada privada entra só na contagem, sem nomes.
+  on('site:calls', (acc) => {
+    if (!isSiteOwner(acc)) fail('Só o dono do Resenhex vê as chamadas.');
+    const { servers, accounts } = communities.root;
+    const found = new Map(), privateCalls = new Set(), privatePeople = new Set(), onlineIds = new Set();
+    for (const s of online.values()) {
+      onlineIds.add(s.accountId);
+      if (!s.voice) continue;
+      if (isDmCall(s)) { privateCalls.add(s.voice); privatePeople.add(s.accountId); continue; }
+      const server = servers[s.voiceServerId], a = accounts[s.accountId];
+      const channel = server?.channels.find((c) => c.id === s.voice);
+      if (!channel || !a) continue;
+      if (!found.has(s.voiceServerId)) found.set(s.voiceServerId, { id: s.voiceServerId, name: server.serverName, icon: server.serverIcon ? '/avatars/' + server.serverIcon : null, rooms: new Map() });
+      const rooms = found.get(s.voiceServerId).rooms;
+      if (!rooms.has(channel.id)) rooms.set(channel.id, { id: channel.id, name: channel.name, order: server.channels.indexOf(channel), people: [] });
+      rooms.get(channel.id).people.push({
+        accountId: a.id, name: server.members[a.id]?.nickname || a.name, username: a.name, color: a.color,
+        avatarUrl: a.avatar ? '/avatars/' + a.avatar : null, avatarCrop: a.avatarCrop || null,
+        muted: !!s.muted, deafened: !!s.deafened, sharing: !!s.sharing, camera: !!s.camera, since: s.voiceSince || null,
+      });
+    }
+    const count = (server) => server.rooms.reduce((sum, room) => sum + room.people.length, 0);
+    const list = [...found.values()].map((server) => ({
+      ...server,
+      rooms: [...server.rooms.values()].sort((x, y) => x.order - y.order).map(({ order, ...room }) => ({ ...room, people: room.people.sort((x, y) => (x.since || 0) - (y.since || 0)) })),
+    })).sort((x, y) => count(y) - count(x) || x.name.localeCompare(y.name, 'pt-BR'));
+    return { servers: list, private: { people: privatePeople.size, calls: privateCalls.size }, online: onlineIds.size };
   });
 
   on('voice:state', (acc, { muted, deafened, sharing, paused, camera, voiceFx, allowClips }) => {

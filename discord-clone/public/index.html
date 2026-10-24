@@ -38,6 +38,7 @@
   <link rel="stylesheet" href="call-tools.css">
   <link rel="stylesheet" href="feedback.css">
   <link rel="stylesheet" href="clips.css">
+  <link rel="stylesheet" href="site-calls.css">
   <script>
     // Mouse de verdade = hover + ponteiro fino. O emulador Android responde "pointer: fine" sem hover,
     // então "pointer: fine" sozinho não serve para saber se é toque. A classe "touch" troca textos e opções.
@@ -614,6 +615,9 @@
 <button id="tab-diagnostics" data-section="diagnostics" data-keywords="rede espectadores versão" role="tab" aria-controls="page-diagnostics">
 <span data-icon="signal">
 </span>Conexão e diagnóstico</button>
+<button id="tab-calls" data-section="calls" data-owner data-keywords="chamadas voz salas online servidores dono administrador" role="tab" aria-controls="page-calls" hidden>
+<span data-icon="phone">
+</span>Chamadas agora</button>
 </nav>
 <p id="settings-search-empty" class="hint hidden">Nenhuma seção encontrada.</p>
 <div class="settings-nav-bottom">
@@ -1130,6 +1134,13 @@
 </div>
 </div>
 </section>
+<section id="page-calls" data-settings-page="calls" role="tabpanel" aria-labelledby="tab-calls" class="hidden">
+<div class="eyebrow">DONO DO RESENHEX</div>
+<h1>Chamadas agora</h1>
+<p class="section-description">Quem está em chamada em todos os servidores do Resenhex, ao vivo. Só você vê esta seção.</p>
+<div id="site-calls">
+</div>
+</section>
 </div>
 <div class="settings-footer">
 <p id="settings-status" role="status" aria-live="polite">
@@ -1287,6 +1298,7 @@
   <script src="keybinds.js"></script>
   <script src="settings.js">
 </script>
+  <script src="site-calls.js"></script>
   <script src="photo-editor.js"></script>
   <script src="own-audio.js"></script>
   <script src="media-sfu.js"></script>

@@ -5,6 +5,17 @@ let sequence = 0;
 const newId = () => String(++sequence);
 const defaults = () => ({ accounts: {}, sessions: {}, roles: [{ id: 'everyone', perms: ['SEND_MESSAGES'] }], channels: [{ id: 'geral', name: 'geral', type: 'text', allowedRoles: [] }], messages: { geral: [] } });
 
+test('the original server owner becomes the site owner once; later changes to that server do not move it', () => {
+  const legacy = { ...defaults(), ownerId: 'a', accounts: { a: { id: 'a', name: 'Ana', roles: [] }, b: { id: 'b', name: 'Beto', roles: [] } } };
+  const store = communityStore(legacy, newId, defaults);
+  assert.equal(store.root.siteOwnerId, 'a');
+  store.current().ownerId = 'b';
+  const reload = communityStore(JSON.parse(JSON.stringify(store.root)), newId, defaults);
+  assert.equal(reload.root.siteOwnerId, 'a');
+  const fresh = communityStore({ ...defaults() }, newId, defaults);
+  assert.equal(fresh.root.siteOwnerId, null, 'a fresh install has no owner until the first account registers');
+});
+
 test('legacy server migration preserves its name, channel history, roles, bans and account sessions', () => {
   const legacy = { ...defaults(), ownerId: 'a', serverName: 'Santuário Letárgico', serverIcon: 'icon.png',
     accounts: { a: { id: 'a', name: 'Ana', roles: ['mod'], serverMuted: true, timeoutUntil: 123 }, b: { id: 'b', roles: [], banned: true } },

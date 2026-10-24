@@ -622,6 +622,7 @@
       state.iceServers = res.iceServers;
       state.maxUploadMb = res.maxUploadMb;
       state.gifKey = res.gifKey || null;
+      $('#settings').classList.toggle('site-owner', !!res.siteOwner); // libera "Chamadas agora" nas Configurações
       $('#btn-gif').classList.toggle('hidden', !state.gifKey);
       // O servidor foi atualizado depois que esta página abriu: o código novo só vem recarregando.
       $('#update-banner').classList.toggle('hidden', !res.version || res.version === window.APP_VERSION);
@@ -6786,6 +6787,7 @@
     editProfilePhoto(avatarSource || { url: $('#profile-avatar').value }, pendingAvatar?.frame || (crop ? JSON.parse(crop) : null));
   };
   $('#settings-server-link').onclick = () => { if (preferences.close()) openServerSettings(); };
+  SiteCalls({ request: (event) => accountRequest(event, {}, 8000), el, avatar });
   $('#btn-logout').onclick = async () => { if (!preferences.close()) return; const result = await call('logout', { token: localStorage.getItem('token') }); if (result) { localStorage.removeItem('token'); location.reload(); } };
   function fillAccountPage() {
     const username = state.me?.name || meMember()?.username || meMember()?.name || '';

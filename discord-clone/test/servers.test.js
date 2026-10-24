@@ -398,3 +398,48 @@ test('recovering a corrupt legacy database also keeps a permanent copy of the re
   await app.restart();
   assert.deepEqual(JSON.parse(fs.readFileSync(file, 'utf8')), seed);
 });
+
+test('only the site owner sees every call: server, room and people, with private calls counted but unnamed', async (t) => {
+  const { connect, restart } = await fixture(t);
+  const owner = await connect('Dono'); const guest = await connect('Visitante');
+  assert.equal(owner.auth.siteOwner, true);
+  assert.equal(guest.auth.siteOwner, false);
+  assert.match((await guest.call('site:calls')).error, /dono/);
+  // Alguém de fora cria o próprio servidor, longe do dono, e entra numa sala dele.
+  const stranger = await connect({ mode: 'register', name: 'Estranho', password: '1234', confirmPassword: '1234' });
+  assert.ok(!(await stranger.call('server:create', { name: 'Servidor do estranho' })).error);
+  await wait();
+  const strangerRoom = stranger.last.channels.find((c) => c.type === 'voice');
+  assert.ok(!(await stranger.call('voice:join', { channel: strangerRoom.id })).error);
+  const room = owner.last.channels.find((c) => c.type === 'voice');
+  assert.ok(!(await guest.call('voice:join', { channel: room.id })).error);
+  // Dois amigos numa chamada privada: o painel conta, mas não diz quem.
+  const ana = await connect({ mode: 'register', name: 'Ana', password: '1234', confirmPassword: '1234' });
+  const beto = await connect({ mode: 'register', name: 'Beto', password: '1234', confirmPassword: '1234' });
+  assert.ok(!(await ana.call('friend:request', { name: 'Beto' })).error);
+  assert.ok(!(await beto.call('friend:accept', { id: ana.auth.accountId })).error);
+  const dm = (await ana.call('dm:open', { userId: beto.auth.accountId })).id;
+  assert.ok(!(await ana.call('voice:join', { dm })).error);
+  assert.ok(!(await beto.call('voice:join', { dm })).error);
+
+  const calls = await owner.call('site:calls');
+  assert.ok(!calls.error, calls.error);
+  assert.equal(calls.private.people, 2);
+  assert.equal(calls.private.calls, 1);
+  assert.ok(!JSON.stringify(calls).includes('Ana') && !JSON.stringify(calls).includes('Beto'), 'private calls must not name anyone');
+  assert.deepEqual(calls.servers.map((s) => [s.name, s.rooms.map((r) => [r.name, r.people.map((p) => p.name)])]).sort(), [
+    [owner.last.serverName, [[room.name, ['Visitante']]]],
+    ['Servidor do estranho', [[strangerRoom.name, ['Estranho']]]],
+  ].sort());
+  const person = calls.servers.find((s) => s.name === 'Servidor do estranho').rooms[0].people[0];
+  assert.equal(person.accountId, stranger.auth.accountId);
+  assert.ok(Date.now() - person.since < 10_000);
+  assert.ok(calls.online >= 5);
+
+  // Sair da sala tira a pessoa do painel; a dona continua sendo a mesma depois de reiniciar.
+  assert.ok(!(await stranger.call('voice:leave')).error);
+  assert.equal((await owner.call('site:calls')).servers.length, 1);
+  await restart();
+  const back = await connect({ token: owner.auth.token });
+  assert.equal(back.auth.siteOwner, true);
+});

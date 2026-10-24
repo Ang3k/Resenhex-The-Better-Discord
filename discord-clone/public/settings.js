@@ -8,6 +8,8 @@ window.SettingsPanel = function ({ read, apply, preview, onOpen, onClose }) {
   let processing = false;
   let returnFocus = null;
   let active = 'profile';
+  // Seções com data-owner (Chamadas agora) só aparecem para o dono do Resenhex (#settings.site-owner).
+  const allowed = (button) => button.dataset.owner === undefined || root.classList.contains('site-owner');
   const values = () => Object.fromEntries(fields.map((field) => [field.dataset.setting,
     field.type === 'checkbox' ? field.checked : field.dataset.number !== undefined ? Number(field.value) : field.value]));
   const dirty = () => initial && JSON.stringify(values()) !== JSON.stringify(initial);
@@ -40,7 +42,7 @@ window.SettingsPanel = function ({ read, apply, preview, onOpen, onClose }) {
     preview(values());
   }
   function select(section, focus = false) {
-    if (!nav.some((button) => button.dataset.section === section)) section = 'profile';
+    if (!nav.some((button) => button.dataset.section === section && allowed(button))) section = 'profile';
     active = section;
     nav.forEach((button) => {
       button.classList.toggle('active', button.dataset.section === section);
@@ -52,6 +54,7 @@ window.SettingsPanel = function ({ read, apply, preview, onOpen, onClose }) {
     // No celular as abas rolam de lado: a escolhida fica sempre à vista.
     nav.find((button) => button.dataset.section === section)?.scrollIntoView({ block: 'nearest', inline: 'nearest' });
     if (focus) nav.find((button) => button.dataset.section === section).focus();
+    root.dispatchEvent(new CustomEvent('settings-section', { detail: section }));
   }
   nav.forEach((button, i) => {
     button.onclick = () => select(button.dataset.section);
@@ -66,7 +69,7 @@ window.SettingsPanel = function ({ read, apply, preview, onOpen, onClose }) {
   });
   root.querySelector('#settings-search').oninput = (event) => {
     const query = event.target.value.toLocaleLowerCase('pt-BR').trim();
-    nav.forEach((button) => { button.hidden = !((button.textContent + ' ' + button.dataset.keywords).toLocaleLowerCase('pt-BR').includes(query)); });
+    nav.forEach((button) => { button.hidden = !allowed(button) || !((button.textContent + ' ' + button.dataset.keywords).toLocaleLowerCase('pt-BR').includes(query)); });
     root.querySelector('#settings-search-empty').classList.toggle('hidden', nav.some((b) => !b.hidden));
   };
   root.addEventListener('input', () => { if (!saving) { status(''); refresh(); } });
@@ -127,7 +130,7 @@ window.SettingsPanel = function ({ read, apply, preview, onOpen, onClose }) {
       root.classList.remove('hidden');
       document.querySelector('#app').inert = true;
       root.querySelector('#settings-search').value = '';
-      nav.forEach((button) => { button.hidden = false; });
+      nav.forEach((button) => { button.hidden = !allowed(button); });
       root.querySelector('#settings-search-empty').classList.add('hidden');
       status('');
       write(read());
