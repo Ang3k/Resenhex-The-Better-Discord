@@ -494,6 +494,17 @@ test('only the site owner sees every call: server, room and people, with private
   assert.equal(back.auth.siteOwner, true);
 });
 
+test('only the site owner reads the server health meter', async (t) => {
+  const { connect } = await fixture(t);
+  const owner = await connect('Dono'); const guest = await connect('Visitante');
+  assert.match((await guest.call('site:health')).error, /dono/);
+  const health = await owner.call('site:health');
+  assert.ok(!health.error, health.error);
+  assert.equal(health.every, 10_000);
+  assert.equal(health.targets.loopP99, 50);
+  assert.ok(Array.isArray(health.history));
+});
+
 test('an invite link shows its server in chat previews, escaped; other links keep the site preview', async (t) => {
   const { connect, base } = await fixture(t);
   const owner = await connect('Dono');

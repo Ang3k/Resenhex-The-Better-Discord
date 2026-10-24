@@ -6788,6 +6788,7 @@
   };
   $('#settings-server-link').onclick = () => { if (preferences.close()) openServerSettings(); };
   SiteCalls({ request: (event) => accountRequest(event, {}, 8000), el, avatar });
+  SiteHealth({ request: (event) => accountRequest(event, {}, 8000), el });
   $('#btn-logout').onclick = async () => { if (!preferences.close()) return; const result = await call('logout', { token: localStorage.getItem('token') }); if (result) { localStorage.removeItem('token'); location.reload(); } };
   function fillAccountPage() {
     const username = state.me?.name || meMember()?.username || meMember()?.name || '';

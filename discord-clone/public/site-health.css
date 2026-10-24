@@ -1,0 +1,36 @@
+/* Saúde do servidor: seção das Configurações que só o dono do Resenhex vê (site-health.js). */
+#site-health { display: flex; flex-direction: column; gap: 14px; }
+.site-health-summary { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; padding: 12px 16px; background: var(--bg-panel); border: 1px solid var(--divider); border-radius: 12px; }
+.site-health-summary > .ico { flex-shrink: 0; }
+.site-health-summary.ok > .ico { color: var(--green); }
+.site-health-summary.warn > .ico { color: var(--yellow); }
+.site-health-summary.bad > .ico { color: var(--red); }
+.site-health-summary strong { color: var(--text-strong); font-size: 14px; font-weight: 600; }
+.site-health-summary span { color: var(--text-muted); font-size: 12px; }
+.site-health-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 10px; }
+.site-health-tile { display: flex; flex-direction: column; gap: 4px; min-width: 0; padding: 14px 16px 12px; background: var(--bg-sidebar); border: 1px solid var(--divider); border-radius: 12px; }
+.site-health-tile.bad { border-color: color-mix(in srgb, var(--red) 55%, var(--divider)); }
+.site-health-head { display: flex; align-items: center; gap: 8px; min-height: 20px; }
+.site-health-head h3 { flex: 1; min-width: 0; margin: 0; color: var(--text-muted); font-size: 12px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.site-health-state { display: inline-flex; align-items: center; gap: 4px; flex-shrink: 0; color: var(--text-muted); font-size: 11px; font-weight: 600; }
+.site-health-tile.ok .site-health-state .ico { color: var(--green); }
+.site-health-tile.warn .site-health-state .ico { color: var(--yellow); }
+.site-health-tile.bad .site-health-state .ico { color: var(--red); }
+.site-health-tile.bad .site-health-state { color: var(--text); }
+.site-health-value { margin: 0; color: var(--text-strong); font-size: 22px; font-weight: 600; line-height: 1.2; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.site-health-note { margin: 0; min-height: 16px; color: var(--text-muted); font-size: 12px; line-height: 16px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.site-health-spark { display: block; width: 100%; height: 32px; margin-top: 6px; overflow: visible; cursor: crosshair; touch-action: pan-y; }
+.site-health-spark .line { fill: none; stroke: color-mix(in srgb, var(--text-muted) 70%, transparent); stroke-width: 2; stroke-linejoin: round; stroke-linecap: round; vector-effect: non-scaling-stroke; }
+.site-health-spark .now-ring { stroke: var(--bg-sidebar); stroke-width: 10; stroke-linecap: round; vector-effect: non-scaling-stroke; }
+.site-health-spark .now { stroke: var(--brand-text); stroke-width: 6; stroke-linecap: round; vector-effect: non-scaling-stroke; }
+.site-health-spark .hair { stroke: var(--interactive); stroke-width: 1; vector-effect: non-scaling-stroke; opacity: 0; }
+.site-health-spark.hovering .hair { opacity: .7; }
+@media (max-width: 560px) {
+  .site-health-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .site-health-tile { padding: 12px; }
+  /* Coluna estreita: o estado desce para baixo do nome e a linha de baixo quebra em até duas linhas. */
+  .site-health-head { flex-wrap: wrap; row-gap: 2px; min-height: 36px; align-content: flex-start; }
+  .site-health-head h3 { flex-basis: 100%; }
+  .site-health-value { font-size: 18px; }
+  .site-health-note { min-height: 32px; white-space: normal; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; }
+}

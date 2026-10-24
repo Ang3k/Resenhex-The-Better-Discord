@@ -52,6 +52,7 @@
   <link rel="stylesheet" href="feedback.css">
   <link rel="stylesheet" href="clips.css">
   <link rel="stylesheet" href="site-calls.css">
+  <link rel="stylesheet" href="site-health.css">
   <script>
     // Mouse de verdade = hover + ponteiro fino. O emulador Android responde "pointer: fine" sem hover,
     // então "pointer: fine" sozinho não serve para saber se é toque. A classe "touch" troca textos e opções.
@@ -631,6 +632,9 @@
 <button id="tab-calls" data-section="calls" data-owner data-keywords="chamadas voz salas online servidores dono administrador" role="tab" aria-controls="page-calls" hidden>
 <span data-icon="phone">
 </span>Chamadas agora</button>
+<button id="tab-health" data-section="health" data-owner data-keywords="saúde servidor processador memória atraso desempenho carga dono administrador" role="tab" aria-controls="page-health" hidden>
+<span data-icon="activity">
+</span>Saúde do servidor</button>
 </nav>
 <p id="settings-search-empty" class="hint hidden">Nenhuma seção encontrada.</p>
 <div class="settings-nav-bottom">
@@ -1154,6 +1158,13 @@
 <div id="site-calls">
 </div>
 </section>
+<section id="page-health" data-settings-page="health" role="tabpanel" aria-labelledby="tab-health" class="hidden">
+<div class="eyebrow">DONO DO RESENHEX</div>
+<h1>Saúde do servidor</h1>
+<p class="section-description">Atraso, processador, memória e tráfego do servidor, ao vivo, com os últimos 10 minutos. As metas são as do plano de 5 mil pessoas online. Só você vê esta seção.</p>
+<div id="site-health">
+</div>
+</section>
 </div>
 <div class="settings-footer">
 <p id="settings-status" role="status" aria-live="polite">
@@ -1312,6 +1323,7 @@
   <script src="settings.js">
 </script>
   <script src="site-calls.js"></script>
+  <script src="site-health.js"></script>
   <script src="photo-editor.js"></script>
   <script src="own-audio.js"></script>
   <script src="media-sfu.js"></script>

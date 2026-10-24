@@ -7,7 +7,7 @@ Escrito em 24/10/2026 e revisado no mesmo dia, com a medição das varreduras (p
 A máquina aguenta. O que impede hoje é o jeito como o código trabalha:
 
 - ele mandava o estado inteiro para todo mundo a cada mudança (já corrigido, falta publicar);
-- para montar o estado de cada pessoa, ele percorre todas as contas, amizades, conversas e servidores do site. Isso cresce com quantas contas existem, não com quantas estão online, e é o próximo teto (~400–600 online);
+- para montar o estado de cada pessoa, ele percorre todas as contas, amizades, conversas e servidores do site. Isso cresce com quantas contas existem, não com quantas estão online, e é o próximo teto: **entre 200 e 300 online**, medido com o simulador (Fase 0);
 - ao ligar, ele percorre servidores × contas: na meta, cada publicação deixaria o site fora do ar por ~15 min;
 - ele regrava o banco de dados inteiro a cada mudança;
 - ele percorre todo mundo online para entregar cada mensagem.
@@ -16,17 +16,17 @@ Além da Fase 0, que cria o medidor e o simulador, o plano tem 7 fases (a 4 divi
 
 | Fase | O quê | Tamanho | Ganho |
 |---|---|---|---|
-| 0 | Medidor de saúde no servidor + simulador de 5 mil pessoas | M | Saber, em vez de chutar |
+| 0 | Medidor de saúde no servidor + simulador de 5 mil pessoas (pronto) | M | Saber, em vez de chutar |
 | 1 | Consertos rápidos: avisos por servidor (pronto), portas das chamadas, início rápido, arquivos pelo Caddy, gravação garantida | P | Tira o teto de ~400 do estado inteiro e conserta falhas que já acontecem |
 | 2 | Banco de dados SQLite, gravando só o que mudou | G | Tira as travadas ao salvar (~0,2 s com um banco de 50 MB, ~1,3 s com 300 MB) |
 | 3 | Avisos pequenos ("fulano mutou") entregues por sala | G | Processador e rede ~10–50× menores por mudança |
-| 4a | Parar de percorrer o site inteiro: índices e o que roda em toda mudança | M | Tira o próximo teto, de ~400–600 online |
+| 4a | Parar de percorrer o site inteiro: índices e o que roda em toda mudança | M | Tira o próximo teto, de 200–300 online |
 | 4b | Fotos em outro núcleo, prévias mais leves, memória | M | Custo por mudança não cresce com o total de pessoas |
 | 5 | Chamadas e rede: senha temporária no retransmissor, medir e limitar o que passa pelo servidor | M | Não estourar os 10 TB grátis |
 | 6 | Servidores grandes (só se aparecerem) | M | Comunidades com centenas online |
 | 7 | Proteção e operação: reconexão em massa, alarmes, disco | P/M | Publicar sem derrubar todo mundo; dormir tranquilo |
 
-P = horas, M = 1–2 dias, G = vários dias. Cada fase é testada e publicada sozinha. A ordem de trabalho não segue os números: a Fase 4a vem antes da Fase 2, porque o teto dela chega primeiro (seção 4).
+P = horas, M = 1–2 dias, G = vários dias. Cada fase é testada sozinha com o simulador; a publicação fica para o fim, com tudo junto (pedido do dono em 24/10). A ordem de trabalho não segue os números: a Fase 4a vem antes da Fase 2, porque o teto dela chega primeiro (seção 4).
 
 ---
 
@@ -63,7 +63,7 @@ P = horas, M = 1–2 dias, G = vários dias. Cada fase é testada e publicada so
      | 50 mil contas, 10 mil servidores (meta) | 66 ms | 42 ms | 56 ms |
 
    - Com ~1.000 online (~10 mil contas), uma mudança num servidor com 20 pessoas olhando custa ~0,3 s no ARM, e chegam ~8 mudanças por segundo.
-   - **Teto estimado depois do `9765b48`: ~400–600 online.** Ele depende de quantas contas existem, não de quantas estão online.
+   - **Teto medido com o simulador (Fase 0), já com o `9765b48`: entre 200 e 300 online**, com 10 contas cadastradas por pessoa online. A estimativa era de 400–600. Ele depende de quantas contas existem, não de quantas estão online: com o banco da meta (50 mil contas), nem 25 pessoas online passam nas metas.
 3. **O início percorre servidores × contas.**
    - O laço que agenda o fim dos castigos (`scheduleTimeoutEnd`, no `server.js`) passa por todas as contas em cada servidor. Ele roda antes do `listen`: ninguém entra enquanto ele não termina.
    - Medido no PC: ~13 s com 2 mil servidores e 10 mil contas. Na meta (10 mil × 50 mil): **~9 min no PC, ~15 min no ARM, a cada publicação.**
@@ -71,7 +71,8 @@ P = horas, M = 1–2 dias, G = vários dias. Cada fase é testada e publicada so
    - O servidor fica parado enquanto prepara o arquivo: ~0,2 s com 50 MB e ~1,3 s com 300 MB.
    - Na proporção de hoje (6,2 KB por conta, e os canais ainda longe do limite de 300 mensagens), 5 mil online dariam de 50 a 300 MB.
    - Tem também um defeito: o `save()` adia a gravação a cada mudança nova. **Com atividade sem pausa de 0,3 s ele não grava nunca**, e se o servidor cair, perde tudo desde a última pausa.
-   - E duas gravações podem se atropelar no mesmo arquivo temporário.
+   - E duas gravações podem se atropelar no mesmo arquivo temporário. Aconteceu no simulador, com um banco de 34 MB: a segunda gravação falhou (`rename … ENOENT`).
+   - Medido no simulador: com o banco da meta (57 MB), cada gravação deixa o servidor parado ~0,3 s no PC, ~0,5 s no ARM.
 5. **Retransmissor de chamadas sem portas.**
    - O coturn (o servidor que passa as chamadas de quem está atrás de rede restrita) tem só **41 portas** (49160–49200), definidas em `deploy/instalar-vps.sh`.
    - O site oferece o TURN por UDP e por TCP, então cada conexão de chamada pede 2 portas.
@@ -195,6 +196,23 @@ Sem isso, cada mudança é fé. Vem primeiro.
 
 **Pronto quando:** o simulador reproduz os números de 24/10, mostra onde está o teto atual (esperado: as varreduras do problema 2) e mede quanto o servidor leva para ligar com o banco da meta.
 
+**Feito em 24/10 (falta publicar):**
+- `server/health.js` mede tudo da lista acima. A aba **"Saúde do servidor"** fica nas Configurações, só para o dono, ao lado de "Chamadas agora": um cartão por medida, com a linha dos últimos 10 minutos e o estado em relação à meta. O log ganha uma linha `[saúde]` por minuto.
+- `tools/simulador.js` faz o que a lista acima pede, lendo os números do próprio medidor. Uso e opções no começo do arquivo.
+- Primeira rodada, no PC, com o código desta branch (já com os avisos só para quem foi afetado e o início rápido). O atraso no ARM é a estimativa (PC × 1,7):
+
+  | Banco | Online | Atraso p99 no ARM | Processador no ARM | Resultado |
+  |---|---|---|---|---|
+  | 2 mil contas | 200 | 16 ms | 17% | passou |
+  | 3 mil contas | 300 | 72 ms | 33% | não passou (atraso) |
+  | 4 mil contas | 400 | 104 ms | 52% | não passou |
+  | 6 mil contas | 600 | 606 ms | 141% | não passou: muita gente não conseguiu nem conectar |
+  | 30 mil contas | 500 | 783 ms | 142% | não passou: só 96 de 500 entraram em 5 min |
+  | 50 mil contas (meta) | 25 | 709 ms | 73% | não passou: cada gravação para o servidor ~0,5 s |
+
+- **Teto atual: entre 200 e 300 online** (com 10 contas por pessoa online), abaixo da estimativa de 400–600. Com o banco da meta, as varreduras (problema 2) e a gravação (problema 4) travam o servidor mesmo com pouca gente online.
+- Com o banco da meta, o servidor liga em 1,5 s (era o problema 3, já resolvido).
+
 ### Fase 1 — Consertos rápidos (P cada)
 
 1. **Publicar "avisar só quem é afetado"** (`9765b48`, pronto). Antes, conferir quem está online, porque a publicação derruba as calls.
@@ -226,7 +244,7 @@ Sem isso, cada mudança é fé. Vem primeiro.
 **Pronto quando:**
 - o coturn não registra mais falta de portas;
 - o servidor liga em menos de 5 s com o banco simulado da meta;
-- o simulador mostra o teto que sobra. O esperado é o das varreduras (~400–600 online), que a Fase 4a tira.
+- o simulador mostra o teto que sobra. Medido na Fase 0: o das varreduras, 200–300 online, que a Fase 4a tira.
 
 ### Fase 2 — Banco de dados sem travar (G)
 
@@ -356,10 +374,10 @@ Quem não está olhando um servidor não recebe nada dele (o Discord chama isso 
 
 ## 4. Ordem sugerida
 
-1. Fase 1, itens 1, 2 e 3 (avisos por servidor, portas das chamadas, início rápido): resolvem problemas de hoje ou são de poucas linhas. Se der, a senha temporária do retransmissor (Fase 5, item 2) vai junto, para reiniciar o coturn uma vez só.
-2. Fase 0 (medidor + simulador, com o banco do tamanho da meta).
+1. Fase 1, itens 1, 2 e 3 (avisos por servidor, portas das chamadas, início rápido): resolvem problemas de hoje ou são de poucas linhas. Se der, a senha temporária do retransmissor (Fase 5, item 2) vai junto, para reiniciar o coturn uma vez só. **Prontos.**
+2. Fase 0 (medidor + simulador, com o banco do tamanho da meta). **Pronta.**
 3. Fase 1, o resto.
-4. Fase 4a (parar de percorrer o site inteiro): é o próximo teto, ~400–600 online.
+4. Fase 4a (parar de percorrer o site inteiro): é o próximo teto, 200–300 online (medido na Fase 0).
 5. Fase 2 (banco).
 6. Fase 3 (avisos pequenos).
 7. Fase 4b.
@@ -367,7 +385,7 @@ Quem não está olhando um servidor não recebe nada dele (o Discord chama isso 
 9. Fase 7.
 10. Fase 6 só quando aparecer um servidor grande.
 
-Depois de cada fase: simulador, publicação em horário calmo (conferindo quem está online antes), e uma rodada do simulador no servidor ARM de madrugada.
+Depois de cada fase: simulador no PC. A publicação é uma só, no fim, com tudo junto (pedido do dono em 24/10): em horário calmo, conferindo quem está online antes, e com uma rodada do simulador no servidor ARM de madrugada.
 
 ## 5. Como vamos saber que chegou
 

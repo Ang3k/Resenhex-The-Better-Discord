@@ -23,6 +23,7 @@ const { createGameList } = require('./server/games');
 const { createMailer } = require('./server/mailer');
 const { createRecovery, normalizeEmail } = require('./server/recovery');
 const { createClipStore, MAX_CLIP_BYTES, MAX_THUMB_BYTES, MAX_CLIP_SECONDS } = require('./server/clip-store');
+const { createHealth } = require('./server/health');
 const { version: APP_VERSION } = require('./package.json');
 
 const PORT = process.env.PORT || 3000;
@@ -182,12 +183,18 @@ for (const sig of ['SIGINT', 'SIGTERM']) {
   });
 }
 
+// Medidor de saúde (server/health.js): conexões e contas online são lidas na hora de cada amostra.
+const health = createHealth({ connections: () => io.engine.clientsCount, online: () => new Set([...online.values()].map((s) => s.accountId)).size });
+
 let saveTimer = null;
 function save() {
   clearTimeout(saveTimer);
   saveTimer = setTimeout(() => {
     const tmp = DATA_FILE + '.tmp';
-    fs.writeFile(tmp, JSON.stringify(communities.root), (err) => {
+    const started = performance.now();
+    const json = JSON.stringify(communities.root);
+    health.saved(performance.now() - started); // o tempo em que o servidor fica parado preparando o arquivo
+    fs.writeFile(tmp, json, (err) => {
       if (err) return console.error('Falha ao salvar dados:', err);
       fs.rename(tmp, DATA_FILE, (err2) => err2 && console.error('Falha ao salvar dados:', err2));
     });
@@ -888,6 +895,8 @@ app.use((err, req, res, _next) => {
 
 const server = http.createServer(app);
 const io = new Server(server, { maxHttpBufferSize: 1e6 });
+// Bytes enviados, para o medidor de saúde (o tamanho do texto já codificado de cada pacote).
+io.engine.on('connection', (raw) => raw.on('packetCreate', (packet) => health.count('bytes', packet.data?.length || 0)));
 
 // Toque e mensagem de chamada das conversas privadas (server/dm-calls.js).
 mediaSwitched = (server, channel, transport) => {
@@ -1195,11 +1204,13 @@ function queueBroadcast() {
   setImmediate(flushBroadcast);
 }
 function broadcastState() {
+  health.count('changes');
   pending.all = true;
   queueBroadcast();
 }
 // Quem está vendo estes servidores (ou numa chamada neles) e todas as sessões destas contas.
 function notify({ servers = [], accounts = [] }) {
+  health.count('changes');
   for (const id of servers) if (id) pending.servers.add(id);
   for (const id of accounts) if (id) pending.accounts.add(id);
   queueBroadcast();
@@ -1243,7 +1254,7 @@ function flushBroadcast() {
     if (s.voice) media.sync(sid).catch(() => {});
     communities.run(s.serverId, () => {
       const acc = db.accounts[s.accountId];
-      if (acc) io.sockets.sockets.get(sid)?.emit('state', { ...stateFor(acc, sharedOf(s.serverId)), call });
+      if (acc) { io.sockets.sockets.get(sid)?.emit('state', { ...stateFor(acc, sharedOf(s.serverId)), call }); health.count('states'); }
     });
   }
 }
@@ -2113,6 +2124,12 @@ io.on('connection', (socket) => {
       rooms: [...server.rooms.values()].sort((x, y) => x.order - y.order).map(({ order, ...room }) => ({ ...room, people: room.people.sort((x, y) => (x.since || 0) - (y.since || 0)) })),
     })).sort((x, y) => count(y) - count(x) || x.name.localeCompare(y.name, 'pt-BR'));
     return { servers: list, private: { people: privatePeople.size, calls: privateCalls.size }, online: onlineIds.size };
+  });
+
+  // Painel do dono e simulador de carga: os últimos 10 minutos do medidor de saúde (server/health.js).
+  on('site:health', (acc) => {
+    if (!isSiteOwner(acc)) fail('Só o dono do Resenhex vê a saúde do servidor.');
+    return health.view();
   });
 
   on('voice:state', (acc, { muted, deafened, sharing, paused, camera, voiceFx, allowClips }) => {

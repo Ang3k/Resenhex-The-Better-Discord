@@ -7,7 +7,8 @@ Resumo para retomar o trabalho em outra sessão do Claude sem depender da conver
 Deixar o Resenhex aguentar **5 mil pessoas online ao mesmo tempo**, espalhadas em vários servidores, **sem gastar nada**: na mesma máquina grátis da Oracle.
 
 - O plano completo, com medições, metas e 7 fases, está em [plano-5000-online.md](plano-5000-online.md).
-- Prontos e não publicados: os itens 1, 2 e 3 da Fase 1 (avisos só para quem foi afetado, portas do retransmissor, início rápido). O resto do plano não começou.
+- Prontos e não publicados: os itens 1, 2 e 3 da Fase 1 (avisos só para quem foi afetado, portas do retransmissor, início rápido) e a Fase 0 (medidor de saúde e simulador). Próximos: o resto da Fase 1, depois a Fase 4a.
+- **Teto medido com o simulador: entre 200 e 300 online** (com 10 contas cadastradas por pessoa online). Com o banco da meta, de 50 mil contas, nem 25 online passam nas metas.
 
 ## O que está no ar
 
@@ -28,9 +29,10 @@ Tudo na branch `claude/chamada-atual` (pasta `.claude/worktrees/chamada-atual`),
 | `9765b48` | Avisos só para quem foi afetado (teto de ~400 online → muito mais) + publicação guarda só os 10 backups automáticos mais novos (apaga 43, libera 2,8 GB na próxima publicação) |
 | `e3a850c` | Este resumo, o plano e a ferramenta `tools/carga-teste.js` |
 | `6253ba0` | Plano revisado: varreduras no site inteiro (o próximo teto, ~400–600 online), início lento, senha fixa do TURN; ferramenta `tools/varreduras.js` |
-| este commit | Fase 1, itens 2 e 3: portas e ajustes do retransmissor, TURN por TCP só na segunda tentativa, início rápido |
+| `455edc0` | Fase 1, itens 2 e 3: portas e ajustes do retransmissor, TURN por TCP só na segunda tentativa, início rápido |
+| este commit | Fase 0: medidor de saúde (aba "Saúde do servidor" do dono) e simulador v2 com o banco do tamanho da meta; primeira medição do teto |
 
-O dono pediu para **publicar só quando ele mandar.**
+O dono pediu para **publicar só quando ele mandar, e só com o plano inteiro pronto** (24/10): nada de publicar fase por fase.
 
 ## Urgente (já afeta quem usa hoje): pronto, falta publicar
 
@@ -60,6 +62,11 @@ O que já está no código (este commit):
 
 ## Como medir
 
+- **`tools/simulador.js`** (o principal): monta um banco do tamanho do site, sobe uma cópia do servidor e põe pessoas online em degraus, no ritmo das premissas do plano. Diz se cada degrau passou nas metas, já com a estimativa do ARM.
+  - Exemplos: `STEPS=200 node tools/simulador.js` (2 mil contas) e `ACCOUNTS=50000 STEPS=25,50 node tools/simulador.js` (banco da meta).
+  - Cada degrau leva ~2 min; um que trava espera até 5 min pelas conexões.
+  - Resultados de 24/10 na Fase 0 do plano.
+- **Medidor de saúde** (`server/health.js`): aba "Saúde do servidor" nas Configurações do dono e uma linha `[saúde]` por minuto no log (`sudo journalctl -u resenhex | grep saúde`).
 - **`tools/carga-teste.js`:** simula N pessoas em N servidores e mede o custo de cada mudança. Instruções no começo do arquivo.
   - Criar servidor tem limite de 5 por minuto; o script já contorna isso.
 - **Resultado de 24/10** (40 servidores de 20 pessoas, 800 online): uma mudança caiu de 206 ms, entregue a 800 pessoas, para ~20 ms, entregue a 21 (com o `9765b48`).
