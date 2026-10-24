@@ -760,6 +760,25 @@ test('a connection that dropped and came back by itself still recovers the next 
   assert.equal(pc.restarts, 2, 'connected peers are left alone');
 });
 
+test('connections start with UDP-only TURN and add TURN over TCP on the first ICE restart', async () => {
+  const h = mediaHarness();
+  h.state.iceServers = [{ urls: 'stun:stun.example:19302' }, { urls: ['turn:t.example:3478?transport=udp', 'turn:t.example:3478?transport=tcp'], username: 'u', credential: 'c' }];
+  const plain = (value) => JSON.parse(JSON.stringify(value));
+  assert.deepEqual(plain(h.media.firstIceServers()), [{ urls: ['stun:stun.example:19302'] }, { urls: ['turn:t.example:3478?transport=udp'], username: 'u', credential: 'c' }]);
+  const pc = h.peer.pc;
+  pc.restarts = 0; pc.configs = [];
+  pc.restartIce = () => { pc.restarts++; };
+  pc.setConfiguration = (config) => { pc.configs.push(plain(config)); };
+  pc.connectionState = 'failed'; h.media.connectionChanged(h.peer);
+  await new Promise((r) => setTimeout(r, 2200));
+  assert.equal(pc.restarts, 1);
+  assert.deepEqual(pc.configs, [{ iceServers: plain(h.state.iceServers) }], 'the restart brings TURN over TCP');
+  h.listeners.online();
+  assert.equal(pc.restarts, 2);
+  assert.equal(pc.configs.length, 1, 'only once per connection');
+  clearTimeout(h.peer.recoveryTimer);
+});
+
 test('viewer resize and background requests are coalesced without stopping the subscribed audio', async () => {
   const h = mediaHarness();
   let width = 320;

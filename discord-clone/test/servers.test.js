@@ -203,6 +203,22 @@ test('moderation affects only that membership and preserves global sessions and 
   assert.equal(friend.last.call, null);
 });
 
+test('a timeout still running when the server restarts ends with a new state for the member', async (t) => {
+  const { connect, restart } = await fixture(t);
+  const owner = await connect('Dono'); const friend = await connect('Amigo');
+  // 0,06 min = 3,6 s: dá tempo de reiniciar antes de acabar.
+  assert.ok(!(await owner.call('mod', { action: 'timeout', target: friend.auth.accountId, value: 0.06 })).error);
+  const until = await eventually(() => {
+    const value = friend.last.members.find((m) => m.id === friend.auth.accountId).timeoutUntil;
+    assert.ok(value > Date.now()); return value;
+  });
+  await restart();
+  const again = await connect({ token: friend.auth.token });
+  let states = 0; again.on('state', () => { states++; });
+  await wait(Math.max(0, until - Date.now()) + 600);
+  assert.ok(states > 0, 'the timer scheduled at startup broadcast the end of the timeout');
+});
+
 test('chosen voice effects are accepted in calls; removed AI voices, duplicates and arbitrary names are not', async (t) => {
   const { connect } = await fixture(t);
   const owner = await connect('Dono'), friend = await connect('Amigo');

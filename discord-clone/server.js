@@ -1256,7 +1256,12 @@ function scheduleTimeoutEnd(acc) {
   const ms = (acc.timeoutUntil || 0) - Date.now();
   if (ms > 0) timeoutTimers.set(key, setTimeout(broadcastState, Math.min(ms + 100, 2 ** 31 - 1)));
 }
-for (const id of Object.keys(communities.root.servers)) communities.run(id, () => Object.values(db.accounts).forEach(scheduleTimeoutEnd));
+// Ao ligar, só os membros de castigo agora: percorrer servidores × contas levaria minutos com o site grande.
+for (const server of Object.values(communities.root.servers)) {
+  for (const [id, member] of Object.entries(server.members)) {
+    if (member.timeoutUntil > Date.now() && db.accounts[id]) communities.run(server.id, () => scheduleTimeoutEnd(db.accounts[id]));
+  }
+}
 
 const CHAT_TYPES = ['text', 'voice'];
 // Efeitos do modificador de voz (public/voice-fx.js); o servidor só repassa qual está ligado.

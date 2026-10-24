@@ -23,8 +23,10 @@ APP_SRC="$(cd "$(dirname "$0")/.." && pwd)"
 APP_DIR=/opt/resenhex
 DATA_DIR=/var/lib/resenhex
 ENV_FILE=/etc/resenhex.env
-TURN_MIN_PORT=49160
-TURN_MAX_PORT=49200
+# Portas do retransmissor: cada conexão de chamada que passa pelo TURN ocupa uma, e uma sala de n pessoas
+# chega a n × (n − 1). Com 41 portas (49160–49200) faltava porta nas noites de mais movimento.
+TURN_MIN_PORT=49152
+TURN_MAX_PORT=65535
 
 say() { printf '\n\033[1;35m==> %s\033[0m\n' "$*"; }
 read_env() { sed -n "s/^${1}=//p" "$ENV_FILE" | tail -n 1; }
@@ -95,6 +97,9 @@ for checked in $DOMAIN $OLD_DOMAINS; do
   done
 done
 [[ "$TURN_USERNAME" =~ ^[A-Za-z0-9_-]+$ && "$TURN_CREDENTIAL" =~ ^[A-Za-z0-9]+$ ]] || { echo "Credenciais TURN inválidas."; exit 1; }
+# IP da máquina na rede interna (na Oracle, 10.0.0.x; num VPS comum, o próprio IP público).
+LOCAL_IP="$( (ip -4 route get 1.1.1.1 2>/dev/null || true) | sed -n 's/.* src \([0-9.]*\).*/\1/p')"
+[[ "$LOCAL_IP" =~ ^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$ ]] || LOCAL_IP=""
 
 umask 077
 cat > "$ENV_FILE" <<EOF
@@ -208,6 +213,10 @@ EOF
 fi
 
 # ---------- TURN (voz para quem está em rede restrita, 4G etc.) ----------
+# Quando as duas pontas usam o retransmissor, o coturn passa os pacotes de uma porta para a outra pelo
+# IP interno da máquina: allowed-peer-ip tira só esse endereço do bloqueio de IPs privados (sem ele, essas
+# chamadas não conectavam). no-tcp-relay: o WebRTC não usa retransmissão TCP até o outro lado, e assim o
+# IP interno só fica alcançável por UDP. verbose registra o uso de cada sessão (bytes) no journal.
 say "Configurando o servidor TURN"
 cat > /etc/turnserver.conf <<EOF
 listening-port=3478
@@ -222,10 +231,13 @@ no-cli
 no-tls
 no-dtls
 no-multicast-peers
+no-tcp-relay
+verbose
 denied-peer-ip=10.0.0.0-10.255.255.255
 denied-peer-ip=172.16.0.0-172.31.255.255
 denied-peer-ip=192.168.0.0-192.168.255.255
 denied-peer-ip=127.0.0.0-127.255.255.255
+${LOCAL_IP:+allowed-peer-ip=$LOCAL_IP}
 EOF
 sed -i 's/^#\?TURNSERVER_ENABLED=.*/TURNSERVER_ENABLED=1/' /etc/default/coturn 2>/dev/null || echo 'TURNSERVER_ENABLED=1' > /etc/default/coturn
 

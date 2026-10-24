@@ -518,6 +518,20 @@ window.MediaSession = function ({ state, socket, call, el, toast, voiceEntry, me
     render();
   }
 
+  // O TURN por TCP ocupa mais uma porta do retransmissor em cada conexão. A conexão nasce só com UDP
+  // (public/app.js); no primeiro reinício do ICE (caiu ou não fechou) entra o TCP, para quem está numa
+  // rede que só deixa passar TCP.
+  function firstIceServers(servers = state.iceServers || []) {
+    return servers.map((s) => ({ ...s, urls: [].concat(s.urls).filter((url) => !/[?&]transport=tcp\b/i.test(url)) })).filter((s) => s.urls.length);
+  }
+  function restartIce(peer) {
+    if (!peer.tcpRelay && peer.pc.setConfiguration) {
+      peer.tcpRelay = true;
+      try { peer.pc.setConfiguration({ iceServers: state.iceServers || [] }); } catch (error) { console.warn('TURN por TCP não entrou na conexão:', error); }
+    }
+    peer.pc.restartIce();
+  }
+
   // Conexão com alguém caiu. De "disconnected" o navegador volta sozinho quando a rede volta; de
   // "failed", só reiniciando o ICE. Tenta 5 s depois de cair (2 s se já falhou) e segue tentando enquanto
   // a pessoa estiver na chamada: a cada 5 s no primeiro minuto, depois a cada 15 s, por até 5 minutos.
@@ -531,7 +545,7 @@ window.MediaSession = function ({ state, socket, call, el, toast, voiceEntry, me
       peer.recoveryTimer = null;
       if (!active(peer) || peer.pc.connectionState === 'connected') return;
       peer.recoveryAttempts = (peer.recoveryAttempts || 0) + 1;
-      peer.pc.restartIce();
+      restartIce(peer);
       if (peer.recoveryAttempts === 3) mediaNotice('Uma conexão não se recuperou. Use Reconectar em Conexão e diagnóstico.');
       scheduleRecovery(peer);
       renderDiagnostics();
@@ -550,7 +564,7 @@ window.MediaSession = function ({ state, socket, call, el, toast, voiceEntry, me
     for (const peer of state.peers.values()) {
       if (!active(peer) || !['failed', 'disconnected'].includes(peer.pc.connectionState)) continue;
       clearTimeout(peer.recoveryTimer); peer.recoveryTimer = null;
-      peer.pc.restartIce();
+      restartIce(peer);
       scheduleRecovery(peer);
     }
   });
@@ -566,7 +580,7 @@ window.MediaSession = function ({ state, socket, call, el, toast, voiceEntry, me
       const stats = peer.stats || {};
       const line = el('div', { class: 'diagnostic-peer' }, el('strong', { textContent: `${member(voiceEntry(sid)?.accountId)?.name || 'Participante'} · ${states[peer.pc.connectionState] || 'Preparando'}` }),
         el('span', { textContent: [stats.rtt != null ? `${Math.round(stats.rtt * 1000)} ms` : 'Latência ainda indisponível', stats.path || '', stats.video || '', peer.mediaError || ''].filter(Boolean).join(' · ') }));
-      if (!sfu?.active() && ['failed', 'disconnected'].includes(peer.pc.connectionState)) line.append(el('button', { type: 'button', textContent: 'Reconectar', onclick: () => { clearTimeout(peer.recoveryTimer); peer.recoveryTimer = null; peer.recoveryAttempts = 0; peer.pc.restartIce(); scheduleRecovery(peer); } }));
+      if (!sfu?.active() && ['failed', 'disconnected'].includes(peer.pc.connectionState)) line.append(el('button', { type: 'button', textContent: 'Reconectar', onclick: () => { clearTimeout(peer.recoveryTimer); peer.recoveryTimer = null; peer.recoveryAttempts = 0; restartIce(peer); scheduleRecovery(peer); } }));
       return line;
     }));
   }
@@ -738,5 +752,5 @@ window.MediaSession = function ({ state, socket, call, el, toast, voiceEntry, me
     } finally { statsBusy = false; }
   }
   setInterval(updateStreamStats, 1500);
-  return { isWatching, setWatching, getWatchQuality, setWatchQuality, syncViewerQuality, addVideoTracks, syncScreenSubscriptions, videoBitrates, remoteDescription, tuneSenders, applySharePreset, setSharePreset, captureScreen, watchScreenTrack, switchScreen, startVideo, stopVideo, scheduleRecovery, connectionChanged, renderDiagnostics, updateStreamStats, mediaNotice };
+  return { isWatching, setWatching, getWatchQuality, setWatchQuality, syncViewerQuality, addVideoTracks, syncScreenSubscriptions, videoBitrates, remoteDescription, tuneSenders, applySharePreset, setSharePreset, captureScreen, watchScreenTrack, switchScreen, startVideo, stopVideo, scheduleRecovery, connectionChanged, renderDiagnostics, updateStreamStats, mediaNotice, firstIceServers };
 };

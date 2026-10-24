@@ -7,7 +7,7 @@ Resumo para retomar o trabalho em outra sessão do Claude sem depender da conver
 Deixar o Resenhex aguentar **5 mil pessoas online ao mesmo tempo**, espalhadas em vários servidores, **sem gastar nada**: na mesma máquina grátis da Oracle.
 
 - O plano completo, com medições, metas e 7 fases, está em [plano-5000-online.md](plano-5000-online.md).
-- Nada do plano foi implementado ainda, a não ser o item 1 da Fase 1 (commit `9765b48`), que está pronto mas não foi publicado.
+- Prontos e não publicados: os itens 1, 2 e 3 da Fase 1 (avisos só para quem foi afetado, portas do retransmissor, início rápido). O resto do plano não começou.
 
 ## O que está no ar
 
@@ -26,18 +26,30 @@ Tudo na branch `claude/chamada-atual` (pasta `.claude/worktrees/chamada-atual`),
 |---|---|
 | `fc81617` | Prévia com imagem ao colar o link do site ou de um convite (WhatsApp, Discord…) |
 | `9765b48` | Avisos só para quem foi afetado (teto de ~400 online → muito mais) + publicação guarda só os 10 backups automáticos mais novos (apaga 43, libera 2,8 GB na próxima publicação) |
-| este commit | Este resumo, o plano e a ferramenta `tools/carga-teste.js` |
+| `e3a850c` | Este resumo, o plano e a ferramenta `tools/carga-teste.js` |
+| `6253ba0` | Plano revisado: varreduras no site inteiro (o próximo teto, ~400–600 online), início lento, senha fixa do TURN; ferramenta `tools/varreduras.js` |
+| este commit | Fase 1, itens 2 e 3: portas e ajustes do retransmissor, TURN por TCP só na segunda tentativa, início rápido |
 
 O dono pediu para **publicar só quando ele mandar.**
 
-## Urgente (já afeta quem usa hoje)
+## Urgente (já afeta quem usa hoje): pronto, falta publicar
 
-**O retransmissor de chamadas (coturn) tem só 41 portas** (`49160–49200`, definido em `deploy/instalar-vps.sh`).
+**O retransmissor de chamadas (coturn) tem só 41 portas** (`49160–49200`). Na sexta, 23/10, entre 21h e 2h, ficou sem portas 435 vezes: quem estava atrás de rede restrita não conseguia entrar na call.
 
-- Na sexta, 23/10, entre 21h e 2h, ficou sem portas 435 vezes. Quem estava atrás de rede restrita não conseguia entrar na call.
-- **Correção:** ampliar para `49152–65535` em três lugares: no `turnserver.conf`, no iptables do servidor e na lista de segurança da Oracle (a chave da API da Oracle está em `~/.oci` no PC).
-- Reiniciar o coturn derruba as calls que passam por ele, então dá pra conferir quem está online antes.
-- Detalhes no plano, Fase 1 item 2.
+**E ele barra a ligação quando as duas pontas usam o retransmissor.** O coturn passa esses pacotes pelo IP interno da máquina (`10.0.0.200`), e esse IP cai no bloqueio de IPs privados: foram 2.797 bloqueios em 7 dias (até 24/10). Quem está atrás de rede restrita não conecta com outra pessoa na mesma situação.
+
+O que já está no código (este commit):
+- `deploy/instalar-vps.sh`: portas `49152–65535` no `turnserver.conf`, no iptables e no ufw; `allowed-peer-ip` com o IP interno; `no-tcp-relay`; `verbose` (registra os bytes de cada sessão no journal).
+- App: a conexão nasce só com o TURN por UDP; o TCP entra no primeiro reinício da conexão. Assim cada conexão ocupa uma porta, não duas.
+- `deploy/oracle-portas-turn.py`: libera as portas na lista de segurança da Oracle, que o instalador não toca. Sem argumentos só mostra o que mudaria; em 24/10 a lista tinha UDP `49160–49200`.
+
+**Para publicar:**
+1. `py deploy/oracle-portas-turn.py --aplicar` (antes da publicação; abrir as portas antes não atrapalha nada).
+2. Publicar como de costume (seção abaixo). A publicação reinicia o coturn e derruba as calls que passam por ele.
+3. Conferir no servidor:
+   - `sudo grep -E "min-port|max-port|allowed-peer" /etc/turnserver.conf` mostra `49152`, `65535` e `10.0.0.200`;
+   - depois de uma call, `sudo journalctl -u coturn --since -1h | grep -c usage` passa de 0;
+   - `sudo journalctl -u coturn --since -1h | grep -c "10.0.0.200 denied"` fica em 0.
 
 ## Como publicar sem susto
 
@@ -51,6 +63,8 @@ O dono pediu para **publicar só quando ele mandar.**
 - **`tools/carga-teste.js`:** simula N pessoas em N servidores e mede o custo de cada mudança. Instruções no começo do arquivo.
   - Criar servidor tem limite de 5 por minuto; o script já contorna isso.
 - **Resultado de 24/10** (40 servidores de 20 pessoas, 800 online): uma mudança caiu de 206 ms, entregue a 800 pessoas, para ~20 ms, entregue a 21 (com o `9765b48`).
+- **`tools/varreduras.js`:** mede, sem subir o servidor, as varreduras que crescem com o número de contas (o teste acima não as pega, porque só cria contas online).
+- **Início do servidor** com 10 mil contas e 2 mil servidores: 20 s antes do início rápido, 1 s depois. Com 50 mil contas e 10 mil servidores: 1,3 s (no PC).
 - O ARM é ~1,7× mais lento que o PC do dono nesse tipo de trabalho.
 
 ## Como o dono gosta de trabalhar

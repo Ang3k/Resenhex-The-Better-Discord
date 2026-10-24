@@ -78,6 +78,7 @@ P = horas, M = 1–2 dias, G = vários dias. Cada fase é testada e publicada so
    - Todo mundo pede portas, não só quem precisa do retransmissor: o navegador aloca ao montar cada conexão. Numa sala de n pessoas são n × (n − 1) × 2 portas. Uma sala de 5 pessoas chega a ocupar 40 das 41.
    - **Ficou sem portas 435 vezes na noite de sexta, 23/10, entre 21h e 2h, e mais 21 vezes no sábado à tarde.** Nessas horas, quem precisava do retransmissor não conseguia se conectar na call.
    - A senha do retransmissor é fixa e igual para todos (`user=` no `turnserver.conf`) e vai para toda conta logada. Qualquer um pode copiá-la e usar o retransmissor para outra coisa, gastando a rede grátis.
+   - Quando as duas pontas usam o retransmissor, o coturn passa os pacotes pelo IP interno da máquina (`10.0.0.200`), que cai no bloqueio de IPs privados (`denied-peer-ip`). Foram 2.797 bloqueios em 7 dias: duas pessoas atrás de rede restrita não conectam entre si.
 6. **Laços sobre todo mundo online.**
    - Para cada mensagem, o servidor passa por todas as conexões e confere a permissão uma a uma (`emitToViewers`). Há 26 trechos no `server.js` que percorrem todas as conexões.
    - Toda mudança, até uma troca de status, roda o `enforceVoice()` (confere a permissão de cada pessoa em call) e o `syncDjRooms()` (conta todo mundo online).
@@ -197,16 +198,17 @@ Sem isso, cada mudança é fé. Vem primeiro.
 ### Fase 1 — Consertos rápidos (P cada)
 
 1. **Publicar "avisar só quem é afetado"** (`9765b48`, pronto). Antes, conferir quem está online, porque a publicação derruba as calls.
-2. **Portas do retransmissor de chamadas** (já falha hoje):
+2. **Portas do retransmissor de chamadas** (já falha hoje; pronto, falta publicar; o passo a passo está no `ESTADO-ATUAL.md`):
    - Ampliar de 49160–49200 (41 portas) para 49152–65535 (~16 mil).
+   - Liberar o IP interno da máquina (`allowed-peer-ip`), para quem usa o retransmissor dos dois lados conectar. Com `no-tcp-relay`, esse IP só fica alcançável por UDP.
    - **Mudar em `deploy/instalar-vps.sh`** (`TURN_MIN_PORT` e `TURN_MAX_PORT`). Cada publicação reescreve o `turnserver.conf`, o iptables e o ufw a partir dali, então uma edição feita só no servidor some na publicação seguinte.
-   - Liberar também na lista de segurança da Oracle (pela API, com a chave que já existe). Essa o instalador não toca.
-   - Ligar o log de uso do coturn, para medir quanto tráfego passa por ele.
+   - Liberar também na lista de segurança da Oracle (`deploy/oracle-portas-turn.py`, pela API, com a chave que já existe). Essa o instalador não toca.
+   - Ligar o log de uso do coturn (`verbose`), para medir quanto tráfego passa por ele.
    - Tirar o TURN por TCP da primeira tentativa, porque ele dobra as portas por conexão. O app oferece o TCP só se a conexão falhar com UDP (reinício do ICE), para não deixar de fora quem está numa rede que só passa TCP.
    - Reiniciar o coturn derruba as calls que passam por ele. Se a senha temporária (Fase 5, item 2) já estiver pronta, entra no mesmo reinício.
-3. **Início rápido.**
+3. **Início rápido** (pronto, falta publicar).
    - O laço do `scheduleTimeoutEnd` passa a percorrer só os membros de cada servidor que têm castigo (`timeoutUntil`), em vez de servidores × contas (problema 3).
-   - É uma mudança de poucas linhas, e sem ela cada publicação na meta deixaria o site fora do ar por ~15 min.
+   - Medido no PC: com 10 mil contas e 2 mil servidores, de 20 s para 1 s; com 50 mil contas e 10 mil servidores, 1,3 s.
 4. **Gravação garantida.** Até a Fase 2 chegar:
    - O `save()` grava no máximo a cada 2 s, mesmo com atividade sem pausa.
    - Uma gravação nunca começa antes da anterior terminar.
