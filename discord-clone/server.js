@@ -379,7 +379,7 @@ function pushSocial(...accountIds) {
     const payload = socialFor(acc);
     for (const [sid, s] of online) if (s.accountId === id) io.sockets.sockets.get(sid)?.emit('social', payload);
   }
-  broadcastState();
+  notify({ accounts: accountIds });
 }
 
 const app = express();
@@ -574,7 +574,7 @@ app.post('/profile/avatar', express.raw({ type: () => true, limit: MAX_BANNER_UP
     const previous = acc.avatar;
     acc.avatar = file;
     acc.avatarCrop = crop;
-    save(); broadcastState();
+    save(); notifyAccount(acc.id);
     if (previous !== file) removeImageIfUnused(previous);
     res.json({ ok: true, avatarUrl: '/avatars/' + file, avatarCrop: crop });
   } catch (error) { res.status(400).json({ error: error.message }); }
@@ -584,7 +584,7 @@ app.delete('/profile/avatar', (req, res) => {
   if (!acc) return res.status(401).json({ error: 'Não autenticado' });
   const previous = acc.avatar;
   acc.avatar = null; acc.avatarCrop = null;
-  save(); broadcastState(); removeImageIfUnused(previous);
+  save(); notifyAccount(acc.id); removeImageIfUnused(previous);
   res.json({ ok: true, avatarUrl: null, avatarCrop: null });
 });
 
@@ -694,7 +694,7 @@ app.get('/emojis/:id', (req, res) => {
 // ---------------- DJ (músicas do YouTube nas salas de voz) ----------------
 // Cada sala tem a sua fila ("idDoServidor:idDaSala"). Só a busca passa pelo servidor;
 // o vídeo toca no player oficial do YouTube de cada pessoa.
-const dj = createDj({ newId, onChange: () => broadcastState() });
+const dj = createDj({ newId, onChange: (key) => notify({ servers: [key.split(':')[0]] }) });
 
 // Catálogo do Mudae: lido uma vez. Sem o arquivo, os comandos só avisam que não tem personagens.
 const MUDAE_CATALOG = process.env.MUDAE_CATALOG || path.join(__dirname, 'server', 'mudae-catalogo.json');
@@ -754,7 +754,7 @@ function profileImageRoutes(field, decode, tooMany) {
       acc[field] = file;
       acc[field + 'Crop'] = crop;
       save();
-      broadcastState();
+      notifyAccount(acc.id);
       if (previous !== file) removeImageIfUnused(previous);
       res.json({ ok: true, [field + 'Url']: '/avatars/' + file, [field + 'Crop']: crop });
     } catch (err) {
@@ -768,7 +768,7 @@ function profileImageRoutes(field, decode, tooMany) {
     acc[field] = null;
     acc[field + 'Crop'] = null;
     save();
-    broadcastState();
+    notifyAccount(acc.id);
     removeImageIfUnused(previous);
     res.json({ ok: true, [field + 'Url']: null, [field + 'Crop']: null });
   });
@@ -912,7 +912,7 @@ const dmCalls = createDmCalls({
     save();
   },
   update: (dm, msg) => { emitToDm(dm, 'chat:update', { channel: dm, msg }); save(); },
-  changed: () => broadcastState(),
+  changed: (dm) => notify({ accounts: db.dms[dm]?.users }),
 });
 // Contas de uma sala de voz (para saber quem continua na chamada privada).
 const roomAccounts = (room) => [...online.values()].filter((s) => s.voice === room).map((s) => s.accountId);
@@ -1106,6 +1106,7 @@ function screenQuality(value = { mode: 'auto', maxHeight: 1080, background: fals
 function leaveVoice(socket) {
   const s = online.get(socket.id);
   if (!s || !s.voice) return;
+  notifyVoice(s);
   media.leave(socket.id, s.voiceServerId, s.voice).catch(() => {});
   const room = 'voice:' + s.voice;
   socket.to(room).emit('voice:peer-left', { id: socket.id });
@@ -1176,6 +1177,7 @@ function enforceVoice() {
         s.sharing = false;
         s.preview = null;
         s.camera = false;
+        notifyVoice(s);
         socket.emit('voice:stop-share');
       }
     });
@@ -1183,11 +1185,43 @@ function enforceVoice() {
 }
 
 // Várias mudanças seguidas (ex.: entrar na sala e já mutar) viram um único envio.
+// O envio vai só para quem foi afetado: as mudanças frequentes (chamada, presença, conversas) avisam
+// quem vê aquele servidor ou chamada e as contas ligadas; as raras (cargos, canais…) avisam todo mundo.
+const pending = { all: false, servers: new Set(), accounts: new Set() };
 let broadcastQueued = false;
-function broadcastState() {
+function queueBroadcast() {
   if (broadcastQueued) return;
   broadcastQueued = true;
   setImmediate(flushBroadcast);
+}
+function broadcastState() {
+  pending.all = true;
+  queueBroadcast();
+}
+// Quem está vendo estes servidores (ou numa chamada neles) e todas as sessões destas contas.
+function notify({ servers = [], accounts = [] }) {
+  for (const id of servers) if (id) pending.servers.add(id);
+  for (const id of accounts) if (id) pending.accounts.add(id);
+  queueBroadcast();
+}
+// A chamada da sessão mudou: interessa a quem vê o servidor dela; na chamada privada, às duas contas.
+function notifyVoice(s) {
+  if (!s) return;
+  const dm = isDmCall(s) && db.dms[s.voice];
+  notify({ servers: s.voice && !dm ? [s.voiceServerId] : [], accounts: [s.accountId, ...(dm ? dm.users : [])] });
+}
+// Presença e perfil aparecem na lista de membros dos servidores da conta e para amigos, conversas
+// e quem bloqueou a conta (a lista "people" de cada um).
+function notifyAccount(accountId) {
+  const accounts = new Set([accountId]);
+  for (const key of Object.keys(db.friendships)) {
+    const [a, b] = key.split('-');
+    if (a === accountId) accounts.add(b);
+    else if (b === accountId) accounts.add(a);
+  }
+  for (const dm of Object.values(db.dms)) if (dm.users.includes(accountId)) dm.users.forEach((id) => accounts.add(id));
+  for (const [blocker, blocked] of Object.entries(db.blocks)) if (blocked.includes(accountId)) accounts.add(blocker);
+  notify({ servers: Object.values(communities.root.servers).filter((server) => server.members[accountId]).map((server) => server.id), accounts });
 }
 
 function flushBroadcast() {
@@ -1195,12 +1229,16 @@ function flushBroadcast() {
   enforceVoice();
   syncDjRooms();
   broadcastQueued = false;
+  const to = { ...pending };
+  Object.assign(pending, { all: false, servers: new Set(), accounts: new Set() });
+  const affected = (s) => to.all || to.accounts.has(s.accountId) || to.servers.has(s.serverId) || (!!s.voiceServerId && to.servers.has(s.voiceServerId));
   const shared = new Map();
   const sharedOf = (id) => {
     if (!shared.has(id)) shared.set(id, sharedState());
     return shared.get(id);
   };
   for (const [sid, s] of online) {
+    if (!affected(s)) continue;
     const call = s.voice ? communities.run(s.voiceServerId, () => callFor(s, sharedOf(s.voiceServerId))) : null;
     if (s.voice) media.sync(sid).catch(() => {});
     communities.run(s.serverId, () => {
@@ -1238,7 +1276,7 @@ function selectServer(socket, accountId, id) {
   online.get(socket.id).serverId = id;
   db.accounts[accountId].lastServerId = id;
   save();
-  broadcastState();
+  notify({ accounts: [accountId] });
 }
 
 function removeMembership(accountId, reason) {
@@ -1308,7 +1346,7 @@ io.on('connection', (socket) => {
     if (!community) fail('Convite inválido ou revogado. Peça um novo link.');
     communities.join(acc.id, community);
     if (online.get(socket.id).serverId !== community.id) selectServer(socket, acc.id, community.id);
-    else broadcastState();
+    notify({ servers: [community.id], accounts: [acc.id] }); // a lista de membros do servidor ganhou alguém
     save();
     return { id: community.id };
   });
@@ -1427,6 +1465,7 @@ io.on('connection', (socket) => {
     const token = payload.token || createSession(acc.id);
     socket.data.token = token;
     const serverId = communities.choose(acc.id, payload.serverId || acc.lastServerId);
+    const before = online.get(socket.id)?.accountId; // a mesma conexão entrando em outra conta
     online.set(socket.id, { accountId: acc.id, serverId, voice: null, voiceServerId: null, muted: false, deafened: false, sharing: false, camera: false });
     save();
     ack({ token, accountId: acc.id, name: acc.name, since: acc.createdAt || null, serverId, sid: socket.id, presence: acc.presence || 'online', statusText: acc.statusText || '', iceServers: iceServers(), permNames: PERMS, maxUploadMb: MAX_UPLOAD_MB, version: APP_VERSION, gifKey: process.env.KLIPY_KEY || null, siteOwner: isSiteOwner(acc), ...recovery.view(acc), mailEnabled: recovery.enabled });
@@ -1435,7 +1474,8 @@ io.on('connection', (socket) => {
     socket.emit('social', socialFor(acc));
     // Alguém está ligando: o toque aparece também na sessão que acabou de entrar.
     for (const ring of dmCalls.ringsFor(acc.id)) socket.emit('dm:ring', ring);
-    broadcastState();
+    if (before && before !== acc.id) notifyAccount(before);
+    notifyAccount(acc.id);
   }
 
   on('logout', (acc, { token }) => {
@@ -1491,7 +1531,7 @@ io.on('connection', (socket) => {
     acc.avatar = nextAvatar || null;
     acc.color = cleanColor(color, acc.color);
     save();
-    broadcastState();
+    notifyAccount(acc.id);
     if (previousAvatar !== nextAvatar) removeImageIfUnused(previousAvatar);
     return { ok: true, avatarUrl: acc.avatar ? '/avatars/' + acc.avatar : null };
   });
@@ -1508,7 +1548,7 @@ io.on('connection', (socket) => {
       acc.statusText = text || undefined;
     }
     if (!allow('presence:' + acc.id, 20, 60000)) fail('Muitas trocas de status. Aguarde um minuto.');
-    save(); broadcastState();
+    save(); notifyAccount(acc.id);
     return { ok: true, presence: acc.presence || 'online', statusText: acc.statusText || '' };
   });
 
@@ -1521,7 +1561,7 @@ io.on('connection', (socket) => {
     if (name.length > 32) fail('O nome no servidor deve ter até 32 caracteres.');
     if (!allow('nickname:' + acc.id, 10, 60000)) fail('Muitas mudanças de nome. Aguarde um minuto.');
     acc.nickname = name || null;
-    save(); broadcastState();
+    save(); notify({ servers: [communities.currentId()], accounts: [acc.id] }); // o apelido vale só neste servidor
     return { ok: true, nickname: acc.nickname, name: acc.nickname || acc.name };
   });
 
@@ -1982,7 +2022,7 @@ io.on('connection', (socket) => {
       s.voiceServerId = target;
       s.voiceSince = Date.now();
       const dropped = dropOtherVoiceSessions(socket, acc.id);
-      broadcastState();
+      notifyVoice(s);
       sendPreviews(peers);
       return { peers: peers.filter((p) => !dropped.includes(p)) };
     });
@@ -2004,7 +2044,7 @@ io.on('connection', (socket) => {
     // A aba antiga sai depois desta entrar: com a conta ainda na sala, a chamada não acaba.
     const dropped = dropOtherVoiceSessions(socket, acc.id);
     dmCalls.joined(dm, acc.id, conversation.users.find((u) => u !== acc.id), { first: !peers.length, silent });
-    broadcastState();
+    notifyVoice(s);
     sendPreviews(peers);
     return { peers: peers.filter((p) => !dropped.includes(p)) };
   }
@@ -2037,8 +2077,7 @@ io.on('connection', (socket) => {
   });
 
   on('voice:leave', () => {
-    leaveVoice(socket);
-    broadcastState();
+    leaveVoice(socket); // avisa a sala de onde saiu
   });
 
   // Painel do dono do Resenhex: quem está em chamada agora, em qual servidor e sala.
@@ -2083,7 +2122,7 @@ io.on('connection', (socket) => {
     s.camera = !!camera && video;
     s.voiceFx = VOICE_FX.includes(voiceFx) ? voiceFx : null;
     s.allowClips = allowClips !== false;
-    broadcastState();
+    notifyVoice(s);
   }, { voice: true });
 
   // Clipes desta chamada em que a pessoa é destinatária (últimas 24 h) e o link de download de uso único.
@@ -2124,7 +2163,7 @@ io.on('connection', (socket) => {
       const subscribed = viewer.watching?.delete(target);
       viewer.screenQuality?.delete(target);
       if (subscribed) io.to(target).emit('screen:quality', { viewer: socket.id, demand: null });
-      broadcastState();
+      notifyVoice(viewer);
       return;
     }
     if (!viewer.voice || !source?.sharing || viewer.voice !== source.voice || !inSameRoom(acc, source)) fail('Essa transmissão não está disponível nesta sala.');
@@ -2134,7 +2173,7 @@ io.on('connection', (socket) => {
     viewer.screenQuality ||= new Map();
     viewer.screenQuality.set(target, demand);
     io.to(target).emit('screen:quality', { viewer: socket.id, demand });
-    broadcastState();
+    notifyVoice(viewer);
   }, { voice: true });
 
   // Only subscribed viewers can request quality. Resize updates go to the source,
@@ -2413,10 +2452,11 @@ io.on('connection', (socket) => {
   });
 
   socket.on('disconnect', () => {
-    leaveSalon(online.get(socket.id));
+    const s = online.get(socket.id);
+    leaveSalon(s);
     leaveVoice(socket);
     online.delete(socket.id);
-    broadcastState();
+    if (s) notifyAccount(s.accountId); // conexão que nunca entrou numa conta não muda nada para ninguém
   });
 });
 

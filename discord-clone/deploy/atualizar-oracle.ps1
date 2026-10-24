@@ -80,6 +80,12 @@ try {
     $update = "sudo mkdir -p /var/backups/resenhex && sudo tar -czf $backup -C /var/lib/resenhex data.json uploads && sudo ${setDomain}${sfuSetting}bash $remoteStage/discord-clone/deploy/instalar-vps.sh --oracle && systemctl is-active resenhex caddy coturn"
     Run 'ssh.exe' ($sshArgs + @($update))
 
+    # Guarda só os 10 backups automáticos mais novos (cada um tem uns 110 MB por causa dos uploads).
+    # Os feitos à mão, com outros nomes, ficam. Se falhar, o site já foi atualizado: só avisa.
+    $prune = 'ls -1 /var/backups/resenhex/data-before-*.tar.gz | sort -r | tail -n +11 | xargs -r rm -f --'
+    & ssh.exe @sshArgs "sudo sh -c '$prune'"
+    if ($LASTEXITCODE -ne 0) { Write-Warning 'Não deu para apagar os backups antigos; o site foi atualizado mesmo assim.' }
+
     $siteDomain = (& ssh.exe @sshArgs "sudo sed -n 's/^RESENHEX_DOMAIN=//p' /etc/resenhex.env | tail -n 1" | Out-String).Trim()
     if ($siteDomain -notmatch '^[a-z0-9.-]+$') { $siteDomain = "$($Server.Replace('.', '-')).sslip.io" }
     $url = "https://$siteDomain"

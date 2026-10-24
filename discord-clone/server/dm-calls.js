@@ -13,7 +13,7 @@ function createDmCalls({ ringMs = 30_000, messages, newId, emit, update, post, c
     clearTimeout(entry.ring.timer);
     emit(entry.ring.to, 'dm:ring:stop', { dm });
     entry.ring = null;
-    changed();
+    changed(dm);
   }
 
   function ring(dm, from, to) {
@@ -23,7 +23,7 @@ function createDmCalls({ ringMs = 30_000, messages, newId, emit, update, post, c
     entry.ring = { from, to, timer: setTimeout(() => stopRing(dm), ringMs) };
     entry.ring.timer.unref?.();
     emit(to, 'dm:ring', { dm, from });
-    changed();
+    changed(dm);
   }
 
   // Alguém entrou na sala da conversa. first: a sala estava vazia. silent: voltando de uma

@@ -120,6 +120,40 @@ test('server creation and socket selection isolate channels, members, chat and v
   assert.equal(leakedTyping, false, 'a second socket belonging to the same account must not receive typing from another selected server');
 });
 
+test('state updates reach only who sees the change: calls go to their server, presence to the servers and friends of the account', async (t) => {
+  const { connect } = await fixture(t);
+  const owner = await connect('Dono'); const guest = await connect('Visitante'); const away = await connect('Longe');
+  const register = (name) => connect({ mode: 'register', name, password: '1234', confirmPassword: '1234' });
+  const friend = await register('Amigo'); const stranger = await register('Estranho');
+  const voice = owner.last.channels.find((c) => c.type === 'voice').id;
+  assert.ok(!(await away.call('server:create', { name: 'Outro servidor' })).error);
+  assert.ok(!(await friend.call('friend:request', { name: 'Longe' })).error);
+  assert.ok(!(await away.call('friend:accept', { id: friend.auth.accountId })).error);
+  await wait();
+  const counter = (socket) => { let n = 0; socket.on('state', () => { n++; }); return () => n; };
+  const awayStates = counter(away), friendStates = counter(friend), strangerStates = counter(stranger);
+
+  // Chamada no servidor original: quem olha outro servidor (mesmo sendo membro) não recebe nada.
+  assert.ok(!(await guest.call('voice:join', { channel: voice })).error);
+  await eventually(() => assert.equal(owner.last.voice.length, 1));
+  assert.ok(!(await guest.call('voice:state', { muted: true })).error);
+  await eventually(() => assert.equal(owner.last.voice[0].muted, true));
+  assert.ok(!(await guest.call('voice:leave')).error);
+  await eventually(() => assert.equal(owner.last.voice.length, 0));
+  await wait();
+  assert.deepEqual([awayStates(), friendStates(), strangerStates()], [0, 0, 0]);
+
+  // Presença: chega a quem vê um servidor da conta e aos amigos; não a quem não tem ligação nenhuma.
+  assert.ok(!(await away.call('presence', { presence: 'dnd' })).error);
+  await eventually(() => assert.equal(owner.last.members.find((m) => m.id === away.auth.accountId).status, 'dnd'));
+  await eventually(() => assert.equal(friend.last.people.find((p) => p.id === away.auth.accountId).status, 'dnd'));
+  away.disconnect();
+  await eventually(() => assert.equal(friend.last.people.find((p) => p.id === away.auth.accountId).status, 'offline'));
+  await eventually(() => assert.equal(owner.last.members.find((m) => m.id === away.auth.accountId).status, 'offline'));
+  await wait();
+  assert.equal(strangerStates(), 0);
+});
+
 test('invite previews, registration, revocation and joining are scoped to the invited server', async (t) => {
   const { connect, base } = await fixture(t, 'senha-do-site');
   const owner = await connect('Dono');
