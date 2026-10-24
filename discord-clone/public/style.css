@@ -600,9 +600,9 @@ blockquote { margin: 2px 0; padding: 0 8px 0 12px; border-left: 4px solid color-
   position: fixed; z-index: 30; width: 240px; max-width: calc(100vw - 16px); max-height: calc(100vh - 16px); overflow-y: auto;
   background: var(--bg-floating); border-radius: 4px; padding: 6px 8px; box-shadow: var(--shadow-float), 0 0 0 1px rgba(255, 255, 255, .02);
 }
-/* Na tela cheia, menus e dicas viram popover (overFullscreen no app.js). Sem peso de especificidade, isto só
-   desfaz o padrão do navegador para popover naquilo que as regras deles não definem: o lugar vem de left/top. */
-:where(#context-menu, #context-submenu, #tooltip)[popover] { inset: auto; margin: 0; border: 0; overflow: visible; color: inherit; }
+/* Na tela cheia, a dica vira popover (overFullscreen no app.js; os menus entram no bloco). Sem peso de especificidade,
+   isto só desfaz o padrão do navegador para popover naquilo que as regras dela não definem: o lugar vem de left/top. */
+:where(#tooltip)[popover] { inset: auto; margin: 0; border: 0; overflow: visible; color: inherit; }
 .menu-head { display: flex; gap: 10px; padding: 6px 2px 8px; align-items: flex-start; }
 .menu-head .sub { font-size: 12px; color: var(--yellow); }
 .menu-head .member-name { color: var(--text-strong); }

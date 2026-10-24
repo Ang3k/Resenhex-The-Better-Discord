@@ -191,7 +191,8 @@ window.StreamZoom = function ({ el, Icon, syncViewerQuality }) {
 
   // ---------- mouse ----------
   const local = (v, e) => { const r = v.tile.getBoundingClientRect(); return { x: e.clientX - r.left, y: e.clientY - r.top }; };
-  const onUi = (e) => !!e.target.closest?.('.sz-hud, .sz-mini, .tile-controls, .watch-btn, .stats');
+  // Na tela cheia os menus abrem dentro do bloco (app.js, intoFullscreen): clicar e rolar neles não mexe no zoom.
+  const onUi = (e) => !!e.target.closest?.('.sz-hud, .sz-mini, .tile-controls, .watch-btn, .stats, #context-menu, #context-submenu');
 
   function wheel(v, e) {
     if (!v.enabled || onUi(e)) return;

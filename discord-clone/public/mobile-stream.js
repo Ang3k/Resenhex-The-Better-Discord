@@ -129,7 +129,7 @@ window.MobileStream = function ({ state, el, Icon, toast, member, voiceEntry, sy
   function resetZoom() { stopMotion(); view.z = 1; view.x = view.y = 0; clamp(); apply(); qualityChanged(); }
 
   const local = (e) => { const r = view.tile.getBoundingClientRect(); return { x: e.clientX - r.left, y: e.clientY - r.top }; };
-  const onBar = (e) => !!e.target.closest?.('.imm-bar, .imm-hint, #context-menu');
+  const onBar = (e) => !!e.target.closest?.('.imm-bar, .imm-hint, #context-menu, #context-submenu');
 
   function pointerDown(e) {
     if (!view.tile || onBar(e)) return;

@@ -317,8 +317,24 @@
   }).observe(document.body, { childList: true, subtree: true });
 
   // Em tela cheia o navegador só desenha o bloco que está nela, e menus e dicas abriam invisíveis.
-  // Enquanto isso eles viram popover: a camada do topo fica por cima da tela cheia, e o elemento
-  // continua no mesmo lugar da página (cliques e arrastos não passam pelo bloco).
+  // A dica vira popover: a camada do topo fica por cima da tela cheia. Menus precisam de clique, e o
+  // Chrome deixa inerte tudo que está fora da tela cheia (o popover aparecia, mas o clique atravessava
+  // para o vídeo e o zoom). Por isso eles entram no próprio bloco enquanto abertos e voltam ao lugar
+  // ao fechar; o bloco e o zoom ignoram o que vem deles (FLOATING_MENUS).
+  const FLOATING_MENUS = '#context-menu, #context-submenu';
+  const fullscreenHomes = new Map(); // menu -> marcador do lugar dele na página
+  function intoFullscreen(node) {
+    const full = document.fullscreenElement;
+    if (!full || full.contains(node)) return;
+    if (!fullscreenHomes.has(node)) { const mark = document.createComment(node.id); node.before(mark); fullscreenHomes.set(node, mark); }
+    full.append(node);
+  }
+  function leaveFullscreen(node) {
+    const mark = fullscreenHomes.get(node);
+    if (!mark) return;
+    fullscreenHomes.delete(node);
+    mark.replaceWith(node);
+  }
   function overFullscreen(node) {
     const full = document.fullscreenElement;
     if (!full || full.contains(node) || !node.showPopover) return;
@@ -2479,7 +2495,7 @@
             el('div', { class: 'watch-overlay hidden' }),
             el('div', { class: 'stats' }), el('div', { class: 'stream-health' }), el('div', { class: 'label' }), el('div', { class: 'tile-controls' }));
           setupTile(tile);
-          tile.oncontextmenu = (e) => openStreamMenu(tile, e);
+          tile.oncontextmenu = (e) => { if (e.target.closest(FLOATING_MENUS)) e.preventDefault(); else openStreamMenu(tile, e); };
           primary.append(tile);
         }
         const hidden = !self && !isWatching(v.sid);
@@ -2659,13 +2675,13 @@
     });
     // Clique fixa/solta; clique duplo abre em tela cheia.
     tile.addEventListener('click', (e) => {
-      if (e.target.closest('.tile-controls, .watch-btn, .imm-bar, .sz-hud, .sz-mini')) return;
+      if (e.target.closest('.tile-controls, .watch-btn, .imm-bar, .sz-hud, .sz-mini, ' + FLOATING_MENUS)) return;
       if (streamZoom.consumeClick(tile)) return;
       if (mobileStream.handleTap(tile)) return;
       togglePin(tile.dataset.key);
     });
     tile.addEventListener('dblclick', (e) => {
-      if (mobileStream.touch || e.target.closest('.tile-controls, .watch-btn, .sz-hud, .sz-mini')) return;
+      if (mobileStream.touch || e.target.closest('.tile-controls, .watch-btn, .sz-hud, .sz-mini, ' + FLOATING_MENUS)) return;
       // Na tela em destaque o clique duplo é do zoom; a tela cheia fica no botão e no menu.
       if (streamZoom.dblclick(tile, e)) return;
       togglePin(tile.dataset.key, true);
@@ -3067,7 +3083,7 @@
     if (!menu.classList.contains('hidden') && $('#server-header').classList.contains('open')) $('#server-header').dataset.closedAt = Date.now();
     Motion.fadeCopy(menu);
     menu.classList.add('hidden');
-    leaveTopLayer(menu);
+    leaveFullscreen(menu);
     menu.classList.remove('member-menu', 'status-menu', 'device-menu', 'audio-device-menu', 'sheet-menu');
     menu.style.width = '';
     closeSubmenu();
@@ -3490,7 +3506,7 @@
     clearTimeout(submenuTimer);
     const sub = $('#context-submenu');
     sub.classList.add('hidden');
-    if (sub.popover) Motion.afterHide(sub, () => leaveTopLayer(sub));
+    leaveFullscreen(sub);
     document.querySelectorAll('#context-menu .menu-item.sub-open').forEach((n) => n.classList.remove('sub-open'));
   }
   function menuSub(label, icon, build) {
@@ -3504,7 +3520,7 @@
       item.classList.add('sub-open');
       sub.replaceChildren(...build());
       sub.classList.remove('hidden');
-      overFullscreen(sub);
+      intoFullscreen(sub);
       const r = item.getBoundingClientRect();
       const w = sub.offsetWidth, h = sub.offsetHeight;
       const left = r.right + 6 + w > innerWidth - 8 ? r.left - w - 6 : r.right + 6;
@@ -3763,7 +3779,7 @@
   function showMenuAt(x, y) {
     const menu = $('#context-menu');
     menu.classList.remove('hidden');
-    overFullscreen(menu);
+    intoFullscreen(menu);
     menu.style.left = Math.max(8, Math.min(x, innerWidth - menu.offsetWidth - 8)) + 'px';
     menu.style.top = Math.max(8, Math.min(y, innerHeight - menu.offsetHeight - 8)) + 'px';
   }
