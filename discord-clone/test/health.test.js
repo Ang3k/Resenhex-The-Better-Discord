@@ -64,33 +64,34 @@ const netDev = (sent) => `Inter-|   Receive                                     
 test('network of the month survives restarts and reboots', async (t) => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'resenhex-rede-'));
   t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
-  const dev = path.join(dir, 'dev'), monthFile = path.join(dir, 'rede-do-mes.json');
+  const dev = path.join(dir, 'dev'), monthFile = path.join(dir, 'rede-do-mes.json'), uptimeFile = path.join(dir, 'uptime');
   const lines = [];
   const wait = (ms) => new Promise((r) => setTimeout(r, ms));
-  const start = () => createHealth({ connections: () => 0, online: () => 0, log: (line) => lines.push(line), every: 40, udpTable: path.join(dir, 'udp'), netDev: dev, monthFile });
+  const start = () => createHealth({ connections: () => 0, online: () => 0, log: (line) => lines.push(line), every: 40, udpTable: path.join(dir, 'udp'), netDev: dev, uptimeFile, monthFile, now: () => Date.UTC(2026, 9, 16) });
 
-  // Primeira vez: o mês começa do zero, seja qual for o contador da placa.
+  // Primeira vez, sem o arquivo: a máquina ligou há 1 h, neste mês, e tudo o que a placa marca é do mês.
+  fs.writeFileSync(uptimeFile, '3600.00 7000.00\n');
   fs.writeFileSync(dev, netDev(10e9));
   const first = start();
   await wait(60);
   fs.writeFileSync(dev, netDev(11.5e9));
   await wait(300); // 6 amostras: grava o arquivo
-  assert.equal(first.view().history.at(-1).monthGB, 1.5);
+  assert.equal(first.view().history.at(-1).monthGB, 11.5);
   assert.ok(first.relayAllowed());
   assert.equal(first.view().targets.monthGB, 7000);
-  assert.equal(JSON.parse(fs.readFileSync(monthFile, 'utf8')).bytes, 1.5e9);
+  assert.equal(JSON.parse(fs.readFileSync(monthFile, 'utf8')).bytes, 11.5e9);
 
   // Servidor reiniciado (mesma máquina): o que passou com ele desligado também conta.
   fs.writeFileSync(dev, netDev(12e9));
   const second = start();
   await wait(100);
-  assert.equal(second.view().history.at(-1).monthGB, 2);
+  assert.equal(second.view().history.at(-1).monthGB, 12);
 
   // Máquina reiniciada: a placa recomeça do zero, e tudo o que ela marca é novo.
   await wait(300);
   fs.writeFileSync(dev, netDev(1.5e9));
   await wait(100);
-  assert.equal(second.view().history.at(-1).monthGB, 3.5);
+  assert.equal(second.view().history.at(-1).monthGB, 13.5);
   assert.ok(lines.some((line) => / rede do mês [0-9.]+ GB \(ritmo [0-9.]+\) · disco \?% · portas/.test(line)));
 });
 
@@ -106,7 +107,9 @@ test('the month is spent at a pace: above it the relay takes no one new, far abo
   assert.equal(monthPace(day(1)), 300, 'no começo do mês, só a folga');
   assert.equal(Math.round(monthPace(Date.UTC(2026, 10, 1) - 1)), 7000, 'no fim, a meta inteira');
   fs.writeFileSync(dev, netDev(50e9));
-  const health = createHealth({ connections: () => 0, online: () => 0, log: (line) => lines.push(line), every: 40, udpTable: path.join(dir, 'udp'), netDev: dev, relayFile, network: { budgetGB: 6.2, slackGB: 0.5, haltGB: 2 }, now: () => clock });
+  const monthFile = path.join(dir, 'rede-do-mes.json');
+  fs.writeFileSync(monthFile, JSON.stringify({ key: '2026-10', bytes: 0, counter: 50e9 })); // nada gasto até aqui
+  const health = createHealth({ monthFile, connections: () => 0, online: () => 0, log: (line) => lines.push(line), every: 40, udpTable: path.join(dir, 'udp'), netDev: dev, relayFile, network: { budgetGB: 6.2, slackGB: 0.5, haltGB: 2 }, now: () => clock });
   const step = async (sent) => { fs.writeFileSync(dev, netDev(sent)); await wait(100); return health.view().history.at(-1); };
   const state = () => fs.readFileSync(relayFile, 'utf8').trim();
   await wait(60); // a primeira leitura da placa marca o começo
@@ -144,4 +147,38 @@ test('the month is spent at a pace: above it the relay takes no one new, far abo
   clock = Date.UTC(2026, 10, 1, 1);
   last = await step(57e9);
   assert.deepEqual([last.monthGB, last.relay], [0.5, 'on']);
+});
+
+test('without the month file the count starts from the network card, not from zero', async (t) => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'resenhex-rede-'));
+  t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
+  const dev = path.join(dir, 'dev'), uptimeFile = path.join(dir, 'uptime');
+  const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+  const start = (options) => createHealth({ connections: () => 0, online: () => 0, log() {}, every: 40, udpTable: path.join(dir, 'udp'), netDev: dev, now: () => Date.UTC(2026, 9, 11), ...options });
+  // Máquina ligada há 40 dias, 10 deles neste mês: a placa marca 400 GB, e o mês fica com a parte dele.
+  fs.writeFileSync(uptimeFile, String(40 * 86400));
+  fs.writeFileSync(dev, netDev(400e9));
+  const broken = path.join(dir, 'rede-do-mes.json');
+  fs.writeFileSync(broken, '{estragado');
+  const estimated = start({ uptimeFile, monthFile: broken });
+  // Sem saber quando a máquina ligou: conta tudo.
+  const blind = start({ uptimeFile: path.join(dir, 'nao-existe') });
+  await wait(100);
+  assert.equal(estimated.view().history.at(-1).monthGB, 100);
+  assert.equal(blind.view().history.at(-1).monthGB, 400);
+});
+
+test('a relay state that could not be written is written again on the next reading', async (t) => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'resenhex-estado-'));
+  t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
+  const dev = path.join(dir, 'dev'), relayDir = path.join(dir, 'estado'), relayFile = path.join(relayDir, 'retransmissor.estado');
+  const lines = [];
+  const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+  fs.writeFileSync(dev, netDev(1e9));
+  createHealth({ connections: () => 0, online: () => 0, log: (line) => lines.push(line), every: 40, udpTable: path.join(dir, 'udp'), netDev: dev, uptimeFile: path.join(dir, 'uptime'), relayFile });
+  await wait(200); // várias leituras sem a pasta
+  assert.equal(lines.filter((line) => /não deu para gravar/.test(line)).length, 1, 'o aviso sai uma vez só');
+  fs.mkdirSync(relayDir);
+  await wait(150);
+  assert.equal(fs.readFileSync(relayFile, 'utf8'), 'ligado\n');
 });

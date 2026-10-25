@@ -8,9 +8,11 @@
 )
 
 # Volta o site para uma versão anterior, sem perder o que as pessoas fizeram depois da publicação:
-# 1. prepara o servidor (deploy/preparar-volta.sh): se a versão de destino não tem o banco SQLite, desliga o site e
-#    grava o data.db como data.json; se o instalador dela usa a senha fixa antiga do retransmissor, troca a senha;
+# 1. prepara o servidor (deploy/preparar-volta.sh): guarda o site instalado e a configuração em
+#    /var/backups/resenhex/volta-<data>; se a versão de destino não tem o banco SQLite, desliga o site e grava o
+#    data.db como data.json; se o instalador dela usa a senha fixa antiga do retransmissor, troca a senha;
 # 2. publica a versão de destino com o atualizar-oracle.ps1 dela (que faz o backup e reinstala tudo).
+# Se qualquer passo falhar, o servidor volta a ser o que estava guardado e o site religa.
 # O site fica fora do ar entre o passo 1 e o fim do passo 2 (~2 min). Publicar reinicia o coturn e derruba as calls.
 
 $ErrorActionPreference = 'Stop'
@@ -48,34 +50,38 @@ $worktree = Join-Path ([System.IO.Path]::GetTempPath()) "resenhex-volta-$short-$
 $remote = "ubuntu@$Server"
 $sshArgs = @('-i', $KeyPath, '-o', 'BatchMode=yes', '-o', 'StrictHostKeyChecking=yes', $remote)
 $remoteScript = "/home/ubuntu/resenhex-preparar-volta-$stamp.sh"
+$snapshot = "/var/backups/resenhex/volta-$stamp"
+$prepare = "sudo bash $remoteScript --guardar $snapshot $($flags -join ' ')".Trim()
 
 Run 'git' @('-C', $repoRoot, 'worktree', 'add', '--detach', '--quiet', $worktree, $sha)
 try {
     $deploy = Join-Path $worktree 'discord-clone\deploy\atualizar-oracle.ps1'
     if ($ValidateOnly) {
         & $deploy -Server $Server -KeyPath $KeyPath -ValidateOnly | Select-Object -Last 1
-        Write-Host "No servidor rodaria: sudo bash preparar-volta.sh $($flags -join ' ')"
+        Write-Host "No servidor rodaria: $($prepare.Replace($remoteScript, 'preparar-volta.sh'))"
         Write-Host 'Nada foi enviado.'
         return
     }
 
-    if ($flags.Count -gt 0) {
-        Write-Host 'Preparando o servidor...'
-        Run 'scp.exe' @('-i', $KeyPath, '-o', 'BatchMode=yes', '-o', 'StrictHostKeyChecking=yes', (Join-Path $PSScriptRoot 'preparar-volta.sh'), "${remote}:$remoteScript")
-        Run 'ssh.exe' ($sshArgs + @("sudo bash $remoteScript $($flags -join ' '); status=`$?; rm -f $remoteScript; exit `$status"))
-    }
-
+    # Até aqui o servidor não mudou nada: se o envio falhar, não há o que desfazer.
+    Run 'scp.exe' @('-i', $KeyPath, '-o', 'BatchMode=yes', '-o', 'StrictHostKeyChecking=yes', (Join-Path $PSScriptRoot 'preparar-volta.sh'), "${remote}:$remoteScript")
     try {
+        Write-Host 'Guardando a instalação atual e preparando o servidor...'
+        Run 'ssh.exe' ($sshArgs + @($prepare))
         & $deploy -Server $Server -KeyPath $KeyPath
     } catch {
-        # O site pode ter ficado desligado pelo passo 1. Religar a versão que está instalada é seguro: se for a nova,
-        # ela vê o data.json e importa de novo, sem perder nada.
-        Write-Warning "A publicação da versão $short falhou: $($_.Exception.Message)"
-        Write-Warning 'Religando o site que está instalado...'
-        & ssh.exe @sshArgs 'sudo systemctl start resenhex && systemctl is-active resenhex'
+        # O site pode ter ficado desligado, e o instalador antigo pode ter parado no meio, com parte da configuração
+        # já reescrita. A cópia do passo 1 põe o servidor de volta como estava; a versão restaurada vê o data.json e
+        # importa de novo, sem perder nada.
+        Write-Warning "A volta para $short falhou: $($_.Exception.Message)"
+        Write-Warning "Restaurando o servidor como estava antes da volta ($snapshot)..."
+        & ssh.exe @sshArgs "sudo bash $remoteScript --restaurar $snapshot && systemctl is-active resenhex caddy"
+        if ($LASTEXITCODE -ne 0) { Write-Warning "A restauração também falhou: a cópia continua no servidor, em $snapshot (app/, config.tar, permissoes)." }
         throw
+    } finally {
+        & ssh.exe @sshArgs "rm -f $remoteScript"
     }
-    Write-Host "Site de volta na versão $short."
+    Write-Host "Site de volta na versão $short. A instalação de antes ficou guardada no servidor, em $snapshot."
 } finally {
     & git -C $repoRoot worktree remove --force $worktree
     if ($LASTEXITCODE -ne 0) { Write-Warning "Apague a pasta temporária à mão: git worktree remove --force `"$worktree`"" }

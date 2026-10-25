@@ -52,7 +52,10 @@ Tudo na branch `claude/chamada-atual` (pasta `.claude/worktrees/chamada-atual`),
 | `60d21db` | Fase 5: senha temporária e limites no retransmissor, teto de rede do mês, transmissão retransmitida em 720p, `tools/uso-retransmissor.js` |
 | `16c33f5` | Fase 7: volta espalhada depois de publicar, limites contra abuso, cota de envio, alarmes por e-mail, cartão do disco, sessões de 90 dias |
 | `d704aa0` | Conferência antes de publicar: volta de versão segura (`deploy/voltar-versao.ps1`, `tools/banco-para-json.js`), "null" no painel Chamadas agora |
-| este commit | Versão **2.0.0** com item nas Novidades; chamada que não fecha em 8 s tenta de novo já com o TURN por TCP |
+| `e09fadf` | Versão **2.0.0** com item nas Novidades; chamada que não fecha em 8 s tenta de novo já com o TURN por TCP |
+| `705afd4` | Novidades da 2.0.0: recado do dev chamando a galera, com o confete da 1.0 |
+| `22253aa` | Novidades da 2.0.0: seção "Por dentro" |
+| este commit | Correções da revisão do GPT 6.1 (seção "Revisão do GPT 6.1") |
 
 ## Conferência antes de publicar (25/10)
 
@@ -65,6 +68,23 @@ Tudo na branch `claude/chamada-atual` (pasta `.claude/worktrees/chamada-atual`),
   - a 1.9.0 instalada abriu o `data.json` gravado pela ferramenta de volta, com os mesmos números;
   - a pasta foi apagada no fim.
 - **Volta ensaiada:** seção "Como voltar se algo der errado".
+
+### Revisão do GPT 6.1 (25/10)
+
+Corrigido, com teste para cada um:
+- `data.json` estragado ao lado do banco: o servidor não liga e não mexe no banco (antes, o banco ia para o lado e o site podia abrir vazio).
+- Primeira importação gravada com `synchronous = FULL` antes de renomear o `data.json`: uma queda da máquina nesse meio-tempo não deixa o banco vazio.
+- Ao desligar, uma gravação que falha tenta de novo por até 5 s antes de sair.
+- `tools/banco-para-json.js`: grava o arquivo inteiro (`writeFileSync`) e confere o tamanho antes de trocar.
+- `deploy/voltar-versao.ps1`: a preparação entrou na proteção, e a volta guarda o servidor antes de mexer (seção "Como voltar").
+- Instalador: confere se o Node abre o `node:sqlite` (22.13 ou mais novo); antes aceitava o Node 20. `engines` no `package.json` também.
+- Rede do mês: sem o arquivo do mês (primeira publicação, arquivo estragado), começa do contador da placa, não do zero. Ligada antes do mês, a parte do mês é estimada pelo tempo.
+- O estado do retransmissor (`parado`/`ligado`) que não conseguiu ser gravado tenta de novo a cada leitura (10 s).
+- Cota diária de envios: o tamanho fica reservado na entrada. Envios ao mesmo tempo não passam juntos da cota, e envio recusado devolve a reserva.
+- Foto, banner, fundo ou emoji recusado depois de gravado (recorte inválido, nome repetido, permissão retirada no meio) não deixa arquivo sobrando. Emoji confere de novo a permissão e o nome depois de processar a imagem.
+- A troca para TCP conta os 8 s a partir de quando a conexão começa a tentar ("connecting"), não de quando ela nasce.
+
+Em aberto, para o dono decidir: o teto de rede só para o coturn. Downloads, anexos e o resto do site continuam mandando dados acima dos 10 TB (ver "Teto de rede do mês").
 
 ## Fase 2: feita
 
@@ -120,6 +140,7 @@ Detalhes, testes e a previsão de rede na Fase 5 do [plano](plano-5000-online.md
   - Acima do ritmo, o retransmissor não recebe gente nova.
   - Se passar 1 TB do ritmo (abuso), o site escreve `parado` em `/var/lib/resenhex/retransmissor.estado`, e o systemd para o coturn até a rede voltar ao ritmo. Pior caso: ~8 TB, abaixo dos 10 TB grátis.
   - Cartão "Rede no mês" na aba "Saúde do servidor".
+  - O corte só para o coturn. O resto do site (anexos, instaladores, prévias, avisos) é contado, mas não é cortado. Pelas estimativas, o site sozinho fica bem abaixo do ritmo, mas alguém baixando um anexo sem parar (até ~2 Gbps) passaria dos 10 TB em menos de um dia.
 - **Transmissão retransmitida:** até 720p e 1,5 Mbps para quem a recebe pelo retransmissor.
 - **Ponto em aberto:** com as premissas do plano (150 transmissões), o retransmissor pediria mais rede do que sobra. O teto segura o custo em zero, mas quem depende dele pode ficar sem chamadas com gente nova nos horários cheios. Falta medir quantas ligações passam por ele (`tools/uso-retransmissor.js`, depois de publicar). Se for muito, a transmissão retransmitida pode cair para 480p.
 
@@ -196,8 +217,9 @@ O que já está no código (este commit):
   1. desliga o site e grava o `data.db` como `data.json` (`tools/banco-para-json.js`). Ele recusa um banco vazio e não sobrescreve um `data.json` que exista;
   2. troca a senha do retransmissor por uma fixa, porque o instalador da 1.9.0 recusaria a senha nova e pararia no meio;
   3. publica a 1.9.0 com o `atualizar-oracle.ps1` dela, que faz o backup e reinstala o site, o Caddy e o coturn (as 41 portas antigas voltam).
+- Antes de mexer em qualquer coisa, o script guarda o servidor em `/var/backups/resenhex/volta-<data>`: o site instalado (`/opt/resenhex`), a configuração que os instaladores reescrevem (`resenhex.env`, coturn, Caddy, unidades do systemd), as permissões da pasta de dados e se a trava do teto de rede está ligada.
 - O site fica fora do ar ~2 min e as calls caem.
-- Se a publicação da versão antiga falhar, o script religa o site que estiver instalado.
+- **Se qualquer passo falhar** (inclusive o instalador antigo parando no meio, com parte da configuração já reescrita), o script põe de volta o que guardou (`preparar-volta.sh --restaurar`) e religa o site, sem depender da internet. A versão restaurada vê o `data.json` e importa de novo. Ensaiado no Ubuntu do WSL com uma raiz falsa.
 - **Publicar a versão nova de novo depois da volta é seguro.** Ela vê o `data.json` ao lado do `data.db`, guarda o banco como `data.db.antes-da-volta-<hora>` e importa o `data.json`, com o que mudou durante a volta. O `data.json.antes-do-sqlite` da primeira importação continua intacto.
 - Ensaiado no PC em 25/10, com o servidor da 1.9.0 de verdade: 1.9.0 → nova → volta → nova. Nenhuma mensagem se perdeu e as sessões continuaram valendo. Teste automático em `test/servers.test.js` ("a version rollback…").
 - Não ensaiado: o instalador antigo rodando na máquina da Oracle depois do novo. As diferenças conhecidas (senha do retransmissor e trava do teto de rede) já são tratadas pelo `deploy/preparar-volta.sh`.

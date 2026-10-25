@@ -297,17 +297,22 @@ function openStore(file, { log = console.error, verify = '', checkpointMs = 0 } 
       return performance.now() - started;
     },
     // Banco novo: grava tudo de uma vez (vindo do data.json ou do zero).
+    // FULL só aqui: o servidor renomeia o data.json logo depois, e a importação precisa estar no disco antes disso
+    // (com NORMAL, uma queda da máquina nesse meio-tempo deixaria o banco vazio e o data.json com outro nome).
     importAll() {
       texts = null;
-      transaction(() => {
-        sql.put.run('root', rest());
-        for (const collection of COLLECTIONS) {
-          for (const [id, value] of Object.entries(root[collection] || {})) sql.put.run(collection + '/' + id, JSON.stringify(value));
-        }
-        for (const [channel, list] of Object.entries(root.messages || {})) {
-          for (const msg of list) sql.putMessage.run(channel, msg.id, JSON.stringify(msg));
-        }
-      });
+      db.exec('PRAGMA synchronous = FULL');
+      try {
+        transaction(() => {
+          sql.put.run('root', rest());
+          for (const collection of COLLECTIONS) {
+            for (const [id, value] of Object.entries(root[collection] || {})) sql.put.run(collection + '/' + id, JSON.stringify(value));
+          }
+          for (const [channel, list] of Object.entries(root.messages || {})) {
+            for (const msg of list) sql.putMessage.run(channel, msg.id, JSON.stringify(msg));
+          }
+        });
+      } finally { db.exec('PRAGMA synchronous = NORMAL'); }
     },
     // Ao ligar, depois das migrações: grava o que elas mudaram (compara com o texto lido) e esquece o texto.
     // Só o root e os servidores, os únicos pedaços que as migrações do início mexem: se um dia uma mexer em outro,

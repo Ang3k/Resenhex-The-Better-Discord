@@ -144,8 +144,8 @@ rm -f /etc/apt/sources.list.d/caddy-stable.list
 apt-get update -q
 apt-get install -y -q curl ca-certificates gnupg debian-keyring debian-archive-keyring apt-transport-https coturn rsync >/dev/null
 
-NODE_MAJOR="$(node -v 2>/dev/null | sed 's/^v\([0-9]*\).*/\1/' || echo 0)"
-if [ "${NODE_MAJOR:-0}" -lt 20 ]; then
+# O banco (server/store.js) usa o node:sqlite, que só abre sem opção extra a partir do Node 22.13: confere ele mesmo.
+if ! node -e "require('node:sqlite')" >/dev/null 2>&1; then
   curl -fsSL https://deb.nodesource.com/setup_22.x | bash - >/dev/null
   apt-get install -y -q nodejs >/dev/null
 fi

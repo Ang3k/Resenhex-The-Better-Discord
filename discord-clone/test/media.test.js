@@ -406,7 +406,7 @@ function mediaHarness() {
   vm.createContext(context);
   vm.runInContext(fs.readFileSync(path.join(__dirname, '../public/media-session.js'), 'utf8'), context);
   const ownAudio = { cleaned: [], synced: [], works: true, async clean(s) { this.cleaned.push(s); return this.works; }, sync(s) { this.synced.push(s); } };
-  const media = context.window.MediaSession({ state, socket: { on: (event, handler) => events.set(event, handler) }, call: async (event, payload) => { calls.push({ event, payload }); return {}; }, el: () => domNode, toast: (msg) => notices.push(msg), voiceEntry: (sid) => sid === 'self' ? self : { channel: 'room' }, member: () => ({}), render() {}, renderStage() {}, sendVoiceState() {}, preferCodec() {}, ownAudio });
+  const media = context.window.MediaSession({ state, socket: { on: (event, handler) => events.set(event, handler) }, call: async (event, payload) => { calls.push({ event, payload }); return {}; }, el: () => domNode, toast: (msg) => notices.push(msg), voiceEntry: (sid) => sid === 'self' ? self : { channel: 'room' }, member: () => ({}), render() {}, renderStage() {}, sendVoiceState() {}, preferCodec() {}, ownAudio, firstConnectMs: 20 });
   return { media, state, self, peer, screen, microphone, notices, context, events, calls, nodes, ownAudio, track, stream, listeners, makePeer, clock: (value) => { clock = value; } };
 }
 
@@ -811,23 +811,35 @@ test('connections start with UDP-only TURN and add TURN over TCP on the first IC
   clearTimeout(h.peer.recoveryTimer);
 });
 
-test('a new connection still trying after the wait restarts with TURN over TCP; one that connected is left alone', async () => {
+test('a connection still trying after the wait restarts with TURN over TCP, counting from when it started trying', async () => {
   const h = mediaHarness();
   h.state.iceServers = [{ urls: ['turn:t.example:3478?transport=udp', 'turn:t.example:3478?transport=tcp'], username: 'u', credential: 'c' }];
   const pc = h.peer.pc;
   pc.restarts = 0; pc.configs = [];
   pc.restartIce = () => { pc.restarts++; };
   pc.setConfiguration = (config) => { pc.configs.push(JSON.parse(JSON.stringify(config))); };
-  pc.connectionState = 'connected';
-  h.media.watchFirstConnect(h.peer, 20);
-  await new Promise((r) => setTimeout(r, 50));
-  assert.equal(pc.restarts, 0, 'a connection that closed is not restarted');
+  const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+  // Quem atende demora a responder: a conexão fica em "new" além da espera, e a contagem ainda não começou.
+  pc.connectionState = 'new'; h.media.connectionChanged(h.peer);
+  await wait(50);
+  pc.connectionState = 'connecting'; h.media.connectionChanged(h.peer);
+  await wait(5);
+  assert.equal(pc.restarts, 0, 'the wait counts from "connecting"');
   // Rede que bloqueia UDP: segue tentando.
-  pc.connectionState = 'connecting';
-  h.media.watchFirstConnect(h.peer, 20);
-  await new Promise((r) => setTimeout(r, 50));
+  await wait(50);
   assert.equal(pc.restarts, 1);
   assert.match(JSON.stringify(pc.configs), /transport=tcp/, 'the restart brings TURN over TCP');
+  // O reinício volta a "connecting": não arma de novo.
+  h.media.connectionChanged(h.peer);
+  await wait(50);
+  assert.equal(pc.restarts, 1);
+  // Conexão que fechou a tempo fica como está.
+  const other = mediaHarness(), quick = other.peer.pc;
+  quick.restarts = 0; quick.restartIce = () => { quick.restarts++; };
+  quick.connectionState = 'connecting'; other.media.connectionChanged(other.peer);
+  quick.connectionState = 'connected'; other.media.connectionChanged(other.peer);
+  await wait(50);
+  assert.equal(quick.restarts, 0, 'a connection that closed is not restarted');
 });
 
 test('viewer resize and background requests are coalesced without stopping the subscribed audio', async () => {

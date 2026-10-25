@@ -5438,7 +5438,6 @@
       if (pc.connectionState === 'connected') tuneSenders();
       renderDiagnostics();
     };
-    watchFirstConnect(peer);
 
     pc.ontrack = ({ track, streams, receiver }) => {
       const stream = streams[0] || new MediaStream([track]);
@@ -5829,7 +5828,7 @@
     joinVoice(state.voiceChannel, { keepView: state.view !== 'voice', serverId: callInfo()?.serverId, startedAt: state.callStartedAt, silent: true });
   }
   const sfu = MediaSfu({ state, renderStage, applyAudio, watchSpeaking, unwatchSpeaking, closePeer, notice: (message) => mediaNotice(message), onLost: recoverMedia, tuneReceiver: (receiver) => mobileStream.tuneReceiver(receiver) });
-  const { isWatching, setWatching, getWatchQuality, setWatchQuality, syncViewerQuality, addVideoTracks, syncScreenSubscriptions, videoBitrates, remoteDescription, tuneSenders, applySharePreset, setSharePreset, captureScreen, watchScreenTrack, switchScreen, startVideo, stopVideo, connectionChanged, watchFirstConnect, renderDiagnostics, updateStreamStats, mediaNotice, firstIceServers } = MediaSession({ state, socket, call, el, toast, voiceEntry, member: callMember, render, renderStage, sendVoiceState, preferCodec, ownAudio, sfu });
+  const { isWatching, setWatching, getWatchQuality, setWatchQuality, syncViewerQuality, addVideoTracks, syncScreenSubscriptions, videoBitrates, remoteDescription, tuneSenders, applySharePreset, setSharePreset, captureScreen, watchScreenTrack, switchScreen, startVideo, stopVideo, connectionChanged, renderDiagnostics, updateStreamStats, mediaNotice, firstIceServers } = MediaSession({ state, socket, call, el, toast, voiceEntry, member: callMember, render, renderStage, sendVoiceState, preferCodec, ownAudio, sfu });
   // Prévia da transmissão para quem está na chamada sem assistir: a última foto da tela de quem transmite.
   const streamPreview = StreamPreview({ state, socket, el, voiceEntry, roomEntries: () => voiceEntries(state.voiceChannel), onPreview: () => { if (state.view === 'voice') renderStage(); } });
   const streamZoom = StreamZoom({ el, Icon, syncViewerQuality });

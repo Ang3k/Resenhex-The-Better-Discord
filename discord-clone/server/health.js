@@ -62,7 +62,7 @@ function sentBytes(text) {
 
 // monthFile: onde fica o total do mês (o contador da placa zera quando a máquina reinicia). relayFile: onde o
 // systemd lê se o coturn fica ligado ("ligado" ou "parado"). diskPath: uma pasta do disco dos dados.
-function createHealth({ connections, online, log = console.log, every = SAMPLE_MS, udpTable = '/proc/net/udp', netDev = '/proc/net/dev', monthFile = null, relayFile = null, network = MONTH, now = Date.now, diskPath = null }) {
+function createHealth({ connections, online, log = console.log, every = SAMPLE_MS, udpTable = '/proc/net/udp', netDev = '/proc/net/dev', uptimeFile = '/proc/uptime', monthFile = null, relayFile = null, network = MONTH, now = Date.now, diskPath = null }) {
   const heapLimit = v8.getHeapStatistics().heap_size_limit;
   const loop = monitorEventLoopDelay({ resolution: RESOLUTION_MS });
   loop.enable();
@@ -74,6 +74,8 @@ function createHealth({ connections, online, log = console.log, every = SAMPLE_M
   let month = null; // { key: 'AAAA-MM' (UTC), bytes: enviados no mês, counter: última leitura da placa }
   let paceGB = null;
   let relay = null; // 'on', 'paused' (sem gente nova) ou 'stopped' (coturn parado); null sem medição
+  let relayWritten = null; // o que está gravado no relayFile ('parado', 'ligado' ou 'falhou'); null antes de gravar
+  let relayWriting = false;
   let disk = null; // { pct, freeGB }
   const history = [];
 
@@ -84,6 +86,17 @@ function createHealth({ connections, online, log = console.log, every = SAMPLE_M
     disk = error || !s.blocks ? null : { pct: round((1 - s.bavail / s.blocks) * 100, 1), freeGB: round(s.bavail * s.bsize / 1e9, 1) };
   });
   const relayAllowed = () => relay === null || relay === 'on';
+  // Sem o arquivo do mês (primeira vez, ou estragado), começar do zero deixaria o mês passar do teto. O contador da
+  // placa conta desde que a máquina ligou: ligada neste mês, tudo é do mês; ligada antes, a parte do mês é estimada
+  // pela fração do tempo ligado que caiu nele. Sem saber quando ligou, conta tudo (sobrar só segura o retransmissor).
+  function startMonth(key, sent, at) {
+    let uptimeMs = NaN;
+    try { uptimeMs = parseFloat(fs.readFileSync(uptimeFile, 'utf8')) * 1000; } catch { /* sem /proc/uptime */ }
+    const date = new Date(at);
+    const sinceStart = at - Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), 1);
+    const share = uptimeMs > 0 ? Math.min(1, sinceStart / uptimeMs) : 1;
+    return { key, bytes: Math.round(sent * share), counter: sent };
+  }
   // Soma o que a placa mandou desde a última leitura. Na primeira, retoma o arquivo: o que a máquina mandou
   // com o servidor desligado (publicação, queda) também entra. Contador menor que o anterior: a máquina
   // reiniciou, e tudo o que ele marca é novo.
@@ -93,7 +106,7 @@ function createHealth({ connections, online, log = console.log, every = SAMPLE_M
     if (!month) {
       let saved = null;
       try { saved = monthFile && JSON.parse(fs.readFileSync(monthFile, 'utf8')); } catch { saved = null; }
-      month = saved?.key === key && Number.isFinite(saved.bytes) && Number.isFinite(saved.counter) ? saved : { key, bytes: 0, counter: sent };
+      month = saved?.key === key && Number.isFinite(saved.bytes) && Number.isFinite(saved.counter) ? saved : startMonth(key, sent, at);
     }
     const delta = sent >= month.counter ? sent - month.counter : sent;
     month = { key, bytes: (month.key === key ? month.bytes : 0) + delta, counter: sent };
@@ -109,9 +122,16 @@ function createHealth({ connections, online, log = console.log, every = SAMPLE_M
         : next === 'paused' ? `[saúde] a rede do mês (${gb(usedGB)}) passou do ritmo (${gb(paceGB)}): o retransmissor não recebe gente nova até voltar a ele`
         : `[saúde] a rede do mês voltou ao ritmo (${gb(usedGB)} de ${gb(paceGB)}): o retransmissor recebe gente nova de novo`);
     }
-    // Na primeira leitura também: o coturn pode ter sido religado por uma publicação ou um reinício.
-    if (relayFile && (before === null || (before === 'stopped') !== (next === 'stopped'))) {
-      fs.writeFile(relayFile, next === 'stopped' ? 'parado\n' : 'ligado\n', (error) => { if (error) log(`[saúde] não deu para gravar ${relayFile}: ${error.message}`); });
+    // Grava sempre que o arquivo difere do estado, na primeira leitura também (o coturn pode ter sido religado por
+    // uma publicação ou um reinício). Uma gravação que falha tenta de novo na leitura seguinte.
+    const want = next === 'stopped' ? 'parado' : 'ligado';
+    if (relayFile && relayWritten !== want && !relayWriting) {
+      relayWriting = true;
+      fs.writeFile(relayFile, want + '\n', (error) => {
+        relayWriting = false;
+        if (!error) relayWritten = want;
+        else if (relayWritten !== 'falhou') { relayWritten = 'falhou'; log(`[saúde] não deu para gravar ${relayFile}: ${error.message} (tenta de novo a cada leitura)`); }
+      });
     }
   }
   function saveMonth() {

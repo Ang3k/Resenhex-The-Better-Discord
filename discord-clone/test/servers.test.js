@@ -588,6 +588,24 @@ test('a version rollback writes the database as data.json, and the next start im
   assert.ok(fs.readdirSync(app.dir).some((f) => /^data\.json\.antes-do-sqlite(-\d+)?$/.test(f)));
 });
 
+test('a broken data.json next to the database stops the start without touching the database', async (t) => {
+  const app = await fixture(t);
+  const owner = await app.connect('Dono');
+  const channel = owner.last.channels.find((c) => c.type === 'text').id;
+  assert.ok(!(await owner.call('chat:send', { channel, text: 'guardada no banco' })).error);
+  await wait(400);
+  const json = path.join(app.dir, 'data.json');
+  fs.writeFileSync(json, '{"accounts": {');
+  await assert.rejects(app.restart(), /Server exited: 1[\s\S]*não abre/);
+  assert.ok(fs.existsSync(path.join(app.dir, 'data.db')));
+  assert.ok(!fs.readdirSync(app.dir).some((f) => f.includes('antes-da-volta')));
+  // Sem o arquivo estragado, o site volta com o banco como estava.
+  fs.rmSync(json);
+  await app.restart();
+  const back = await app.connect({ token: owner.auth.token });
+  assert.deepEqual((await back.call('chat:history', { channel })).messages.map((m) => m.text), ['guardada no banco']);
+});
+
 test('the rollback tool refuses an empty database instead of writing an empty site', (t) => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'resenhex-volta-'));
   t.after(() => fs.rmSync(dir, { recursive: true, force: true }));

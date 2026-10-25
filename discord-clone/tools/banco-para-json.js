@@ -31,10 +31,13 @@ if (!saved) {
 
 const root = readRoot(file);
 const tmp = path.join(path.dirname(dest), `.${path.basename(dest)}.${process.pid}.tmp`);
+const text = JSON.stringify(root);
 const fd = fs.openSync(tmp, 'w', 0o640);
 try {
-  fs.writeSync(fd, JSON.stringify(root));
+  // writeFileSync repete até gravar tudo (writeSync pode gravar só uma parte); o tamanho é conferido antes de trocar.
+  fs.writeFileSync(fd, text);
   fs.fsyncSync(fd);
+  if (fs.fstatSync(fd).size !== Buffer.byteLength(text)) throw new Error(`${tmp} ficou incompleto: nada foi trocado.`);
 } finally { fs.closeSync(fd); }
 fs.renameSync(tmp, dest);
 const count = (obj) => Object.keys(obj || {}).length;

@@ -83,17 +83,19 @@ test('a connection that floods the server loses the extra packets and then the c
   assert.equal(calm.connected, true);
 });
 
-test('uploads stop at the daily quota of each account, and the server checks the session before receiving the file', async (t) => {
+test('uploads stop at the daily quota of each account, even sent at the same time, and the server checks the session before receiving the file', async (t) => {
   const app = await startServer(t, { env: { UPLOAD_DAY_MB: '1' } });
   const socket = app.open();
   await app.connected(socket);
   const auth = await socket.call('auth', { mode: 'register', name: 'Ana', password: '1234', confirmPassword: '1234' });
-  const send = (token, bytes) => fetch(app.base + '/upload', { method: 'POST', headers: { 'x-token': token, 'x-filename': 'a.bin', 'content-type': 'application/octet-stream' }, body: Buffer.alloc(bytes, 1) });
+  const send = (token, bytes, channel = '') => fetch(app.base + '/upload', { method: 'POST', headers: { 'x-token': token, 'x-filename': 'a.bin', 'x-channel-id': channel, 'content-type': 'application/octet-stream' }, body: Buffer.alloc(bytes, 1) });
   assert.equal((await send('sem-sessao', 600_000)).status, 401);
-  assert.equal((await send(auth.token, 600_000)).status, 200);
-  const over = await send(auth.token, 600_000);
-  assert.equal(over.status, 429);
-  assert.match((await over.json()).error, /muitos arquivos hoje/);
+  // Recusado depois de entrar (canal que não existe): a reserva volta para a cota.
+  assert.equal((await send(auth.token, 600_000, 'nao-existe')).status, 403);
+  // Dois ao mesmo tempo: o primeiro reserva a cota na entrada, e o outro já não cabe.
+  const both = await Promise.all([send(auth.token, 600_000), send(auth.token, 600_000)]);
+  assert.deepEqual(both.map((r) => r.status).sort(), [200, 429]);
+  assert.match((await both.find((r) => r.status === 429).json()).error, /muitos arquivos hoje/);
   assert.equal((await send(auth.token, 300_000)).status, 200, 'o que cabe no resto da cota ainda entra');
 });
 

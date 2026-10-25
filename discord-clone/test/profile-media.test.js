@@ -81,9 +81,12 @@ test('sound uploads reject disguised, truncated, noncanonical and overlong audio
 });
 
 test('profile upload publishes animated framing to other members and cleans replaced files', async (t) => {
-  const { base, connect, send } = await fixture(t);
+  const { base, dir, connect, send } = await fixture(t);
   const ana = await connect('Ana'), beto = await connect('Beto');
   assert.equal((await send('/profile/avatar', 'POST', '', animated)).status, 401);
+  // GIF com enquadramento inválido: recusado, e o arquivo já gravado não fica sobrando no disco.
+  assert.equal((await send('/profile/avatar', 'POST', ana.auth.token, animated, { 'x-avatar-crop': '{"zoom":9,"x":0,"y":0}' })).status, 400);
+  assert.deepEqual(fs.readdirSync(path.join(dir, 'uploads', 'avatars')).filter((f) => f.endsWith('.gif')), []);
   const crop = { zoom: 2, x: .25, y: .75 };
   const uploaded = await (await send('/profile/avatar', 'POST', ana.auth.token, animated, { 'x-avatar-crop': JSON.stringify(crop) })).json();
   assert.match(uploaded.avatarUrl, /\.gif$/); await wait();
@@ -96,6 +99,18 @@ test('profile upload publishes animated framing to other members and cleans repl
   await send('/profile/avatar', 'DELETE', ana.auth.token); await wait();
   assert.equal(beto.last.members.find((m) => m.id === ana.auth.accountId).avatarUrl, null);
   assert.equal((await fetch(base + replaced.avatarUrl)).status, 404);
+});
+
+test('two emojis with the same name sent at the same time: one is kept and the other image leaves the disk', async (t) => {
+  const { dir, connect, send } = await fixture(t);
+  const owner = await connect('Dono');
+  const route = '/servers/' + owner.last.serverId + '/emojis';
+  const other = PNG.sync.write({ width: 64, height: 64, data: Buffer.alloc(64 * 64 * 4, 40) });
+  const replies = await Promise.all([png(), other].map((image) => send(route, 'POST', owner.auth.token, image, { 'x-emoji-name': 'risada' })));
+  assert.deepEqual(replies.map((r) => r.status).sort(), [200, 400]);
+  await wait();
+  assert.equal(owner.last.emojis.filter((e) => e.name === 'risada').length, 1);
+  assert.equal(fs.readdirSync(path.join(dir, 'uploads', 'avatars')).length, 1);
 });
 
 test('server sounds enforce permission, server isolation and room-only playback; removal cleans files', async (t) => {

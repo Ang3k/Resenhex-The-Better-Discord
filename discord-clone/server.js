@@ -158,6 +158,14 @@ function loadDb() {
 // ao lado do banco veio de uma volta (tools/banco-para-json.js) e tem os dados mais novos: o banco vai para o lado,
 // com outro nome, e o data.json é importado de novo.
 if (fs.existsSync(DATA_FILE) && fs.existsSync(DATA_DB)) {
+  // Antes de mexer no banco, o data.json precisa abrir com as contas dentro. Estragado, o loadDb cairia no .bak (que
+  // pode ser o do dia da primeira importação) ou num site vazio: o servidor nem liga, e o banco fica onde está.
+  let readable = false;
+  try { readable = !!JSON.parse(fs.readFileSync(DATA_FILE, 'utf8')).accounts; } catch { /* estragado */ }
+  if (!readable) {
+    console.error(`[banco] ${DATA_FILE} está ao lado do banco, mas não abre: nada foi mexido. Conserte o arquivo ou tire-o da pasta (aí o site volta com o banco) e ligue de novo.`);
+    process.exit(1);
+  }
   const aside = `${DATA_DB}.antes-da-volta-${Date.now()}`;
   for (const suffix of ['', '-wal', '-shm']) if (fs.existsSync(DATA_DB + suffix)) fs.renameSync(DATA_DB + suffix, aside + suffix);
   console.log(`[banco] data.json ao lado do banco (volta de versão): o banco ficou guardado como ${aside} e o data.json será importado`);
@@ -201,8 +209,16 @@ for (const sig of ['SIGINT', 'SIGTERM']) {
     if (stopping) return;
     stopping = true;
     try { io.emit('server:restart', { spreadMs: Math.min(30_000, online.accounts.size * 6) }); } catch { /* sinal antes de o servidor terminar de subir */ }
-    setTimeout(() => {
-      flushStore();
+    // Gravação que falha (disco cheio, banco ocupado) tenta de novo por até 5 s, como o flushStore faria, antes de sair.
+    setTimeout(function finish(tries = 0) {
+      clearTimeout(flushTimer);
+      try { store.flush(); }
+      catch (error) {
+        console.error('Falha ao salvar dados antes de sair:', error);
+        if (tries < 10) return setTimeout(finish, 500, tries + 1);
+        store.close();
+        process.exit(1);
+      }
       store.close();
       process.exit(0);
     }, 500);
@@ -731,9 +747,11 @@ app.post('/profile/avatar', express.raw({ type: () => true, limit: MAX_BANNER_UP
   const acc = authFromToken(req);
   if (!acc) return res.status(401).json({ error: 'Não autenticado' });
   if (!allow('avatar:' + acc.id, 10, 60 * 1000)) return res.status(429).json({ error: 'Muitas trocas de foto. Aguarde um minuto.' });
+  let saved = null;
   try {
     const header = JSON.parse(req.get('x-avatar-crop') || 'null');
-    const { file, ext } = await saveImage('photo', req.body);
+    saved = await saveImage('photo', req.body);
+    const { file, ext } = saved;
     const crop = ext === 'gif' ? validateAvatarCrop(header) : null;
     const previous = acc.avatar;
     acc.avatar = file;
@@ -741,7 +759,11 @@ app.post('/profile/avatar', express.raw({ type: () => true, limit: MAX_BANNER_UP
     save(); notifyAccount(acc.id);
     if (previous !== file) removeImageIfUnused(previous);
     res.json({ ok: true, avatarUrl: '/avatars/' + file, avatarCrop: crop });
-  } catch (error) { res.status(400).json({ error: error.message }); }
+  } catch (error) {
+    // GIF salvo com um recorte inválido: o arquivo não fica sobrando no disco.
+    if (saved) removeImageIfUnused(saved.file);
+    res.status(400).json({ error: error.message });
+  }
 });
 app.delete('/profile/avatar', (req, res) => {
   const acc = authFromToken(req);
@@ -830,16 +852,26 @@ app.post('/servers/:serverId/emojis', express.raw({ type: () => true, limit: MAX
     if (!allow('emoji-upload:' + acc.id, 20, 60000)) return res.status(429).json({ error: 'Muitos envios. Aguarde um minuto.' });
     db.emojis ||= [];
     if (db.emojis.length >= MAX_SERVER_EMOJIS) return res.status(400).json({ error: `O servidor já tem ${MAX_SERVER_EMOJIS} emojis.` });
+    let saved = null;
     try {
       const name = decodeURIComponent(req.get('x-emoji-name') || '').trim();
       checkEmojiName(name);
-      const { file } = await saveImage('photo', req.body, (data) => { if (data.length > MAX_EMOJI_BYTES) throw new Error('O emoji deve ter até 512 KB.'); });
-      // Enquanto a imagem era conferida, outro emoji pode ter ocupado a última vaga.
+      saved = await saveImage('photo', req.body, (data) => { if (data.length > MAX_EMOJI_BYTES) throw new Error('O emoji deve ter até 512 KB.'); });
+      // Enquanto a imagem era conferida, a permissão pode ter saído, e outro envio pode ter ocupado a última vaga
+      // ou o mesmo nome.
+      if (!communities.joined(acc.id) || !can(communities.accountView(acc), 'MANAGE_EMOJIS')) {
+        removeImageIfUnused(saved.file);
+        return res.status(403).json({ error: 'Você não pode gerenciar os emojis deste servidor.' });
+      }
       if (db.emojis.length >= MAX_SERVER_EMOJIS) throw new Error(`O servidor já tem ${MAX_SERVER_EMOJIS} emojis.`);
-      const emoji = { id: newId(), name, file, createdBy: acc.id, ts: Date.now() };
+      checkEmojiName(name);
+      const emoji = { id: newId(), name, file: saved.file, createdBy: acc.id, ts: Date.now() };
       db.emojis.push(emoji); imagesChanged(); save(chunk.server()); broadcastState();
       res.json({ ok: true, id: emoji.id });
-    } catch (error) { res.status(400).json({ error: error.message }); }
+    } catch (error) {
+      if (saved) removeImageIfUnused(saved.file);
+      res.status(400).json({ error: error.message });
+    }
   });
 });
 app.get('/emojis/:id', (req, res) => {
@@ -907,9 +939,11 @@ function profileImageRoutes(field, tooMany) {
     const acc = authFromToken(req);
     if (!acc) return res.status(401).json({ error: 'Não autenticado' });
     if (!allow(field + ':' + acc.id, 10, 60 * 1000)) return res.status(429).json({ error: tooMany });
+    let saved = null;
     try {
       const header = JSON.parse(req.get(`x-${field}-crop`) || 'null');
-      const { file, ext } = await saveImage(field, req.body);
+      saved = await saveImage(field, req.body);
+      const { file, ext } = saved;
       // PNG chega já recortado; GIF vai inteiro e guarda só o enquadramento, para manter a animação.
       const crop = ext === 'gif' ? validateAvatarCrop(header) : null;
       const previous = acc[field];
@@ -920,6 +954,7 @@ function profileImageRoutes(field, tooMany) {
       if (previous !== file) removeImageIfUnused(previous);
       res.json({ ok: true, [field + 'Url']: '/avatars/' + file, [field + 'Crop']: crop });
     } catch (err) {
+      if (saved) removeImageIfUnused(saved.file); // GIF com recorte inválido: não fica sobrando no disco
       res.status(400).json({ error: err.message });
     }
   });
@@ -940,7 +975,9 @@ profileImageRoutes('background', 'Muitas trocas de fundo. Aguarde um minuto.');
 
 // Envios de arquivos e clipes: no máximo 2 GB por conta (UPLOAD_DAY_MB) e 2,5 vezes isso por endereço em 24 h. Sem
 // isso, uma conta enchia o disco em uma hora (20 arquivos de 50 MB por minuto). A sessão e a cota são conferidas
-// antes de receber o arquivo, pelo tamanho anunciado; o que entra é descontado pelo tamanho de verdade.
+// antes de receber o arquivo, pelo tamanho anunciado (ou pelo máximo da rota, sem Content-Length), que já fica
+// reservado: envios ao mesmo tempo não passam juntos da cota. Ao terminar, vale o tamanho de verdade; envio recusado
+// ou interrompido devolve a reserva.
 const UPLOAD_DAY_BYTES = (Number(process.env.UPLOAD_DAY_MB) || 2000) * 1e6;
 const UPLOAD_QUOTA = { account: UPLOAD_DAY_BYTES, ip: UPLOAD_DAY_BYTES * 2.5 };
 const uploaded = new Map(); // chave -> [[quando, bytes], ...] das últimas 24 h
@@ -951,20 +988,25 @@ function uploadedToday(key) {
   return list.reduce((sum, [, bytes]) => sum + bytes, 0);
 }
 setInterval(() => { for (const key of [...uploaded.keys()]) uploadedToday(key); }, 60 * 60 * 1000).unref();
-function uploadGate(req, res, next) {
+const uploadGate = (maxBytes) => (req, res, next) => {
   const acc = db.accounts[db.sessions[req.get('x-token')]];
   if (!acc) return res.status(401).json({ error: 'Não autenticado' });
-  const size = Number(req.get('content-length')) || 0;
+  const announced = req.get('content-length');
+  const size = announced === undefined ? maxBytes : Math.min(Number(announced) || 0, maxBytes);
   const keys = ['upload-day:' + acc.id, 'upload-day-ip:' + clientIp(req.headers, req.socket.remoteAddress)];
   if (uploadedToday(keys[0]) + size > UPLOAD_QUOTA.account || uploadedToday(keys[1]) + size > UPLOAD_QUOTA.ip) {
     return res.status(429).json({ error: 'Você já enviou muitos arquivos hoje. O limite volta aos poucos nas próximas 24 horas.' });
   }
-  req.uploadKeys = keys;
+  // A mesma reserva nas duas listas (conta e endereço): mudar o tamanho dela muda nas duas.
+  const reserved = [Date.now(), size];
+  for (const key of keys) uploaded.set(key, [...(uploaded.get(key) || []), reserved]);
+  req.uploadReserved = reserved;
+  res.on('close', () => { if (!req.uploadCharged) reserved[1] = 0; });
   next();
-}
-const chargeUpload = (req, bytes) => { for (const key of req.uploadKeys || []) uploaded.set(key, [...(uploaded.get(key) || []), [Date.now(), bytes]]); };
+};
+const chargeUpload = (req, bytes) => { req.uploadCharged = true; if (req.uploadReserved) req.uploadReserved[1] = bytes; };
 
-app.post('/upload', uploadGate, express.raw({ type: () => true, limit: MAX_UPLOAD_MB * 1024 * 1024 }), (req, res) => {
+app.post('/upload', uploadGate(MAX_UPLOAD_MB * 1024 * 1024), express.raw({ type: () => true, limit: MAX_UPLOAD_MB * 1024 * 1024 }), (req, res) => {
   const acc = db.accounts[db.sessions[req.get('x-token')]];
   if (!acc) return res.status(401).json({ error: 'Não autenticado' });
   const targetId = req.get('x-channel-id');
@@ -1019,7 +1061,7 @@ app.get('/uploads/:file', (req, res) => {
 // Clipe da chamada. Corpo: u32 (tamanho da miniatura) | miniatura JPEG | MP4. Metadados em x-clip.
 const clipError = (res, status, error) => res.status(status).json({ error });
 const clipSlug = (name) => String(name || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 40) || 'chamada';
-app.post('/clips', uploadGate, express.raw({ type: () => true, limit: MAX_CLIP_BYTES + MAX_THUMB_BYTES + 4 }), (req, res) => {
+app.post('/clips', uploadGate(MAX_CLIP_BYTES + MAX_THUMB_BYTES + 4), express.raw({ type: () => true, limit: MAX_CLIP_BYTES + MAX_THUMB_BYTES + 4 }), (req, res) => {
   const acc = db.accounts[db.sessions[req.get('x-token')]];
   if (!acc) return clipError(res, 401, 'Não autenticado');
   const s = sessionsOf(online.sidsOf(acc.id)).map(([, x]) => x).find((x) => x.voice);

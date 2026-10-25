@@ -1,4 +1,4 @@
-window.MediaSession = function ({ state, socket, call, el, toast, voiceEntry, member, render, renderStage, sendVoiceState, preferCodec, ownAudio, sfu }) {
+window.MediaSession = function ({ state, socket, call, el, toast, voiceEntry, member, render, renderStage, sendVoiceState, preferCodec, ownAudio, sfu, firstConnectMs = 8000 }) {
   const $ = (selector) => document.querySelector(selector);
   const presets = MediaPolicy.presets;
   const epochs = { screen: 0, camera: 0 };
@@ -535,14 +535,17 @@ window.MediaSession = function ({ state, socket, call, el, toast, voiceEntry, me
     }
     peer.pc.restartIce();
   }
-  // Conexão nova que ainda está tentando depois de 8 s (as que dão certo fecham em 1 ou 2 s): reinicia já com
-  // o TCP, sem esperar o navegador desistir de vez (15 a 30 s) numa rede que bloqueia UDP.
-  function watchFirstConnect(peer, delay = 8000) {
+  // Conexão nova que ainda está tentando 8 s depois de começar a tentar (as que dão certo fecham em 1 ou 2 s):
+  // reinicia já com o TCP, sem esperar o navegador desistir de vez (15 a 30 s) numa rede que bloqueia UDP. Conta
+  // a partir do "connecting", não de quando a conexão nasce: a resposta de quem atende pode demorar.
+  function watchFirstConnect(peer) {
+    if (peer.firstConnectWatched) return;
+    peer.firstConnectWatched = true;
     setTimeout(() => {
       if (sfu?.active() || !active(peer) || peer.restartServers || peer.pc.connectionState !== 'connecting') return;
       restartIce(peer);
       renderDiagnostics();
-    }, delay);
+    }, firstConnectMs);
   }
 
   // Conexão com alguém caiu. De "disconnected" o navegador volta sozinho quando a rede volta; de
@@ -569,7 +572,8 @@ window.MediaSession = function ({ state, socket, call, el, toast, voiceEntry, me
   // as recuperações seguintes com essa pessoa.
   function connectionChanged(peer) {
     if (sfu?.active()) return;
-    if (peer.pc.connectionState === 'connected') { clearTimeout(peer.recoveryTimer); peer.recoveryTimer = null; peer.recoveryAttempts = 0; }
+    if (peer.pc.connectionState === 'connecting') watchFirstConnect(peer);
+    else if (peer.pc.connectionState === 'connected') { clearTimeout(peer.recoveryTimer); peer.recoveryTimer = null; peer.recoveryAttempts = 0; }
     else if (['failed', 'disconnected'].includes(peer.pc.connectionState)) scheduleRecovery(peer);
   }
   // A internet voltou (o sistema avisa): tenta já, sem esperar a próxima tentativa.
@@ -768,5 +772,5 @@ window.MediaSession = function ({ state, socket, call, el, toast, voiceEntry, me
     } finally { statsBusy = false; }
   }
   setInterval(updateStreamStats, 1500);
-  return { isWatching, setWatching, getWatchQuality, setWatchQuality, syncViewerQuality, addVideoTracks, syncScreenSubscriptions, videoBitrates, remoteDescription, tuneSenders, applySharePreset, setSharePreset, captureScreen, watchScreenTrack, switchScreen, startVideo, stopVideo, scheduleRecovery, connectionChanged, watchFirstConnect, renderDiagnostics, updateStreamStats, mediaNotice, firstIceServers };
+  return { isWatching, setWatching, getWatchQuality, setWatchQuality, syncViewerQuality, addVideoTracks, syncScreenSubscriptions, videoBitrates, remoteDescription, tuneSenders, applySharePreset, setSharePreset, captureScreen, watchScreenTrack, switchScreen, startVideo, stopVideo, scheduleRecovery, connectionChanged, renderDiagnostics, updateStreamStats, mediaNotice, firstIceServers };
 };
