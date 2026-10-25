@@ -154,6 +154,14 @@ function loadDb() {
   }
 }
 
+// Volta de versão: as versões até a 1.9.0 só usam o data.json, e esta o renomeia depois de importar. Um data.json
+// ao lado do banco veio de uma volta (tools/banco-para-json.js) e tem os dados mais novos: o banco vai para o lado,
+// com outro nome, e o data.json é importado de novo.
+if (fs.existsSync(DATA_FILE) && fs.existsSync(DATA_DB)) {
+  const aside = `${DATA_DB}.antes-da-volta-${Date.now()}`;
+  for (const suffix of ['', '-wal', '-shm']) if (fs.existsSync(DATA_DB + suffix)) fs.renameSync(DATA_DB + suffix, aside + suffix);
+  console.log(`[banco] data.json ao lado do banco (volta de versão): o banco ficou guardado como ${aside} e o data.json será importado`);
+}
 // STORE_VERIFY=<arquivo> (só nos testes): registra ali o que mudou sem marca, em vez de deixar a conferência gravar.
 // O checkpoint do -wal roda numa worker_thread a cada 1 s, fora da linha principal.
 const store = openStore(DATA_DB, { verify: process.env.STORE_VERIFY || '', checkpointMs: 1000 });
@@ -2823,7 +2831,9 @@ setTimeout(() => dmCalls.sweep(Object.keys(db.dms)), 60_000).unref();
 // nas outras, grava o que as migrações do início mudaram.
 if (fromJson) {
   store.importAll();
-  if (fs.existsSync(DATA_FILE)) fs.renameSync(DATA_FILE, DATA_FILE + '.antes-do-sqlite');
+  // Depois de uma volta de versão já existe um .antes-do-sqlite (o da primeira importação): ele fica.
+  const kept = DATA_FILE + '.antes-do-sqlite';
+  if (fs.existsSync(DATA_FILE)) fs.renameSync(DATA_FILE, fs.existsSync(kept) ? `${kept}-${Date.now()}` : kept);
 } else store.checkAll();
 // Mensagens antigas: chegam aos poucos depois de ligar, 8 ms por vez, para o site abrir logo. O canal que alguém
 // pedir antes disso é lido na hora, só ele.

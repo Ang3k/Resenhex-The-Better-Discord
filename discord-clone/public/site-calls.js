@@ -52,13 +52,14 @@ window.SiteCalls = function ({ request, el, avatar }) {
     const summary = people
       ? [plural(people, 'pessoa em chamada', 'pessoas em chamada'), servers.length ? plural(servers.length, 'servidor', 'servidores') : null, plural(online, 'online agora', 'online agora')]
       : ['Ninguém em chamada agora', plural(online, 'pessoa online', 'pessoas online')];
+    // replaceChildren escreve "null" na tela: sem chamadas privadas, o aviso nem entra na lista.
     root.replaceChildren(
       el('p', { class: 'site-calls-summary', textContent: summary.filter(Boolean).join(' · ') }),
       ...servers.map(serverCard),
-      hidden.people ? el('div', { class: 'settings-callout' }, el('span', {}, Icon('lock')),
+      ...(hidden.people ? [el('div', { class: 'settings-callout' }, el('span', {}, Icon('lock')),
         el('div', {},
           el('strong', { textContent: `${plural(hidden.calls, 'chamada privada', 'chamadas privadas')} · ${plural(hidden.people, 'pessoa', 'pessoas')}` }),
-          el('p', { textContent: 'Chamadas entre amigos entram só na contagem, sem dizer quem está nelas.' }))) : null);
+          el('p', { textContent: 'Chamadas entre amigos entram só na contagem, sem dizer quem está nelas.' })))] : []));
   }
 
   function render(res) {

@@ -561,3 +561,41 @@ test('the home page marks each script and stylesheet with its content, so the lo
   assert.ok((await (await fetch(`${base}/?invite=inexistente`)).text()).includes(`app.js?v=${sha('app.js')}`));
   assert.equal((await fetch(`${base}/app.js?v=${sha('app.js')}`)).status, 200);
 });
+
+test('a version rollback writes the database as data.json, and the next start imports it again', async (t) => {
+  const app = await fixture(t);
+  const owner = await app.connect('Dono');
+  const channel = owner.last.channels.find((c) => c.type === 'text').id;
+  assert.ok(!(await owner.call('chat:send', { channel, text: 'antes da volta' })).error);
+  await wait(400);
+  const db = path.join(app.dir, 'data.db');
+  const json = path.join(app.dir, 'data.json');
+  const tool = path.join(__dirname, '..', 'tools', 'banco-para-json.js');
+  const { execFileSync } = require('node:child_process');
+  execFileSync(process.execPath, [tool, db, json], { stdio: 'pipe' });
+  assert.throws(() => execFileSync(process.execPath, [tool, db, json], { stdio: 'pipe' }), /já existe/);
+  // A versão antiga roda com o data.json e recebe uma mensagem nova.
+  const old = JSON.parse(fs.readFileSync(json, 'utf8'));
+  old.messages[channel].push({ id: 'durante-a-volta', authorId: owner.auth.accountId, text: 'durante a volta', ts: Date.now() });
+  fs.writeFileSync(json, JSON.stringify(old));
+  await app.restart();
+  const back = await app.connect({ token: owner.auth.token });
+  const texts = (await back.call('chat:history', { channel })).messages.map((m) => m.text);
+  assert.deepEqual(texts, ['antes da volta', 'durante a volta']);
+  assert.ok(!fs.existsSync(json));
+  assert.ok(fs.readdirSync(app.dir).some((f) => /^data\.db\.antes-da-volta-\d+$/.test(f)));
+  // O data.json de antes do SQLite não é sobrescrito: a cópia da volta ganha outro nome.
+  assert.ok(fs.readdirSync(app.dir).some((f) => /^data\.json\.antes-do-sqlite(-\d+)?$/.test(f)));
+});
+
+test('the rollback tool refuses an empty database instead of writing an empty site', (t) => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'resenhex-volta-'));
+  t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
+  const { openStore } = require('../server/store');
+  openStore(path.join(dir, 'data.db')).close();
+  const { spawnSync } = require('node:child_process');
+  const run = spawnSync(process.execPath, [path.join(__dirname, '..', 'tools', 'banco-para-json.js'), path.join(dir, 'data.db'), path.join(dir, 'data.json')], { encoding: 'utf8' });
+  assert.equal(run.status, 1);
+  assert.match(run.stderr, /vazio/);
+  assert.ok(!fs.existsSync(path.join(dir, 'data.json')));
+});

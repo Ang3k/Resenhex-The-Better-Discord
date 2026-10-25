@@ -50,7 +50,8 @@ Tudo na branch `claude/chamada-atual` (pasta `.claude/worktrees/chamada-atual`),
 | `8803bf3` | Fase 3: avisos pequenos por sala (`public/state-patch.js`), entregues de uma vez a quem precisa |
 | `96b88bc` | Fase 4b: fotos num worker, prévias de transmissão mais leves, limite de memória, socket.io mais leve por conexão |
 | `60d21db` | Fase 5: senha temporária e limites no retransmissor, teto de rede do mês, transmissão retransmitida em 720p, `tools/uso-retransmissor.js` |
-| este commit | Fase 7: volta espalhada depois de publicar, limites contra abuso, cota de envio, alarmes por e-mail, cartão do disco, sessões de 90 dias |
+| `16c33f5` | Fase 7: volta espalhada depois de publicar, limites contra abuso, cota de envio, alarmes por e-mail, cartão do disco, sessões de 90 dias |
+| este commit | Conferência antes de publicar: volta de versão segura (`deploy/voltar-versao.ps1`, `tools/banco-para-json.js`), "null" no painel Chamadas agora |
 
 ## Fase 2: feita
 
@@ -173,6 +174,20 @@ O que já está no código (este commit):
 2. Se tiver gente em call, avisar o dono e deixar ele escolher a hora.
 3. Rodar `deploy/atualizar-oracle.ps1` a partir da pasta da branch que vai ao ar. Ele faz backup dos dados antes.
 4. Outras sessões do Claude trabalham em outras branches (`git worktree list`). Antes de publicar, ver se o que está no ar tem algo que a branch não tem.
+
+## Como voltar se algo der errado
+
+`deploy/voltar-versao.ps1 -Commit <versão>` volta o site sem perder o que as pessoas fizeram depois da publicação. Para a 1.9.0 (o que está no ar hoje): `-Commit 484c2f8`. Com `-ValidateOnly`, só mostra o que faria e não envia nada.
+
+- A 1.9.0 só lê o `data.json`, e a versão nova o renomeia na primeira subida. Por isso o script:
+  1. desliga o site e grava o `data.db` como `data.json` (`tools/banco-para-json.js`). Ele recusa um banco vazio e não sobrescreve um `data.json` que exista;
+  2. troca a senha do retransmissor por uma fixa, porque o instalador da 1.9.0 recusaria a senha nova e pararia no meio;
+  3. publica a 1.9.0 com o `atualizar-oracle.ps1` dela, que faz o backup e reinstala o site, o Caddy e o coturn (as 41 portas antigas voltam).
+- O site fica fora do ar ~2 min e as calls caem.
+- Se a publicação da versão antiga falhar, o script religa o site que estiver instalado.
+- **Publicar a versão nova de novo depois da volta é seguro.** Ela vê o `data.json` ao lado do `data.db`, guarda o banco como `data.db.antes-da-volta-<hora>` e importa o `data.json`, com o que mudou durante a volta. O `data.json.antes-do-sqlite` da primeira importação continua intacto.
+- Ensaiado no PC em 25/10, com o servidor da 1.9.0 de verdade: 1.9.0 → nova → volta → nova. Nenhuma mensagem se perdeu e as sessões continuaram valendo. Teste automático em `test/servers.test.js` ("a version rollback…").
+- Não ensaiado: o instalador antigo rodando na máquina da Oracle depois do novo. As diferenças conhecidas (senha do retransmissor e trava do teto de rede) já são tratadas pelo `deploy/preparar-volta.sh`.
 
 ## Como medir
 
