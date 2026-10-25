@@ -10,7 +10,7 @@ A máquina aguenta. O que impede hoje é o jeito como o código trabalha:
 - para montar o estado de cada pessoa, ele percorria todas as contas, amizades, conversas e servidores do site. Isso crescia com quantas contas existem, não com quantas estão online, e era o teto: **entre 200 e 300 online**, medido com o simulador (Fase 0). Já corrigido na Fase 4a (falta publicar): com 15 mil contas, 1.500 online passaram;
 - ao ligar, ele percorre servidores × contas: na meta, cada publicação deixaria o site fora do ar por ~15 min;
 - ele regravava o banco de dados inteiro a cada mudança. Depois da Fase 4a, era o próximo teto: com o banco da meta, cada gravação parava o servidor ~0,3 s (no PC). Já corrigido na Fase 2 (falta publicar): a pior gravação leva 2,8 ms;
-- ele percorre todo mundo online para entregar cada mensagem.
+- ele percorria todo mundo online para entregar cada mensagem (corrigido nas Fases 4a e 3, falta publicar), e cada mudança mandava o estado inteiro do servidor para todos que o viam: num servidor com 500 online, 177 KB para cada um (corrigido na Fase 3: 0,37 KB).
 
 Além da Fase 0, que cria o medidor e o simulador, o plano tem 7 fases (a 4 dividida em duas partes). Com o medidor e o simulador, cada mudança é medida antes e depois, e a meta só conta como batida quando o simulador mostrar 5 mil pessoas sem travar.
 
@@ -19,7 +19,7 @@ Além da Fase 0, que cria o medidor e o simulador, o plano tem 7 fases (a 4 divi
 | 0 | Medidor de saúde no servidor + simulador de 5 mil pessoas (pronto) | M | Saber, em vez de chutar |
 | 1 | Consertos rápidos: avisos por servidor (pronto), portas das chamadas, início rápido, arquivos pelo Caddy, gravação garantida | P | Tira o teto de ~400 do estado inteiro e conserta falhas que já acontecem |
 | 2 | Banco de dados SQLite, gravando só o que mudou (pronto) | G | Tira as travadas ao salvar (~0,2 s com um banco de 50 MB, ~1,3 s com 300 MB) |
-| 3 | Avisos pequenos ("fulano mutou") entregues por sala | G | Processador e rede ~10–50× menores por mudança |
+| 3 | Avisos pequenos ("fulano mutou") entregues por sala (pronto) | G | Processador e rede ~10–50× menores por mudança |
 | 4a | Parar de percorrer o site inteiro: índices e o que roda em toda mudança (pronto) | M | Tira o teto de 200–300 online |
 | 4b | Fotos em outro núcleo, prévias mais leves, memória | M | Custo por mudança não cresce com o total de pessoas |
 | 5 | Chamadas e rede: senha temporária no retransmissor, medir e limitar o que passa pelo servidor | M | Não estourar os 10 TB grátis |
@@ -314,6 +314,55 @@ O Node 22.23 do servidor já traz SQLite embutido (`node:sqlite`, sem instalar n
 - os bytes por mudança ficam em ~0,3 KB × quem precisa ver;
 - os testes de privacidade de canal passam.
 
+**Feito em 24/10 (falta publicar):**
+- **Avisos pequenos** (`state:patch`). Cada um traz o valor novo inteiro do pedaço que mudou. O app aplica com `public/state-patch.js`, que os testes também usam:
+  - `voice`: a sala de voz inteira (quem está nela e como, com o perfil de cada um). Vai para quem vê o servidor e pode ver a sala, e para quem está nela, mesmo olhando outro servidor;
+  - `member`: o perfil de uma pessoa num servidor (lista de membros). Vai para quem vê o servidor ou está numa chamada nele;
+  - `person`: o perfil fora dos servidores. Vai para amigos, conversas e quem bloqueou a pessoa;
+  - `music`: o DJ de uma sala (o resumo da lista de canais e o player). Vai para o mesmo público da sala.
+- **Quem entrou ou saiu de uma sala** recebe o estado inteiro (a chamada dele mudou) e não recebe o aviso repetido. Quem só mutou, ensurdeceu ou começou a assistir uma transmissão recebe o aviso, como os outros.
+- **Páginas abertas antes da publicação** (mandam a versão no login, mas não `patches: 1`) recebem o estado inteiro no lugar dos avisos, até recarregar. Ninguém fica vendo sala parada depois da publicação.
+- **O estado inteiro continua** ao entrar, ao trocar de servidor, ao reconectar, nas chamadas privadas, no apelido e nas mudanças raras (cargos, canais, emojis, nome, castigo). Ele vai só para quem vê aquele servidor ou está numa chamada nele, mais os membros, por causa da lista de servidores.
+- **Sem número de versão:** o socket.io entrega tudo na ordem de cada conexão, quem reconecta recebe o estado inteiro de novo, e aplicar o mesmo aviso duas vezes não muda nada (ele traz o valor inteiro, não a diferença).
+- **Montado uma vez, entregue a todos** (`io.to([...conexões])`): os avisos, as mensagens, o "digitando" e o Salão do Mudae. As mensagens e o "digitando" já iam só para quem vê o servidor, pelos índices da Fase 4a.
+- **O app já redesenhava só o que mudou:** cada parte da tela compara os próprios dados antes de redesenhar.
+- **Privacidade:** teste novo em `test/channels.test.js`. O aviso de uma sala de voz privada não chega a quem não vê a sala, e a chamada de quem está nela fica certa quando alguém entra e sai. O teste `servers.test.js` passou a contar também os avisos pequenos.
+- **Ficou de fora:** guardar a permissão de cada pessoa em cada canal. Com os índices, o "pode ver?" roda só para quem vê aquele servidor, e o simulador não mostrou custo nisso. Volta na Fase 6, se aparecer um servidor grande.
+- **Medido no PC com o simulador** (50 mil contas, 12.500 servidores; ARM = PC × 1,7):
+
+  | Online | Código | Atraso p99 no ARM | Atraso máx. no ARM | Processador no ARM | Envio |
+  |---|---|---|---|---|---|
+  | 1.000 | antes | 10 ms | 24 ms | 9% | 678 KB/s |
+  | 1.000 | depois | 4 ms | 28 ms | 10% | 468 KB/s |
+  | 2.500 | antes | 15 ms | 28 ms | 21% | 2.193 KB/s |
+  | 2.500 | depois | 13 ms | 15 ms | 16% | 1.286 KB/s |
+  | 5.000 | antes | 22 ms | 43 ms | 39% | 6.590 KB/s |
+  | 5.000 | depois | **11 ms** | **14 ms** | **33%** | **2.550 KB/s** |
+
+  - Os dois passam nas metas com 5 mil: os servidores do simulador são pequenos (4 membros em média), e o que mais pesa nele é a troca de servidor (1×/min por pessoa), que manda o estado inteiro de propósito.
+  - Os ~3 mil "websocket error" das duas rodadas são das pessoas simuladas no PC (9 processos abrindo milhares de conexões). Elas tentam de novo e entram.
+- **Medido no PC com `tools/carga-teste.js`** (entrar e sair de uma sala, 10 vezes; agora a ferramenta também conta os avisos pequenos):
+
+  | Cenário | Código | Chega a cada um | Processador por mudança | Até o último receber |
+  |---|---|---|---|---|
+  | 5.000 online em 250 servidores (21 recebem) | antes | 9,4 KB | (ruído) | 4 ms |
+  | 5.000 online em 250 servidores (21 recebem) | depois | **0,37 KB** | (ruído) | 3 ms |
+  | 500 online num servidor só | antes | 177 KB | 644 ms | 697 ms |
+  | 500 online num servidor só | depois | **0,37 KB** | 27 ms | 24 ms |
+
+  - Com servidores pequenos, o processador por mudança variou de 0 a 53 ms entre as rodadas, nas duas versões: com 5 mil conexões, o servidor também atende os pings de todas, e a ferramenta não separa uma coisa da outra. Para o processador, a medida que vale é a do simulador (abaixo).
+  - No servidor de 500, os 27 ms que sobram são o estado inteiro de quem entrou ou saiu (178 KB, com os 500 membros). Mutar e ensurdecer nem isso mandam mais.
+  - A meta de ~0,3 KB × quem precisa ver ficou em 0,37 KB.
+- **Código final, com o custo por mudança** medido dentro do servidor (o tempo de montar e entregar estados e avisos, dividido pelas mudanças; agora aparece na aba "Saúde do servidor" e no simulador):
+
+  | Online | Atraso p99 no ARM | Atraso máx. no ARM | Processador no ARM | Custo por mudança no ARM | Envio |
+  |---|---|---|---|---|---|
+  | 1.000 | 4 ms | 28 ms | 9% | 0,67 ms | 444 KB/s |
+  | 5.000 | 5 ms | 13 ms | 29% | **0,66 ms** | 2.291 KB/s |
+
+  - A meta de menos de 1 ms por mudança com 5 mil online foi cumprida, e o custo não cresce com quem está online.
+
+
 ### Fase 4a — Parar de percorrer o site inteiro (M)
 
 Vem logo depois da Fase 1, antes do banco: é o teto que chega primeiro (problema 2).
@@ -432,7 +481,7 @@ Quem não está olhando um servidor não recebe nada dele (o Discord chama isso 
 3. Fase 1, o resto. **Pronto.**
 4. Fase 4a (parar de percorrer o site inteiro): era o teto, 200–300 online (medido na Fase 0). **Pronta**: com 15 mil contas, 1.500 online passaram.
 5. Fase 2 (banco): era o próximo teto. Com o banco da meta, cada gravação parava o servidor ~0,3 s. **Pronta**: a pior gravação leva 2,8 ms.
-6. Fase 3 (avisos pequenos).
+6. Fase 3 (avisos pequenos). **Pronta**: com o banco da meta, 5.000 online passaram no simulador.
 7. Fase 4b.
 8. Fase 5, o resto.
 9. Fase 7.

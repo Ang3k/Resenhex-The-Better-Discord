@@ -1,5 +1,6 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
+const { applyPatch } = require('../public/state-patch');
 const fs = require('node:fs');
 const path = require('node:path');
 const os = require('node:os');
@@ -20,7 +21,7 @@ test('authenticated voice membership controls SFU access and old clients fail ex
   const emit = (event, payload = {}) => socket.timeout(3000).emitWithAck(event, payload);
   try {
     for (let i = 0; i < 100; i++) { try { if ((await fetch(url + '/config')).ok) break; } catch {} await new Promise((r) => setTimeout(r, 30)); }
-    socket.on('state', (state) => { socket.snapshot = state; });
+    socket.on('state', (state) => { socket.snapshot = state; }); socket.on('state:patch', (p) => applyPatch(socket.snapshot, p));
     socket.connect(); await once(socket, 'connect');
     assert.match((await emit('voice:media')).error, /Não autenticado/);
     const auth = await emit('auth', { mode: 'register', name: 'SFU Test', password: 'test-only-2026', confirmPassword: 'test-only-2026' });

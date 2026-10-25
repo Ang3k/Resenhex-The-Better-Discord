@@ -1,5 +1,6 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
+const { applyPatch } = require('../public/state-patch');
 const { spawn } = require('node:child_process');
 const fs = require('node:fs');
 const os = require('node:os');
@@ -61,15 +62,15 @@ async function startServer(t, seed) {
     get base() { return base; },
     dataFile,
     async restart() { await stop(); await start(); },
-    async connect(name, token) {
+    async connect(name, token, extra = {}) {
       const socket = io(base, { autoConnect: false, forceNew: true, transports: ['websocket'], reconnection: false });
       sockets.push(socket);
-      socket.on('state', (state) => { socket.snapshot = state; });
+      socket.on('state', (state) => { socket.snapshot = state; }); socket.on('state:patch', (p) => applyPatch(socket.snapshot, p));
       socket.call = (event, payload = {}) => socket.timeout(3000).emitWithAck(event, payload);
       const connected = once(socket, 'connect');
       socket.connect();
       await connected;
-      socket.authResult = await socket.call('auth', token ? { token } : { mode: 'register', name, password: 'test-only-2026', confirmPassword: 'test-only-2026' });
+      socket.authResult = await socket.call('auth', { ...(token ? { token } : { mode: 'register', name, password: 'test-only-2026', confirmPassword: 'test-only-2026' }), ...extra });
       assert.ok(socket.authResult.accountId, socket.authResult.error);
       await until(() => socket.snapshot);
       if (!token && !socket.snapshot.serverId) {
@@ -240,4 +241,46 @@ test('private channels without roles stay private after moves, duplicates and ro
   assert.ok(!member.snapshot.channels.some((c) => c.id === copy));
   assert.ok(!(await owner.call('channel', { action: 'update', id: secret, private: false })).error);
   await until(() => member.snapshot.channels.some((c) => c.id === secret));
+});
+
+test('small updates about a private voice room reach only who can see it, and keep the call in sync', { timeout: 25000 }, async (t) => {
+  const app = await startServer(t);
+  const owner = await app.connect('Owner');
+  const member = await app.connect('Member');
+  const outsider = await app.connect('Outsider');
+  // Uma página aberta antes dos avisos pequenos (manda a versão, mas não `patches`) recebe o estado inteiro.
+  const old = await app.connect('Old', null, { version: '1.9.0' });
+  const role = (await owner.call('role', { action: 'create', name: 'Equipe', perms: [] })).id;
+  assert.ok(!(await owner.call('mod', { action: 'setRoles', target: member.authResult.accountId, value: [role] })).error);
+  assert.ok(!(await owner.call('mod', { action: 'setRoles', target: old.authResult.accountId, value: [role] })).error);
+  const room = (await owner.call('channel', { action: 'create', type: 'voice', name: 'Sala da equipe', categoryId: 'voice', private: true, allowedRoles: [role] })).id;
+  await until(() => member.snapshot.channels.some((c) => c.id === room));
+  await delay(60);
+  const seen = (socket) => { const events = []; socket.on('state', () => events.push('state')); socket.on('state:patch', (p) => events.push(p)); return events; };
+  const outsiderEvents = seen(outsider), ownerEvents = seen(owner), oldEvents = seen(old);
+
+  assert.ok(!(await member.call('voice:join', { channel: room })).error);
+  await until(() => owner.snapshot.voice.some((v) => v.channel === room));
+  assert.ok(!(await member.call('voice:state', { muted: true })).error);
+  await until(() => owner.snapshot.voice.find((v) => v.channel === room)?.muted === true);
+  // Quem já está no servidor recebe só o aviso da sala, não o estado inteiro.
+  assert.ok(!ownerEvents.includes('state'));
+  assert.ok(ownerEvents.some((p) => p.type === 'voice' && p.channel === room));
+  await until(() => old.snapshot.voice.find((v) => v.channel === room)?.muted === true);
+  assert.ok(!oldEvents.some((p) => p.type), 'quem tem a página antiga não recebe avisos pequenos');
+
+  // Quem entra depois na sala aparece na chamada de quem já estava, com o perfil junto.
+  assert.ok(!(await owner.call('voice:join', { channel: room })).error);
+  await until(() => member.snapshot.call?.voice.length === 2);
+  assert.ok(member.snapshot.call.members.some((m) => m.id === owner.authResult.accountId));
+  assert.ok(!(await owner.call('voice:leave')).error);
+  await until(() => member.snapshot.call?.voice.length === 1);
+  assert.ok(!member.snapshot.call.members.some((m) => m.id === owner.authResult.accountId));
+  assert.ok(!(await member.call('voice:leave')).error);
+  await until(() => !owner.snapshot.voice.some((v) => v.channel === room));
+  await delay(60);
+
+  // Quem não vê a sala não fica sabendo de nada: nem aviso, nem quem estava lá.
+  assert.ok(!outsiderEvents.some((p) => p.channel === room), JSON.stringify(outsiderEvents));
+  assert.ok(!outsider.snapshot.voice.some((v) => v.channel === room));
 });

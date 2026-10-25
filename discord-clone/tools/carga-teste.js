@@ -1,7 +1,8 @@
 // Teste de carga local do Resenhex (Windows: mede o processador do servidor pelo PowerShell).
 // Sobe um servidor de teste com dados temporários, cria contas espalhadas em SERVERS servidores e mede, a cada
 // degrau de pessoas online, quanto custa uma mudança (entrar/sair da sala de voz): processador do servidor,
-// tempo até todos que deviam receber, tamanho do estado, memória e quantas pessoas receberam.
+// tempo até todos que deviam receber, tamanho do estado inteiro, quanto chega a cada um (estado inteiro ou aviso
+// pequeno), memória e quantas pessoas receberam.
 //   STEPS=200,400,800 SERVERS=40 node tools/carga-teste.js
 //   SERVER_JS=<outro server.js> compara com outra versão (ex.: git show HEAD~1:discord-clone/server.js > server-antigo.js
 //   na mesma pasta do server.js, para os require relativos funcionarem; apague depois).
@@ -15,6 +16,7 @@ const path = require('node:path');
 const crypto = require('node:crypto');
 const { io } = require('socket.io-client');
 const { readRoot, writeRoot } = require('../server/store');
+const { applyPatch } = require('../public/state-patch');
 
 const SERVER = process.env.SERVER_JS || path.join(__dirname, '..', 'server.js');
 const PORT = 3170;
@@ -40,8 +42,10 @@ const memMb = () => Math.round(Number(execFileSync('powershell', ['-NoProfile', 
 function client(token) {
   return new Promise((resolve) => {
     const s = io(URL, { transports: ['websocket'], forceNew: true });
-    s.states = 0;
-    s.on('state', (st) => { s.states++; s.lastAt = performance.now(); s.lastState = st; s.size = JSON.stringify(st).length; });
+    s.states = 0; // estados inteiros e avisos pequenos que chegaram
+    s.bytes = 0;
+    s.on('state', (st) => { s.states++; s.lastAt = performance.now(); s.lastState = st; s.size = JSON.stringify(st).length; s.bytes += s.size; });
+    s.on('state:patch', (p) => { s.states++; s.lastAt = performance.now(); applyPatch(s.lastState, p); s.bytes += JSON.stringify(p).length; });
     s.on('connect', () => s.emit('auth', { token, version: 'x' }, (res) => { s.res = res; resolve(s); }));
   });
 }
@@ -86,7 +90,7 @@ function client(token) {
   await wait(500);
   const voice = clients[0].lastState?.channels.find((c) => c.type === 'voice')?.id;
   console.log(`contas espalhadas em ${SERVERS} servidor(es); medindo entrar/sair da sala de voz (cada mudança avisa quem é afetado)`);
-  console.log('online | estado por pessoa | CPU do servidor por aviso | tempo até o último receber | memória do servidor | receberam');
+  console.log('online | estado inteiro | chega a cada um | CPU do servidor por aviso | tempo até o último receber | memória do servidor | receberam');
   for (const step of STEPS) {
     while (clients.length < step) {
       const batch = tokens.slice(clients.length - 1, Math.min(step - 1, clients.length - 1 + 50)).map(client);
@@ -95,10 +99,11 @@ function client(token) {
     }
     await wait(Number(process.env.SETTLE || 1500));
     const rounds = 10, latencies = [];
-    let received = 0;
+    let received = 0, bytes = 0, deliveries = 0;
     const c0 = cpuMs();
     for (let r = 0; r < rounds; r++) {
       const before = clients.map((s) => s.states);
+      const bytesBefore = clients.map((s) => s.bytes);
       const view = clients[0].lastState.serverId;
       const targets = clients.filter((s) => s.lastState?.serverId === view);
       const t0 = performance.now();
@@ -108,11 +113,14 @@ function client(token) {
       latencies.push(Math.max(...targets.map((s) => s.lastAt)) - t0);
       await wait(150);
       received = clients.filter((s, i) => s.states !== before[i]).length;
+      // Quem mudou recebe o estado inteiro; os outros, o aviso pequeno. A média é dos outros.
+      clients.slice(1).forEach((s, i) => { if (s.bytes !== bytesBefore[i + 1]) { bytes += s.bytes - bytesBefore[i + 1]; deliveries++; } });
     }
     const cpu = (cpuMs() - c0) / rounds;
     latencies.sort((a, b) => a - b);
     const size = clients[clients.length - 1].size;
-    console.log(`${String(step).padStart(6)} | ${(size / 1024).toFixed(0).padStart(5)} KB | ${cpu.toFixed(0).padStart(5)} ms | ${latencies[5].toFixed(0).padStart(5)} ms | ${memMb()} MB | ${received}`);
+    const each = deliveries ? bytes / deliveries / 1024 : 0;
+    console.log(`${String(step).padStart(6)} | ${(size / 1024).toFixed(0).padStart(5)} KB | ${each.toFixed(each < 10 ? 2 : 0).padStart(7)} KB | ${cpu.toFixed(1).padStart(5)} ms | ${latencies[5].toFixed(0).padStart(5)} ms | ${memMb()} MB | ${received}`);
   }
   const st = clients[clients.length - 1].lastState;
   console.log('membros na lista:', st.members.length, '· bytes por membro:', Math.round(JSON.stringify(st.members).length / st.members.length), '· exemplo:', JSON.stringify(st.members.at(-1)).slice(0, 400));

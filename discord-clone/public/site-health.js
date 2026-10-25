@@ -31,7 +31,7 @@ window.SiteHealth = function ({ request, el }) {
       level: (p) => p.rssMb / targets.rssMb, goal: `meta: abaixo de ${memory(targets.rssMb)}` },
     { key: 'connections', label: 'Conexões', value: (p) => integer.format(p.connections), unit: '',
       note: (p) => `${integer.format(p.online)} ${p.online === 1 ? 'pessoa online' : 'pessoas online'}` },
-    { key: 'changes', label: 'Mudanças', value: (p) => `${fmt(p.changes)}/s`, unit: '/s', note: (p) => `${fmt(p.states)} estados enviados por segundo` },
+    { key: 'changes', label: 'Mudanças', value: (p) => `${fmt(p.changes)}/s`, unit: '/s', note: (p) => `${fmt(p.states)} estados e ${fmt(p.patches ?? 0)} avisos pequenos por segundo${p.sendMsPerChange != null ? ` · ${p.sendMsPerChange.toLocaleString('pt-BR', { maximumFractionDigits: 2 })} ms por mudança` : ''}` },
     { key: 'sentKBps', label: 'Envio do site', value: (p) => `${fmt(p.sentKBps)} KB/s`, unit: 'KB/s', note: () => 'sem contar as chamadas' },
     { key: 'saveMaxMs', label: 'Gravação do banco', value: (p) => p.saveMaxMs == null ? 'Sem gravação' : p.saveMaxMs < 0.1 ? 'Menos de 0,1 ms' : `${fmt(p.saveMaxMs)} ms`, unit: 'ms',
       note: (p) => p.saves ? `parado preparando o arquivo · ${p.saves} ${p.saves === 1 ? 'gravação' : 'gravações'}` : 'nenhuma nos últimos 10 s' },

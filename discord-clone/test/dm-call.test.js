@@ -1,5 +1,6 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
+const { applyPatch } = require('../public/state-patch');
 const { spawn } = require('node:child_process');
 const fs = require('node:fs');
 const os = require('node:os');
@@ -33,7 +34,7 @@ async function startServer(t) {
   return async (name, token) => {
     const socket = io('http://127.0.0.1:' + port, { forceNew: true, transports: ['websocket'] });
     clients.push(socket);
-    socket.on('state', (s) => (socket.last = s));
+    socket.on('state', (s) => (socket.last = s)); socket.on('state:patch', (p) => applyPatch(socket.last, p));
     socket.messages = [];
     socket.updates = [];
     socket.rings = [];

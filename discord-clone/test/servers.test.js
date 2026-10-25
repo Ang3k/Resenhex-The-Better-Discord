@@ -1,5 +1,6 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
+const { applyPatch } = require('../public/state-patch');
 const { spawn } = require('node:child_process');
 const fs = require('node:fs');
 const os = require('node:os');
@@ -49,7 +50,7 @@ async function fixture(t, password = '', seed = null, corrupt = false) {
   t.after(async () => { await stop(); assert.equal(path.dirname(path.resolve(dir)), path.resolve(os.tmpdir())); fs.rmSync(dir, { recursive: true, force: true }); });
   async function connect(payload) {
     const socket = io(base, { forceNew: true, transports: ['websocket'] }); clients.push(socket);
-    socket.on('state', (s) => { socket.last = s; });
+    socket.on('state', (s) => { socket.last = s; }); socket.on('state:patch', (p) => applyPatch(socket.last, p));
     socket.call = (event, value = {}) => new Promise((r) => socket.timeout(3000).emit(event, value, (error, reply) => r(error ? { error: error.message } : reply)));
     const auth = await socket.call('auth', typeof payload === 'string' ? { mode: 'register', name: payload, password: '1234', confirmPassword: '1234' } : payload);
     assert.ok(!auth.error, auth.error); socket.auth = auth;
@@ -134,7 +135,7 @@ test('state updates reach only who sees the change: calls go to their server, pr
   assert.ok(!(await friend.call('friend:request', { name: 'Longe' })).error);
   assert.ok(!(await away.call('friend:accept', { id: friend.auth.accountId })).error);
   await wait();
-  const counter = (socket) => { let n = 0; socket.on('state', () => { n++; }); return () => n; };
+  const counter = (socket) => { let n = 0; socket.on('state', () => { n++; }); socket.on('state:patch', () => { n++; }); return () => n; };
   const awayStates = counter(away), friendStates = counter(friend), strangerStates = counter(stranger);
 
   // Chamada no servidor original: quem olha outro servidor (mesmo sendo membro) não recebe nada.

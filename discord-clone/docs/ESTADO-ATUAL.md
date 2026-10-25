@@ -11,10 +11,12 @@ Deixar o Resenhex aguentar **5 mil pessoas online ao mesmo tempo**, espalhadas e
   - a Fase 0 (medidor de saúde e simulador);
   - a Fase 1 inteira (avisos só para quem foi afetado, portas do retransmissor, início rápido, gravação garantida, arquivos pelo Caddy, backups dos uploads);
   - a Fase 4a (índices em vez de percorrer o site inteiro);
-  - a Fase 2 (banco SQLite gravado em pedaços). Veja "Fase 2: feita", logo abaixo.
-- **Próxima: a Fase 3 (avisos pequenos, entregues por sala).** Depois: Fase 4b, o resto da Fase 5 (com a senha temporária do TURN) e a Fase 7. A Fase 6 só se aparecer um servidor grande.
+  - a Fase 2 (banco SQLite gravado em pedaços). Veja "Fase 2: feita", logo abaixo;
+  - a Fase 3 (avisos pequenos, entregues por sala). Veja "Fase 3: feita".
+- **Próxima: a Fase 4b (fotos em outro núcleo, prévias mais leves, memória).** Depois: o resto da Fase 5 (com a senha temporária do TURN) e a Fase 7. A Fase 6 só se aparecer um servidor grande.
 - **Teto medido com o simulador:** era de 200 a 300 online (Fase 0). Com a Fase 4a, 1.500 online passaram com 15 mil contas.
   - Com a Fase 2, a gravação deixou de travar: com o banco da meta (50 mil contas, 1,35 milhão de mensagens), a pior gravação caiu de 70 ms para 2,8 ms, com 1.000 online.
+  - Com a Fase 3, **5.000 online passaram** no banco da meta (50 mil contas): atraso p99 de 5 ms, processador de 29% e 0,66 ms por mudança no ARM, com ~2,6× menos rede que antes.
 
 ## O que está no ar
 
@@ -40,7 +42,8 @@ Tudo na branch `claude/chamada-atual` (pasta `.claude/worktrees/chamada-atual`),
 | `ca9127a` | Fase 1, itens 4 a 7: gravação garantida, arquivos e instaladores pelo Caddy, backups dos uploads só com os novos |
 | `801d5ce` | Fase 4a: índices de conexões, relações entre contas, servidores de cada conta, nomes, fotos e emojis (`server/online.js`, `server/social.js`) |
 | `77d633a` | Fase 2 (em andamento): banco SQLite gravado em pedaços (`server/store.js`) |
-| este commit | Fase 2 pronta: checkpoint do WAL numa worker_thread, mensagens antigas carregadas depois de abrir, backup do banco pela publicação |
+| `ffcebe6` | Fase 2 pronta: checkpoint do WAL numa worker_thread, mensagens antigas carregadas depois de abrir, backup do banco pela publicação |
+| este commit | Fase 3: avisos pequenos por sala (`public/state-patch.js`), entregues de uma vez a quem precisa |
 
 ## Fase 2: feita
 
@@ -56,6 +59,26 @@ O banco virou `data.db` (node:sqlite, WAL), gravado em pedaços. Detalhes e medi
 - A publicação faz o backup com `deploy/backup-banco.sh`: cópia do `data.db` com o site ligado (`VACUUM INTO`, pelo node), comprimida em `/var/backups/resenhex/data-before-<data>.db.gz`. Na primeira publicação ainda não há `data.db`: vai o `data.json`, como antes.
 - O `node:sqlite` foi conferido no Node do servidor (22.23.3, SQLite 3.51.3), inclusive dentro de uma `worker_thread`.
 - Medido com o simulador (`ACCOUNTS=50000 STEPS=1000 MESSAGES=12`, banco de 581 MB, 1,35 milhão de mensagens): a pior gravação caiu de 70 ms para 2,8 ms, e o início caiu de 10 s para 2,8 s no PC (~4,7 s no ARM).
+
+## Fase 3: feita
+
+As mudanças frequentes viraram avisos pequenos (`state:patch`). Detalhes e medições na Fase 3 do [plano](plano-5000-online.md).
+
+- Quatro tipos:
+  - `voice`: a sala de voz inteira;
+  - `member`: o perfil de alguém num servidor;
+  - `person`: o perfil para amigos e conversas;
+  - `music`: o DJ de uma sala.
+- O app aplica com `public/state-patch.js`, e os testes usam o mesmo arquivo.
+- Quem entrou ou saiu da sala recebe o estado inteiro (a chamada dele mudou). Quem só mutou, ensurdeceu ou começou a assistir uma transmissão recebe o aviso, como os outros. O aviso é montado uma vez e entregue a todos de uma vez.
+- Páginas abertas antes da publicação (mandam a versão no login, mas não `patches: 1`) recebem o estado inteiro no lugar dos avisos, até recarregar.
+- O estado inteiro continua ao entrar, ao trocar de servidor, ao reconectar, nas chamadas privadas, no apelido e nas mudanças raras (cargos, canais, emojis…).
+- A sala de voz privada só chega a quem pode ver a sala (teste em `test/channels.test.js`).
+- A música que pausa sozinha com a sala vazia agora avisa o servidor. Antes, isso pegava carona no estado inteiro.
+- Conferido no navegador com duas contas: entrar, ensurdecer e sair da sala, e o status "Não perturbe" na lista de membros.
+- `tools/carga-teste.js` agora conta os avisos pequenos e mostra quanto chega a cada pessoa.
+- O medidor de saúde mostra quanto custa cada mudança ("ms por mudança" na aba "Saúde do servidor"; coluna própria no simulador).
+- Num servidor com 500 online, cada mudança mandava 177 KB para cada um e levava 0,7 s; agora manda 0,37 KB e chega em 24 ms.
 
 O dono pediu para **publicar só quando ele mandar, e só com o plano inteiro pronto** (24/10): nada de publicar fase por fase.
 
@@ -82,10 +105,11 @@ O que já está no código (este commit):
    - a página inicial traz os scripts com `?v=` (`curl -s https://resenhex.com.br/ | grep -c '?v='` passa de 60), e `curl -sI "https://resenhex.com.br/app.js?v=x"` mostra `max-age=31536000`;
    - `curl -sI https://resenhex.com.br/download/Resenhex-Setup.exe` redireciona para o instalador da versão, e esse responde 200 com `server: Caddy`;
    - `sudo ls -l /var/lib/resenhex` mostra `drwxr-x--x` na pasta e o `data.db` (com `-wal` e `-shm`) sem leitura para outros (`-rw-r-----`).
-6. Conferir o banco novo (Fase 2):
+5. Conferir o banco novo (Fase 2):
    - `sudo journalctl -u resenhex --since -10min | grep banco` mostra `mensagens antigas carregadas` e nenhum `faltou marcar` nem `checkpoint em segundo plano parou`;
    - o `data.json` virou `data.json.antes-do-sqlite`, e o backup da publicação seguinte é um `data-before-….db.gz`.
-5. Na primeira publicação, o backup copia todos os uploads (~111 MB) para `/var/backups/resenhex/uploads`; nas seguintes, só os novos.
+6. Na primeira publicação, o backup copia todos os uploads (~111 MB) para `/var/backups/resenhex/uploads`; nas seguintes, só os novos.
+7. Conferir os avisos pequenos (Fase 3): com duas contas, uma entra numa sala e muta; a outra vê na hora, sem recarregar. Quem estava com a página aberta antes da publicação continua vendo tudo (recebe o estado inteiro até recarregar).
 
 ## Como publicar sem susto
 

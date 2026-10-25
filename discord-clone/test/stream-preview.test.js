@@ -1,5 +1,6 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
+const { applyPatch } = require('../public/state-patch');
 const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
@@ -189,7 +190,7 @@ test('o servidor repassa a prévia só para a sala, recusa o que não é foto e 
       socket.previews = [];
       socket.on('screen:preview', (event) => socket.previews.push(event));
       await new Promise((resolve, reject) => { socket.once('connect', resolve); socket.once('connect_error', reject); socket.connect(); });
-      socket.on('state', (s) => { socket.snapshot = s; });
+      socket.on('state', (s) => { socket.snapshot = s; }); socket.on('state:patch', (p) => applyPatch(socket.snapshot, p));
       const auth = await emit(socket, 'auth', { mode: 'register', name, password: 'test-only-2026', confirmPassword: 'test-only-2026' });
       assert.ok(auth.accountId);
       if (!auth.serverId) {

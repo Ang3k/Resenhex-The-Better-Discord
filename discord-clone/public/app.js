@@ -603,7 +603,7 @@
     // "active" = o Socket.IO já está conectando/reconectando; chamar connect() de novo
     // mandaria um segundo pedido de conexão e o servidor derrubaria a sessão.
     if (!socket.connected && !socket.active) socket.connect();
-    socket.emit('auth', { ...payload, serverId: localStorage.getItem('serverId'), invite: pendingInviteCode, version: window.APP_VERSION }, (res) => {
+    socket.emit('auth', { ...payload, serverId: localStorage.getItem('serverId'), invite: pendingInviteCode, version: window.APP_VERSION, patches: 1 }, (res) => {
       if (res.error) {
         if (payload.token) localStorage.removeItem('token');
         setConnBanner(null);
@@ -828,6 +828,17 @@
     // O chat aberto pode ser o de uma sala de voz.
     if (!state.home && !s.channels.some((c) => c.id === state.textChannel)) state.textChannel = textChannels[0]?.id || null;
     if (switching) restoreComposerDraft(state.textChannel);
+    syncCall();
+    if (pendingInviteCode && !inviteShown) { inviteShown = true; showInviteAcceptance(pendingInviteCode, pendingInvitePreview); }
+  });
+  // Aviso pequeno: só uma sala de voz ou o perfil de alguém mudou (public/state-patch.js).
+  socket.on('state:patch', (patch) => {
+    if (!state.me || !StatePatch.applyPatch(state.server, patch, state.me.accountId)) return;
+    syncCall();
+  });
+
+  // O que depende de quem está nas salas e de como: roda a cada estado novo e a cada aviso pequeno.
+  function syncCall() {
     // Fecha conexões com quem saiu da nossa sala.
     for (const sid of state.peers.keys()) {
       const v = voiceEntry(sid);
@@ -840,8 +851,7 @@
     streamPreview.sync();
     tuneSenders();
     render();
-    if (pendingInviteCode && !inviteShown) { inviteShown = true; showInviteAcceptance(pendingInviteCode, pendingInvitePreview); }
-  });
+  }
 
   // Sons quando alguém entra, sai ou começa a transmitir na minha sala.
   function playVoiceSounds() {

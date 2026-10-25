@@ -1,5 +1,6 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
+const { applyPatch } = require('../public/state-patch');
 const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
@@ -41,7 +42,7 @@ async function fixture(t) {
   });
   async function connect(name, join = true) {
     const socket = io(base, { forceNew: true, transports: ['websocket'] }); clients.push(socket);
-    socket.on('state', (s) => { socket.last = s; }); socket.events = [];
+    socket.on('state', (s) => { socket.last = s; }); socket.on('state:patch', (p) => applyPatch(socket.last, p)); socket.events = [];
     socket.on('sound', (s) => socket.events.push(s));
     socket.call = (event, data = {}) => new Promise((r) => socket.timeout(3000).emit(event, data, (error, reply) => r(error ? { error: error.message } : reply)));
     socket.auth = await socket.call('auth', { mode: 'register', name, password: 'test-only', confirmPassword: 'test-only' });

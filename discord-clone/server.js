@@ -789,7 +789,7 @@ app.get('/emojis/:id', (req, res) => {
 // ---------------- DJ (músicas do YouTube nas salas de voz) ----------------
 // Cada sala tem a sua fila ("idDoServidor:idDaSala"). Só a busca passa pelo servidor;
 // o vídeo toca no player oficial do YouTube de cada pessoa.
-const dj = createDj({ newId, onChange: (key) => notify({ servers: [key.split(':')[0]] }) });
+const dj = createDj({ newId, onChange: (key) => notifyMusic(key) });
 
 // Catálogo do Mudae: lido uma vez. Sem o arquivo, os comandos só avisam que não tem personagens.
 const MUDAE_CATALOG = process.env.MUDAE_CATALOG || path.join(__dirname, 'server', 'mudae-catalogo.json');
@@ -807,7 +807,7 @@ function pushSalon(serverId, channelId) {
     const store = (db.mudae ||= { claims: {}, usage: {} });
     const sockets = salonSockets(serverId, channelId);
     const people = [...new Set(sockets.map(([, s]) => s.accountId))].map((id) => ({ id, ...mudae.status(store, id) }));
-    for (const [sid] of sockets) io.to(sid).emit('mudae:presence', { channel: channelId, people });
+    deliver(sockets.map(([sid]) => sid), 'mudae:presence', { channel: channelId, people });
   });
 }
 function leaveSalon(s) {
@@ -991,6 +991,8 @@ mediaSwitched = (server, channel, transport) => {
   for (const [sid, s] of sessionsOf(online.inRoom(channel))) if ((s.voiceServerId ?? null) === (server ?? null)) io.to(sid).emit('media:switch', { transport });
 };
 const emitToAccount = (accountId, event, payload) => { for (const sid of online.sidsOf(accountId)) io.to(sid).emit(event, payload); };
+// A mesma mensagem para várias conexões: o socket.io monta o pacote uma vez só e entrega a todas.
+const deliver = (sids, event, payload) => { if (sids.length) io.to(sids).emit(event, payload); };
 const emitToDm = (dm, event, payload) => { for (const id of db.dms[dm]?.users || []) emitToAccount(id, event, payload); };
 const dmCalls = createDmCalls({
   ringMs: Number(process.env.DM_RING_MS) || 30_000,
@@ -1171,7 +1173,8 @@ function syncDjRooms() {
   for (const key of dj.keys()) {
     const [serverId, channelId] = key.split(':');
     if (!communities.root.servers[serverId]?.channels.some((c) => c.id === channelId && c.type === 'voice')) dj.drop(key);
-    else dj.occupancy(key, sessionsOf(online.inRoom(channelId)).filter(([, s]) => s.voiceServerId === serverId).length);
+    // A música que pausou com a sala vazia (ou voltou) aparece na lista de canais.
+    else if (dj.occupancy(key, sessionsOf(online.inRoom(channelId)).filter(([, s]) => s.voiceServerId === serverId).length)) notifyMusic(key);
   }
 }
 
@@ -1282,48 +1285,67 @@ function enforceVoice(sids) {
   }
 }
 
-// Várias mudanças seguidas (ex.: entrar na sala e já mutar) viram um único envio.
-// O envio vai só para quem foi afetado: as mudanças frequentes (chamada, presença, conversas) avisam
-// quem vê aquele servidor ou chamada e as contas ligadas; as raras (cargos, canais…) avisam todo mundo.
-const pending = { all: false, servers: new Set(), accounts: new Set() };
+// Várias mudanças seguidas (ex.: entrar na sala e já mutar) viram um único envio, e cada envio vai só para quem
+// foi afetado. Quem mudou e quem vê um servidor com mudança rara (cargos, canais, emojis…) recebe o estado inteiro.
+// As mudanças frequentes viram avisos pequenos (state:patch, aplicados por public/state-patch.js), montados uma vez
+// e entregues de uma vez a todos que precisam:
+// - voice: a sala de voz inteira, para quem vê o servidor e pode ver a sala, e para quem está nela;
+// - member: o perfil da conta num servidor (lista de membros), para quem vê o servidor ou está numa chamada nele;
+// - person: o perfil da conta fora dos servidores, para amigos, conversas e quem a bloqueou;
+// - music: o DJ de uma sala (o resumo da lista de canais e o player), para quem recebe a sala.
+// Páginas abertas antes dos avisos pequenos (sem `patches` no login) recebem o estado inteiro no lugar deles (`sids`).
+const pending = { servers: new Set(), accounts: new Set(), rooms: new Map(), people: new Set(), music: new Set(), sids: new Set() };
 let broadcastQueued = false;
 function queueBroadcast() {
   if (broadcastQueued) return;
   broadcastQueued = true;
   setImmediate(flushBroadcast);
 }
-function broadcastState() {
-  health.count('changes');
-  pending.all = true;
-  queueBroadcast();
+// Mudança rara num servidor (cargos, canais, emojis, nome…): estado inteiro para quem vê o servidor, quem está numa
+// chamada nele e os membros online (a lista de servidores mostra o nome e o ícone).
+function broadcastState(serverId = communities.currentId()) {
+  const server = communities.root.servers[serverId];
+  notify({ servers: [serverId], accounts: server ? Object.keys(server.members) : [] });
 }
-// Quem está vendo estes servidores (ou numa chamada neles) e todas as sessões destas contas.
+// Estado inteiro para quem está vendo estes servidores (ou numa chamada neles) e todas as sessões destas contas.
 function notify({ servers = [], accounts = [] }) {
   health.count('changes');
   for (const id of servers) if (id) pending.servers.add(id);
   for (const id of accounts) if (id) pending.accounts.add(id);
   queueBroadcast();
 }
-// A chamada da sessão mudou: interessa a quem vê o servidor dela; na chamada privada, às duas contas.
-function notifyVoice(s) {
+// A chamada da sessão mudou: a conta recebe o estado inteiro e a sala vira um aviso pequeno. Na chamada privada,
+// as duas contas recebem o estado inteiro. Sem `own` (mutar, assistir uma transmissão…), a chamada de quem mudou
+// continua a mesma: o aviso da sala basta para ele também.
+function notifyVoice(s, { own = true } = {}) {
   if (!s) return;
-  const dm = isDmCall(s) && db.dms[s.voice];
-  notify({ servers: s.voice && !dm ? [s.voiceServerId] : [], accounts: [s.accountId, ...(dm ? dm.users : [])] });
+  if (!s.voice || isDmCall(s)) return notify({ accounts: [s.accountId, ...(isDmCall(s) ? db.dms[s.voice]?.users || [] : [])] });
+  health.count('changes');
+  if (own) pending.accounts.add(s.accountId);
+  pending.rooms.set(s.voiceServerId + ':' + s.voice, { serverId: s.voiceServerId, channel: s.voice });
+  queueBroadcast();
 }
-// Presença e perfil aparecem na lista de membros dos servidores da conta e para amigos, conversas
-// e quem bloqueou a conta (a lista "people" de cada um).
+// Presença e perfil: a conta recebe o estado inteiro; a lista de membros dos servidores dela e a lista "people" de
+// amigos, conversas e de quem a bloqueou recebem um aviso pequeno.
 function notifyAccount(accountId) {
-  const accounts = new Set([accountId, ...social.relatedTo(accountId), ...social.blockersOf(accountId)]);
-  for (const id of social.dmIdsOf(accountId)) db.dms[id]?.users.forEach((user) => accounts.add(user));
-  notify({ servers: communities.memberServers(accountId), accounts });
+  health.count('changes');
+  pending.accounts.add(accountId);
+  pending.people.add(accountId);
+  queueBroadcast();
+}
+// O DJ de uma sala mudou (música nova, pausa, fila…): vira um aviso pequeno, mesmo para quem está na sala.
+function notifyMusic(key) {
+  health.count('changes');
+  pending.music.add(key);
+  queueBroadcast();
 }
 
-// Conexões atingidas por um envio, pelos índices (sem percorrer todo mundo online). Sai uma cópia:
+// Conexões que recebem o estado inteiro num envio, pelos índices (sem percorrer todo mundo online). Sai uma cópia:
 // quem recebe a lista pode tirar gente da chamada no meio do laço.
 function affectedSids(to) {
-  if (to.all) return new Set(online.keys());
   const sids = new Set();
   for (const id of to.accounts) for (const sid of online.sidsOf(id)) sids.add(sid);
+  for (const sid of to.sids) sids.add(sid);
   for (const id of to.servers) {
     for (const sid of online.viewers(id)) sids.add(sid);
     for (const sid of online.inCalls(id)) sids.add(sid);
@@ -1333,17 +1355,19 @@ function affectedSids(to) {
 
 function flushBroadcast() {
   if (!broadcastQueued) return;
+  const started = performance.now();
   enforceVoice(affectedSids(pending));
   syncDjRooms();
   broadcastQueued = false;
   const to = { ...pending };
-  Object.assign(pending, { all: false, servers: new Set(), accounts: new Set() });
+  Object.assign(pending, { servers: new Set(), accounts: new Set(), rooms: new Map(), people: new Set(), music: new Set(), sids: new Set() });
+  const full = affectedSids(to);
   const shared = new Map();
   const sharedOf = (id) => {
     if (!shared.has(id)) shared.set(id, sharedState());
     return shared.get(id);
   };
-  for (const sid of affectedSids(to)) {
+  for (const sid of full) {
     const s = online.get(sid);
     if (!s) continue;
     const call = s.voice ? communities.run(s.voiceServerId, () => callFor(s, sharedOf(s.voiceServerId))) : null;
@@ -1353,6 +1377,68 @@ function flushBroadcast() {
       if (acc) { io.sockets.sockets.get(sid)?.emit('state', { ...stateFor(acc, sharedOf(s.serverId)), call }); health.count('states'); }
     });
   }
+  // Quem acabou de receber o estado inteiro já tem tudo: os avisos pequenos vão para os outros.
+  for (const { serverId, channel } of to.rooms.values()) communities.run(serverId, () => patchRoom(serverId, channel, full));
+  for (const accountId of to.people) patchProfile(accountId, full);
+  for (const key of to.music) {
+    const [serverId, channel] = key.split(':');
+    if (communities.root.servers[serverId]) communities.run(serverId, () => patchMusic(serverId, channel, key, full));
+  }
+  health.count('sendMs', performance.now() - started);
+}
+
+function sendPatch(sids, patch) {
+  const current = [];
+  for (const sid of sids) {
+    if (online.get(sid)?.legacy) pending.sids.add(sid);
+    else current.push(sid);
+  }
+  if (current.length < sids.length) queueBroadcast();
+  deliver(current, 'state:patch', patch);
+  health.count('patches', current.length);
+}
+// Uma sala de voz de um servidor (roda no contexto dele): quem está nela e como, com o perfil de cada um (a chamada
+// de quem olha outro servidor só tem os membros da sala).
+function patchRoom(serverId, channel, skip) {
+  const { room, sids } = roomAudience(serverId, channel, skip);
+  if (!sids.size) return;
+  const members = [...new Set(room.map(([, s]) => s.accountId))].map((id) => db.accounts[id])
+    .filter((a) => a && communities.joined(a.id)).map((a) => publicMember(a, online.accounts));
+  sendPatch([...sids], { type: 'voice', serverId, channel, entries: room.map(([sid, s]) => voiceEntry(sid, s)), members });
+}
+function patchMusic(serverId, channel, key, skip) {
+  const { sids } = roomAudience(serverId, channel, skip);
+  if (sids.size) sendPatch([...sids], { type: 'music', serverId, channel, summary: dj.summary(key), view: dj.view(key) });
+}
+// Quem recebe os avisos de uma sala de voz: quem vê o servidor e pode ver a sala, e quem está nela (mesmo olhando
+// outro servidor). Menos quem já recebeu o estado inteiro neste envio.
+function roomAudience(serverId, channel, skip) {
+  const room = sessionsOf(online.inRoom(channel)).filter(([, s]) => s.voiceServerId === serverId);
+  const c = db.channels.find((ch) => ch.id === channel);
+  const sids = new Set();
+  if (c) for (const [sid, s] of sessionsOf(online.viewers(serverId))) if (canView(db.accounts[s.accountId], c)) sids.add(sid);
+  for (const [sid] of room) sids.add(sid);
+  for (const sid of skip) sids.delete(sid);
+  return { room, sids };
+}
+// O perfil de uma conta: na lista de membros de cada servidor dela e na lista "people" de quem tem relação com ela.
+function patchProfile(accountId, skip) {
+  for (const serverId of communities.memberServers(accountId)) {
+    communities.run(serverId, () => {
+      const acc = db.accounts[accountId];
+      if (!acc || !communities.joined(accountId)) return;
+      const sids = new Set([...online.viewers(serverId), ...online.inCalls(serverId)]);
+      for (const sid of skip) sids.delete(sid);
+      if (sids.size) sendPatch([...sids], { type: 'member', serverId, member: publicMember(acc, online.accounts) });
+    });
+  }
+  const related = new Set([...social.relatedTo(accountId), ...social.blockersOf(accountId)]);
+  for (const id of social.dmIdsOf(accountId)) db.dms[id]?.users.forEach((user) => related.add(user));
+  related.delete(accountId);
+  const sids = [];
+  for (const id of related) for (const sid of online.sidsOf(id)) if (!skip.has(sid)) sids.push(sid);
+  const [person] = sids.length ? publicProfiles([accountId]) : [];
+  if (person) sendPatch(sids, { type: 'person', person });
 }
 
 // Reavalia o estado quando um castigo termina.
@@ -1361,7 +1447,8 @@ function scheduleTimeoutEnd(acc) {
   const key = communities.currentId() + ':' + acc.id;
   clearTimeout(timeoutTimers.get(key));
   const ms = (acc.timeoutUntil || 0) - Date.now();
-  if (ms > 0) timeoutTimers.set(key, setTimeout(broadcastState, Math.min(ms + 100, 2 ** 31 - 1)));
+  const serverId = communities.currentId();
+  if (ms > 0) timeoutTimers.set(key, setTimeout(() => broadcastState(serverId), Math.min(ms + 100, 2 ** 31 - 1)));
 }
 // Ao ligar, só os membros de castigo agora: percorrer servidores × contas levaria minutos com o site grande.
 for (const server of Object.values(communities.root.servers)) {
@@ -1373,10 +1460,12 @@ for (const server of Object.values(communities.root.servers)) {
 const CHAT_TYPES = ['text', 'voice'];
 // Efeitos do modificador de voz (public/voice-fx.js); o servidor só repassa qual está ligado.
 const VOICE_FX = ['esquilo', 'gigante', 'robo', 'radio', 'caverna', 'alien', 'telefone', 'megafone', 'banheiro', 'fantasma', 'bebado', 'autotune', 'acordes', 'coral'];
-function emitToViewers(channel, event, payload) {
+function emitToViewers(channel, event, payload, except = null) {
+  const sids = [];
   for (const [sid, s] of sessionsOf(online.viewers(communities.currentId()))) {
-    if (canView(db.accounts[s.accountId], channel)) io.to(sid).emit(event, payload);
+    if (sid !== except && canView(db.accounts[s.accountId], channel)) sids.push(sid);
   }
+  deliver(sids, event, payload);
 }
 
 const cleanName = (s, max = 32) => String(s || '').trim().replace(/\s+/g, ' ').slice(0, max);
@@ -1512,7 +1601,7 @@ io.on('connection', (socket) => {
     }
     removeImageIfUnused(community.serverIcon);
     save();
-    broadcastState();
+    notify({ accounts: Object.keys(community.members) }); // a lista de servidores de cada membro perdeu este
   });
 
   const ip = clientIp(socket.handshake.headers, socket.handshake.address);
@@ -1586,7 +1675,9 @@ io.on('connection', (socket) => {
     socket.data.token = token;
     const serverId = communities.choose(acc.id, payload.serverId || acc.lastServerId);
     const before = online.get(socket.id)?.accountId; // a mesma conexão entrando em outra conta
-    online.set(socket.id, { accountId: acc.id, serverId, voice: null, voiceServerId: null, muted: false, deafened: false, sharing: false, camera: false });
+    // Página aberta antes dos avisos pequenos (manda a versão, mas não `patches`): recebe o estado inteiro até recarregar.
+    const legacy = typeof payload.version === 'string' && /^\d/.test(payload.version) && payload.patches !== 1;
+    online.set(socket.id, { accountId: acc.id, serverId, voice: null, voiceServerId: null, muted: false, deafened: false, sharing: false, camera: false, legacy });
     save();
     ack({ token, accountId: acc.id, name: acc.name, since: acc.createdAt || null, serverId, sid: socket.id, presence: acc.presence || 'online', statusText: acc.statusText || '', iceServers: iceServers(), permNames: PERMS, maxUploadMb: MAX_UPLOAD_MB, version: APP_VERSION, gifKey: process.env.KLIPY_KEY || null, siteOwner: isSiteOwner(acc), ...recovery.view(acc), mailEnabled: recovery.enabled });
     // Páginas de antes da 0.99.3 não mandam a versão nem sabem mostrar o aviso de atualização.
@@ -1823,7 +1914,7 @@ io.on('connection', (socket) => {
     const c = salonOf(acc, channel);
     if (!MUDAE_REACTIONS.includes(emoji)) fail('Reação inválida.');
     if (!allow('mudae-react:' + acc.id, 8, 4000)) return { ok: true };
-    for (const [sid] of salonSockets(communities.currentId(), c.id)) io.to(sid).emit('mudae:reaction', { channel: c.id, id: String(id || '').slice(0, 32), emoji, by: acc.id });
+    deliver(salonSockets(communities.currentId(), c.id).map(([sid]) => sid), 'mudae:reaction', { channel: c.id, id: String(id || '').slice(0, 32), emoji, by: acc.id });
   });
 
   on('mudae:harem', (acc, { ownerId }) => mudae.album(mudaeStore(), memberId(ownerId) || acc.id));
@@ -1984,9 +2075,7 @@ io.on('connection', (socket) => {
       return;
     }
     const c = db.channels.find((ch) => ch.id === channel);
-    if (c) for (const [sid, s] of sessionsOf(online.viewers(communities.currentId()))) {
-      if (sid !== socket.id && canView(db.accounts[s.accountId], c)) io.to(sid).emit('typing', { channel, name: acc.nickname || acc.name });
-    }
+    if (c) emitToViewers(c, 'typing', { channel, name: acc.nickname || acc.name }, socket.id);
   });
 
   // --- Amigos e mensagens diretas ---
@@ -2242,7 +2331,7 @@ io.on('connection', (socket) => {
     s.camera = !!camera && video;
     s.voiceFx = VOICE_FX.includes(voiceFx) ? voiceFx : null;
     s.allowClips = allowClips !== false;
-    notifyVoice(s);
+    notifyVoice(s, { own: false });
   }, { voice: true });
 
   // Clipes desta chamada em que a pessoa é destinatária (últimas 24 h) e o link de download de uso único.
@@ -2283,7 +2372,7 @@ io.on('connection', (socket) => {
       const subscribed = viewer.watching?.delete(target);
       viewer.screenQuality?.delete(target);
       if (subscribed) io.to(target).emit('screen:quality', { viewer: socket.id, demand: null });
-      notifyVoice(viewer);
+      notifyVoice(viewer, { own: false });
       return;
     }
     if (!viewer.voice || !source?.sharing || viewer.voice !== source.voice || !inSameRoom(acc, source)) fail('Essa transmissão não está disponível nesta sala.');
@@ -2293,7 +2382,7 @@ io.on('connection', (socket) => {
     viewer.screenQuality ||= new Map();
     viewer.screenQuality.set(target, demand);
     io.to(target).emit('screen:quality', { viewer: socket.id, demand });
-    notifyVoice(viewer);
+    notifyVoice(viewer, { own: false });
   }, { voice: true });
 
   // Only subscribed viewers can request quality. Resize updates go to the source,

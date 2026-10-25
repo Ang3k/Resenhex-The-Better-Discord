@@ -1,5 +1,6 @@
 // Medidor de saúde do servidor (Fase 0 do docs/plano-5000-online.md). A cada 10 s junta o atraso do event
-// loop, processador, memória, conexões, mudanças e bytes enviados por segundo, o tempo que a gravação do
+// loop, processador, memória, conexões, mudanças e bytes enviados por segundo, o tempo gasto montando e
+// entregando os avisos de cada mudança, o tempo que a gravação do
 // banco deixa o servidor parado e as portas do retransmissor em uso. Guarda os últimos 10 minutos (painel
 // do dono e simulador de carga) e escreve uma linha por minuto no log.
 const fs = require('node:fs');
@@ -33,7 +34,7 @@ function createHealth({ connections, online, log = console.log, every = SAMPLE_M
   loop.enable();
   let cpu = process.cpuUsage();
   let since = performance.now();
-  let counts = { changes: 0, states: 0, bytes: 0 };
+  let counts = { changes: 0, states: 0, patches: 0, bytes: 0, sendMs: 0 };
   let saves = [];
   let turnPorts = null;
   const history = [];
@@ -51,7 +52,9 @@ function createHealth({ connections, online, log = console.log, every = SAMPLE_M
       cpu: round((usage.user + usage.system) / 10_000 / seconds, 1), // % de um núcleo
       rssMb: Math.round(memory.rss / 1048576), heapMb: Math.round(memory.heapUsed / 1048576),
       connections: connections(), online: online(),
-      changes: round(counts.changes / seconds, 1), states: round(counts.states / seconds, 1), sentKBps: round(counts.bytes / 1024 / seconds, 1),
+      changes: round(counts.changes / seconds, 1), states: round(counts.states / seconds, 1), patches: round(counts.patches / seconds, 1), sentKBps: round(counts.bytes / 1024 / seconds, 1),
+      // Processador gasto montando e entregando estados e avisos, por mudança (a meta da Fase 3 é < 1 ms).
+      sendMsPerChange: counts.changes ? round(counts.sendMs / counts.changes, 2) : null,
       saves: saves.length, saveMaxMs: saves.length ? round(Math.max(...saves), 1) : null,
       turnPorts,
     });
@@ -59,7 +62,7 @@ function createHealth({ connections, online, log = console.log, every = SAMPLE_M
     loop.reset();
     cpu = process.cpuUsage();
     since = now;
-    counts = { changes: 0, states: 0, bytes: 0 };
+    counts = { changes: 0, states: 0, patches: 0, bytes: 0, sendMs: 0 };
     saves = [];
     readRelayPorts();
     if (history.length % 6 === 0) log(summary(history.slice(-6)));

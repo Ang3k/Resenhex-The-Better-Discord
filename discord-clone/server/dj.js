@@ -162,18 +162,19 @@ function createDj({ newId, onChange = () => {}, now = Date.now, setTimer = setTi
     changed(key, rooms.get(key));
   }
 
-  // Chamado a cada atualização de estado com quantas pessoas estão na sala.
+  // Chamado a cada atualização de estado com quantas pessoas estão na sala. Devolve true se a música pausou ou voltou.
   function occupancy(key, count) {
     const room = rooms.get(key);
-    if (!room) return;
+    if (!room) return false;
     room.count = count;
     if (count === 0 && !room.idleTimer) {
+      room.idleTimer = setTimer(() => { drop(key); onChange(key); }, IDLE_MS);
       if (room.current && room.pausedAt === null) {
         room.pausedAt = position(room);
         room.held = true;
         schedule(key, room);
+        return true;
       }
-      room.idleTimer = setTimer(() => { drop(key); onChange(key); }, IDLE_MS);
     } else if (count > 0 && room.idleTimer) {
       clearTimer(room.idleTimer);
       room.idleTimer = null;
@@ -183,8 +184,10 @@ function createDj({ newId, onChange = () => {}, now = Date.now, setTimer = setTi
         room.pausedAt = null;
         room.held = false;
         schedule(key, room);
+        return true;
       }
     }
+    return false;
   }
 
   function drop(key) {

@@ -1,5 +1,6 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
+const { applyPatch } = require('../public/state-patch');
 const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
@@ -934,7 +935,7 @@ test('server validates viewers and cleans subscriptions on stop, leave and disco
     async function connect(name) {
       const socket = io(base, { autoConnect: false, reconnection: false });
       clients.push(socket);
-      socket.on('state', (s) => { socket.snapshot = s; });
+      socket.on('state', (s) => { socket.snapshot = s; }); socket.on('state:patch', (p) => applyPatch(socket.snapshot, p));
       await new Promise((resolve, reject) => { socket.once('connect', resolve); socket.once('connect_error', reject); socket.connect(); });
       const auth = await emit(socket, 'auth', { mode: 'register', name, password: 'test-only-2026', confirmPassword: 'test-only-2026' });
       assert.ok(auth.accountId);
