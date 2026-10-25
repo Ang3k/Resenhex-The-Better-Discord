@@ -3,6 +3,27 @@
 Histórico de versões. A mesma lista aparece dentro do app em **Novidades** (menu do servidor ou rodapé das Configurações).
 O Resenhex chegou à versão 1.0 em 4 de outubro de 2026.
 
+## v2.0.0 — Chamadas estáveis no horário cheio, prévia com imagem nos links e site pronto para milhares de pessoas
+
+25 de outubro de 2026.
+
+O retransmissor de chamadas, usado por quem está numa rede restrita, lotava à noite: agora tem espaço de sobra. O link do Resenhex colado no WhatsApp ou no Discord mostra uma prévia com imagem. E o site foi refeito por dentro para aguentar milhares de pessoas online ao mesmo tempo.
+
+### Novidades
+
+- Prévia com imagem ao colar o link do Resenhex ou de um convite no WhatsApp, no Discord e em outros apps.
+
+### Melhorias
+
+- Chamadas: o retransmissor tinha só 41 vagas e lotava à noite, e quem estava numa rede restrita não conseguia entrar na call. Agora são milhares de vagas.
+- Rede de escola ou de empresa que bloqueia parte da conexão: a chamada tenta outro caminho depois de 8 s, em vez de esperar até 30 s.
+- O site abre mais rápido a partir da segunda visita, e a prévia da transmissão gasta menos internet.
+- Por segurança, quem ficar 90 dias sem usar o Resenhex precisa entrar de novo com a senha.
+
+### Correções
+
+- Duas pessoas que dependem do retransmissor não conseguiam se ouvir na mesma chamada. Agora conectam.
+
 ## v1.9.0 — Ouvir a transmissão ensurdecido, voltar à chamada pelo painel e menus na tela cheia
 
 24 de outubro de 2026.

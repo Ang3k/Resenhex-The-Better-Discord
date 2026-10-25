@@ -4,6 +4,24 @@
 // O título deve destacar as principais funcionalidades ou correções, com termos objetivos.
 window.CHANGELOG = [
   {
+    version: '2.0.0', date: '2026-10-25', name: 'Chamadas estáveis no horário cheio, prévia com imagem nos links e site pronto para milhares de pessoas',
+    summary: 'O retransmissor de chamadas, usado por quem está numa rede restrita, lotava à noite: agora tem espaço de sobra. O link do Resenhex colado no WhatsApp ou no Discord mostra uma prévia com imagem. E o site foi refeito por dentro para aguentar milhares de pessoas online ao mesmo tempo.',
+    sections: [
+      { kind: 'new', items: [
+        'Prévia com imagem ao colar o link do Resenhex ou de um convite no WhatsApp, no Discord e em outros apps.',
+      ] },
+      { kind: 'improved', items: [
+        'Chamadas: o retransmissor tinha só 41 vagas e lotava à noite, e quem estava numa rede restrita não conseguia entrar na call. Agora são milhares de vagas.',
+        'Rede de escola ou de empresa que bloqueia parte da conexão: a chamada tenta outro caminho depois de 8 s, em vez de esperar até 30 s.',
+        'O site abre mais rápido a partir da segunda visita, e a prévia da transmissão gasta menos internet.',
+        'Por segurança, quem ficar 90 dias sem usar o Resenhex precisa entrar de novo com a senha.',
+      ] },
+      { kind: 'fixed', items: [
+        'Duas pessoas que dependem do retransmissor não conseguiam se ouvir na mesma chamada. Agora conectam.',
+      ] },
+    ],
+  },
+  {
     version: '1.9.0', date: '2026-10-24', name: 'Ouvir a transmissão ensurdecido, voltar à chamada pelo painel e menus na tela cheia',
     summary: 'Ensurdecido, dá para ligar só o som da transmissão que você está assistindo. O nome da sala no painel Voz conectada leva de volta para a chamada, como no Discord. E, com a transmissão em tela cheia, o menu de qualidade volta a aceitar clique.',
     sections: [

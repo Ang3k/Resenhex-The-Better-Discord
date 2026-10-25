@@ -535,6 +535,15 @@ window.MediaSession = function ({ state, socket, call, el, toast, voiceEntry, me
     }
     peer.pc.restartIce();
   }
+  // Conexão nova que ainda está tentando depois de 8 s (as que dão certo fecham em 1 ou 2 s): reinicia já com
+  // o TCP, sem esperar o navegador desistir de vez (15 a 30 s) numa rede que bloqueia UDP.
+  function watchFirstConnect(peer, delay = 8000) {
+    setTimeout(() => {
+      if (sfu?.active() || !active(peer) || peer.restartServers || peer.pc.connectionState !== 'connecting') return;
+      restartIce(peer);
+      renderDiagnostics();
+    }, delay);
+  }
 
   // Conexão com alguém caiu. De "disconnected" o navegador volta sozinho quando a rede volta; de
   // "failed", só reiniciando o ICE. Tenta 5 s depois de cair (2 s se já falhou) e segue tentando enquanto
@@ -759,5 +768,5 @@ window.MediaSession = function ({ state, socket, call, el, toast, voiceEntry, me
     } finally { statsBusy = false; }
   }
   setInterval(updateStreamStats, 1500);
-  return { isWatching, setWatching, getWatchQuality, setWatchQuality, syncViewerQuality, addVideoTracks, syncScreenSubscriptions, videoBitrates, remoteDescription, tuneSenders, applySharePreset, setSharePreset, captureScreen, watchScreenTrack, switchScreen, startVideo, stopVideo, scheduleRecovery, connectionChanged, renderDiagnostics, updateStreamStats, mediaNotice, firstIceServers };
+  return { isWatching, setWatching, getWatchQuality, setWatchQuality, syncViewerQuality, addVideoTracks, syncScreenSubscriptions, videoBitrates, remoteDescription, tuneSenders, applySharePreset, setSharePreset, captureScreen, watchScreenTrack, switchScreen, startVideo, stopVideo, scheduleRecovery, connectionChanged, watchFirstConnect, renderDiagnostics, updateStreamStats, mediaNotice, firstIceServers };
 };

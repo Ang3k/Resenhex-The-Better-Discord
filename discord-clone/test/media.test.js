@@ -811,6 +811,25 @@ test('connections start with UDP-only TURN and add TURN over TCP on the first IC
   clearTimeout(h.peer.recoveryTimer);
 });
 
+test('a new connection still trying after the wait restarts with TURN over TCP; one that connected is left alone', async () => {
+  const h = mediaHarness();
+  h.state.iceServers = [{ urls: ['turn:t.example:3478?transport=udp', 'turn:t.example:3478?transport=tcp'], username: 'u', credential: 'c' }];
+  const pc = h.peer.pc;
+  pc.restarts = 0; pc.configs = [];
+  pc.restartIce = () => { pc.restarts++; };
+  pc.setConfiguration = (config) => { pc.configs.push(JSON.parse(JSON.stringify(config))); };
+  pc.connectionState = 'connected';
+  h.media.watchFirstConnect(h.peer, 20);
+  await new Promise((r) => setTimeout(r, 50));
+  assert.equal(pc.restarts, 0, 'a connection that closed is not restarted');
+  // Rede que bloqueia UDP: segue tentando.
+  pc.connectionState = 'connecting';
+  h.media.watchFirstConnect(h.peer, 20);
+  await new Promise((r) => setTimeout(r, 50));
+  assert.equal(pc.restarts, 1);
+  assert.match(JSON.stringify(pc.configs), /transport=tcp/, 'the restart brings TURN over TCP');
+});
+
 test('viewer resize and background requests are coalesced without stopping the subscribed audio', async () => {
   const h = mediaHarness();
   let width = 320;

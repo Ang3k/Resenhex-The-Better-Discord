@@ -24,7 +24,7 @@ Deixar o Resenhex aguentar **5 mil pessoas online ao mesmo tempo**, espalhadas e
 
 ## O que está no ar
 
-- **Site:** versão **1.9.0** em https://resenhex.com.br, publicada em 24/10 a partir do `main` local (`484c2f8`).
+- **Site:** versão **1.9.0** (a branch já é a 2.0.0) em https://resenhex.com.br, publicada em 24/10 a partir do `main` local (`484c2f8`).
 - **Painel "Chamadas agora":** só o dono vê, em Configurações. Mostra quem está online e em qual call.
 - **GitHub:** o `main` de lá está 4 commits atrás do que está no ar (parou na 1.8.8). Ninguém enviou ainda.
 - **Servidor:** Oracle ARM grátis (2 núcleos, 12 GB), IP `146.235.41.73`, usuário `ubuntu`, chave `~/.ssh/resenhex-oracle-ed25519`.
@@ -51,7 +51,20 @@ Tudo na branch `claude/chamada-atual` (pasta `.claude/worktrees/chamada-atual`),
 | `96b88bc` | Fase 4b: fotos num worker, prévias de transmissão mais leves, limite de memória, socket.io mais leve por conexão |
 | `60d21db` | Fase 5: senha temporária e limites no retransmissor, teto de rede do mês, transmissão retransmitida em 720p, `tools/uso-retransmissor.js` |
 | `16c33f5` | Fase 7: volta espalhada depois de publicar, limites contra abuso, cota de envio, alarmes por e-mail, cartão do disco, sessões de 90 dias |
-| este commit | Conferência antes de publicar: volta de versão segura (`deploy/voltar-versao.ps1`, `tools/banco-para-json.js`), "null" no painel Chamadas agora |
+| `d704aa0` | Conferência antes de publicar: volta de versão segura (`deploy/voltar-versao.ps1`, `tools/banco-para-json.js`), "null" no painel Chamadas agora |
+| este commit | Versão **2.0.0** com item nas Novidades; chamada que não fecha em 8 s tenta de novo já com o TURN por TCP |
+
+## Conferência antes de publicar (25/10)
+
+- **Suíte inteira:** 457 de 462 passaram, 1 foi pulado e 4 falharam:
+  - 3 por porta reservada do Windows (`listen EACCES`), que passaram ao repetir;
+  - 1 do app de Windows (`uiohook-napi` não instalado neste PC; o app não muda nesta versão).
+- **Navegador, com duas contas criadas na 1.9.0 e migradas:** mensagens antigas e novas, sala de voz (entrar, ensurdecer, sair, visto na hora pelo outro), conversa privada, Saúde do servidor, Chamadas agora e Novidades da 2.0.0. Sem erros no console.
+- **Dados reais, no servidor, numa pasta temporária e numa porta separada** (o site não foi tocado):
+  - a versão nova importou o `data.json` de verdade (89 contas, 22 servidores, 240 sessões, 932 mensagens) com tudo idêntico e ligou em 1,9 s;
+  - a 1.9.0 instalada abriu o `data.json` gravado pela ferramenta de volta, com os mesmos números;
+  - a pasta foi apagada no fim.
+- **Volta ensaiada:** seção "Como voltar se algo der errado".
 
 ## Fase 2: feita
 
