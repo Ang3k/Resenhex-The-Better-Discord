@@ -24,6 +24,8 @@ const { createMailer } = require('./server/mailer');
 const { createRecovery, normalizeEmail } = require('./server/recovery');
 const { createClipStore, MAX_CLIP_BYTES, MAX_THUMB_BYTES, MAX_CLIP_SECONDS } = require('./server/clip-store');
 const { createHealth } = require('./server/health');
+const { Online } = require('./server/online');
+const { socialStore, pairKey } = require('./server/social');
 const { version: APP_VERSION } = require('./package.json');
 
 const PORT = process.env.PORT || 3000;
@@ -163,9 +165,12 @@ const db = communities.db;
 const channelStore = channelActions(db, newId);
 db.uploads ||= {};
 const clipStore = createClipStore({ root: communities.root, randomId: () => crypto.randomBytes(16).toString('hex'), serverExists: (id) => !!communities.root.servers?.[id] });
-db.friendships ||= {}; // "idA-idB" (ids em ordem) -> { status: 'pending' | 'friends', from, ts }
-db.blocks ||= {}; // idDeQuemBloqueou -> [ids bloqueados]
-db.dms ||= {}; // "dm-idA-idB" -> { id, users: [idA, idB], closed: { idDaConta: true } }; as mensagens ficam em db.messages[id]
+// Amizades, conversas privadas (as mensagens ficam em db.messages[id]) e bloqueios, com índices por conta.
+const social = socialStore(db);
+// Conta pelo nome (sem diferenciar maiúsculas), para entrar e adicionar amigo sem percorrer todas as contas.
+// Nomes não mudam e contas não são apagadas: só o cadastro acrescenta.
+const accountIdByName = new Map(Object.values(communities.root.accounts).map((a) => [a.name.toLowerCase(), a.id]));
+const accountByName = (name) => db.accounts[accountIdByName.get(name.toLowerCase())];
 // E-mail de recuperação (opcional). Os links usam PUBLIC_URL, nunca o Host da requisição,
 // para ninguém conseguir um e-mail com link apontando para outro site.
 const recovery = createRecovery({ db, save, mailer: createMailer(), publicUrl: process.env.PUBLIC_URL || 'https://resenhex.duckdns.org' });
@@ -184,7 +189,7 @@ for (const sig of ['SIGINT', 'SIGTERM']) {
 }
 
 // Medidor de saúde (server/health.js): conexões e contas online são lidas na hora de cada amostra.
-const health = createHealth({ connections: () => io.engine.clientsCount, online: () => new Set([...online.values()].map((s) => s.accountId)).size });
+const health = createHealth({ connections: () => io.engine.clientsCount, online: () => online.accounts.size });
 
 // Grava 300 ms depois da última mudança, mas nunca espera mais de 2 s com o site sem pausa (antes, atividade
 // contínua adiava a gravação para sempre). Uma gravação só começa quando a anterior terminou: as duas
@@ -311,12 +316,11 @@ function canView(acc, channel) {
 const MAX_FRIENDS = 200;
 const MAX_PENDING_REQUESTS = 100;
 const MAX_BLOCKS = 500;
-const pairKey = (a, b) => [a, b].sort().join('-');
 const dmIdOf = (a, b) => 'dm-' + pairKey(a, b);
 const isDmId = (id) => typeof id === 'string' && id.startsWith('dm-');
 // Chamada numa conversa privada: a sala de voz tem o id da conversa e não pertence a servidor nenhum.
 const isDmCall = (s) => !!s?.voice && isDmId(s.voice);
-const friendshipOf = (a, b) => db.friendships[pairKey(a, b)];
+const friendshipOf = (a, b) => social.friendship(a, b);
 const areFriends = (a, b) => friendshipOf(a, b)?.status === 'friends';
 const hasBlocked = (blocker, target) => (db.blocks[blocker] || []).includes(target);
 const presentAccount = (id) => {
@@ -329,16 +333,14 @@ function socialFor(acc) {
   const friends = [];
   const incoming = [];
   const outgoing = [];
-  for (const [key, f] of Object.entries(db.friendships)) {
-    const [a, b] = key.split('-');
-    if (a !== acc.id && b !== acc.id) continue;
-    const other = a === acc.id ? b : a;
-    if (!presentAccount(other)) continue;
+  for (const other of social.relatedTo(acc.id)) {
+    const f = social.friendship(acc.id, other);
+    if (!f || !presentAccount(other)) continue;
     if (f.status === 'friends') friends.push(other);
     else (f.from === acc.id ? outgoing : incoming).push(other);
   }
-  const dms = Object.values(db.dms)
-    .filter((dm) => dm.users.includes(acc.id) && !dm.closed?.[acc.id])
+  const dms = [...social.dmIdsOf(acc.id)].map((id) => db.dms[id])
+    .filter((dm) => dm && !dm.closed?.[acc.id])
     .map((dm) => ({ id: dm.id, userId: dm.users.find((u) => u !== acc.id), last: (db.messages[dm.id] || []).at(-1)?.ts || 0 }))
     .filter((dm) => presentAccount(dm.userId))
     .sort((x, y) => y.last - x.last);
@@ -379,7 +381,9 @@ setInterval(() => {
 
 // ---------------- sessões conectadas ----------------
 // socket.id -> { accountId, voice: idDoCanal|null, muted, deafened, sharing, paused, camera }
-const online = new Map();
+const online = new Online();
+// [id da conexão, sessão] de cada conexão de um índice do `online` (cópia: pode mudar sessões no laço).
+const sessionsOf = (sids) => [...sids].map((sid) => [sid, online.get(sid)]);
 const { mediaSfu } = require('./server/media-sfu');
 // O LiveKit caiu: quem está numa sala que usava o SFU reconecta em P2P.
 let mediaSwitched = () => {};
@@ -402,7 +406,7 @@ function pushSocial(...accountIds) {
     const acc = db.accounts[id];
     if (!acc) continue;
     const payload = socialFor(acc);
-    for (const [sid, s] of online) if (s.accountId === id) io.sockets.sockets.get(sid)?.emit('social', payload);
+    for (const sid of online.sidsOf(id)) io.sockets.sockets.get(sid)?.emit('social', payload);
   }
   notify({ accounts: accountIds });
 }
@@ -496,7 +500,7 @@ app.get('/api/games/detectable', gameList.route);
 // já conectado; os apps de Windows e Android continuam no endereço que conhecem.
 const SITE_URL = String(process.env.PUBLIC_URL || '').replace(/\/+$/, '');
 app.get('/config', (_req, res) => {
-  res.json({ passwordRequired: false, hasOwner: Object.keys(db.accounts).length > 0, maxUploadMb: MAX_UPLOAD_MB, mailEnabled: recovery.enabled, siteUrl: SITE_URL || null });
+  res.json({ passwordRequired: false, hasOwner: hasAccounts(), maxUploadMb: MAX_UPLOAD_MB, mailEnabled: recovery.enabled, siteUrl: SITE_URL || null });
 });
 // A mudança de endereço leva a sessão e as preferências do navegador por um código de uso único,
 // que vale 60 s e só pode ser usado do mesmo IP que o pediu.
@@ -563,8 +567,7 @@ app.post('/password/reset', recoveryJson, async (req, res) => {
   Object.assign(account, await hashPassword(next));
   for (const [token, id] of Object.entries(db.sessions)) if (id === account.id) delete db.sessions[token];
   for (const key of loginFailures.keys()) if (key.endsWith('|' + account.name.toLowerCase())) loginFailures.delete(key);
-  for (const [sid, s] of online) {
-    if (s.accountId !== account.id) continue;
+  for (const [sid] of sessionsOf(online.sidsOf(account.id))) {
     const other = io.sockets.sockets.get(sid);
     other?.emit('session:ended', 'Sua senha foi redefinida. Entre de novo com a senha nova.');
     other?.disconnect(true);
@@ -585,8 +588,28 @@ app.get('/invites/:code', (req, res) => {
 // Profile pictures are shared with the server, independent of chat attachments.
 // Uma imagem pode ser foto de alguém e ícone do servidor ao mesmo tempo (mesmo conteúdo, mesmo arquivo).
 const IMAGE_FILE = /^[a-f0-9]{64}\.(png|gif)$/;
-const imageInUse = (file) => Object.values(communities.root.servers).some((s) => s.serverIcon === file || (s.emojis || []).some((e) => e.file === file)) || Object.values(db.accounts).some((account) => account.avatar === file || account.banner === file || account.background === file);
+// Imagens em uso e emojis do site: montados no primeiro pedido e refeitos depois de cada troca
+// (imagesChanged), para as rotas das fotos e dos emojis não percorrerem o site inteiro a cada pedido.
+let imageIndex = null;
+const imagesChanged = () => { imageIndex = null; };
+function images() {
+  if (!imageIndex) {
+    imageIndex = { files: new Set(), emojis: new Map() };
+    for (const server of Object.values(communities.root.servers)) {
+      if (server.serverIcon) imageIndex.files.add(server.serverIcon);
+      for (const emoji of server.emojis || []) { imageIndex.files.add(emoji.file); imageIndex.emojis.set(emoji.id, emoji); }
+    }
+    for (const account of Object.values(communities.root.accounts)) {
+      for (const file of [account.avatar, account.banner, account.background]) if (file) imageIndex.files.add(file);
+    }
+  }
+  return imageIndex;
+}
+const imageInUse = (file) => images().files.has(file);
+const emojiById = (id) => images().emojis.get(id);
+// Chamado depois de toda troca de imagem (a antiga sai daqui), então também marca o índice para refazer.
 function removeImageIfUnused(file) {
+  imagesChanged();
   if (!file || !IMAGE_FILE.test(file) || imageInUse(file)) return;
   try { fs.unlinkSync(path.join(AVATAR_DIR, file)); } catch (error) { if (error.code !== 'ENOENT') console.warn('Não foi possível remover uma imagem antiga.'); }
 }
@@ -610,6 +633,7 @@ app.get('/avatars/:file', (req, res) => {
 
 // Banner do perfil: imagem PNG (já recortada pelo navegador) ou GIF, enviada como bytes puros.
 const MAX_BANNER_UPLOAD = 5 * 1024 * 1024;
+const hasAccounts = () => { for (const id in communities.root.accounts) return true; return false; };
 const authFromToken = (req) => {
   const acc = db.accounts[db.sessions[req.get('x-token')]];
   return acc || null;
@@ -727,13 +751,13 @@ app.post('/servers/:serverId/emojis', express.raw({ type: () => true, limit: MAX
       const file = crypto.createHash('sha256').update(data).digest('hex') + '.' + ext;
       fs.writeFileSync(path.join(AVATAR_DIR, file), data);
       const emoji = { id: newId(), name, file, createdBy: acc.id, ts: Date.now() };
-      db.emojis.push(emoji); save(); broadcastState();
+      db.emojis.push(emoji); imagesChanged(); save(); broadcastState();
       res.json({ ok: true, id: emoji.id });
     } catch (error) { res.status(400).json({ error: error.message }); }
   });
 });
 app.get('/emojis/:id', (req, res) => {
-  const emoji = /^[0-9a-f]{16}$/.test(req.params.id) && Object.values(communities.root.servers).flatMap((s) => s.emojis || []).find((e) => e.id === req.params.id);
+  const emoji = emojiById(req.params.id);
   if (!emoji || !IMAGE_FILE.test(emoji.file)) return res.status(404).end();
   res.set({
     'Content-Type': emoji.file.endsWith('.gif') ? 'image/gif' : 'image/png',
@@ -757,7 +781,7 @@ const MUDAE_REACTIONS = ['😱', '🔥', '💖', '😂', '💀'];
 // Quem está com um Salão do Mudae aberto (salon na sessão do socket), para a aba "No salão":
 // cada um com os rolls que sobram e se ainda pode casar.
 function salonSockets(serverId, channelId) {
-  return [...online].filter(([, s]) => s.salon === channelId && s.salonServerId === serverId);
+  return sessionsOf(online.viewers(serverId)).filter(([, s]) => s.salon === channelId && s.salonServerId === serverId);
 }
 function pushSalon(serverId, channelId) {
   if (!channelId || !serverId) return;
@@ -886,7 +910,7 @@ const clipSlug = (name) => String(name || '').normalize('NFD').replace(/[̀-ͯ]/
 app.post('/clips', express.raw({ type: () => true, limit: MAX_CLIP_BYTES + MAX_THUMB_BYTES + 4 }), (req, res) => {
   const acc = db.accounts[db.sessions[req.get('x-token')]];
   if (!acc) return clipError(res, 401, 'Não autenticado');
-  const s = [...online.values()].find((x) => x.accountId === acc.id && x.voice);
+  const s = sessionsOf(online.sidsOf(acc.id)).map(([, x]) => x).find((x) => x.voice);
   if (!s) return clipError(res, 403, 'Entre numa chamada para clipar.');
   let meta;
   try { meta = JSON.parse(decodeURIComponent(req.get('x-clip') || '')); } catch { meta = null; }
@@ -899,7 +923,7 @@ app.post('/clips', express.raw({ type: () => true, limit: MAX_CLIP_BYTES + MAX_T
   if (thumbLength < 64 || thumbLength > MAX_THUMB_BYTES || thumb[0] !== 0xff || thumb[1] !== 0xd8 || thumb[2] !== 0xff) return clipError(res, 400, 'Clipe inválido.');
   if (mp4.length < 16 || mp4.length > MAX_CLIP_BYTES || mp4.toString('latin1', 4, 8) !== 'ftyp') return clipError(res, 400, 'Clipe inválido.');
   if (meta.voice != null && meta.voice !== s.voice) return clipError(res, 409, 'Você mudou de chamada: o clipe foi descartado.');
-  const room = [...online.values()].filter((x) => x.voice === s.voice && x.voiceServerId === s.voiceServerId);
+  const room = sessionsOf(online.inRoom(s.voice)).map(([, x]) => x).filter((x) => x.voiceServerId === s.voiceServerId);
   if (room.some((x) => participants.includes(x.accountId) && x.allowClips === false)) return clipError(res, 403, 'Alguém no clipe não quer ser clipado.');
   if (!allow('clip:' + acc.id, 6, 60_000) || !allow('clip-h:' + acc.id, 30, 60 * 60 * 1000)) return clipError(res, 429, 'Clipes demais seguidos. Espere um pouco.');
   const channelName = isDmCall(s) ? 'Chamada' : communities.run(s.voiceServerId, () => db.channels.find((c) => c.id === s.voice)?.name) || 'Chamada';
@@ -946,9 +970,9 @@ io.engine.on('connection', (raw) => raw.on('packetCreate', (packet) => health.co
 
 // Toque e mensagem de chamada das conversas privadas (server/dm-calls.js).
 mediaSwitched = (server, channel, transport) => {
-  for (const [sid, s] of online) if (s.voice === channel && (s.voiceServerId ?? null) === (server ?? null)) io.to(sid).emit('media:switch', { transport });
+  for (const [sid, s] of sessionsOf(online.inRoom(channel))) if ((s.voiceServerId ?? null) === (server ?? null)) io.to(sid).emit('media:switch', { transport });
 };
-const emitToAccount = (accountId, event, payload) => { for (const [sid, s] of online) if (s.accountId === accountId) io.to(sid).emit(event, payload); };
+const emitToAccount = (accountId, event, payload) => { for (const sid of online.sidsOf(accountId)) io.to(sid).emit(event, payload); };
 const emitToDm = (dm, event, payload) => { for (const id of db.dms[dm]?.users || []) emitToAccount(id, event, payload); };
 const dmCalls = createDmCalls({
   ringMs: Number(process.env.DM_RING_MS) || 30_000,
@@ -970,7 +994,7 @@ const dmCalls = createDmCalls({
   changed: (dm) => notify({ accounts: db.dms[dm]?.users }),
 });
 // Contas de uma sala de voz (para saber quem continua na chamada privada).
-const roomAccounts = (room) => [...online.values()].filter((s) => s.voice === room).map((s) => s.accountId);
+const roomAccounts = (room) => sessionsOf(online.inRoom(room)).map(([, s]) => s.accountId);
 // Os dois ainda podem se falar? Mesma regra das mensagens diretas.
 const dmCallAllowed = (dm, accountId) => {
   const conversation = db.dms[dm];
@@ -979,12 +1003,12 @@ const dmCallAllowed = (dm, accountId) => {
 };
 
 function socketsOf(accountId, local = false) {
-  return [...online].filter(([, s]) => s.accountId === accountId && (!local || s.serverId === communities.currentId())).map(([sid]) => io.sockets.sockets.get(sid)).filter(Boolean);
+  return sessionsOf(online.sidsOf(accountId)).filter(([, s]) => !local || s.serverId === communities.currentId()).map(([sid]) => io.sockets.sockets.get(sid)).filter(Boolean);
 }
 
 // Sessões da conta que estão numa chamada do servidor atual (podem estar vendo outro servidor).
 function voiceSocketsOf(accountId) {
-  return [...online].filter(([, s]) => s.accountId === accountId && s.voice && !isDmCall(s) && s.voiceServerId === communities.currentId()).map(([sid]) => io.sockets.sockets.get(sid)).filter(Boolean);
+  return sessionsOf(online.sidsOf(accountId)).filter(([, s]) => s.voice && !isDmCall(s) && s.voiceServerId === communities.currentId()).map(([sid]) => io.sockets.sockets.get(sid)).filter(Boolean);
 }
 
 // Status que a própria pessoa escolhe. "offline" é só o que os outros veem.
@@ -1016,18 +1040,17 @@ function publicMember(a, onlineIds) {
 }
 
 function publicProfiles(ids) {
-  const onlineIds = new Set([...online.values()].map((s) => s.accountId));
-  return communities.run(null, () => [...new Set(ids)].map((id) => db.accounts[id]).filter(Boolean).map((a) => publicMember(a, onlineIds)));
+  return communities.run(null, () => [...new Set(ids)].map((id) => db.accounts[id]).filter(Boolean).map((a) => publicMember(a, online.accounts)));
 }
 
 // Partes do estado que são iguais para todo mundo: calculadas uma vez por envio.
 function sharedState() {
-  const onlineIds = new Set([...online.values()].map((s) => s.accountId));
-  const accounts = Object.values(db.accounts).filter((a) => communities.membership(a.id));
+  // Só os membros deste servidor, sem passar pelas contas do site inteiro.
+  const accounts = Object.keys(communities.current().members).map((id) => db.accounts[id]).filter(Boolean);
   return {
-    members: accounts.filter((a) => communities.joined(a.id)).map((a) => publicMember(a, onlineIds)),
+    members: accounts.filter((a) => communities.joined(a.id)).map((a) => publicMember(a, online.accounts)),
     bans: accounts.filter((a) => a.banned).map((a) => ({ id: a.id, name: a.name })),
-    voice: [...online].filter(([, s]) => s.voice && !isDmCall(s) && s.voiceServerId === communities.currentId()).map(([sid, s]) => voiceEntry(sid, s)),
+    voice: sessionsOf(online.inCalls(communities.currentId())).map(([sid, s]) => voiceEntry(sid, s)),
   };
 }
 
@@ -1045,7 +1068,7 @@ function voiceEntry(sid, s) {
     camera: s.camera,
     voiceFx: s.voiceFx || null, // efeito do modificador de voz (selo para os outros)
     allowClips: s.allowClips !== false, // "Pode clipar meu áudio" (ligado por padrão)
-    viewers: [...online].filter(([, viewer]) => viewer.voice === s.voice && viewer.watching?.has(sid)).map(([viewerId]) => viewerId),
+    viewers: sessionsOf(online.inRoom(s.voice)).filter(([, viewer]) => viewer.watching?.has(sid)).map(([viewerId]) => viewerId),
     // "silenced": ninguém deve ouvir essa pessoa (mutada pelo servidor, de castigo ou sem permissão de falar).
     // Numa chamada privada não há cargos nem castigo.
     silenced: isDmCall(s) ? false : !!a.serverMuted || timedOut(a) || !can(a, 'SPEAK'),
@@ -1116,7 +1139,7 @@ function dmCallFor(s) {
     peerId: peer,
     ringing: dmCalls.ringing(s.voice),
     channel: { id: s.voice, name: peerProfile?.name || 'Conversa' },
-    voice: [...online].filter(([, other]) => other.voice === s.voice).map(([sid, other]) => voiceEntry(sid, other)),
+    voice: sessionsOf(online.inRoom(s.voice)).map(([sid, other]) => voiceEntry(sid, other)),
     members: publicProfiles(conversation.users),
     roles: [],
     myPerms: ['CONNECT', 'SPEAK', 'STREAM', 'SOUNDBOARD'],
@@ -1128,17 +1151,17 @@ function dmCallFor(s) {
 // Avisa o DJ de cada sala quantas pessoas estão nela (sala vazia pausa e, depois, esquece a fila).
 // Roda antes de mandar o estado, então a pausa já vai junto no mesmo envio.
 function syncDjRooms() {
-  const counts = new Map();
-  for (const s of online.values()) if (s.voice) counts.set(djKey(s.voiceServerId, s.voice), (counts.get(djKey(s.voiceServerId, s.voice)) || 0) + 1);
   for (const key of dj.keys()) {
     const [serverId, channelId] = key.split(':');
     if (!communities.root.servers[serverId]?.channels.some((c) => c.id === channelId && c.type === 'voice')) dj.drop(key);
-    else dj.occupancy(key, counts.get(key) || 0);
+    else dj.occupancy(key, sessionsOf(online.inRoom(channelId)).filter(([, s]) => s.voiceServerId === serverId).length);
   }
 }
 
+// Quem assiste está sempre na mesma sala de quem transmite.
 function clearScreenWatchers(sharer) {
-  for (const viewer of online.values()) {
+  const room = online.get(sharer)?.voice;
+  for (const [, viewer] of room ? sessionsOf(online.inRoom(room)) : online) {
     viewer.watching?.delete(sharer);
     viewer.screenQuality?.delete(sharer);
   }
@@ -1175,7 +1198,7 @@ function leaveVoice(socket) {
   s.voice = null;
   s.voiceServerId = null;
   s.voiceSince = null;
-  if (![...online.values()].some((o) => o.voice === left.channel && o.voiceServerId === left.server)) media.vacate(left.server, left.channel);
+  if (!sessionsOf(online.inRoom(left.channel)).some(([, o]) => o.voiceServerId === left.server)) media.vacate(left.server, left.channel);
   s.sharing = false;
   s.preview = null;
   s.camera = false;
@@ -1188,8 +1211,8 @@ function leaveVoice(socket) {
 // Devolve os sockets tirados (para quem entrou não tentar se conectar com eles).
 function dropOtherVoiceSessions(socket, accountId) {
   const dropped = [];
-  for (const [sid, s] of online) {
-    if (sid === socket.id || s.accountId !== accountId || !s.voice) continue;
+  for (const [sid, s] of sessionsOf(online.sidsOf(accountId))) {
+    if (sid === socket.id || !s.voice) continue;
     const other = io.sockets.sockets.get(sid);
     if (!other) continue;
     leaveVoice(other);
@@ -1208,9 +1231,12 @@ function dropVoice(accountId, reason) {
 }
 
 // Aplica as regras de voz depois de qualquer mudança de cargo, canal ou castigo.
-function enforceVoice() {
-  for (const [sid, s] of online) {
-    if (!s.voice) continue;
+// Só confere as conexões atingidas pela mudança: cargos, canais e castigos avisam o site inteiro
+// (broadcastState) e amizade desfeita ou bloqueio avisam as duas contas (chamadas privadas).
+function enforceVoice(sids) {
+  for (const sid of sids) {
+    const s = online.get(sid);
+    if (!s?.voice) continue;
     if (isDmCall(s)) {
       const socket = io.sockets.sockets.get(sid);
       if (socket && !dmCallAllowed(s.voice, s.accountId)) {
@@ -1270,32 +1296,39 @@ function notifyVoice(s) {
 // Presença e perfil aparecem na lista de membros dos servidores da conta e para amigos, conversas
 // e quem bloqueou a conta (a lista "people" de cada um).
 function notifyAccount(accountId) {
-  const accounts = new Set([accountId]);
-  for (const key of Object.keys(db.friendships)) {
-    const [a, b] = key.split('-');
-    if (a === accountId) accounts.add(b);
-    else if (b === accountId) accounts.add(a);
+  const accounts = new Set([accountId, ...social.relatedTo(accountId), ...social.blockersOf(accountId)]);
+  for (const id of social.dmIdsOf(accountId)) db.dms[id]?.users.forEach((user) => accounts.add(user));
+  notify({ servers: communities.memberServers(accountId), accounts });
+}
+
+// Conexões atingidas por um envio, pelos índices (sem percorrer todo mundo online). Sai uma cópia:
+// quem recebe a lista pode tirar gente da chamada no meio do laço.
+function affectedSids(to) {
+  if (to.all) return new Set(online.keys());
+  const sids = new Set();
+  for (const id of to.accounts) for (const sid of online.sidsOf(id)) sids.add(sid);
+  for (const id of to.servers) {
+    for (const sid of online.viewers(id)) sids.add(sid);
+    for (const sid of online.inCalls(id)) sids.add(sid);
   }
-  for (const dm of Object.values(db.dms)) if (dm.users.includes(accountId)) dm.users.forEach((id) => accounts.add(id));
-  for (const [blocker, blocked] of Object.entries(db.blocks)) if (blocked.includes(accountId)) accounts.add(blocker);
-  notify({ servers: Object.values(communities.root.servers).filter((server) => server.members[accountId]).map((server) => server.id), accounts });
+  return sids;
 }
 
 function flushBroadcast() {
   if (!broadcastQueued) return;
-  enforceVoice();
+  enforceVoice(affectedSids(pending));
   syncDjRooms();
   broadcastQueued = false;
   const to = { ...pending };
   Object.assign(pending, { all: false, servers: new Set(), accounts: new Set() });
-  const affected = (s) => to.all || to.accounts.has(s.accountId) || to.servers.has(s.serverId) || (!!s.voiceServerId && to.servers.has(s.voiceServerId));
   const shared = new Map();
   const sharedOf = (id) => {
     if (!shared.has(id)) shared.set(id, sharedState());
     return shared.get(id);
   };
-  for (const [sid, s] of online) {
-    if (!affected(s)) continue;
+  for (const sid of affectedSids(to)) {
+    const s = online.get(sid);
+    if (!s) continue;
     const call = s.voice ? communities.run(s.voiceServerId, () => callFor(s, sharedOf(s.voiceServerId))) : null;
     if (s.voice) media.sync(sid).catch(() => {});
     communities.run(s.serverId, () => {
@@ -1324,8 +1357,8 @@ const CHAT_TYPES = ['text', 'voice'];
 // Efeitos do modificador de voz (public/voice-fx.js); o servidor só repassa qual está ligado.
 const VOICE_FX = ['esquilo', 'gigante', 'robo', 'radio', 'caverna', 'alien', 'telefone', 'megafone', 'banheiro', 'fantasma', 'bebado', 'autotune', 'acordes', 'coral'];
 function emitToViewers(channel, event, payload) {
-  for (const [sid, s] of online) {
-    if (s.serverId === communities.currentId() && canView(db.accounts[s.accountId], channel)) io.to(sid).emit(event, payload);
+  for (const [sid, s] of sessionsOf(online.viewers(communities.currentId()))) {
+    if (canView(db.accounts[s.accountId], channel)) io.to(sid).emit(event, payload);
   }
 }
 
@@ -1436,14 +1469,17 @@ io.on('connection', (socket) => {
       if (key.startsWith(id + ':')) { clearTimeout(timer); timeoutTimers.delete(key); }
     }
     const soundFiles = community.soundboard.map((s) => s.file);
-    delete communities.root.servers[id];
+    communities.drop(id);
     soundFiles.forEach(removeSoundIfUnused);
     if (communities.root.defaultServerId === id) communities.root.defaultServerId = Object.keys(communities.root.servers)[0] || null;
-    for (const account of Object.values(db.accounts)) {
+    // Só quem tinha registro de membro leu canais dali ou tinha o servidor como último aberto.
+    for (const memberId of Object.keys(community.members)) {
+      const account = db.accounts[memberId];
+      if (!account) continue;
       for (const channelId of channels) if (account.lastRead) delete account.lastRead[channelId];
       if (account.lastServerId === id) account.lastServerId = communities.choose(account.id);
     }
-    for (const [sid, session] of online) {
+    for (const [sid, session] of sessionsOf(new Set([...online.viewers(id), ...online.inCalls(id)]))) {
       const affected = io.sockets.sockets.get(sid);
       if (!affected) continue;
       if (session.voice && session.voiceServerId === id) {
@@ -1482,7 +1518,7 @@ io.on('connection', (socket) => {
     } else {
       const name = cleanName(payload.name);
       const password = String(payload.password || '');
-      const existing = Object.values(db.accounts).find((a) => a.name.toLowerCase() === name.toLowerCase());
+      const existing = accountByName(name);
       if (payload.mode === 'register') {
         if (name.length < 2) return ack({ error: 'Nome muito curto' });
         if (password.length < 4) return ack({ error: 'A senha precisa ter pelo menos 4 caracteres' });
@@ -1494,9 +1530,10 @@ io.on('connection', (socket) => {
         if (!allow('register:' + ip, 20, 60 * 60 * 1000)) return ack({ error: 'Muitas contas criadas daqui. Tente mais tarde.' });
         const secret = await hashPassword(password);
         // Outra pessoa pode ter pegado o nome enquanto o hash era calculado.
-        if (Object.values(db.accounts).some((a) => a.name.toLowerCase() === name.toLowerCase())) return ack({ error: 'Esse nome já está em uso' });
+        if (accountByName(name)) return ack({ error: 'Esse nome já está em uso' });
         acc = { id: newId(), name, color: cleanColor(payload.color), createdAt: Date.now(), ...secret };
         db.accounts[acc.id] = acc;
+        accountIdByName.set(name.toLowerCase(), acc.id);
         // E-mail opcional: fica gravado na hora, e o link de confirmação sai sem segurar o cadastro.
         // Quando o envio termina, a sessão fica sabendo se o link saiu, para avisar a pessoa.
         if (email) recovery.setEmail(acc, email)
@@ -1558,8 +1595,8 @@ io.on('connection', (socket) => {
     const keep = socket.data.token;
     for (const [token, id] of Object.entries(db.sessions)) if (id === acc.id && token !== keep) delete db.sessions[token];
     save();
-    for (const [sid, s] of online) {
-      if (s.accountId !== acc.id || sid === socket.id) continue;
+    for (const [sid] of sessionsOf(online.sidsOf(acc.id))) {
+      if (sid === socket.id) continue;
       const other = io.sockets.sockets.get(sid);
       if (other?.data.token === keep) continue; // outra aba com a mesma sessão continua valendo
       other?.emit('session:ended', 'Sua senha foi trocada. Entre de novo com a senha nova.');
@@ -1878,7 +1915,7 @@ io.on('connection', (socket) => {
     emoji = String(emoji || '');
     const custom = /^<:\w{2,32}:([0-9a-f]{16})>$/.exec(emoji);
     if (!emoji || (!custom && (emoji.length > 16 || /[\s<>]/.test(emoji)))) fail('Emoji inválido');
-    if (custom && !Object.values(communities.root.servers).some((s) => (s.emojis || []).some((e) => e.id === custom[1]))) fail('Esse emoji não existe mais.');
+    if (custom && !emojiById(custom[1])) fail('Esse emoji não existe mais.');
     if (c.dm) dmPeer(acc, c.dm);
     else if (timedOut(acc)) fail('Você está de castigo.');
     if (!allow('react:' + acc.id, 20, 5000)) fail('Calma! Reações rápidas demais.');
@@ -1911,8 +1948,8 @@ io.on('connection', (socket) => {
       if (fresh.length) result[c.id] = { unread: true, mentions: fresh.filter((m) => mentionsAccount(m, acc)).length };
     }
     // Conversas privadas: quem nunca abriu a conversa tem tudo como não lido.
-    for (const dm of Object.values(db.dms)) {
-      if (!dm.users.includes(acc.id) || dm.closed?.[acc.id]) continue;
+    for (const dm of [...social.dmIdsOf(acc.id)].map((id) => db.dms[id])) {
+      if (!dm || dm.closed?.[acc.id]) continue;
       const fresh = (db.messages[dm.id] || []).filter((m) => m.ts > (lastRead[dm.id] ?? 0) && m.authorId !== acc.id);
       if (fresh.length) result[dm.id] = { unread: true, mentions: fresh.length };
     }
@@ -1928,8 +1965,8 @@ io.on('connection', (socket) => {
       return;
     }
     const c = db.channels.find((ch) => ch.id === channel);
-    if (c) for (const [sid, s] of online) {
-      if (sid !== socket.id && s.serverId === communities.currentId() && canView(db.accounts[s.accountId], c)) io.to(sid).emit('typing', { channel, name: acc.nickname || acc.name });
+    if (c) for (const [sid, s] of sessionsOf(online.viewers(communities.currentId()))) {
+      if (sid !== socket.id && canView(db.accounts[s.accountId], c)) io.to(sid).emit('typing', { channel, name: acc.nickname || acc.name });
     }
   });
 
@@ -1938,9 +1975,8 @@ io.on('connection', (socket) => {
   const relationCount = (id) => {
     let friends = 0;
     let pending = 0;
-    for (const [key, f] of Object.entries(db.friendships)) {
-      if (!key.split('-').includes(id)) continue;
-      if (f.status === 'friends') friends++;
+    for (const other of social.relatedTo(id)) {
+      if (social.friendship(id, other)?.status === 'friends') friends++;
       else pending++;
     }
     return { friends, pending };
@@ -1949,7 +1985,7 @@ io.on('connection', (socket) => {
 
   function makeFriends(a, b) {
     if (relationCount(a.id).friends >= MAX_FRIENDS || relationCount(b.id).friends >= MAX_FRIENDS) fail(`O limite é de ${MAX_FRIENDS} amigos.`);
-    db.friendships[pairKey(a.id, b.id)] = { status: 'friends', from: a.id, ts: Date.now() };
+    social.setFriendship(a.id, b.id, { status: 'friends', from: a.id, ts: Date.now() });
   }
 
   // Pede amizade pelo nome de usuário (aba "Adicionar amigo") ou pelo id (cartão de perfil).
@@ -1958,7 +1994,7 @@ io.on('connection', (socket) => {
     const wanted = cleanName(name).toLowerCase();
     const target = cleanId(id)
       ? presentAccount(id)
-      : wanted && Object.values(db.accounts).find((a) => a.name.toLowerCase() === wanted);
+      : wanted && accountByName(wanted);
     if (!target) fail('Não encontramos ninguém com esse nome.');
     if (target.id === acc.id) fail('Você não pode adicionar a si mesmo.');
     if (hasBlocked(acc.id, target.id)) fail('Você bloqueou essa pessoa. Desbloqueie para adicioná-la.');
@@ -1975,7 +2011,7 @@ io.on('connection', (socket) => {
       return { status: 'friends', name: target.name };
     }
     if (relationCount(acc.id).pending >= MAX_PENDING_REQUESTS || relationCount(target.id).pending >= MAX_PENDING_REQUESTS) fail('Há pedidos pendentes demais. Tente mais tarde.');
-    db.friendships[pairKey(acc.id, target.id)] = { status: 'pending', from: acc.id, ts: Date.now() };
+    social.setFriendship(acc.id, target.id, { status: 'pending', from: acc.id, ts: Date.now() });
     tellOthers(target.id, `${acc.name} quer ser seu amigo.`);
     pushSocial(acc.id, target.id);
     save();
@@ -1995,7 +2031,7 @@ io.on('connection', (socket) => {
   on('friend:decline', (acc, { id }) => {
     const f = friendshipOf(acc.id, cleanId(id));
     if (f?.status === 'pending') {
-      delete db.friendships[pairKey(acc.id, id)];
+      social.removeFriendship(acc.id, id);
       pushSocial(acc.id, id);
       save();
     }
@@ -2004,7 +2040,7 @@ io.on('connection', (socket) => {
   on('friend:remove', (acc, { id }) => {
     const f = friendshipOf(acc.id, cleanId(id));
     if (f?.status === 'friends') {
-      delete db.friendships[pairKey(acc.id, id)];
+      social.removeFriendship(acc.id, id);
       pushSocial(acc.id, id);
       save();
     }
@@ -2013,19 +2049,16 @@ io.on('connection', (socket) => {
   // Bloquear desfaz a amizade e impede pedidos e mensagens privadas nos dois sentidos.
   on('friend:block', (acc, { id }) => {
     if (!cleanId(id) || !db.accounts[id] || id === acc.id) fail('Pessoa não encontrada.');
-    const list = (db.blocks[acc.id] ||= []);
-    if (!list.includes(id)) {
-      if (list.length >= MAX_BLOCKS) fail('Você bloqueou gente demais. Desbloqueie alguém primeiro.');
-      list.push(id);
-    }
-    delete db.friendships[pairKey(acc.id, id)];
+    const list = db.blocks[acc.id] || [];
+    if (!list.includes(id) && list.length >= MAX_BLOCKS) fail('Você bloqueou gente demais. Desbloqueie alguém primeiro.');
+    social.block(acc.id, id);
+    social.removeFriendship(acc.id, id);
     pushSocial(acc.id, id);
     save();
   });
 
   on('friend:unblock', (acc, { id }) => {
-    db.blocks[acc.id] = (db.blocks[acc.id] || []).filter((b) => b !== id);
-    if (!db.blocks[acc.id].length) delete db.blocks[acc.id];
+    social.unblock(acc.id, id);
     pushSocial(acc.id);
     save();
   });
@@ -2037,7 +2070,7 @@ io.on('connection', (socket) => {
     const id = dmIdOf(acc.id, other.id);
     if (!db.dms[id]) {
       if (!areFriends(acc.id, other.id) || hasBlocked(acc.id, other.id) || hasBlocked(other.id, acc.id)) fail('Só dá para conversar em privado com amigos.');
-      db.dms[id] = { id, users: [acc.id, other.id].sort(), closed: {} };
+      social.addDm({ id, users: [acc.id, other.id].sort(), closed: {} });
       db.messages[id] ||= [];
     }
     delete db.dms[id].closed?.[acc.id];
@@ -2458,7 +2491,10 @@ io.on('connection', (socket) => {
       const i = editable(id);
       if (id === 'everyone') fail('O cargo @everyone não pode ser apagado.');
       db.roles.splice(i, 1);
-      for (const a of Object.values(db.accounts).filter((a) => communities.membership(a.id))) a.roles = a.roles.filter((r) => r !== id);
+      for (const memberId of Object.keys(communities.current().members)) {
+        const a = db.accounts[memberId];
+        if (a) a.roles = a.roles.filter((r) => r !== id);
+      }
       for (const c of db.channels) c.allowedRoles = c.allowedRoles.filter((r) => r !== id);
     } else if (action === 'move') {
       const i = editable(id);

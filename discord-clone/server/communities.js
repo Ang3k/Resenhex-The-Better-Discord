@@ -52,6 +52,21 @@ function communityStore(root, newId, defaultDb) {
     }
     server.mudae ||= { claims: {}, usage: {} };
   }
+  // Servidores de cada conta (onde ela tem registro de membro, mesmo saído ou banido), para não
+  // percorrer todos os servidores do site. A lista sai na ordem de criação dos servidores, como antes.
+  const serversOf = new Map();
+  const position = new Map();
+  let created = 0;
+  const index = (server) => {
+    position.set(server.id, created++);
+    for (const accountId of Object.keys(server.members)) addMember(accountId, server.id);
+  };
+  const addMember = (accountId, serverId) => {
+    let set = serversOf.get(accountId);
+    if (!set) serversOf.set(accountId, (set = new Set()));
+    set.add(serverId);
+  };
+  for (const server of Object.values(root.servers)) index(server);
   const context = new AsyncLocalStorage();
   const empty = { ownerId: null, serverName: '', serverIcon: null, roles: [], channels: [], categories: [], members: {}, soundboard: [], emojis: [] };
   const currentId = () => context.getStore() === undefined ? root.defaultServerId : context.getStore();
@@ -74,7 +89,9 @@ function communityStore(root, newId, defaultDb) {
     get(target, key) { return key === 'accounts' ? accounts : SERVER_FIELDS.has(key) ? current()[key] : target[key]; },
     set(target, key, value) { if (SERVER_FIELDS.has(key)) current()[key] = value; else target[key] = value; return true; },
   });
-  const list = (accountId) => Object.values(root.servers).filter((s) => joined(accountId, s.id)).map((s) => ({
+  const memberServers = (accountId) => [...(serversOf.get(accountId) || [])].filter((id) => root.servers[id])
+    .sort((a, b) => position.get(a) - position.get(b));
+  const list = (accountId) => memberServers(accountId).filter((id) => joined(accountId, id)).map((id) => root.servers[id]).map((s) => ({
     id: s.id, name: s.serverName, icon: s.serverIcon ? '/avatars/' + s.serverIcon : null, owner: s.ownerId === accountId,
   }));
   const choose = (accountId, preferred) => typeof preferred === 'string' && joined(accountId, preferred) ? preferred : list(accountId)[0]?.id || null;
@@ -83,6 +100,15 @@ function communityStore(root, newId, defaultDb) {
     if (server.members[accountId]?.banned) throw new Error('Você foi banido deste servidor.');
     if (!joined(accountId, server.id) && list(accountId).length >= 100) throw new Error('Você já participa de 100 servidores.');
     if (!joined(accountId, server.id)) server.members[accountId] = { active: true, roles: [], joinedAt: Date.now() };
+    addMember(accountId, server.id);
+  }
+  // Exclui o servidor do site (e dos índices).
+  function drop(serverId) {
+    const server = root.servers[serverId];
+    if (!server) return;
+    for (const accountId of Object.keys(server.members)) serversOf.get(accountId)?.delete(serverId);
+    position.delete(serverId);
+    delete root.servers[serverId];
   }
   function create(accountId, name) {
     if (list(accountId).length >= 100) throw new Error('Você já participa de 100 servidores.');
@@ -93,11 +119,12 @@ function communityStore(root, newId, defaultDb) {
       channels: template.channels.map((c) => ({ ...c, id: newId() })), members: {}, inviteCode: inviteCode(), soundboardMigrated: true, musicMigrated: true, mudaeMigrated: true, soundboard: [], emojis: [], mudae: { claims: {}, usage: {} } };
     migrateChannels(server);
     root.servers[id] = server;
+    index(server);
     join(accountId, server);
     return server;
   }
-  return { root, db, currentId, current, membership, joined, list, choose, byInvite, join, create, accountView,
-    run: (id, callback) => context.run(id, callback), inviteCode };
+  return { root, db, currentId, current, membership, joined, list, choose, byInvite, join, create, drop, accountView,
+    memberServers, run: (id, callback) => context.run(id, callback), inviteCode };
 }
 
 module.exports = { communityStore };

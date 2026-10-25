@@ -7,8 +7,14 @@ Resumo para retomar o trabalho em outra sessão do Claude sem depender da conver
 Deixar o Resenhex aguentar **5 mil pessoas online ao mesmo tempo**, espalhadas em vários servidores, **sem gastar nada**: na mesma máquina grátis da Oracle.
 
 - O plano completo, com medições, metas e 7 fases, está em [plano-5000-online.md](plano-5000-online.md).
-- Prontos e não publicados: a Fase 0 (medidor de saúde e simulador) e a Fase 1 inteira (avisos só para quem foi afetado, portas do retransmissor, início rápido, gravação garantida, arquivos pelo Caddy, backups dos uploads). Próxima: a Fase 4a.
-- **Teto medido com o simulador: entre 200 e 300 online** (com 10 contas cadastradas por pessoa online). Com o banco da meta, de 50 mil contas, nem 25 online passam nas metas.
+- Prontos e não publicados:
+  - a Fase 0 (medidor de saúde e simulador);
+  - a Fase 1 inteira (avisos só para quem foi afetado, portas do retransmissor, início rápido, gravação garantida, arquivos pelo Caddy, backups dos uploads);
+  - a Fase 4a (índices em vez de percorrer o site inteiro).
+- Próxima: a Fase 2 (banco SQLite).
+- **Teto medido com o simulador:** era de 200 a 300 online (Fase 0). Com a Fase 4a, 1.500 online passaram com 15 mil contas.
+  - O que trava agora é a gravação do banco: com o banco da meta, de 50 mil contas, cada gravação leva ~0,3 s.
+  - Sem a gravação, 1.000 online custam o mesmo com 15 mil e com 50 mil contas.
 
 ## O que está no ar
 
@@ -31,7 +37,8 @@ Tudo na branch `claude/chamada-atual` (pasta `.claude/worktrees/chamada-atual`),
 | `6253ba0` | Plano revisado: varreduras no site inteiro (o próximo teto, ~400–600 online), início lento, senha fixa do TURN; ferramenta `tools/varreduras.js` |
 | `455edc0` | Fase 1, itens 2 e 3: portas e ajustes do retransmissor, TURN por TCP só na segunda tentativa, início rápido |
 | `f023dc0` | Fase 0: medidor de saúde (aba "Saúde do servidor" do dono) e simulador v2 com o banco do tamanho da meta; primeira medição do teto |
-| este commit | Fase 1, itens 4 a 7: gravação garantida, arquivos e instaladores pelo Caddy, backups dos uploads só com os novos |
+| `ca9127a` | Fase 1, itens 4 a 7: gravação garantida, arquivos e instaladores pelo Caddy, backups dos uploads só com os novos |
+| este commit | Fase 4a: índices de conexões, relações entre contas, servidores de cada conta, nomes, fotos e emojis (`server/online.js`, `server/social.js`) |
 
 O dono pediu para **publicar só quando ele mandar, e só com o plano inteiro pronto** (24/10): nada de publicar fase por fase.
 
@@ -72,7 +79,8 @@ O que já está no código (este commit):
 - **`tools/simulador.js`** (o principal): monta um banco do tamanho do site, sobe uma cópia do servidor e põe pessoas online em degraus, no ritmo das premissas do plano. Diz se cada degrau passou nas metas, já com a estimativa do ARM.
   - Exemplos: `STEPS=200 node tools/simulador.js` (2 mil contas) e `ACCOUNTS=50000 STEPS=25,50 node tools/simulador.js` (banco da meta).
   - Cada degrau leva ~2 min; um que trava espera até 5 min pelas conexões.
-  - Resultados de 24/10 na Fase 0 do plano.
+  - Resultados de 24/10 nas Fases 0 e 4a do plano.
+  - Para medir sem a gravação, use uma cópia do `server.js` na mesma pasta com o `writeData()` desligado e `SERVER_JS=<cópia>`. Apague a cópia depois.
 - **Medidor de saúde** (`server/health.js`): aba "Saúde do servidor" nas Configurações do dono e uma linha `[saúde]` por minuto no log (`sudo journalctl -u resenhex | grep saúde`).
 - **`tools/carga-teste.js`:** simula N pessoas em N servidores e mede o custo de cada mudança. Instruções no começo do arquivo.
   - Criar servidor tem limite de 5 por minuto; o script já contorna isso.

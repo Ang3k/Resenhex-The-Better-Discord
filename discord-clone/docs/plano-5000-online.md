@@ -7,9 +7,9 @@ Escrito em 24/10/2026 e revisado no mesmo dia, com a medição das varreduras (p
 A máquina aguenta. O que impede hoje é o jeito como o código trabalha:
 
 - ele mandava o estado inteiro para todo mundo a cada mudança (já corrigido, falta publicar);
-- para montar o estado de cada pessoa, ele percorre todas as contas, amizades, conversas e servidores do site. Isso cresce com quantas contas existem, não com quantas estão online, e é o próximo teto: **entre 200 e 300 online**, medido com o simulador (Fase 0);
+- para montar o estado de cada pessoa, ele percorria todas as contas, amizades, conversas e servidores do site. Isso crescia com quantas contas existem, não com quantas estão online, e era o teto: **entre 200 e 300 online**, medido com o simulador (Fase 0). Já corrigido na Fase 4a (falta publicar): com 15 mil contas, 1.500 online passaram;
 - ao ligar, ele percorre servidores × contas: na meta, cada publicação deixaria o site fora do ar por ~15 min;
-- ele regrava o banco de dados inteiro a cada mudança;
+- ele regrava o banco de dados inteiro a cada mudança. Depois da Fase 4a, é o próximo teto: com o banco da meta, cada gravação para o servidor ~0,3 s (no PC);
 - ele percorre todo mundo online para entregar cada mensagem.
 
 Além da Fase 0, que cria o medidor e o simulador, o plano tem 7 fases (a 4 dividida em duas partes). Com o medidor e o simulador, cada mudança é medida antes e depois, e a meta só conta como batida quando o simulador mostrar 5 mil pessoas sem travar.
@@ -20,7 +20,7 @@ Além da Fase 0, que cria o medidor e o simulador, o plano tem 7 fases (a 4 divi
 | 1 | Consertos rápidos: avisos por servidor (pronto), portas das chamadas, início rápido, arquivos pelo Caddy, gravação garantida | P | Tira o teto de ~400 do estado inteiro e conserta falhas que já acontecem |
 | 2 | Banco de dados SQLite, gravando só o que mudou | G | Tira as travadas ao salvar (~0,2 s com um banco de 50 MB, ~1,3 s com 300 MB) |
 | 3 | Avisos pequenos ("fulano mutou") entregues por sala | G | Processador e rede ~10–50× menores por mudança |
-| 4a | Parar de percorrer o site inteiro: índices e o que roda em toda mudança | M | Tira o próximo teto, de 200–300 online |
+| 4a | Parar de percorrer o site inteiro: índices e o que roda em toda mudança (pronto) | M | Tira o teto de 200–300 online |
 | 4b | Fotos em outro núcleo, prévias mais leves, memória | M | Custo por mudança não cresce com o total de pessoas |
 | 5 | Chamadas e rede: senha temporária no retransmissor, medir e limitar o que passa pelo servidor | M | Não estourar os 10 TB grátis |
 | 6 | Servidores grandes (só se aparecerem) | M | Comunidades com centenas online |
@@ -307,6 +307,35 @@ Vem logo depois da Fase 1, antes do banco: é o teto que chega primeiro (problem
 
 **Pronto quando:** com 50 mil contas e 10 mil servidores no banco simulado, montar o estado de uma pessoa custa menos de 1 ms, e uma mudança custa o mesmo com 5 mil e com 50 mil contas.
 
+**Feito em 24/10 (falta publicar):**
+- `server/online.js`: as conexões, com índices por conta, por servidor aberto na tela, por servidor da chamada e por sala de voz. Os campos `serverId`, `voice` e `voiceServerId` atualizam os índices sozinhos quando mudam.
+- `server/social.js`: amizades, pedidos, conversas privadas e bloqueios, com índices por conta. Toda mudança nessas relações passa por ele, para o banco e os índices nunca ficarem diferentes.
+- `server/communities.js`: os servidores de cada conta, na ordem de criação. Excluir um servidor tira ele dos índices.
+- Pelos índices, sem percorrer o site:
+  - `socialFor`, `notifyAccount`, `publicProfiles` e `sharedState` (este lê só os membros do próprio servidor);
+  - o envio do estado, "digitando", os avisos de canal, o DJ, quem assiste cada transmissão e o Salão do Mudae.
+- O `enforceVoice()` confere só as conexões atingidas pela mudança. Todas, só quando muda cargo, canal ou castigo.
+- O `syncDjRooms()` continua em todo envio, mas agora só conta as salas que têm DJ.
+- Entrar e adicionar amigo pelo nome usam um índice de nomes.
+- As fotos e os emojis usam uma lista montada uma vez e refeita só quando alguma imagem muda.
+- Medido no PC com o simulador; o ARM é a estimativa (PC × 1,7). Mesmo banco, 15 mil contas:
+
+  | Código | Online | Atraso p99 no ARM | Atraso máx. no ARM | Processador no ARM | Resultado |
+  |---|---|---|---|---|---|
+  | antes | 300 | 423 ms | 827 ms | 116% | não passou: 75 s para todos conectarem, 249 erros |
+  | antes | 600 | — | — | — | não passou: só ~200 de 600 conseguiram ficar conectados |
+  | depois | 600 | 128 ms | 160 ms | 29% | não passou (atraso p99) |
+  | depois | 1.000 | 23 ms | 269 ms | 23% | não passou (atraso máx.) |
+  | depois | 1.500 | 25 ms | 184 ms | 22% | passou |
+
+- O que sobra de travada é a gravação do banco: 70–130 ms a cada 2 s com 17 MB (problema 4, Fase 2). O atraso p99 de 600 online é ela: com pouca gente, as gravações pesam mais na conta.
+- **Mesma conta com o banco da meta** (50 mil contas, 12.500 servidores), 1.000 online: atraso p99 de 25 ms no ARM, mas máximo de 585 ms e processador de 52%, porque cada gravação leva 271 ms.
+- **Sem a gravação** (numa cópia temporária do servidor que não grava o banco grande), 1.000 online custam o mesmo com 15 mil e com 50 mil contas: 6,4% de processador e 12 ms de atraso p99 no ARM. A meta da fase foi cumprida, e a gravação é ~80% do processador que sobra.
+- Testes: `test/indexes.test.js` (novo) confere os índices contra os dados. A suíte inteira passou (431 de 434), com três ressalvas:
+  - o teste do app do Windows não roda nesta pasta, porque falta o módulo nativo `uiohook-napi`;
+  - um teste de conversas privadas falhou uma vez com a máquina carregada e passou depois;
+  - o de convites falhou duas vezes rodando junto com outros arquivos ("Server exited: 1") e passou nas cinco rodadas seguintes.
+
 ### Fase 4b — Fotos, prévias e memória (M)
 
 1. **Trabalho pesado no segundo núcleo** (`worker_threads`): recodificar fotos e banners, e qualquer outra coisa que leve mais de ~10 ms. Hoje o segundo núcleo fica quase parado.
@@ -376,9 +405,9 @@ Quem não está olhando um servidor não recebe nada dele (o Discord chama isso 
 
 1. Fase 1, itens 1, 2 e 3 (avisos por servidor, portas das chamadas, início rápido): resolvem problemas de hoje ou são de poucas linhas. Se der, a senha temporária do retransmissor (Fase 5, item 2) vai junto, para reiniciar o coturn uma vez só. **Prontos.**
 2. Fase 0 (medidor + simulador, com o banco do tamanho da meta). **Pronta.**
-3. Fase 1, o resto.
-4. Fase 4a (parar de percorrer o site inteiro): é o próximo teto, 200–300 online (medido na Fase 0).
-5. Fase 2 (banco).
+3. Fase 1, o resto. **Pronto.**
+4. Fase 4a (parar de percorrer o site inteiro): era o teto, 200–300 online (medido na Fase 0). **Pronta**: com 15 mil contas, 1.500 online passaram.
+5. Fase 2 (banco): é o próximo teto. Com o banco da meta, cada gravação para o servidor ~0,3 s.
 6. Fase 3 (avisos pequenos).
 7. Fase 4b.
 8. Fase 5, o resto.
