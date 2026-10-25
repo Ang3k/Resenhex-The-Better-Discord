@@ -182,3 +182,39 @@ test('a relay state that could not be written is written again on the next readi
   await wait(150);
   assert.equal(fs.readFileSync(relayFile, 'utf8'), 'ligado\n');
 });
+
+test('at the final cut the whole site goes offline until the month turns, even after a restart', async (t) => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'resenhex-corte-'));
+  t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
+  const dev = path.join(dir, 'dev'), relayFile = path.join(dir, 'retransmissor.estado'), monthFile = path.join(dir, 'rede-do-mes.json');
+  const lines = [];
+  const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+  // Neste teste o corte final é com 9,5 GB no mês.
+  let clock = Date.UTC(2026, 9, 16);
+  fs.writeFileSync(monthFile, JSON.stringify({ key: '2026-10', bytes: 0, counter: 0 }));
+  fs.writeFileSync(dev, netDev(0));
+  const start = () => createHealth({ connections: () => 0, online: () => 0, log: (line) => lines.push(line), every: 40, udpTable: path.join(dir, 'udp'), netDev: dev, monthFile, relayFile, network: { budgetGB: 6.2, slackGB: 0.5, haltGB: 2, cutGB: 9.5 }, now: () => clock });
+  const state = () => fs.readFileSync(relayFile, 'utf8').trim();
+  const first = start();
+  const step = async (health, sent) => { fs.writeFileSync(dev, netDev(sent)); await wait(100); return health.view().history.at(-1); };
+  let last = await step(first, 9.4e9);
+  assert.deepEqual([last.relay, last.cut, state()], ['stopped', false, 'parado'], 'antes do corte, só o coturn para');
+  last = await step(first, 9.5e9);
+  assert.deepEqual([last.cut, state()], [true, 'fora']);
+  assert.ok(lines.some((line) => /chegou ao corte final .*: o site inteiro fica fora do ar até o mês virar/.test(line)));
+  await wait(300); // grava o arquivo do mês
+
+  // Servidor religado no meio do corte: grava "fora" de novo (a publicação religou o Caddy) e avisa no log.
+  fs.rmSync(relayFile);
+  lines.length = 0;
+  const second = start();
+  last = await step(second, 9.6e9);
+  assert.deepEqual([last.cut, state()], [true, 'fora']);
+  assert.ok(lines.some((line) => /chegou ao corte final/.test(line)));
+
+  // O mês virou: o site volta.
+  clock = Date.UTC(2026, 10, 1, 0, 5);
+  last = await step(second, 9.7e9);
+  assert.deepEqual([last.monthGB, last.cut, state()], [0.1, false, 'ligado']);
+  assert.ok(lines.some((line) => /abaixo do corte final: o site volta ao ar/.test(line)));
+});

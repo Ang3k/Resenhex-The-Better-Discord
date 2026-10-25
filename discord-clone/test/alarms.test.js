@@ -68,3 +68,13 @@ test('memory, the network pace and relay ports have their own alarms; without an
   assert.equal(quiet.sent.length, 0);
   assert.ok(quiet.lines.some((line) => /sem e-mail para avisar/.test(line)));
 });
+
+test('near the final network cut the owner is warned; the cut mails at once, and again when the site is back', async () => {
+  const h = harness();
+  await h.push({ monthGB: TARGETS.monthCutGB - 400, relay: 'stopped' }, 6);
+  assert.ok(h.sent.some((m) => m.subject === '[Resenhex] Alarme: rede do mês perto do corte final'));
+  await h.push({ monthGB: TARGETS.monthCutGB, relay: 'stopped', cut: true });
+  assert.match(h.sent.find((m) => m.subject === '[Resenhex] Alarme: site fora do ar pelo teto de rede').text, /fora do ar até o mês virar/);
+  await h.push({ monthGB: 1, relay: 'on', cut: false });
+  assert.ok(h.sent.some((m) => m.subject === '[Resenhex] Resolvido: site fora do ar pelo teto de rede'));
+});

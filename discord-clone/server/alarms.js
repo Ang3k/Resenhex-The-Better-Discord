@@ -1,5 +1,5 @@
 // Alarmes por e-mail (Fase 7 do docs/plano-5000-online.md). A cada amostra do medidor de saúde (server/health.js),
-// confere cinco medidas. Quando uma fica acima do limite por um tempo, o dono do site recebe um e-mail; quando ela
+// confere as medidas abaixo. Quando uma fica acima do limite por um tempo, o dono do site recebe um e-mail; quando ela
 // volta ao normal, outro. Cada alarme manda no máximo um e-mail a cada 6 h: um problema que vai e volta não lota a
 // caixa de entrada.
 const COOLDOWN_MS = 6 * 3600_000;
@@ -15,6 +15,11 @@ const RULES = [
     detail: (p) => `O disco está ${p.diskPct}% cheio (${p.diskFreeGB} GB livres). A Oracle deixa aumentar até 200 GB de graça (docs/ESTADO-ATUAL.md).` },
   { key: 'network', name: 'rede do mês acima do ritmo', window: 6, bad: (p) => p.relay === 'paused' || p.relay === 'stopped',
     detail: (p) => `O servidor já mandou ${p.monthGB} GB neste mês, acima do ritmo de hoje (${p.monthPaceGB} GB). ${p.relay === 'stopped' ? 'O retransmissor de chamadas foi parado' : 'O retransmissor de chamadas não recebe gente nova'} até a rede voltar ao ritmo.` },
+  // O corte final (server/health.js) tira o site do ar até o mês virar: o aviso vem antes, com 500 GB de folga, e na hora.
+  { key: 'nearCut', name: 'rede do mês perto do corte final', window: 6, bad: (p, t) => p.monthGB >= t.monthCutGB - 500 && !p.cut,
+    detail: (p, t) => `O servidor já mandou ${p.monthGB} GB neste mês. Com ${t.monthCutGB} GB, o site inteiro sai do ar até o mês virar, para não passar dos 10 TB grátis da Oracle. Se for abuso (alguém baixando sem parar), dá para achar no journal do Caddy.` },
+  { key: 'cut', name: 'site fora do ar pelo teto de rede', window: 1, bad: (p) => p.cut,
+    detail: (p, t) => `O servidor mandou ${p.monthGB} GB neste mês e chegou ao corte final (${t.monthCutGB} GB): o Caddy e o coturn foram parados, e o site fica fora do ar até o mês virar (dia 1, 0 h UTC). Para religar antes, é preciso aceitar pagar a rede além dos 10 TB (docs/ESTADO-ATUAL.md).` },
   { key: 'ports', name: 'portas do retransmissor', window: 6, bad: (p, t) => p.turnPorts > t.turnPorts,
     detail: (p, t) => `O retransmissor usa ${p.turnPorts} portas (o alarme é acima de ${t.turnPorts}). Quando elas acabam, quem está em rede restrita não entra em chamadas.` },
 ];

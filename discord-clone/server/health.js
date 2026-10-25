@@ -13,16 +13,19 @@ const KEEP = 60;
 const TURN_PORTS = { min: 49152, max: 65535 };
 // Metas de "sem travar" do plano: o painel pinta de alerta o que passar delas. heapPct: quanto do limite do
 // JavaScript (--max-old-space-size no serviço, 6 GB) está em uso; perto de 100% o Node cai sem memória.
-// monthGB: a Oracle dá 10 TB de saída por mês; a meta deixa 3 TB de folga. diskPct: acima disso, hora de aumentar o
-// disco (a Oracle dá até 200 GB de graça).
-const TARGETS = { loopP99: 50, loopMax: 250, cpu: 50, rssMb: 6144, heapPct: 70, turnPorts: Math.round((TURN_PORTS.max - TURN_PORTS.min + 1) * 0.8), monthGB: 7000, diskPct: 80 };
+// monthGB: a Oracle dá 10 TB de saída por mês; a meta deixa 3 TB de folga. monthCutGB: o corte final (MONTH).
+// diskPct: acima disso, hora de aumentar o disco (a Oracle dá até 200 GB de graça).
+const TARGETS = { loopP99: 50, loopMax: 250, cpu: 50, rssMb: 6144, heapPct: 70, turnPorts: Math.round((TURN_PORTS.max - TURN_PORTS.min + 1) * 0.8), monthGB: 7000, monthCutGB: 9500, diskPct: 80 };
 // Rede do mês gasta num ritmo: até cada momento, a fração do mês que já passou de 6,7 TB, mais 300 GB de folga
 // (um dia cheio); no fim do mês, os 7 TB da meta. Acima do ritmo, o retransmissor (o que mais gasta) não recebe
 // gente nova (server/turn.js). Como o ritmo guarda rede para os dias que faltam, o site sozinho, que gasta bem
 // menos, não leva o mês além da meta mesmo que o corte venha cedo. As senhas já entregues valem até 30 h: se
 // ainda assim a rede passar 1 TB do ritmo (abuso com elas), o coturn é parado até voltar ao ritmo
-// (relayFile, deploy/instalar-vps.sh). Pior caso: ~8 TB.
-const MONTH = { budgetGB: 6700, slackGB: 300, haltGB: 1000 };
+// (relayFile, deploy/instalar-vps.sh). Pior caso do retransmissor: ~8 TB.
+// Corte final: o resto do site (anexos, instaladores, prévias) é contado mas não tem ritmo, e alguém baixando um
+// anexo sem parar passaria dos 10 TB em menos de um dia. Com 9,5 TB no mês, seja do que for, o site inteiro sai
+// do ar até o mês virar (o systemd para o Caddy e o coturn): os 10 TB grátis nunca são passados.
+const MONTH = { budgetGB: 6700, slackGB: 300, haltGB: 1000, cutGB: TARGETS.monthCutGB };
 
 // Quanto o ritmo permite ter gastado até este momento do mês (UTC), em GB.
 function monthPace(at, { budgetGB, slackGB } = MONTH) {
@@ -74,7 +77,8 @@ function createHealth({ connections, online, log = console.log, every = SAMPLE_M
   let month = null; // { key: 'AAAA-MM' (UTC), bytes: enviados no mês, counter: última leitura da placa }
   let paceGB = null;
   let relay = null; // 'on', 'paused' (sem gente nova) ou 'stopped' (coturn parado); null sem medição
-  let relayWritten = null; // o que está gravado no relayFile ('parado', 'ligado' ou 'falhou'); null antes de gravar
+  let cut = null; // corte final: o site inteiro fora do ar; null sem medição
+  let relayWritten = null; // o que está gravado no relayFile ('fora', 'parado', 'ligado' ou 'falhou'); null antes de gravar
   let relayWriting = false;
   let disk = null; // { pct, freeGB }
   const history = [];
@@ -122,9 +126,17 @@ function createHealth({ connections, online, log = console.log, every = SAMPLE_M
         : next === 'paused' ? `[saúde] a rede do mês (${gb(usedGB)}) passou do ritmo (${gb(paceGB)}): o retransmissor não recebe gente nova até voltar a ele`
         : `[saúde] a rede do mês voltou ao ritmo (${gb(usedGB)} de ${gb(paceGB)}): o retransmissor recebe gente nova de novo`);
     }
-    // Grava sempre que o arquivo difere do estado, na primeira leitura também (o coturn pode ter sido religado por
-    // uma publicação ou um reinício). Uma gravação que falha tenta de novo na leitura seguinte.
-    const want = next === 'stopped' ? 'parado' : 'ligado';
+    const nextCut = usedGB >= network.cutGB;
+    // Na primeira leitura também, se já estiver no corte (servidor religado no meio dele).
+    if (nextCut !== cut && (cut !== null || nextCut)) {
+      log(nextCut ? `[saúde] a rede do mês (${gb(usedGB)}) chegou ao corte final (${network.cutGB / 1000} TB): o site inteiro fica fora do ar até o mês virar`
+        : `[saúde] a rede do mês (${gb(usedGB)}) está abaixo do corte final: o site volta ao ar`);
+    }
+    cut = nextCut;
+    // Grava sempre que o arquivo difere do estado, na primeira leitura também (o coturn ou o Caddy podem ter sido
+    // religados por uma publicação ou um reinício). Uma gravação que falha tenta de novo na leitura seguinte.
+    // "fora": o systemd para o Caddy e o coturn; "parado": só o coturn.
+    const want = cut ? 'fora' : next === 'stopped' ? 'parado' : 'ligado';
     if (relayFile && relayWritten !== want && !relayWriting) {
       relayWriting = true;
       fs.writeFile(relayFile, want + '\n', (error) => {
@@ -156,7 +168,7 @@ function createHealth({ connections, online, log = console.log, every = SAMPLE_M
       sendMsPerChange: counts.changes ? round(counts.sendMs / counts.changes, 2) : null,
       saves: saves.length, saveMaxMs: saves.length ? round(Math.max(...saves), 1) : null,
       turnPorts,
-      monthGB: month ? round(month.bytes / 1e9, 1) : null, monthPaceGB: paceGB === null ? null : round(paceGB, 1), relay,
+      monthGB: month ? round(month.bytes / 1e9, 1) : null, monthPaceGB: paceGB === null ? null : round(paceGB, 1), relay, cut,
       diskPct: disk?.pct ?? null, diskFreeGB: disk?.freeGB ?? null,
     });
     if (history.length > KEEP) history.shift();

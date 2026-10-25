@@ -84,7 +84,7 @@ Corrigido, com teste para cada um:
 - Foto, banner, fundo ou emoji recusado depois de gravado (recorte inválido, nome repetido, permissão retirada no meio) não deixa arquivo sobrando. Emoji confere de novo a permissão e o nome depois de processar a imagem.
 - A troca para TCP conta os 8 s a partir de quando a conexão começa a tentar ("connecting"), não de quando ela nasce.
 
-Em aberto, para o dono decidir: o teto de rede só para o coturn. Downloads, anexos e o resto do site continuam mandando dados acima dos 10 TB (ver "Teto de rede do mês").
+Pedido do dono depois da revisão: **corte final de 9,5 TB**. Antes, o teto só parava o coturn, e downloads e anexos podiam passar dos 10 TB (ver "Teto de rede do mês").
 
 ## Fase 2: feita
 
@@ -140,7 +140,12 @@ Detalhes, testes e a previsão de rede na Fase 5 do [plano](plano-5000-online.md
   - Acima do ritmo, o retransmissor não recebe gente nova.
   - Se passar 1 TB do ritmo (abuso), o site escreve `parado` em `/var/lib/resenhex/retransmissor.estado`, e o systemd para o coturn até a rede voltar ao ritmo. Pior caso: ~8 TB, abaixo dos 10 TB grátis.
   - Cartão "Rede no mês" na aba "Saúde do servidor".
-  - O corte só para o coturn. O resto do site (anexos, instaladores, prévias, avisos) é contado, mas não é cortado. Pelas estimativas, o site sozinho fica bem abaixo do ritmo, mas alguém baixando um anexo sem parar (até ~2 Gbps) passaria dos 10 TB em menos de um dia.
+  - **Corte final:** o resto do site (anexos, instaladores, prévias, avisos) não tem ritmo, e alguém baixando um anexo sem parar (até ~2 Gbps) passaria dos 10 TB em menos de um dia. Com 9,5 TB no mês, seja do que for, o site escreve `fora` no mesmo arquivo, e o systemd para o Caddy e o coturn: **o site inteiro sai do ar até o mês virar** (dia 1, 0 h UTC), quando volta sozinho.
+    - Alarmes por e-mail: "rede do mês perto do corte final" com 9 TB, e "site fora do ar pelo teto de rede" na hora do corte (outro quando volta).
+    - A publicação religa o Caddy, e o site, ao subir, grava o estado de novo: no meio do corte, ele para outra vez (e a verificação da publicação pode acusar erro).
+    - Para religar antes do mês virar, é preciso aceitar pagar a rede além dos 10 TB: `sudo systemctl disable --now resenhex-retransmissor.path && sudo systemctl start caddy coturn` (a próxima publicação liga a trava de novo).
+    - O contador vê só esta máquina. A micro antiga (168.138.227.230) ainda roda coturn e Caddy, e a saída dela conta nos mesmos 10 TB da conta; hoje ninguém usa.
+    - A volta para a 1.9.0 desliga a trava (a 1.9.0 não a conhece).
 - **Transmissão retransmitida:** até 720p e 1,5 Mbps para quem a recebe pelo retransmissor.
 - **Ponto em aberto:** com as premissas do plano (150 transmissões), o retransmissor pediria mais rede do que sobra. O teto segura o custo em zero, mas quem depende dele pode ficar sem chamadas com gente nova nos horários cheios. Falta medir quantas ligações passam por ele (`tools/uso-retransmissor.js`, depois de publicar). Se for muito, a transmissão retransmitida pode cair para 480p.
 

@@ -46,7 +46,7 @@ window.SiteHealth = function ({ request, el }) {
     { key: 'monthGB', label: 'Rede no mês', value: (p) => p.monthGB == null ? '—' : volume(p.monthGB), unit: 'GB',
       note: (p) => p.monthGB == null ? 'só medido no servidor Linux' : RELAY_NOTES[p.relay] ?? `ritmo de hoje: até ${volume(p.monthPaceGB)}`,
       target: targets.monthGB, level: (p) => p.monthGB == null || !p.monthPaceGB ? null : p.monthGB / p.monthPaceGB,
-      goal: `meta: no ritmo de ${volume(targets.monthGB)} no mês; acima dele, o retransmissor não recebe gente nova` },
+      goal: `meta: no ritmo de ${volume(targets.monthGB)} no mês; acima dele, o retransmissor não recebe gente nova. Com ${volume(targets.monthCutGB)}, o site sai do ar até o mês virar` },
     // Uploads, clipes, banco e backups. Acima da meta, aumentar o disco (a Oracle dá até 200 GB de graça).
     { key: 'diskPct', label: 'Disco', value: (p) => p.diskPct == null ? '—' : `${fmt(p.diskPct)}%`, unit: '%',
       note: (p) => p.diskPct == null ? 'sem medição' : `${volume(p.diskFreeGB)} livres`, target: targets.diskPct,

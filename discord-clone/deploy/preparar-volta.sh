@@ -52,9 +52,10 @@ restore_install() {
   while read -r mode file; do chmod "$mode" "$file"; done < "$dir/permissoes"
   systemctl daemon-reload
   if [ "$(cat "$dir/trava")" = enabled ]; then systemctl enable --now resenhex-retransmissor.path; fi
+  # O site por último: ao subir, ele grava o estado do teto de rede e para o que o mês pedir.
   systemctl restart coturn
-  systemctl restart resenhex
   systemctl restart caddy
+  systemctl restart resenhex
   echo "Servidor restaurado como estava antes da volta ($dir)."
 }
 

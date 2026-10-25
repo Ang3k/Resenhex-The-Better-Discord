@@ -304,22 +304,23 @@ ${LOCAL_IP:+allowed-peer-ip=$LOCAL_IP}
 EOF
 sed -i 's/^#\?TURNSERVER_ENABLED=.*/TURNSERVER_ENABLED=1/' /etc/default/coturn 2>/dev/null || echo 'TURNSERVER_ENABLED=1' > /etc/default/coturn
 
-# Teto de rede do mês. O site (server/health.js) escreve "parado" em $DATA_DIR/retransmissor.estado quando a
-# rede do mês passa 1 TB do ritmo (abuso com senhas do retransmissor já entregues) e "ligado" quando ela volta
-# ao ritmo. Estas unidades param ou religam o coturn quando o arquivo muda: o site não precisa ser administrador.
+# Teto de rede do mês. O site (server/health.js) escreve em $DATA_DIR/retransmissor.estado: "parado" quando a
+# rede do mês passa 1 TB do ritmo (abuso com senhas do retransmissor já entregues), "fora" no corte final (9,5 TB no
+# mês, até o mês virar) e "ligado" no resto. Estas unidades param ou religam o coturn e o Caddy quando o arquivo
+# muda: o site não precisa ser administrador.
 cat > /usr/local/sbin/resenhex-retransmissor <<EOF
 #!/bin/sh
-# Liga ou para o coturn conforme o teto de rede do mês (server/health.js).
-if [ "\$(cat $DATA_DIR/retransmissor.estado 2>/dev/null)" = parado ]; then
-  systemctl stop coturn
-else
-  systemctl start coturn
-fi
+# Liga ou para o coturn e o Caddy conforme o teto de rede do mês (server/health.js).
+case "\$(cat $DATA_DIR/retransmissor.estado 2>/dev/null)" in
+  fora) systemctl stop caddy coturn ;;
+  parado) systemctl stop coturn; systemctl start caddy ;;
+  *) systemctl start coturn caddy ;;
+esac
 EOF
 chmod 755 /usr/local/sbin/resenhex-retransmissor
 cat > /etc/systemd/system/resenhex-retransmissor.service <<EOF
 [Unit]
-Description=Resenhex: liga ou para o coturn pelo teto de rede do mês
+Description=Resenhex: liga ou para o coturn e o Caddy pelo teto de rede do mês
 
 [Service]
 Type=oneshot
@@ -396,11 +397,12 @@ say "Iniciando os serviços"
 systemctl daemon-reload
 systemctl enable --now coturn >/dev/null 2>&1 || true
 systemctl restart coturn
-# Antes do site: ao subir, ele grava o estado do retransmissor, e o coturn recém-religado para se o mês pedir.
+systemctl restart caddy
+# Antes do site: ao subir, ele grava o estado do teto de rede, e o coturn e o Caddy recém-religados param se o mês
+# pedir.
 systemctl enable --now resenhex-retransmissor.path >/dev/null
 systemctl enable resenhex >/dev/null
 systemctl restart resenhex
-systemctl restart caddy
 
 for _ in $(seq 1 20); do
   curl -fsS -o /dev/null http://127.0.0.1:3000/config && break
