@@ -113,11 +113,15 @@ test('changes made while starting up are written once the startup check runs', (
   // Migrações do início mexem nos dados sem marcar.
   root.servers.s2.mudae = { claims: {}, usage: {} };
   root.siteOwnerId = 'a';
+  // A conferência do início só olha o root e os servidores; o resto fica para a conferência lenta.
   delete root.accounts.b;
-  assert.equal(store.checkAll(), 3);
-  const saved = readRoot(file);
+  assert.equal(store.checkAll(), 2);
+  let saved = readRoot(file);
   assert.deepEqual(saved.servers.s2.mudae, { claims: {}, usage: {} });
   assert.equal(saved.siteOwnerId, 'a');
+  assert.deepEqual(Object.keys(saved.accounts), ['b', 'a']);
+  assert.deepEqual(store.sweep(1000), ['accounts/b']);
+  saved = readRoot(file);
   assert.deepEqual(Object.keys(saved.accounts), ['a']);
   store.close();
 });
@@ -146,4 +150,89 @@ test('a backup is a consistent copy that opens as a database', (t) => {
   store.backup(copy);
   store.close();
   assert.deepEqual(Object.keys(readRoot(copy).accounts), ['b', 'a']);
+});
+
+test('checkpoints run in a worker thread, and closing leaves no -wal behind', async (t) => {
+  const file = temp(t);
+  const logged = [];
+  const store = openStore(file, { checkpointMs: 20, log: (line) => logged.push(line) });
+  const root = sample();
+  root.accounts.c = { id: 'c', name: 'Caio', bio: 'x'.repeat(200_000) };
+  store.attach(root);
+  store.importAll();
+  const before = fs.statSync(file).size;
+  // A conexão principal não faz checkpoint: o que foi gravado só chega ao arquivo do banco pela worker.
+  for (let i = 0; i < 100 && fs.statSync(file).size === before; i++) await new Promise((r) => setTimeout(r, 20));
+  assert.ok(fs.statSync(file).size > before + 200_000);
+  root.accounts.c.bio = 'curta';
+  store.mark('accounts/c');
+  store.flush();
+  store.close();
+  assert.equal(fs.existsSync(file + '-wal'), false);
+  assert.equal(readRoot(file).accounts.c.bio, 'curta');
+  assert.deepEqual(logged, []);
+});
+
+test('the startup check skips messages; the slow check writes what changed in them', (t) => {
+  const file = temp(t);
+  const first = openStore(file);
+  first.attach(sample());
+  first.importAll();
+  first.close();
+  const logged = [];
+  const store = openStore(file, { log: (line) => logged.push(line) });
+  const root = store.load();
+  store.attach(root);
+  root.messages.geral[0].text = 'mudou no início';
+  assert.equal(store.checkAll(), 0);
+  assert.equal(readRoot(file).messages.geral[0].text, 'oi');
+  // Enquanto as mensagens antigas não chegaram todas, a conferência lenta não olha mensagens.
+  assert.deepEqual(store.sweep(1000), []);
+  assert.equal(store.loadMessages(), true);
+  assert.deepEqual(store.sweep(1000), ['messages/geral']);
+  assert.equal(readRoot(file).messages.geral[0].text, 'mudou no início');
+  assert.match(logged[0], /faltou marcar: messages\/geral/);
+  store.close();
+});
+
+test('old messages arrive bit by bit; a channel asked for earlier is read on the spot and never overwritten', (t) => {
+  const file = temp(t);
+  const first = openStore(file);
+  const data = sample();
+  for (let i = 0; i < 250; i++) data.messages['canal' + String(i).padStart(3, '0')] = [{ id: 'x' + i, text: 'antiga ' + i, ts: i }];
+  first.attach(data);
+  first.importAll();
+  first.close();
+
+  const store = openStore(file);
+  const root = store.load();
+  store.attach(root);
+  assert.equal(store.checkAll(), 0);
+  // Pedido antes de carregar: vem do banco na hora, e o que mudar nele não é desfeito pela carga.
+  assert.deepEqual(root.messages.geral.map((m) => m.id), ['m2', 'm1']);
+  root.messages.geral.push({ id: 'm3', text: 'nova', ts: 4 });
+  store.mark('messages/geral/m3');
+  // Apagado antes de carregar: não volta.
+  delete root.messages.canal200;
+  store.mark('messages/canal200');
+  // Criado antes de carregar.
+  root.messages.novo = [{ id: 'n1', text: 'primeira', ts: 5 }];
+  store.mark('messages/novo/n1');
+  assert.equal('canal100' in root.messages, true);
+  assert.equal(root.messages.inexistente, undefined);
+  store.flush();
+
+  let rounds = 0;
+  while (!store.loadMessages(0)) rounds++;
+  assert.ok(rounds >= 2, 'em mais de uma vez');
+  assert.deepEqual(root.messages.geral.map((m) => m.id), ['m2', 'm1', 'm3']);
+  assert.equal(root.messages.canal200, undefined);
+  assert.equal(root.messages.canal249[0].text, 'antiga 249');
+  assert.equal(Object.keys(root.messages).length, 251); // geral, os 250 canais menos o apagado e o novo ('vazio' não tem linhas)
+  assert.deepEqual(store.sweep(1000), []);
+  const saved = readRoot(file);
+  assert.deepEqual(saved.messages.geral.map((m) => m.id), ['m2', 'm1', 'm3']);
+  assert.equal(saved.messages.canal200, undefined);
+  assert.deepEqual(saved.messages.novo.map((m) => m.id), ['n1']);
+  store.close();
 });

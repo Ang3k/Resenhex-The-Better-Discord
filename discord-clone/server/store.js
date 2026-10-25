@@ -5,6 +5,8 @@
 // para regravar o banco inteiro. Uma conferência lenta (sweep) passa por todos os pedaços aos poucos e grava o que
 // tiver mudado sem marca, avisando no log, para um esquecimento nunca virar dado perdido.
 const fs = require('node:fs');
+const path = require('node:path');
+const { Worker } = require('node:worker_threads');
 // O node:sqlite avisa que é experimental a cada início; o aviso só polui o log.
 const emitWarning = process.emitWarning;
 process.emitWarning = (warning, ...rest) => (String(warning).includes('SQLite') ? undefined : emitWarning.call(process, warning, ...rest));
@@ -32,16 +34,19 @@ function parseKey(key) {
 function openDatabase(file) {
   const db = new DatabaseSync(file);
   // WAL: ler não espera a gravação. NORMAL: sem esperar o disco a cada transação (pode perder a última se a
-  // máquina inteira cair, nunca corrompe).
-  db.exec(`PRAGMA journal_mode = WAL; PRAGMA synchronous = NORMAL;
+  // máquina inteira cair, nunca corrompe). O -wal volta a ter no máximo 32 MB depois de cada checkpoint completo.
+  db.exec(`PRAGMA journal_mode = WAL; PRAGMA synchronous = NORMAL; PRAGMA journal_size_limit = 33554432;
     CREATE TABLE IF NOT EXISTS chunks (key TEXT PRIMARY KEY, value TEXT NOT NULL);
-    CREATE TABLE IF NOT EXISTS messages (channel TEXT NOT NULL, id TEXT NOT NULL, value TEXT NOT NULL, PRIMARY KEY (channel, id));`);
+    CREATE TABLE IF NOT EXISTS messages (channel TEXT NOT NULL, id TEXT NOT NULL, value TEXT NOT NULL, PRIMARY KEY (channel, id));
+    -- Por canal e, dentro do canal, na ordem em que as mensagens entraram (o índice guarda o rowid junto).
+    CREATE INDEX IF NOT EXISTS messages_by_channel ON messages (channel);`);
   return db;
 }
 
-// Lê o banco inteiro para um objeto, na ordem em que cada pedaço entrou (a ordem das contas e dos servidores
-// importa: é a ordem da lista de servidores). Também devolve o texto de cada pedaço, para conferir depois.
-function readAll(db) {
+// Lê os pedaços que não são mensagens, na ordem em que cada um entrou (a ordem das contas e dos servidores importa:
+// é a ordem da lista de servidores). Guarda o texto do root e dos servidores, os únicos pedaços que as migrações do
+// início mexem, para a conferência do início.
+function readChunks(db) {
   const root = {};
   const texts = new Map();
   const rest = db.prepare("SELECT value FROM chunks WHERE key = 'root'").get();
@@ -50,22 +55,26 @@ function readAll(db) {
   for (const { key, value } of db.prepare("SELECT key, value FROM chunks WHERE key <> 'root' ORDER BY rowid").iterate()) {
     const { collection, id } = parseKey(key);
     root[collection][id] = JSON.parse(value);
-    texts.set(key, value);
-  }
-  for (const { channel, id, value } of db.prepare('SELECT channel, id, value FROM messages ORDER BY rowid').iterate()) {
-    (root.messages[channel] ||= []).push(JSON.parse(value));
-    let stored = texts.get('messages/' + channel);
-    if (!stored) texts.set('messages/' + channel, (stored = new Map()));
-    stored.set(id, value);
+    if (collection === 'servers') texts.set(key, value);
   }
   return { root, texts };
 }
+
+// As mensagens de um canal numa lista só, na ordem em que entraram: com 1,35 milhão de mensagens, o SQLite junta
+// tudo em 40% do tempo de ler uma linha por mensagem.
+const CHANNEL_LIST = "'[' || group_concat(value, ',' ORDER BY rowid) || ']'";
+const CHANNEL_PAGE = 100;
 
 // Para testes e ferramentas: o que está gravado, como um objeto (o servidor pode estar ligado).
 function readRoot(file) {
   if (!fs.existsSync(file)) throw new Error('Banco não encontrado: ' + file);
   const db = new DatabaseSync(file);
-  try { return readAll(db).root; } finally { db.close(); }
+  try {
+    const { root } = readChunks(db);
+    const channels = db.prepare(`SELECT channel, ${CHANNEL_LIST} AS list FROM messages INDEXED BY messages_by_channel GROUP BY channel`);
+    for (const { channel, list } of channels.iterate()) root.messages[channel] = JSON.parse(list);
+    return root;
+  } finally { db.close(); }
 }
 
 // Para ferramentas: grava um objeto inteiro como banco novo (apaga o que houver no arquivo).
@@ -77,8 +86,39 @@ function writeRoot(file, root) {
   store.close();
 }
 
-function openStore(file, { log = console.error, verify = '' } = {}) {
+// Checkpoint numa worker_thread (server/store-checkpoint.js). O automático roda dentro da gravação a cada ~4 MB de
+// -wal e para a linha principal até ~150 ms, esperando o disco. Se a worker morrer, o automático volta.
+function startCheckpoints(db, file, intervalMs, log) {
+  const shared = new SharedArrayBuffer(8);
+  const state = new Int32Array(shared);
+  db.exec('PRAGMA wal_autocheckpoint = 0');
+  const worker = new Worker(path.join(__dirname, 'store-checkpoint.js'), { workerData: { file, intervalMs, shared } });
+  worker.unref();
+  let stopped = false;
+  const fallback = (why) => {
+    if (stopped) return;
+    stopped = true;
+    try { db.exec('PRAGMA wal_autocheckpoint = 1000'); } catch { /* banco já fechado */ }
+    log(`[banco] checkpoint em segundo plano parou (${why}); voltou o automático`);
+  };
+  worker.on('error', (error) => fallback(error.message));
+  worker.on('exit', (code) => fallback('saiu com código ' + code));
+  return {
+    // Para e espera a worker fechar a conexão dela (até 2 s): assim o fechamento da principal limpa o -wal.
+    stop() {
+      if (stopped) return;
+      stopped = true;
+      Atomics.store(state, 0, 1);
+      Atomics.notify(state, 0);
+      Atomics.wait(state, 1, 0, 2000);
+    },
+  };
+}
+
+// checkpointMs: com um número, o checkpoint roda numa worker_thread a cada checkpointMs (o servidor usa 1000).
+function openStore(file, { log = console.error, verify = '', checkpointMs = 0 } = {}) {
   const db = openDatabase(file);
+  const checkpoints = checkpointMs ? startCheckpoints(db, file, checkpointMs, log) : null;
   const saved = !!db.prepare("SELECT 1 FROM chunks WHERE key = 'root'").get();
   const sql = {
     put: db.prepare('INSERT INTO chunks (key, value) VALUES (?, ?) ON CONFLICT (key) DO UPDATE SET value = excluded.value'),
@@ -89,9 +129,12 @@ function openStore(file, { log = console.error, verify = '' } = {}) {
     channel: db.prepare('SELECT id, value FROM messages WHERE channel = ?'),
     keysAfter: db.prepare('SELECT key FROM chunks WHERE key > ? ORDER BY key LIMIT 500'),
     channelsAfter: db.prepare('SELECT DISTINCT channel FROM messages WHERE channel > ? ORDER BY channel LIMIT 200'),
+    channelList: db.prepare(`SELECT ${CHANNEL_LIST} AS list FROM messages INDEXED BY messages_by_channel WHERE channel = ?`),
+    channelPage: db.prepare(`SELECT channel, ${CHANNEL_LIST} AS list FROM messages INDEXED BY messages_by_channel
+      WHERE channel > ? GROUP BY channel ORDER BY channel LIMIT ${CHANNEL_PAGE}`),
   };
   let root = null;
-  let texts = null; // texto de cada pedaço lido ao ligar, até a conferência do início
+  let texts = null; // texto do root e dos servidores lidos ao ligar, até a conferência do início
   const dirty = new Set(); // pedaços marcados
   const dirtyMessages = new Map(); // canal -> ids das mensagens marcadas (o canal inteiro fica em dirty)
 
@@ -138,8 +181,8 @@ function openStore(file, { log = console.error, verify = '' } = {}) {
   // Confere um pedaço com o banco (ou com o texto lido ao ligar) e grava se estiver diferente.
   function fix(key) {
     const part = parseKey(key);
-    if (part.kind === 'channel') return writeChannel(part.channel, texts ? texts.get(key) || new Map() : undefined);
-    const stored = texts ? texts.get(key) : sql.get.get(key)?.value;
+    if (part.kind === 'channel') return writeChannel(part.channel);
+    const stored = texts?.has(key) ? texts.get(key) : sql.get.get(key)?.value;
     return writeChunk(key, part, stored);
   }
   // Conferência sem gravar (modo de teste): devolve se o pedaço está diferente do banco.
@@ -153,11 +196,35 @@ function openStore(file, { log = console.error, verify = '' } = {}) {
     return textOf(part) !== sql.get.get(key)?.value;
   }
 
-  // Todos os pedaços: os da memória e depois os que só existem no banco (apagados da memória).
-  function* everyKey() {
+  // Mensagens antigas: chegam aos poucos depois do início (loadMessages). Até lá, root.messages é um Proxy, e o
+  // canal que alguém pedir antes é lido na hora, só ele.
+  let lazy = null; // { list: as mensagens de verdade, settled: canais já resolvidos na memória, after: onde parou }
+  function lazyMessages() {
+    const list = {};
+    const settled = new Set(); // lidos, criados ou apagados desde o início: o banco não vale mais para eles
+    const resolve = (channel) => {
+      if (!lazy || typeof channel !== 'string' || settled.has(channel)) return;
+      settled.add(channel);
+      const text = sql.channelList.get(channel)?.list;
+      if (text) list[channel] = JSON.parse(text);
+    };
+    lazy = { list, settled, after: '' };
+    return new Proxy(list, {
+      get: (target, key) => { resolve(key); return target[key]; },
+      has: (target, key) => { resolve(key); return key in target; },
+      getOwnPropertyDescriptor: (target, key) => { resolve(key); return Reflect.getOwnPropertyDescriptor(target, key); },
+      set: (target, key, value) => { settled.add(key); target[key] = value; return true; },
+      deleteProperty: (target, key) => { settled.add(key); delete target[key]; return true; },
+    });
+  }
+
+  // Todos os pedaços: os da memória e depois os que só existem no banco (apagados da memória). As mensagens só
+  // depois de carregadas: antes disso, um canal que ainda está só no banco pareceria apagado.
+  function* everyKey(withMessages = true) {
+    withMessages &&= !lazy;
     yield 'root';
     for (const collection of COLLECTIONS) for (const id in root[collection] || {}) yield collection + '/' + id;
-    for (const channel in root.messages || {}) yield 'messages/' + channel;
+    if (withMessages) for (const channel in root.messages || {}) yield 'messages/' + channel;
     for (let after = ''; ;) {
       const rows = sql.keysAfter.all(after);
       if (!rows.length) break;
@@ -166,7 +233,7 @@ function openStore(file, { log = console.error, verify = '' } = {}) {
         if (key !== 'root' && textOf(parseKey(key)) === undefined) yield key;
       }
     }
-    for (let after = ''; ;) {
+    for (let after = ''; withMessages;) {
       const rows = sql.channelsAfter.all(after);
       if (!rows.length) break;
       for (const { channel } of rows) { after = channel; if (!root.messages?.[channel]) yield 'messages/' + channel; }
@@ -179,10 +246,30 @@ function openStore(file, { log = console.error, verify = '' } = {}) {
 
   return {
     saved, // o arquivo já tinha um banco (senão, os dados vêm do data.json ou começam do zero)
+    // Tudo menos as mensagens antigas, que chegam por loadMessages (ou na hora, canal por canal, se alguém pedir).
     load() {
-      const loaded = readAll(db);
+      const loaded = readChunks(db);
       texts = loaded.texts;
+      loaded.root.messages = lazyMessages();
       return loaded.root;
+    },
+    // Lê mais canais de mensagens antigas, por até `budgetMs`. Devolve true quando não falta nenhum.
+    loadMessages(budgetMs = 8) {
+      if (!lazy) return true;
+      const end = performance.now() + budgetMs;
+      do {
+        const rows = sql.channelPage.all(lazy.after);
+        for (const { channel, list } of rows) {
+          lazy.after = channel;
+          if (!lazy.settled.has(channel)) { lazy.settled.add(channel); lazy.list[channel] = JSON.parse(list); }
+        }
+        if (rows.length < CHANNEL_PAGE) {
+          root.messages = lazy.list;
+          lazy = null;
+          return true;
+        }
+      } while (performance.now() < end);
+      return false;
     },
     attach(value) { root = value; },
     mark(key) {
@@ -223,9 +310,13 @@ function openStore(file, { log = console.error, verify = '' } = {}) {
       });
     },
     // Ao ligar, depois das migrações: grava o que elas mudaram (compara com o texto lido) e esquece o texto.
+    // Só o root e os servidores, os únicos pedaços que as migrações do início mexem: se um dia uma mexer em outro,
+    // a conferência lenta grava (e avisa no log).
     checkAll() {
       let changed = 0;
-      transaction(() => { for (const key of everyKey()) if (fix(key)) changed++; });
+      transaction(() => {
+        for (const key of ['root', ...Object.keys(root.servers || {}).map((id) => 'servers/' + id)]) if (fix(key)) changed++;
+      });
       texts = null;
       return changed;
     },
@@ -259,7 +350,7 @@ function openStore(file, { log = console.error, verify = '' } = {}) {
     },
     // Cópia consistente com o servidor ligado.
     backup(dest) { db.exec(`VACUUM INTO '${String(dest).replaceAll("'", "''")}'`); },
-    close() { db.close(); },
+    close() { checkpoints?.stop(); db.close(); },
   };
 }
 

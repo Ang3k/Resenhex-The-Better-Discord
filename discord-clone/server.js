@@ -157,7 +157,8 @@ function loadDb() {
 }
 
 // STORE_VERIFY=<arquivo> (só nos testes): registra ali o que mudou sem marca, em vez de deixar a conferência gravar.
-const store = openStore(DATA_DB, { verify: process.env.STORE_VERIFY || '' });
+// O checkpoint do -wal roda numa worker_thread a cada 1 s, fora da linha principal.
+const store = openStore(DATA_DB, { verify: process.env.STORE_VERIFY || '', checkpointMs: 1000 });
 // Banco ainda vazio: os dados vêm do data.json (formatos antigos inclusive) ou começam do zero.
 const fromJson = !store.saved;
 const loadedDb = fromJson ? loadDb() : store.load();
@@ -2597,6 +2598,15 @@ if (fromJson) {
   store.importAll();
   if (fs.existsSync(DATA_FILE)) fs.renameSync(DATA_FILE, DATA_FILE + '.antes-do-sqlite');
 } else store.checkAll();
+// Mensagens antigas: chegam aos poucos depois de ligar, 8 ms por vez, para o site abrir logo. O canal que alguém
+// pedir antes disso é lido na hora, só ele.
+const messagesSince = performance.now();
+setImmediate(function loadMessages() {
+  try {
+    if (!store.loadMessages(8)) setImmediate(loadMessages);
+    else if (!fromJson) console.log(`[banco] mensagens antigas carregadas em ${((performance.now() - messagesSince) / 1000).toFixed(1)} s`);
+  } catch (error) { console.error('Falha ao carregar as mensagens antigas:', error); }
+});
 
 server.listen(PORT, HOST, () => {
   console.log(`Resenhex rodando em http://${HOST}:${PORT}`);

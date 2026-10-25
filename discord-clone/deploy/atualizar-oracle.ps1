@@ -73,19 +73,17 @@ try {
     Run 'ssh.exe' ($sshArgs + @($prepare))
 
     Write-Host 'Salvando os dados e atualizando o site...'
-    $backup = "/var/backups/resenhex/data-before-$stamp.tar.gz"
     $setDomain = ''
     if ($Domain) { $setDomain = "RESENHEX_SET_DOMAIN=$Domain " }
     $sfuSetting = if ($EnableSfu) { 'RESENHEX_ENABLE_SFU=1 ' } else { '' }
-    # O banco vai inteiro a cada publicação. Os uploads têm o hash no nome e nunca mudam: a cópia em
-    # /var/backups/resenhex/uploads só recebe os novos (e guarda os que o site apagou). Só o root lê os backups.
-    $saveData = "sudo install -d -m 700 /var/backups/resenhex && sudo sh -c 'umask 077 && tar -czf $backup -C /var/lib/resenhex data.json && rsync -a /var/lib/resenhex/uploads/ /var/backups/resenhex/uploads/'"
+    # O banco vai inteiro a cada publicação (cópia do SQLite com o site ligado); os uploads, só os novos.
+    $saveData = "sudo bash $remoteStage/discord-clone/deploy/backup-banco.sh $stamp"
     $update = "$saveData && sudo ${setDomain}${sfuSetting}bash $remoteStage/discord-clone/deploy/instalar-vps.sh --oracle && systemctl is-active resenhex caddy coturn"
     Run 'ssh.exe' ($sshArgs + @($update))
 
     # Guarda só os 10 backups automáticos mais novos do banco. Os feitos à mão, com outros nomes, ficam.
     # Se falhar, o site já foi atualizado: só avisa.
-    $prune = 'ls -1 /var/backups/resenhex/data-before-*.tar.gz | sort -r | tail -n +11 | xargs -r rm -f --'
+    $prune = 'ls -1 /var/backups/resenhex/data-before-* | sort -r | tail -n +11 | xargs -r rm -f --'
     & ssh.exe @sshArgs "sudo sh -c '$prune'"
     if ($LASTEXITCODE -ne 0) { Write-Warning 'Não deu para apagar os backups antigos; o site foi atualizado mesmo assim.' }
 
@@ -95,7 +93,7 @@ try {
     Run 'curl.exe' @('-fLsS', '--max-time', '20', '--output', 'NUL', "$url/config")
     Run 'ssh.exe' ($sshArgs + @("rm -f $remoteArchive && rm -rf $remoteStage"))
     Write-Host "Site atualizado: $url"
-    Write-Host "Backup anterior no servidor: $backup"
+    Write-Host "Backup anterior no servidor: /var/backups/resenhex/data-before-$stamp.*"
 } finally {
     Remove-Item -LiteralPath $archive -Force -ErrorAction SilentlyContinue
     Remove-Item -LiteralPath $fileList -Force -ErrorAction SilentlyContinue

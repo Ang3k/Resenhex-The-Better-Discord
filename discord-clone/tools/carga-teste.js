@@ -6,7 +6,7 @@
 //   SERVER_JS=<outro server.js> compara com outra versão (ex.: git show HEAD~1:discord-clone/server.js > server-antigo.js
 //   na mesma pasta do server.js, para os require relativos funcionarem; apague depois).
 //   SETTLE=6000 espera as conexões assentarem antes de medir (padrão 1500 ms).
-// Criar servidor tem limite de 5 por minuto: por isso o teste cria um de modelo e copia os outros direto no data.json.
+// Criar servidor tem limite de 5 por minuto: por isso o teste cria um de modelo e copia os outros direto no banco.
 // Mais em docs/plano-5000-online.md (Fase 0 pede uma versão mais completa deste simulador).
 const { spawn, execFileSync } = require('node:child_process');
 const fs = require('node:fs');
@@ -14,6 +14,7 @@ const os = require('node:os');
 const path = require('node:path');
 const crypto = require('node:crypto');
 const { io } = require('socket.io-client');
+const { readRoot, writeRoot } = require('../server/store');
 
 const SERVER = process.env.SERVER_JS || path.join(__dirname, '..', 'server.js');
 const PORT = 3170;
@@ -22,6 +23,7 @@ const STEPS = (process.env.STEPS || '50,100,200,400,800').split(',').map(Number)
 const SERVERS = Number(process.env.SERVERS || 1); // contas espalhadas em quantos servidores
 const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'resenhex-carga-'));
 const DATA = path.join(dir, 'data.json');
+const DB = path.join(dir, 'data.db'); // o servidor atual grava em SQLite; versões antigas (SERVER_JS) no data.json
 const wait = (ms) => new Promise((r) => setTimeout(r, ms));
 let proc;
 
@@ -45,15 +47,16 @@ function client(token) {
 }
 
 (async () => {
-  // 1) Banco novo com o dono; 2) contas extras gravadas direto no data.json, com sessão e membro do servidor.
+  // 1) Banco novo com o dono; 2) contas extras gravadas direto no banco, com sessão e membro do servidor.
   await start();
   const first = io(URL, { transports: ['websocket'], forceNew: true });
   await new Promise((r) => first.on('connect', r));
   const reg = await new Promise((r) => first.emit('auth', { mode: 'register', name: 'Dono', password: 'teste123', confirmPassword: 'teste123', version: 'x' }, r));
-  // Criar servidor tem limite de 5 por minuto: cria um de modelo e copia o resto direto no data.json.
+  // Criar servidor tem limite de 5 por minuto: cria um de modelo e copia o resto direto no banco.
   const template = SERVERS > 1 ? await new Promise((r) => first.emit('server:create', { name: 'Modelo' }, r)) : null;
   await wait(800); first.disconnect(); proc.kill(); await wait(500);
-  const root = JSON.parse(fs.readFileSync(DATA, 'utf8'));
+  const sqlite = fs.existsSync(DB);
+  const root = sqlite ? readRoot(DB) : JSON.parse(fs.readFileSync(DATA, 'utf8'));
   const hex = () => crypto.randomBytes(8).toString('hex');
   for (let i = 2; i < SERVERS; i++) {
     const copy = structuredClone(root.servers[template.id]);
@@ -76,7 +79,7 @@ function client(token) {
     root.servers[serverIds[i % serverIds.length]].members[id] = { active: true, roles: [], joinedAt: Date.now() };
     tokens.push(token);
   }
-  fs.writeFileSync(DATA, JSON.stringify(root));
+  if (sqlite) writeRoot(DB, root); else fs.writeFileSync(DATA, JSON.stringify(root));
   await start();
 
   const clients = [await client(reg.token)];

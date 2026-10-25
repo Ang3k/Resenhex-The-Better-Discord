@@ -9,7 +9,7 @@ A máquina aguenta. O que impede hoje é o jeito como o código trabalha:
 - ele mandava o estado inteiro para todo mundo a cada mudança (já corrigido, falta publicar);
 - para montar o estado de cada pessoa, ele percorria todas as contas, amizades, conversas e servidores do site. Isso crescia com quantas contas existem, não com quantas estão online, e era o teto: **entre 200 e 300 online**, medido com o simulador (Fase 0). Já corrigido na Fase 4a (falta publicar): com 15 mil contas, 1.500 online passaram;
 - ao ligar, ele percorre servidores × contas: na meta, cada publicação deixaria o site fora do ar por ~15 min;
-- ele regrava o banco de dados inteiro a cada mudança. Depois da Fase 4a, é o próximo teto: com o banco da meta, cada gravação para o servidor ~0,3 s (no PC);
+- ele regravava o banco de dados inteiro a cada mudança. Depois da Fase 4a, era o próximo teto: com o banco da meta, cada gravação parava o servidor ~0,3 s (no PC). Já corrigido na Fase 2 (falta publicar): a pior gravação leva 2,8 ms;
 - ele percorre todo mundo online para entregar cada mensagem.
 
 Além da Fase 0, que cria o medidor e o simulador, o plano tem 7 fases (a 4 dividida em duas partes). Com o medidor e o simulador, cada mudança é medida antes e depois, e a meta só conta como batida quando o simulador mostrar 5 mil pessoas sem travar.
@@ -18,7 +18,7 @@ Além da Fase 0, que cria o medidor e o simulador, o plano tem 7 fases (a 4 divi
 |---|---|---|---|
 | 0 | Medidor de saúde no servidor + simulador de 5 mil pessoas (pronto) | M | Saber, em vez de chutar |
 | 1 | Consertos rápidos: avisos por servidor (pronto), portas das chamadas, início rápido, arquivos pelo Caddy, gravação garantida | P | Tira o teto de ~400 do estado inteiro e conserta falhas que já acontecem |
-| 2 | Banco de dados SQLite, gravando só o que mudou | G | Tira as travadas ao salvar (~0,2 s com um banco de 50 MB, ~1,3 s com 300 MB) |
+| 2 | Banco de dados SQLite, gravando só o que mudou (pronto) | G | Tira as travadas ao salvar (~0,2 s com um banco de 50 MB, ~1,3 s com 300 MB) |
 | 3 | Avisos pequenos ("fulano mutou") entregues por sala | G | Processador e rede ~10–50× menores por mudança |
 | 4a | Parar de percorrer o site inteiro: índices e o que roda em toda mudança (pronto) | M | Tira o teto de 200–300 online |
 | 4b | Fotos em outro núcleo, prévias mais leves, memória | M | Custo por mudança não cresce com o total de pessoas |
@@ -268,6 +268,30 @@ O Node 22.23 do servidor já traz SQLite embutido (`node:sqlite`, sem instalar n
 
 **Pronto quando:** com um banco simulado de 300 MB, nenhuma gravação trava o servidor por mais de 5 ms, e derrubar o processo no meio perde no máximo 1 s.
 
+**Feito em 24/10 (falta publicar):**
+- `server/store.js`: o banco é o `data.db`, com os dados ainda em memória. Cada conta, servidor, sessão, amizade, conversa, bloqueio, envio, clipe, token de e-mail e mensagem é uma linha.
+  - Quem muda algo marca o pedaço; uma transação a cada 250 ms grava só os marcados. Derrubar o processo perde no máximo esses 250 ms.
+  - Uma conferência lenta (2 ms por segundo) grava o que escapou sem marca e avisa no log. Nos testes (`STORE_VERIFY`), ela só anota a falta.
+  - Na primeira subida, importa o `data.json` e guarda o arquivo como `data.json.antes-do-sqlite`.
+- **O checkpoint do WAL roda numa `worker_thread`** (`server/store-checkpoint.js`, com conexão própria, a cada 1 s, modo PASSIVE). O automático rodava dentro da gravação a cada ~4 MB e parava o servidor ~150 ms esperando o disco. Se a worker morrer, o automático volta e o log avisa. O `-wal` volta a ter no máximo 32 MB depois de cada checkpoint completo.
+- **Início rápido:**
+  - as mensagens antigas não entram no início: chegam aos poucos depois que o site abre, 8 ms por vez, e um canal pedido antes é lido na hora, só ele;
+  - o SQLite junta as mensagens de cada canal numa lista só (`group_concat`, com um índice por canal que já sai na ordem em que entraram);
+  - a conferência do início olha só o root e os servidores, os únicos pedaços que as migrações mexem. O resto fica com a conferência lenta.
+- Backup da publicação (`deploy/backup-banco.sh`): `VACUUM INTO` com o site ligado, comprimido. O `node:sqlite` funciona no Node do servidor (22.23.3, SQLite 3.51.3), inclusive numa `worker_thread`.
+- A Fase 2b (mensagens fora da memória) não foi necessária: com 1,35 milhão de mensagens, o servidor usou ~950 MB.
+- Medido no PC; o ARM é a estimativa (PC × 1,7):
+
+  | Medida | Antes (data.json) | SQLite, 1ª versão | Agora |
+  |---|---|---|---|
+  | Pior gravação, banco de 50 MB (15 mil contas) | 70–130 ms | — | — |
+  | Pior gravação, banco da meta com mensagens (581 MB) | — | 70 ms | **2,8 ms** |
+  | Gravações acima de 5 ms (`bench-flush`, 30 s de escrita contínua) | — | 5 de 115, até 152 ms | 1 de 120 (8 ms, a primeira depois da importação) |
+  | Início, banco da meta com 1,35 milhão de mensagens | — | 10 s | **2,8 s** (~4,7 s no ARM); as mensagens terminam de chegar ~3 s depois |
+  | Memória do Node, 1.000 online nesse banco | — | 980 MB | 941 MB |
+
+- Simulador com o banco da meta e 1.000 online: passou, com atraso p99 de 10 ms e máximo de 71 ms no ARM, e 5,4% de processador.
+
 ### Fase 3 — Avisos pequenos, entregues por sala (G)
 
 1. **Salas do socket.io por servidor e por chamada.**
@@ -407,7 +431,7 @@ Quem não está olhando um servidor não recebe nada dele (o Discord chama isso 
 2. Fase 0 (medidor + simulador, com o banco do tamanho da meta). **Pronta.**
 3. Fase 1, o resto. **Pronto.**
 4. Fase 4a (parar de percorrer o site inteiro): era o teto, 200–300 online (medido na Fase 0). **Pronta**: com 15 mil contas, 1.500 online passaram.
-5. Fase 2 (banco): é o próximo teto. Com o banco da meta, cada gravação para o servidor ~0,3 s.
+5. Fase 2 (banco): era o próximo teto. Com o banco da meta, cada gravação parava o servidor ~0,3 s. **Pronta**: a pior gravação leva 2,8 ms.
 6. Fase 3 (avisos pequenos).
 7. Fase 4b.
 8. Fase 5, o resto.

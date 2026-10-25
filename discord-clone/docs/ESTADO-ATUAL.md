@@ -10,12 +10,11 @@ Deixar o Resenhex aguentar **5 mil pessoas online ao mesmo tempo**, espalhadas e
 - Prontos e não publicados:
   - a Fase 0 (medidor de saúde e simulador);
   - a Fase 1 inteira (avisos só para quem foi afetado, portas do retransmissor, início rápido, gravação garantida, arquivos pelo Caddy, backups dos uploads);
-  - a Fase 4a (índices em vez de percorrer o site inteiro).
-- **Em andamento: a Fase 2 (banco SQLite).** Quase pronta, salva num commit de trabalho. Veja "Fase 2: onde parou", logo abaixo.
-- Depois dela: Fase 3, Fase 4b, o resto da Fase 5 (com a senha temporária do TURN) e a Fase 7. A Fase 6 só se aparecer um servidor grande.
+  - a Fase 4a (índices em vez de percorrer o site inteiro);
+  - a Fase 2 (banco SQLite gravado em pedaços). Veja "Fase 2: feita", logo abaixo.
+- **Próxima: a Fase 3 (avisos pequenos, entregues por sala).** Depois: Fase 4b, o resto da Fase 5 (com a senha temporária do TURN) e a Fase 7. A Fase 6 só se aparecer um servidor grande.
 - **Teto medido com o simulador:** era de 200 a 300 online (Fase 0). Com a Fase 4a, 1.500 online passaram com 15 mil contas.
-  - O que trava agora é a gravação do banco: com o banco da meta, de 50 mil contas, cada gravação leva ~0,3 s.
-  - Sem a gravação, 1.000 online custam o mesmo com 15 mil e com 50 mil contas.
+  - Com a Fase 2, a gravação deixou de travar: com o banco da meta (50 mil contas, 1,35 milhão de mensagens), a pior gravação caiu de 70 ms para 2,8 ms, com 1.000 online.
 
 ## O que está no ar
 
@@ -23,7 +22,7 @@ Deixar o Resenhex aguentar **5 mil pessoas online ao mesmo tempo**, espalhadas e
 - **Painel "Chamadas agora":** só o dono vê, em Configurações. Mostra quem está online e em qual call.
 - **GitHub:** o `main` de lá está 4 commits atrás do que está no ar (parou na 1.8.8). Ninguém enviou ainda.
 - **Servidor:** Oracle ARM grátis (2 núcleos, 12 GB), IP `146.235.41.73`, usuário `ubuntu`, chave `~/.ssh/resenhex-oracle-ed25519`.
-  - App em `/opt/resenhex`; dados em `/var/lib/resenhex/data.json` e `/var/lib/resenhex/uploads`.
+  - App em `/opt/resenhex`; dados em `/var/lib/resenhex/data.json` (vira `data.db` na publicação da Fase 2) e `/var/lib/resenhex/uploads`.
   - Backups em `/var/backups/resenhex`.
 
 ## O que está pronto e não foi publicado
@@ -40,45 +39,23 @@ Tudo na branch `claude/chamada-atual` (pasta `.claude/worktrees/chamada-atual`),
 | `f023dc0` | Fase 0: medidor de saúde (aba "Saúde do servidor" do dono) e simulador v2 com o banco do tamanho da meta; primeira medição do teto |
 | `ca9127a` | Fase 1, itens 4 a 7: gravação garantida, arquivos e instaladores pelo Caddy, backups dos uploads só com os novos |
 | `801d5ce` | Fase 4a: índices de conexões, relações entre contas, servidores de cada conta, nomes, fotos e emojis (`server/online.js`, `server/social.js`) |
-| este commit | Fase 2 (em andamento): banco SQLite gravado em pedaços (`server/store.js`) |
+| `77d633a` | Fase 2 (em andamento): banco SQLite gravado em pedaços (`server/store.js`) |
+| este commit | Fase 2 pronta: checkpoint do WAL numa worker_thread, mensagens antigas carregadas depois de abrir, backup do banco pela publicação |
 
-## Fase 2: onde parou
+## Fase 2: feita
 
-**Já feito** (testado, tudo neste commit):
+O banco virou `data.db` (node:sqlite, WAL), gravado em pedaços. Detalhes e medições na Fase 2 do [plano](plano-5000-online.md).
 
-- O banco virou `data.db` (node:sqlite, WAL). Cada conta, servidor, sessão, amizade, conversa, bloqueio, envio, clipe e token de e-mail é uma linha; cada mensagem também é uma linha.
+- Cada conta, servidor, sessão, amizade, conversa, bloqueio, envio, clipe e token de e-mail é uma linha; cada mensagem também.
 - Quem muda algo marca o pedaço com `save('accounts/<id>')` e afins. Uma gravação a cada 250 ms grava só o que foi marcado.
   - Uma conferência lenta (2 ms por segundo) grava o que mudou sem marca e avisa no log: `faltou marcar`.
-  - Com `STORE_VERIFY=<arquivo>`, a conferência só anota no arquivo o que ficou sem marca. A suíte inteira rodou assim sem nenhuma falta.
+  - Com `STORE_VERIFY=<arquivo>`, a conferência só anota no arquivo o que ficou sem marca (modo dos testes).
+- O checkpoint do WAL roda numa `worker_thread` (`server/store-checkpoint.js`), a cada 1 s. Se ela morrer, volta o checkpoint automático e o log avisa.
+- No início, o servidor lê tudo menos as mensagens antigas e abre. As mensagens chegam depois, 8 ms por vez; um canal pedido antes disso é lido na hora, só ele. O log avisa quando terminou: `[banco] mensagens antigas carregadas em …`.
 - No primeiro início, o servidor importa o `data.json` e o renomeia para `data.json.antes-do-sqlite`.
-- O simulador lê e grava `data.db`. Com `MESSAGES=12`, ele enche o banco de mensagens antigas.
-- Testes: `test/store.test.js` (6). A suíte inteira passou, fora as falhas de porta do Windows que passam ao repetir.
-
-**Medido** com o simulador (`ACCOUNTS=50000 STEPS=1000 MESSAGES=12`, banco de 524 MB, 1,35 milhão de mensagens): 1.000 online passaram.
-
-- p99 de 13,8 ms e pior caso de 112 ms no ARM.
-- Mas **a pior gravação levou 70 ms** (a meta é 5 ms) e **o início levou 10 s** (a meta é 5 s).
-
-**Causa da gravação lenta, achada agora:** é o checkpoint automático do WAL. Ele roda dentro da gravação a cada ~4 MB.
-
-- Medido com o script de teste `bench-flush.js` (na pasta temporária da sessão; refazer se sumir): mediana de 1,2 ms, mas 5 gravações de 116 passaram de 140 ms.
-
-**Falta fazer:**
-
-1. Checkpoint fora da linha principal:
-   - `PRAGMA wal_autocheckpoint = 0` na conexão principal;
-   - um `worker_thread` com conexão própria roda `PRAGMA wal_checkpoint(PASSIVE)` a cada ~1 s;
-   - `journal_size_limit` para o arquivo `-wal` não crescer;
-   - se o worker morrer, volta o checkpoint automático e avisa no log.
-   - Medir de novo: nenhuma gravação acima de 5 ms.
-2. Início rápido: o `checkAll()` do início pode conferir só `root` e os pedaços que não são mensagens. A conferência lenta cuida do resto, e nenhuma migração do início mexe em mensagens (`communities.js` nem cita `messages`). Isso também deixa de guardar o texto de cada mensagem no `load()`, o que economiza memória.
-   - Medir com o script `bench-start.js` (mesma pasta) e depois com o simulador.
-3. Conferir se o node:sqlite funciona no Node do servidor (22.23): rodar `node -e "require('node:sqlite')"` lá. Só leitura.
-4. Ajustar a publicação para o banco novo:
-   - o backup em `deploy/atualizar-oracle.ps1` (hoje é um tar do `data.json`) passa a ser uma cópia do `data.db` com `VACUUM INTO`, feita pelo node no servidor;
-   - em `deploy/instalar-vps.sh`, as permissões de `data.db`, `-wal` e `-shm`;
-   - `tools/carga-teste.js` ainda usa `data.json`.
-5. Atualizar este resumo, a Fase 2 do plano (marcar "Feito" com as medições) e a memória. Depois, fazer o commit final da fase.
+- A publicação faz o backup com `deploy/backup-banco.sh`: cópia do `data.db` com o site ligado (`VACUUM INTO`, pelo node), comprimida em `/var/backups/resenhex/data-before-<data>.db.gz`. Na primeira publicação ainda não há `data.db`: vai o `data.json`, como antes.
+- O `node:sqlite` foi conferido no Node do servidor (22.23.3, SQLite 3.51.3), inclusive dentro de uma `worker_thread`.
+- Medido com o simulador (`ACCOUNTS=50000 STEPS=1000 MESSAGES=12`, banco de 581 MB, 1,35 milhão de mensagens): a pior gravação caiu de 70 ms para 2,8 ms, e o início caiu de 10 s para 2,8 s no PC (~4,7 s no ARM).
 
 O dono pediu para **publicar só quando ele mandar, e só com o plano inteiro pronto** (24/10): nada de publicar fase por fase.
 
@@ -104,7 +81,10 @@ O que já está no código (este commit):
    - `curl -sI https://resenhex.com.br/style.css` responde com `server: Caddy` e sem `x-powered-by: Express`;
    - a página inicial traz os scripts com `?v=` (`curl -s https://resenhex.com.br/ | grep -c '?v='` passa de 60), e `curl -sI "https://resenhex.com.br/app.js?v=x"` mostra `max-age=31536000`;
    - `curl -sI https://resenhex.com.br/download/Resenhex-Setup.exe` redireciona para o instalador da versão, e esse responde 200 com `server: Caddy`;
-   - `sudo ls -l /var/lib/resenhex` mostra `drwxr-x--x` na pasta e o `data.json` sem leitura para outros (`-rw-r-----`).
+   - `sudo ls -l /var/lib/resenhex` mostra `drwxr-x--x` na pasta e o `data.db` (com `-wal` e `-shm`) sem leitura para outros (`-rw-r-----`).
+6. Conferir o banco novo (Fase 2):
+   - `sudo journalctl -u resenhex --since -10min | grep banco` mostra `mensagens antigas carregadas` e nenhum `faltou marcar` nem `checkpoint em segundo plano parou`;
+   - o `data.json` virou `data.json.antes-do-sqlite`, e o backup da publicação seguinte é um `data-before-….db.gz`.
 5. Na primeira publicação, o backup copia todos os uploads (~111 MB) para `/var/backups/resenhex/uploads`; nas seguintes, só os novos.
 
 ## Como publicar sem susto

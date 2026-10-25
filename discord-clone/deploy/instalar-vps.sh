@@ -144,7 +144,8 @@ say "Copiando o Resenhex para $APP_DIR"
 id resenhex >/dev/null 2>&1 || useradd --system --home "$DATA_DIR" --shell /usr/sbin/nologin resenhex
 # O Caddy entrega os instaladores direto de $DATA_DIR/downloads: a pasta de dados deixa outros usuários
 # atravessarem (751, sem listar), mas o banco e os uploads continuam só do resenhex (o serviço grava com
-# UMask=0027, e o que já existe perde a leitura para outros).
+# UMask=0027, e o que já existe perde a leitura para outros; o SQLite cria o -wal e o -shm com as permissões do
+# data.db).
 install -d -o resenhex -g resenhex -m 751 "$DATA_DIR"
 install -d -o resenhex -g resenhex -m 750 "$DATA_DIR/uploads"
 find "$DATA_DIR" -maxdepth 1 -type f -exec chmod o-rwx {} +
@@ -152,7 +153,7 @@ find "$DATA_DIR" -maxdepth 1 -type f -exec chmod o-rwx {} +
 install -d -o resenhex -g resenhex -m 755 "$DATA_DIR/downloads"
 install -d "$APP_DIR"
 if [ "$APP_SRC" != "$APP_DIR" ]; then
-  rsync -a --delete --exclude node_modules --exclude 'data.json*' --exclude uploads --exclude downloads --exclude desktop --exclude '*.log' "$APP_SRC/" "$APP_DIR/"
+  rsync -a --delete --exclude node_modules --exclude 'data.json*' --exclude 'data.db*' --exclude uploads --exclude downloads --exclude desktop --exclude '*.log' "$APP_SRC/" "$APP_DIR/"
 fi
 cd "$APP_DIR"
 npm ci --omit=dev --no-audit --no-fund --loglevel=error
