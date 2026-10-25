@@ -9,7 +9,7 @@ Resumo para retomar o trabalho em outra sessão do Claude sem depender da conver
 Deixar o Resenhex aguentar **5 mil pessoas online ao mesmo tempo**, espalhadas em vários servidores, **sem gastar nada**: na mesma máquina grátis da Oracle.
 
 - O plano completo, com medições, metas e 7 fases, está em [PLANO-5000-ONLINE-2026-10-24.md](planos/PLANO-5000-ONLINE-2026-10-24.md).
-- Prontos e não publicados:
+- Publicados juntos na **2.0.0, em 25/10** (veja "Publicação da 2.0.0", mais abaixo):
   - a Fase 0 (medidor de saúde e simulador);
   - a Fase 1 inteira (avisos só para quem foi afetado, portas do retransmissor, início rápido, gravação garantida, arquivos pelo Caddy, backups dos uploads);
   - a Fase 4a (índices em vez de percorrer o site inteiro);
@@ -18,7 +18,7 @@ Deixar o Resenhex aguentar **5 mil pessoas online ao mesmo tempo**, espalhadas e
   - a Fase 4b (fotos num worker, prévias mais leves, limite de memória). Veja "Fase 4b: feita";
   - a Fase 5 (senha temporária e limites no retransmissor, teto de rede do mês). Veja "Fase 5: feita";
   - a Fase 7 (proteção e operação). Veja "Fase 7: feita".
-- **O plano está pronto.** Só a Fase 6 ficou de fora, e ela é só para quando aparecer um servidor grande. Próximo passo: publicar tudo junto, quando o dono mandar.
+- **O plano está no ar desde 25/10 (2.0.0).** Só a Fase 6 ficou de fora, e ela é só para quando aparecer um servidor grande.
 - **Teto medido com o simulador:** era de 200 a 300 online (Fase 0). Com a Fase 4a, 1.500 online passaram com 15 mil contas.
   - Com a Fase 2, a gravação deixou de travar: com o banco da meta (50 mil contas, 1,35 milhão de mensagens), a pior gravação caiu de 70 ms para 2,8 ms, com 1.000 online.
   - Com a Fase 3, **5.000 online passaram** no banco da meta (50 mil contas): atraso p99 de 5 ms, processador de 29% e 0,66 ms por mudança no ARM, com ~2,6× menos rede que antes.
@@ -26,16 +26,16 @@ Deixar o Resenhex aguentar **5 mil pessoas online ao mesmo tempo**, espalhadas e
 
 ## O que está no ar
 
-- **Site:** versão **1.9.0** (a branch já é a 2.0.0) em https://resenhex.com.br, publicada em 24/10 a partir do `main` local (`484c2f8`).
+- **Site:** versão **2.0.0** em https://resenhex.com.br, publicada em 25/10 às 01:49 (Brasília) a partir da branch `claude/chamada-atual` (`68639d1`). O `main` local foi avançado para `68639d1`. Antes estava a 1.9.0 (`484c2f8`).
 - **Painel "Chamadas agora":** só o dono vê, em Configurações. Mostra quem está online e em qual call.
-- **GitHub:** o `main` de lá está 4 commits atrás do que está no ar (parou na 1.8.8). Ninguém enviou ainda.
+- **GitHub:** o `main` de lá parou na 1.8.8. Ninguém enviou a 1.9.0 nem a 2.0.0.
 - **Servidor:** Oracle ARM grátis (2 núcleos, 12 GB), IP `146.235.41.73`, usuário `ubuntu`, chave `~/.ssh/resenhex-oracle-ed25519`.
-  - App em `/opt/resenhex`; dados em `/var/lib/resenhex/data.json` (vira `data.db` na publicação da Fase 2) e `/var/lib/resenhex/uploads`.
+  - App em `/opt/resenhex`; dados em `/var/lib/resenhex/data.db` (SQLite; o `data.json` da 1.9.0 ficou como `data.json.antes-do-sqlite`) e `/var/lib/resenhex/uploads`.
   - Backups em `/var/backups/resenhex`.
 
-## O que está pronto e não foi publicado
+## O que entrou na 2.0.0
 
-Tudo na branch `claude/chamada-atual` (pasta `.claude/worktrees/chamada-atual`), em cima do que está no ar:
+Tudo na branch `claude/chamada-atual` (pasta `.claude/worktrees/chamada-atual`), em cima da 1.9.0. Publicado em 25/10:
 
 | Commit | O quê |
 |---|---|
@@ -163,9 +163,34 @@ Detalhes e testes na Fase 7 do [plano](planos/PLANO-5000-ONLINE-2026-10-24.md).
 - **Sessões** sem uso há 90 dias são apagadas.
 - Cloudflare na frente ficou de fora (opcional, acima de ~1.000 online).
 
-O dono pediu para **publicar só quando ele mandar, e só com o plano inteiro pronto** (24/10): nada de publicar fase por fase.
+O dono pediu para **publicar só quando ele mandar, e só com o plano inteiro pronto** (24/10): nada de publicar fase por fase. Ele mandou em 25/10, e tudo foi junto na 2.0.0.
 
-## Urgente (já afeta quem usa hoje): pronto, falta publicar
+## Publicação da 2.0.0 (25/10, 01:49)
+
+Havia 7 pessoas em duas calls (duas transmitindo a tela), e o dono mandou publicar mesmo assim. Em 2 minutos 6 delas estavam de volta nas calls, e uma transmitindo de novo.
+
+Conferido depois de publicar (lista "Para publicar", logo abaixo):
+- Portas da Oracle: a lista de segurança passou de UDP `49160–49200` para `49152–65535`.
+- coturn (itens 3 e 9): `49152`, `65535` e `10.0.0.200` no `turnserver.conf`; as 5 linhas de senha e limites; nenhum `user=`.
+  - Nos 2 primeiros minutos, 82 sessões no retransmissor com `username=<número:conta>`.
+  - Nenhum `10.0.0.200 denied`. Os 45 `denied` foram de IPs `192.168.x` (rede de casa de quem está na call), o que é o bloqueio de IPs privados funcionando.
+  - Os `438 Wrong nonce` com o usuário antigo `resenhex` vêm de páginas abertas antes da publicação, com a senha fixa que deixou de valer. Elas pegam a senha nova ao reconectar.
+- Caddy (item 4): `server: Caddy` sem `x-powered-by`, 69 `?v=` na página inicial, `max-age=31536000, immutable` no `app.js?v=x`, o download redireciona para o instalador 1.4.4 (200, servido pelo Caddy), pasta `drwxr-x--x` e `data.db` com `-wal`/`-shm` em `-rw-r-----`. O websocket abre pelo Caddy.
+- Banco (item 5): o `data.json` virou `data.json.antes-do-sqlite`. Contagens iguais entre o json e o banco: 89 contas, 22 servidores, 932 mensagens. Nenhum erro no journal.
+- Backup (item 6): o primeiro copiou os uploads (104 MB) para `/var/backups/resenhex/uploads`. O dos dados da 1.9.0 é `data-before-20261025-014918.tar.gz`.
+- Fase 4b (item 8): `--max-old-space-size=6144`; nenhum `worker parou` no journal.
+- Fase 5 (item 9): `resenhex-retransmissor.path` ligada, `retransmissor.estado` = `ligado`, `rede-do-mes.json` criado no primeiro minuto. O mês já tinha 53,4 GB de saída quando o site novo subiu (o ritmo do dia 25 permite ~5,5 TB).
+- Fase 7 (item 10): o cartão "Disco" tem número no registro de saúde (16,1%).
+
+Ficou para o dono conferir:
+- **Os alarmes ainda não têm para onde mandar e-mail.** A conta dona do site não tem e-mail confirmado e não existe `ALERT_EMAIL`. Até isso mudar, os alarmes só vão para o journal.
+- Com duas contas (precisa entrar no site):
+  - item 7: mutar e a outra conta ver na hora;
+  - item 8: trocar a foto e o banner, e a prévia da transmissão sem assistir.
+- A aba "Saúde do servidor" no navegador (cartões "Rede no mês" e "Disco"). Os números já aparecem no registro do servidor.
+- Medir o retransmissor alguns dias depois (`tools/uso-retransmissor.js`, item 9).
+
+## Urgente (afetava quem usava): publicado na 2.0.0
 
 **O retransmissor de chamadas (coturn) tem só 41 portas** (`49160–49200`). Na sexta, 23/10, entre 21h e 2h, ficou sem portas 435 vezes: quem estava atrás de rede restrita não conseguia entrar na call.
 
@@ -189,7 +214,7 @@ O que já está no código (este commit):
    - `curl -sI https://resenhex.com.br/download/Resenhex-Setup.exe` redireciona para o instalador da versão, e esse responde 200 com `server: Caddy`;
    - `sudo ls -l /var/lib/resenhex` mostra `drwxr-x--x` na pasta e o `data.db` (com `-wal` e `-shm`) sem leitura para outros (`-rw-r-----`).
 5. Conferir o banco novo (Fase 2):
-   - `sudo journalctl -u resenhex --since -10min | grep banco` mostra `mensagens antigas carregadas` e nenhum `faltou marcar` nem `checkpoint em segundo plano parou`;
+   - `sudo journalctl -u resenhex --since -10min | grep banco` não mostra `faltou marcar` nem `checkpoint em segundo plano parou`. A linha `mensagens antigas carregadas` só aparece da segunda subida em diante: na primeira, a importação do `data.json` não escreve nada no journal;
    - o `data.json` virou `data.json.antes-do-sqlite`, e o backup da publicação seguinte é um `data-before-….db.gz`.
 6. Na primeira publicação, o backup copia todos os uploads (~111 MB) para `/var/backups/resenhex/uploads`; nas seguintes, só os novos.
 7. Conferir os avisos pequenos (Fase 3): com duas contas, uma entra numa sala e muta; a outra vê na hora, sem recarregar. Quem estava com a página aberta antes da publicação continua vendo tudo (recebe o estado inteiro até recarregar).
@@ -219,7 +244,7 @@ O que já está no código (este commit):
 
 ## Como voltar se algo der errado
 
-`deploy/voltar-versao.ps1 -Commit <versão>` volta o site sem perder o que as pessoas fizeram depois da publicação. Para a 1.9.0 (o que está no ar hoje): `-Commit 484c2f8`. Com `-ValidateOnly`, só mostra o que faria e não envia nada.
+`deploy/voltar-versao.ps1 -Commit <versão>` volta o site sem perder o que as pessoas fizeram depois da publicação. Para a 1.9.0 (o que estava no ar antes da 2.0.0): `-Commit 484c2f8`. Com `-ValidateOnly`, só mostra o que faria e não envia nada.
 
 - A 1.9.0 só lê o `data.json`, e a versão nova o renomeia na primeira subida. Por isso o script:
   1. desliga o site e grava o `data.db` como `data.json` (`tools/banco-para-json.js`). Ele recusa um banco vazio e não sobrescreve um `data.json` que exista;
