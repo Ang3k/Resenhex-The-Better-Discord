@@ -1,14 +1,15 @@
 // Prévia da transmissão, como no Discord: quem transmite manda, de tempos em tempos, uma foto pequena
 // da própria tela, e quem está na chamada sem assistir vê essa foto no quadrado da transmissão (com um
 // esmaecido de uma foto para a próxima) em vez de um bloco parado.
-// Quem transmite só tira fotos enquanto alguém da sala não está assistindo; quem entra na sala recebe
-// do servidor a última foto de cada transmissão.
+// Quem transmite só tira fotos enquanto alguém da sala não está assistindo, e o servidor só as repassa a
+// quem não assiste; quem entra na sala (ou para de assistir) recebe do servidor a última foto guardada.
 window.StreamPreview = function ({ state, socket, el, voiceEntry, roomEntries, onPreview }) {
-  const MAX_WIDTH = 768, MAX_HEIGHT = 432;
-  const QUALITY = 0.72, SMALLER = 0.55;
+  // 640 px em WebP: ~8 KB por foto (eram ~25 KB em JPEG de 768 px) e quase a mesma nitidez no quadrado grande.
+  const MAX_WIDTH = 640, MAX_HEIGHT = 360;
+  const QUALITY = 0.7, SMALLER = 0.5;
   const MAX_BYTES = 200_000; // o servidor recusa acima disso
   const FIRST = 1500;  // a primeira foto sai logo depois de começar (os primeiros quadros podem vir pretos)
-  const EVERY = 8000;  // depois, uma a cada 8 s
+  const EVERY = 15000; // depois, uma a cada 15 s
   const GAP = 3000;    // nunca duas em menos de 3 s, mesmo quando chega alguém novo
   const DARK_TRIES = 3; // tela preta: tenta de novo algumas vezes antes de mandar assim mesmo
   const now = () => Date.now();
@@ -78,6 +79,8 @@ window.StreamPreview = function ({ state, socket, el, voiceEntry, roomEntries, o
     if (!reader?.videoWidth) return null;
     return encode(reader, reader.videoWidth, reader.videoHeight);
   }
+  // O Safari não gera WebP (devolve PNG): a partir daí fica no JPEG.
+  let type = 'image/webp';
   async function encode(image, width, height) {
     const scale = Math.min(1, MAX_WIDTH / width, MAX_HEIGHT / height);
     const canvas = document.createElement('canvas');
@@ -87,9 +90,10 @@ window.StreamPreview = function ({ state, socket, el, voiceEntry, roomEntries, o
     ctx.imageSmoothingQuality = 'high';
     ctx.drawImage(image, 0, 0, canvas.width, canvas.height);
     const dark = isDark(ctx, canvas.width, canvas.height);
-    const jpeg = (quality) => new Promise((resolve) => canvas.toBlob(resolve, 'image/jpeg', quality));
-    let blob = await jpeg(QUALITY);
-    if (blob && blob.size > MAX_BYTES * 0.7) blob = await jpeg(SMALLER);
+    const shoot = (quality) => new Promise((resolve) => canvas.toBlob(resolve, type, quality));
+    let blob = await shoot(QUALITY);
+    if (blob && blob.type !== type) { type = 'image/jpeg'; blob = await shoot(QUALITY); }
+    if (blob && blob.size > MAX_BYTES * 0.7) blob = await shoot(SMALLER);
     return blob && blob.size <= MAX_BYTES ? { blob, dark } : null;
   }
   // Brilho médio de algumas centenas de pontos: os primeiros quadros de uma captura costumam vir pretos.
@@ -110,10 +114,17 @@ window.StreamPreview = function ({ state, socket, el, voiceEntry, roomEntries, o
 
   // ---------- Quem está na chamada ----------
   const previews = new Map(); // sid -> { url, at }
-  socket.on('screen:preview', ({ sid, image } = {}) => {
+  // A foto guardada no servidor ("saved": ao entrar na sala ou parar de assistir) conta como a mais antiga:
+  // o último quadro visto ao vivo (keep) vale mais que ela.
+  socket.on('screen:preview', ({ sid, image, saved } = {}) => {
     if (typeof sid !== 'string' || !image) return;
-    receive(sid, new Blob([image], { type: 'image/jpeg' }), now());
+    receive(sid, new Blob([image], { type: imageType(image) }), saved ? 0 : now());
   });
+  // WebP começa com "RIFF....WEBP"; o resto é JPEG (o servidor só repassa esses dois).
+  function imageType(image) {
+    const bytes = ArrayBuffer.isView(image) ? new Uint8Array(image.buffer, image.byteOffset, image.byteLength) : new Uint8Array(image);
+    return String.fromCharCode(...bytes.subarray(8, 12)) === 'WEBP' ? 'image/webp' : 'image/jpeg';
+  }
   async function receive(sid, blob, at) {
     const url = URL.createObjectURL(blob);
     // Decodificada antes de entrar na tela: a troca de uma foto para a outra não pisca.

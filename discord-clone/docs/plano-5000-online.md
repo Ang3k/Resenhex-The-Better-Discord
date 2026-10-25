@@ -424,6 +424,26 @@ Vem logo depois da Fase 1, antes do banco: é o teto que chega primeiro (problem
 
 **Pronto quando:** nenhuma foto trava o servidor por mais de 5 ms, e o custo por mudança é o mesmo com 500 e com 5.000 online simuladas.
 
+**Feito em 24/10 (falta publicar):**
+- **Fotos num worker** (`server/images.js` + `server/image-worker.js`): foto de perfil, banner, fundo, ícone do servidor e emoji são conferidos, recodificados e ganham o nome (sha256) fora da linha principal. Um worker só, que sobe no primeiro pedido; se uma imagem levar mais de 15 s ou o worker morrer, o pedido falha com "Tente de novo" e o próximo sobe outro.
+  - Medido no PC com o pior caso (fundo 480×600 com ruído), 20 seguidos: na linha principal, cada um parava o servidor por ~41 ms (~70 ms no ARM); no worker, a maior travada ficou em 4 ms, igual ao servidor parado (é o relógio do Windows).
+  - Arquivo que já existe não é regravado (o nome é o próprio conteúdo): quem estiver baixando a imagem não vê metade.
+  - Depois da espera, o servidor confere de novo o que pode ter mudado: o cargo de quem troca o ícone e a vaga de emojis. A foto antiga só é apagada com a nova já no lugar.
+- **Prévias de transmissão:**
+  - 640 px em WebP (JPEG no Safari, que não gera WebP), a cada 15 s em vez de 8 s. Medido no navegador com três telas do app: ~8 KB por foto, antes ~25 KB. Com 480 px seriam ~6 KB, mas a prévia fica visivelmente mais borrada quando a transmissão está em destaque.
+  - O servidor só repassa a prévia a quem está na sala e **não** assiste àquela transmissão. Quem para de assistir recebe a última guardada, que só aparece se o último quadro visto ao vivo não servir.
+  - Para quem não assiste: de ~3,1 KB/s para ~0,6 KB/s por transmissão (~5× menos), e quem assiste não recebe nada.
+- **Memória:** o serviço sobe com `--max-old-space-size=6144` (`deploy/instalar-vps.sh`). O medidor guarda quanto do limite do JavaScript está em uso (`heapPct`); o painel do dono avisa a partir de 70% (meta própria, junto com a de 6 GB de memória total), a linha `[saúde]` do log mostra, e o simulador reprova acima de 70%.
+- **socket.io:** cada conexão solta a requisição HTTP do começo assim que entra (`socket.conn.request = null`); o IP do login vem de `socket.handshake`, que já é uma cópia. A compressão por mensagem fica desligada, agora escrito no código.
+- **Medido no PC com o simulador** (banco da meta, 50 mil contas; ARM = PC × 1,7):
+
+  | Online | Atraso p99 no ARM | Atraso máx. no ARM | Processador no ARM | Custo por mudança no ARM | Memória |
+  |---|---|---|---|---|---|
+  | 500 | 4 ms | 31 ms | 4% | 0,70 ms | 401 MB |
+  | 5.000 | 5 ms | 15 ms | 27% | **0,61 ms** | 635 MB |
+
+  - O custo por mudança é o mesmo com 500 e com 5 mil online. O simulador não transmite tela nem troca fotos: essas duas partes foram medidas à parte (acima).
+
 ### Fase 5 — Chamadas e rede (M)
 
 1. **Medir o retransmissor** com o log ligado na Fase 1: quantas conexões passam por ele e quantos GB por dia.
@@ -482,7 +502,7 @@ Quem não está olhando um servidor não recebe nada dele (o Discord chama isso 
 4. Fase 4a (parar de percorrer o site inteiro): era o teto, 200–300 online (medido na Fase 0). **Pronta**: com 15 mil contas, 1.500 online passaram.
 5. Fase 2 (banco): era o próximo teto. Com o banco da meta, cada gravação parava o servidor ~0,3 s. **Pronta**: a pior gravação leva 2,8 ms.
 6. Fase 3 (avisos pequenos). **Pronta**: com o banco da meta, 5.000 online passaram no simulador.
-7. Fase 4b.
+7. Fase 4b. **Pronta**: nenhuma foto trava o servidor, prévias ~5× mais leves, custo por mudança igual com 500 e 5 mil online.
 8. Fase 5, o resto.
 9. Fase 7.
 10. Fase 6 só quando aparecer um servidor grande.

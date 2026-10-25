@@ -264,7 +264,7 @@ const pad = (text, n) => String(text).padStart(n);
     const max = (key) => Math.max(...points.map((p) => p[key] ?? 0));
     const avg = (key) => points.reduce((sum, p) => sum + (p[key] ?? 0), 0) / points.length;
     const p99 = max('loopP99'), worst = max('loopMax'), cpu = avg('cpu');
-    const failed = [slow && 'não entraram todos em 5 min', p99 * ARM >= 50 && 'atraso p99', worst * ARM >= 250 && 'atraso máx', cpu * ARM >= 50 && 'processador', max('rssMb') >= 6144 && 'memória'].filter(Boolean);
+    const failed = [slow && 'não entraram todos em 5 min', p99 * ARM >= 50 && 'atraso p99', worst * ARM >= 250 && 'atraso máx', cpu * ARM >= 50 && 'processador', (max('rssMb') >= 6144 || max('heapPct') >= 70) && 'memória'].filter(Boolean);
     console.log(`${pad(onlineNow(), 6)} | ${pad(f1(p99) + ' → ' + f1(p99 * ARM) + ' ms', 21)} | ${pad(f1(worst) + ' → ' + f1(worst * ARM) + ' ms', 21)} | ${pad(f1(cpu) + '% → ' + f1(cpu * ARM) + '%', 22)} | ${pad(max('rssMb') + ' MB', 7)} | ${pad(f1(avg('changes')), 10)} | ${pad(f2(avg('sendMsPerChange')) + ' → ' + f2(avg('sendMsPerChange') * ARM) + ' ms', 28)} | ${pad(f1(avg('sentKBps')) + ' KB/s', 11)} | ${pad(points.some((p) => p.saves) ? f1(max('saveMaxMs')) + ' ms' : 'nenhuma', 8)} | ${failed.length ? 'NÃO PASSOU: ' + failed.join(', ') : 'passou'}${errorsNow() ? ` (${errorsNow()} respostas com erro até aqui)` : ''}`);
     if (failed.length) { ceiling ??= step; if (!process.env.KEEP_GOING) break; } else lastPassed = step;
   }

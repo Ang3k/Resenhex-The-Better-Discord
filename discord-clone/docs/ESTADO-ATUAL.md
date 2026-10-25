@@ -12,11 +12,13 @@ Deixar o Resenhex aguentar **5 mil pessoas online ao mesmo tempo**, espalhadas e
   - a Fase 1 inteira (avisos só para quem foi afetado, portas do retransmissor, início rápido, gravação garantida, arquivos pelo Caddy, backups dos uploads);
   - a Fase 4a (índices em vez de percorrer o site inteiro);
   - a Fase 2 (banco SQLite gravado em pedaços). Veja "Fase 2: feita", logo abaixo;
-  - a Fase 3 (avisos pequenos, entregues por sala). Veja "Fase 3: feita".
-- **Próxima: a Fase 4b (fotos em outro núcleo, prévias mais leves, memória).** Depois: o resto da Fase 5 (com a senha temporária do TURN) e a Fase 7. A Fase 6 só se aparecer um servidor grande.
+  - a Fase 3 (avisos pequenos, entregues por sala). Veja "Fase 3: feita";
+  - a Fase 4b (fotos num worker, prévias mais leves, limite de memória). Veja "Fase 4b: feita".
+- **Próxima: o resto da Fase 5 (senha temporária do TURN, limites e teto de rede).** Depois: a Fase 7. A Fase 6 só se aparecer um servidor grande.
 - **Teto medido com o simulador:** era de 200 a 300 online (Fase 0). Com a Fase 4a, 1.500 online passaram com 15 mil contas.
   - Com a Fase 2, a gravação deixou de travar: com o banco da meta (50 mil contas, 1,35 milhão de mensagens), a pior gravação caiu de 70 ms para 2,8 ms, com 1.000 online.
   - Com a Fase 3, **5.000 online passaram** no banco da meta (50 mil contas): atraso p99 de 5 ms, processador de 29% e 0,66 ms por mudança no ARM, com ~2,6× menos rede que antes.
+  - Com a Fase 4b, o custo por mudança ficou igual com 500 e com 5 mil online (0,70 e 0,61 ms no ARM).
 
 ## O que está no ar
 
@@ -43,7 +45,8 @@ Tudo na branch `claude/chamada-atual` (pasta `.claude/worktrees/chamada-atual`),
 | `801d5ce` | Fase 4a: índices de conexões, relações entre contas, servidores de cada conta, nomes, fotos e emojis (`server/online.js`, `server/social.js`) |
 | `77d633a` | Fase 2 (em andamento): banco SQLite gravado em pedaços (`server/store.js`) |
 | `ffcebe6` | Fase 2 pronta: checkpoint do WAL numa worker_thread, mensagens antigas carregadas depois de abrir, backup do banco pela publicação |
-| este commit | Fase 3: avisos pequenos por sala (`public/state-patch.js`), entregues de uma vez a quem precisa |
+| `8803bf3` | Fase 3: avisos pequenos por sala (`public/state-patch.js`), entregues de uma vez a quem precisa |
+| este commit | Fase 4b: fotos num worker, prévias de transmissão mais leves, limite de memória, socket.io mais leve por conexão |
 
 ## Fase 2: feita
 
@@ -80,6 +83,15 @@ As mudanças frequentes viraram avisos pequenos (`state:patch`). Detalhes e medi
 - O medidor de saúde mostra quanto custa cada mudança ("ms por mudança" na aba "Saúde do servidor"; coluna própria no simulador).
 - Num servidor com 500 online, cada mudança mandava 177 KB para cada um e levava 0,7 s; agora manda 0,37 KB e chega em 24 ms.
 
+## Fase 4b: feita
+
+Detalhes e medições na Fase 4b do [plano](plano-5000-online.md).
+
+- Fotos de perfil, banners, fundos, ícones e emojis passam por um worker (`server/images.js`, `server/image-worker.js`). O pior caso parava o servidor ~70 ms no ARM; agora não para.
+- Prévias da transmissão: 640 px em WebP (JPEG no Safari), a cada 15 s, e só para quem está na sala sem assistir. Quem para de assistir recebe a última guardada. ~5× menos rede.
+- O serviço sobe com `--max-old-space-size=6144`. O painel do dono mostra quanto do limite do JavaScript está em uso e avisa a partir de 70%.
+- Cada conexão do socket.io solta a requisição HTTP do começo; a compressão por mensagem segue desligada.
+
 O dono pediu para **publicar só quando ele mandar, e só com o plano inteiro pronto** (24/10): nada de publicar fase por fase.
 
 ## Urgente (já afeta quem usa hoje): pronto, falta publicar
@@ -110,6 +122,10 @@ O que já está no código (este commit):
    - o `data.json` virou `data.json.antes-do-sqlite`, e o backup da publicação seguinte é um `data-before-….db.gz`.
 6. Na primeira publicação, o backup copia todos os uploads (~111 MB) para `/var/backups/resenhex/uploads`; nas seguintes, só os novos.
 7. Conferir os avisos pequenos (Fase 3): com duas contas, uma entra numa sala e muta; a outra vê na hora, sem recarregar. Quem estava com a página aberta antes da publicação continua vendo tudo (recebe o estado inteiro até recarregar).
+8. Conferir a Fase 4b:
+   - `systemctl cat resenhex | grep max-old-space` mostra `--max-old-space-size=6144`;
+   - trocar a foto de perfil e o banner funciona, e `sudo journalctl -u resenhex --since -10min | grep imagens` não mostra `worker parou`;
+   - com duas contas numa sala, uma transmite e a outra vê a prévia sem assistir; ao assistir e parar, a prévia volta.
 
 ## Como publicar sem susto
 

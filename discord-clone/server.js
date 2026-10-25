@@ -7,7 +7,8 @@ const crypto = require('crypto');
 const { promisify } = require('util');
 const express = require('express');
 const { Server } = require('socket.io');
-const { decodeAvatar, decodeBanner, decodeProfileBackground, decodeProfilePhoto, validateAvatarCrop } = require('./server/avatar');
+const { validateAvatarCrop } = require('./server/avatar');
+const { createImages } = require('./server/images');
 const { decodeSound, soundName, MAX_SOUND_BYTES, MAX_SERVER_SOUNDS } = require('./server/soundboard');
 const linkPreview = require('./server/link-preview');
 const { channelActions } = require('./server/channels');
@@ -631,12 +632,18 @@ function removeImageIfUnused(file) {
   if (!file || !IMAGE_FILE.test(file) || imageInUse(file)) return;
   try { fs.unlinkSync(path.join(AVATAR_DIR, file)); } catch (error) { if (error.code !== 'ENOENT') console.warn('Não foi possível remover uma imagem antiga.'); }
 }
-function storeImage(dataUrl) {
-  const image = decodeAvatar(dataUrl);
-  const file = crypto.createHash('sha256').update(image).digest('hex') + '.png';
-  fs.writeFileSync(path.join(AVATAR_DIR, file), image);
-  return file;
+// Fotos, banners, fundos, ícones e emojis são conferidos e recodificados num worker (server/images.js): o pngjs
+// leva até ~60 ms por imagem no ARM. check(data) recusa a imagem pronta antes de gravar. Devolve o nome do arquivo.
+const imageWorker = createImages();
+async function saveImage(kind, input, check = () => {}) {
+  const { ext, data, hash } = await imageWorker.decode(kind, input);
+  check(data);
+  const file = hash + '.' + ext;
+  // O nome é o próprio conteúdo: se o arquivo já existe, é igual, e regravar faria quem o está baixando ver metade.
+  await fs.promises.writeFile(path.join(AVATAR_DIR, file), data, { flag: 'wx' }).catch((error) => { if (error.code !== 'EEXIST') throw error; });
+  return { file, ext };
 }
+const storeImage = async (dataUrl) => (await saveImage('avatar', dataUrl)).file;
 
 app.get('/avatars/:file', (req, res) => {
   if (!IMAGE_FILE.test(req.params.file) || !imageInUse(req.params.file)) return res.status(404).end();
@@ -657,15 +664,14 @@ const authFromToken = (req) => {
   return acc || null;
 };
 app.use(feedbackRoutes({ authenticate: authFromToken, allow, version: APP_VERSION, domain: process.env.RESENHEX_DOMAIN }));
-app.post('/profile/avatar', express.raw({ type: () => true, limit: MAX_BANNER_UPLOAD }), (req, res) => {
+app.post('/profile/avatar', express.raw({ type: () => true, limit: MAX_BANNER_UPLOAD }), async (req, res) => {
   const acc = authFromToken(req);
   if (!acc) return res.status(401).json({ error: 'Não autenticado' });
   if (!allow('avatar:' + acc.id, 10, 60 * 1000)) return res.status(429).json({ error: 'Muitas trocas de foto. Aguarde um minuto.' });
   try {
-    const { ext, data } = decodeProfilePhoto(req.body);
-    const crop = ext === 'gif' ? validateAvatarCrop(JSON.parse(req.get('x-avatar-crop') || 'null')) : null;
-    const file = crypto.createHash('sha256').update(data).digest('hex') + '.' + ext;
-    fs.writeFileSync(path.join(AVATAR_DIR, file), data);
+    const header = JSON.parse(req.get('x-avatar-crop') || 'null');
+    const { file, ext } = await saveImage('photo', req.body);
+    const crop = ext === 'gif' ? validateAvatarCrop(header) : null;
     const previous = acc.avatar;
     acc.avatar = file;
     acc.avatarCrop = crop;
@@ -756,7 +762,7 @@ const checkEmojiName = (name, except = null) => {
 app.post('/servers/:serverId/emojis', express.raw({ type: () => true, limit: MAX_EMOJI_BYTES + 1024 }), (req, res) => {
   const acc = authFromToken(req);
   if (!acc) return res.status(401).json({ error: 'Não autenticado' });
-  communities.run(req.params.serverId, () => {
+  communities.run(req.params.serverId, async () => {
     if (!communities.joined(acc.id) || !can(communities.accountView(acc), 'MANAGE_EMOJIS')) return res.status(403).json({ error: 'Você não pode gerenciar os emojis deste servidor.' });
     if (!allow('emoji-upload:' + acc.id, 20, 60000)) return res.status(429).json({ error: 'Muitos envios. Aguarde um minuto.' });
     db.emojis ||= [];
@@ -764,10 +770,9 @@ app.post('/servers/:serverId/emojis', express.raw({ type: () => true, limit: MAX
     try {
       const name = decodeURIComponent(req.get('x-emoji-name') || '').trim();
       checkEmojiName(name);
-      const { ext, data } = decodeProfilePhoto(req.body);
-      if (data.length > MAX_EMOJI_BYTES) throw new Error('O emoji deve ter até 512 KB.');
-      const file = crypto.createHash('sha256').update(data).digest('hex') + '.' + ext;
-      fs.writeFileSync(path.join(AVATAR_DIR, file), data);
+      const { file } = await saveImage('photo', req.body, (data) => { if (data.length > MAX_EMOJI_BYTES) throw new Error('O emoji deve ter até 512 KB.'); });
+      // Enquanto a imagem era conferida, outro emoji pode ter ocupado a última vaga.
+      if (db.emojis.length >= MAX_SERVER_EMOJIS) throw new Error(`O servidor já tem ${MAX_SERVER_EMOJIS} emojis.`);
       const emoji = { id: newId(), name, file, createdBy: acc.id, ts: Date.now() };
       db.emojis.push(emoji); imagesChanged(); save(chunk.server()); broadcastState();
       res.json({ ok: true, id: emoji.id });
@@ -834,17 +839,16 @@ app.get('/music/search', async (req, res) => {
 });
 
 // Banner e fundo do perfil: mesma regra, cada um no seu campo da conta ("banner" → bannerUrl/bannerCrop).
-function profileImageRoutes(field, decode, tooMany) {
-  app.post('/profile/' + field, express.raw({ type: () => true, limit: MAX_BANNER_UPLOAD }), (req, res) => {
+function profileImageRoutes(field, tooMany) {
+  app.post('/profile/' + field, express.raw({ type: () => true, limit: MAX_BANNER_UPLOAD }), async (req, res) => {
     const acc = authFromToken(req);
     if (!acc) return res.status(401).json({ error: 'Não autenticado' });
     if (!allow(field + ':' + acc.id, 10, 60 * 1000)) return res.status(429).json({ error: tooMany });
     try {
-      const { ext, data } = decode(req.body);
+      const header = JSON.parse(req.get(`x-${field}-crop`) || 'null');
+      const { file, ext } = await saveImage(field, req.body);
       // PNG chega já recortado; GIF vai inteiro e guarda só o enquadramento, para manter a animação.
-      const crop = ext === 'gif' ? validateAvatarCrop(JSON.parse(req.get(`x-${field}-crop`) || 'null')) : null;
-      const file = crypto.createHash('sha256').update(data).digest('hex') + '.' + ext;
-      fs.writeFileSync(path.join(AVATAR_DIR, file), data);
+      const crop = ext === 'gif' ? validateAvatarCrop(header) : null;
       const previous = acc[field];
       acc[field] = file;
       acc[field + 'Crop'] = crop;
@@ -868,8 +872,8 @@ function profileImageRoutes(field, decode, tooMany) {
     res.json({ ok: true, [field + 'Url']: null, [field + 'Crop']: null });
   });
 }
-profileImageRoutes('banner', decodeBanner, 'Muitas trocas de banner. Aguarde um minuto.');
-profileImageRoutes('background', decodeProfileBackground, 'Muitas trocas de fundo. Aguarde um minuto.');
+profileImageRoutes('banner', 'Muitas trocas de banner. Aguarde um minuto.');
+profileImageRoutes('background', 'Muitas trocas de fundo. Aguarde um minuto.');
 
 app.post('/upload', express.raw({ type: () => true, limit: MAX_UPLOAD_MB * 1024 * 1024 }), (req, res) => {
   const acc = db.accounts[db.sessions[req.get('x-token')]];
@@ -982,7 +986,8 @@ app.use((err, req, res, _next) => {
 });
 
 const server = http.createServer(app);
-const io = new Server(server, { maxHttpBufferSize: 1e6 });
+// Compressão por mensagem desligada (já é o padrão): custaria processador e memória em cada conexão.
+const io = new Server(server, { maxHttpBufferSize: 1e6, perMessageDeflate: false });
 // Bytes enviados, para o medidor de saúde (o tamanho do texto já codificado de cada pacote).
 io.engine.on('connection', (raw) => raw.on('packetCreate', (packet) => health.count('bytes', packet.data?.length || 0)));
 
@@ -1189,6 +1194,9 @@ function clearScreenWatchers(sharer) {
 
 const SCREEN_CODECS = ['video/H264', 'video/VP9', 'video/VP8', 'video/AV1'];
 const SCREEN_PREVIEW_BYTES = 200_000;
+// Prévia da transmissão: bytes de um WebP ("RIFF....WEBP") ou, do Safari, de um JPEG.
+const isPreviewImage = (image) => Buffer.isBuffer(image) && image.length >= 64 && image.length <= SCREEN_PREVIEW_BYTES
+  && ((image[0] === 0xff && image[1] === 0xd8 && image[2] === 0xff) || (image.toString('latin1', 0, 4) === 'RIFF' && image.toString('latin1', 8, 12) === 'WEBP'));
 function screenQuality(value = { mode: 'auto', maxHeight: 1080, background: false }) {
   if (!value || typeof value !== 'object' || !['auto', 'economy', 'source'].includes(value.mode)
       || !Number.isInteger(value.maxHeight) || value.maxHeight < 180 || value.maxHeight > 1080 || typeof value.background !== 'boolean') throw new Error('Qualidade de transmissão inválida.');
@@ -1492,6 +1500,9 @@ function removeMembership(accountId, reason) {
 
 // ---------------- eventos ----------------
 io.on('connection', (socket) => {
+  // A requisição HTTP do começo ficaria presa a cada conexão. Cabeçalhos e endereço (o IP do login) já estão
+  // copiados em socket.handshake, então ela pode ir embora, como recomenda a documentação do socket.io.
+  socket.conn.request = null;
   const me = () => {
     const s = online.get(socket.id);
     return s && db.accounts[s.accountId];
@@ -1729,15 +1740,14 @@ io.on('connection', (socket) => {
     return { ok: true, ...(await recovery.resend(acc)) };
   });
 
-  on('profile', (acc, { color, avatar }) => {
-    const previousAvatar = acc.avatar;
-    let nextAvatar = previousAvatar;
+  on('profile', async (acc, { color, avatar }) => {
+    let nextAvatar = acc.avatar;
     if (avatar !== undefined) {
       if (!allow('avatar:' + acc.id, 10, 60 * 1000)) fail('Muitas trocas de foto. Aguarde um minuto.');
-      if (avatar === null) nextAvatar = null;
-      else nextAvatar = storeImage(avatar);
+      nextAvatar = avatar === null ? null : await storeImage(avatar);
       acc.avatarCrop = null;
     }
+    const previousAvatar = acc.avatar; // lido depois da foto: outra troca pode ter terminado nesse meio tempo
     acc.avatar = nextAvatar || null;
     acc.color = cleanColor(color, acc.color);
     save();
@@ -2259,7 +2269,7 @@ io.on('connection', (socket) => {
       const s = online.get(socket.id);
       for (const sid of peers) {
         const source = online.get(sid);
-        if (s?.voice && source?.voice === s.voice && source.sharing && source.preview) socket.emit('screen:preview', { sid, image: source.preview });
+        if (s?.voice && source?.voice === s.voice && source.sharing && source.preview) socket.emit('screen:preview', { sid, image: source.preview, saved: true });
       }
     });
   }
@@ -2345,15 +2355,18 @@ io.on('connection', (socket) => {
     return { url: `/clips/${id}?t=${token}` };
   }, { voice: true });
 
-  // Prévia da transmissão (como no Discord): uma foto pequena da tela de quem transmite, repassada para
-  // a sala. Só JPEG, até 200 KB, poucas por minuto. A última fica guardada para quem entrar depois.
+  // Prévia da transmissão (como no Discord): uma foto pequena da tela de quem transmite, repassada a quem
+  // está na sala e não assiste (quem assiste já vê o vídeo). WebP ou JPEG, até 200 KB, poucas por minuto.
+  // A última fica guardada para quem entrar depois ou parar de assistir.
   on('screen:preview', (acc, { image }) => {
     const s = online.get(socket.id);
     if (!s.voice || !s.sharing) fail('Você não está transmitindo.');
-    if (!Buffer.isBuffer(image) || image.length < 64 || image.length > SCREEN_PREVIEW_BYTES || image[0] !== 0xff || image[1] !== 0xd8 || image[2] !== 0xff) fail('Prévia inválida.');
+    if (!isPreviewImage(image)) fail('Prévia inválida.');
     if (!allow('screen-preview:' + socket.id, 8, 20_000)) fail('Prévias demais seguidas.');
     s.preview = image;
-    socket.to('voice:' + s.voice).emit('screen:preview', { sid: socket.id, image });
+    const audience = sessionsOf(online.inRoom(s.voice))
+      .filter(([sid, other]) => sid !== socket.id && other.voiceServerId === s.voiceServerId && !other.watching?.has(socket.id));
+    deliver(audience.map(([sid]) => sid), 'screen:preview', { sid: socket.id, image });
   }, { voice: true });
 
   // Quem assiste continua autorizado na sala de quem transmite (canal visível ou amizade, na privada).
@@ -2372,6 +2385,10 @@ io.on('connection', (socket) => {
       const subscribed = viewer.watching?.delete(target);
       viewer.screenQuality?.delete(target);
       if (subscribed) io.to(target).emit('screen:quality', { viewer: socket.id, demand: null });
+      // Enquanto assistia, as prévias não vinham: a última guardada fica no quadrado até chegar outra.
+      if (subscribed && source?.sharing && source.preview && source.voice === viewer.voice && source.voiceServerId === viewer.voiceServerId) {
+        socket.emit('screen:preview', { sid: target, image: source.preview, saved: true });
+      }
       notifyVoice(viewer, { own: false });
       return;
     }
@@ -2618,24 +2635,22 @@ io.on('connection', (socket) => {
 
   // --- Servidor ---
   // Nome e ícone do servidor (ícone: imagem PNG já recortada no navegador, conferida de novo aqui).
-  on('server:update', (acc, { name, icon }) => {
+  on('server:update', async (acc, { name, icon }) => {
     if (!can(acc, 'ADMIN')) fail('Só administradores podem mudar o servidor.');
-    let clean = db.serverName;
-    if (name !== undefined) {
-      clean = cleanName(name, 32);
-      if (clean.length < 2) fail('O nome do servidor precisa ter pelo menos 2 caracteres.');
-    }
-    const previousIcon = db.serverIcon || null;
-    let nextIcon = previousIcon;
+    const clean = name === undefined ? null : cleanName(name, 32);
+    if (clean !== null && clean.length < 2) fail('O nome do servidor precisa ter pelo menos 2 caracteres.');
     if (icon !== undefined) {
       if (!allow('server-icon:' + acc.id, 10, 60 * 1000)) fail('Muitas trocas de ícone. Aguarde um minuto.');
-      nextIcon = icon === null ? null : storeImage(icon);
+      const nextIcon = icon === null ? null : await storeImage(icon);
+      // Enquanto o ícone era conferido, a pessoa pode ter perdido o cargo ou o servidor pode ter sido apagado.
+      if (!can(acc, 'ADMIN')) fail('Só administradores podem mudar o servidor.');
+      const previousIcon = db.serverIcon || null;
+      db.serverIcon = nextIcon;
+      if (previousIcon !== nextIcon) removeImageIfUnused(previousIcon);
     }
-    db.serverName = clean;
-    db.serverIcon = nextIcon;
+    if (clean !== null) db.serverName = clean;
     save();
     broadcastState();
-    if (previousIcon !== nextIcon) removeImageIfUnused(previousIcon);
   });
 
   // --- Canais ---

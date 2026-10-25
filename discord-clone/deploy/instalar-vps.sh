@@ -170,7 +170,8 @@ Group=resenhex
 EnvironmentFile=$ENV_FILE
 EnvironmentFile=-/etc/resenhex-livekit.env
 WorkingDirectory=$APP_DIR
-ExecStart=$(command -v node) $APP_DIR/server.js
+# Limite do JavaScript em 6 GB (o padrão do Node é menor que a máquina de 12 GB); o painel do dono avisa acima de 70%.
+ExecStart=$(command -v node) --max-old-space-size=6144 $APP_DIR/server.js
 Restart=always
 RestartSec=3
 UMask=0027

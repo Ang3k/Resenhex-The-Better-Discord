@@ -38,6 +38,8 @@ test('each sample turns the counters into per-second rates and keeps the slowest
   assert.equal(first.connections, 3);
   assert.equal(first.online, 2);
   assert.equal(first.turnPorts, 2);
+  assert.ok(first.heapPct > 0 && first.heapPct < 100, `heap: ${first.heapPct}%`);
+  assert.equal(targets.heapPct, 70);
   assert.ok(first.loopP99 >= 0 && first.loopP99 < first.loopMax + 1);
   assert.equal(targets.loopP99, 50);
   assert.equal(turnRange.min, 49152);
