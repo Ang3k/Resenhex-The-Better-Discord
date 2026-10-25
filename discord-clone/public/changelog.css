@@ -41,12 +41,14 @@
 .cl-section.new h3 { color: #4fd192; }
 .cl-section.improved h3 { color: var(--brand-text); }
 .cl-section.fixed h3 { color: #f5a65b; }
+.cl-section.inside h3 { color: #5bc0f8; }
 .cl-section ul { margin: 0; padding: 0; list-style: none; display: grid; gap: 9px; }
 .cl-section li { position: relative; padding-left: 18px; font-size: 15px; line-height: 1.5; color: var(--text); }
 .cl-section li::before { content: ''; position: absolute; left: 2px; top: .62em; width: 6px; height: 6px; border-radius: 50%; background: currentColor; opacity: .5; }
 .cl-section.new li::before { background: #4fd192; opacity: 1; }
 .cl-section.improved li::before { background: var(--brand-text); opacity: 1; }
 .cl-section.fixed li::before { background: #f5a65b; opacity: 1; }
+.cl-section.inside li::before { background: #5bc0f8; opacity: 1; }
 .cl-footnote { margin: 26px 32px 0; padding-top: 16px; border-top: 1px solid var(--divider); font-size: 13px; color: var(--text-muted); }
 
 /* Link no rodapé das configurações */

@@ -3176,6 +3176,7 @@
     new: { label: 'NOVIDADES', cls: 'new' },
     improved: { label: 'MELHORIAS', cls: 'improved' },
     fixed: { label: 'CORREÇÕES', cls: 'fixed' },
+    inside: { label: 'POR DENTRO', cls: 'inside' }, // o que mudou por baixo, para os curiosos
   };
   const formatReleaseDate = (iso) => new Date(iso + 'T12:00:00').toLocaleDateString('pt-BR', { day: 'numeric', month: 'long', year: 'numeric' });
 

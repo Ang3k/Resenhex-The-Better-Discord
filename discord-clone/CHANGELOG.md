@@ -24,6 +24,16 @@ Um recado do dev: refiz o Resenhex por dentro, e agora ele aguenta milhares de p
 
 - Duas pessoas que dependem do retransmissor não conseguiam se ouvir na mesma chamada. Agora conectam.
 
+### Por dentro
+
+- Antes, o Resenhex começava a travar com 200 a 300 pessoas online. Num simulador com 50 mil contas, agora 5 mil pessoas online passam com folga, na mesma máquina gratuita de sempre.
+- Banco de dados novo (SQLite): antes, cada mudança regravava todos os dados do site num arquivo só. Agora só o pedaço que mudou é gravado, em menos de 3 milissegundos.
+- Avisos sob medida: mutar, entrar numa sala ou mudar o status mandava o servidor inteiro para todo mundo. Agora vai um aviso pequeno, só para quem precisa. Num servidor com 500 pessoas online, cada aviso caiu de 177 KB para menos de 1 KB.
+- Índices: o servidor não percorre mais todas as contas e conexões a cada ação. Ele vai direto em quem importa.
+- Fotos, banners e emojis são processados em paralelo, sem segurar o resto do site.
+- Retransmissor com senha temporária para cada pessoa, limite por conta e um teto de internet por mês, para o Resenhex continuar de graça.
+- Atualizações sem derrubar todo mundo de uma vez: os apps voltam aos poucos, em até 30 segundos. E o site ganhou proteção contra abuso e alarmes que avisam o dev quando algo vai mal.
+
 ## v1.9.0 — Ouvir a transmissão ensurdecido, voltar à chamada pelo painel e menus na tela cheia
 
 24 de outubro de 2026.
