@@ -459,6 +459,43 @@ Vem logo depois da Fase 1, antes do banco: é o teto que chega primeiro (problem
 
 **Pronto quando:** a previsão de rede do mês, com 5 mil online, fica abaixo de 7 TB com folga, e há um teto que impede passar disso.
 
+**Feito em 24–25/10 (falta publicar):**
+- **Senha temporária no retransmissor** (`server/turn.js`; `use-auth-secret` no coturn):
+  - O segredo fica só no servidor (`TURN_SECRET`, criado pelo instalador). Cada conta recebe um usuário `<vencimento>:<conta>` e uma senha que valem de 24 a 30 h. O vencimento anda de 6 em 6 h: nesse intervalo, a conta recebe sempre a mesma senha.
+  - A senha chega no login e a cada entrada numa chamada (sala ou chamada privada). Numa chamada longa, o app pede outra quando faltam menos de 6 h (`ice:servers`, até 10 por hora), e o próximo reinício da conexão já usa a nova.
+  - A senha fixa antiga deixa de valer quando o instalador novo roda. Páginas abertas antes da publicação recebem a senha nova ao reconectar (vem no login).
+  - O SFU (LiveKit, desligado) ganhou uma senha no mesmo formato, que vale 10 anos a partir de cada instalação. O coturn compara datas em 32 bits: uma data além de 2038 (o primeiro teste usava 2100) conta como vencida.
+  - Testado contra o coturn 4.6.1 de verdade (no WSL): a senha válida conecta; a errada, a vencida e a fixa antiga são recusadas; a senha do SFU gerada pelo instalador (openssl) é igual à do Node e conecta.
+- **Limites no coturn:**
+  - `user-quota=60` alocações por conta (uma por pessoa da sala, mais reinícios e um segundo aparelho). O coturn conta pela parte depois do ":", que é a conta. Testado: com `user-quota=1`, a segunda alocação da mesma conta é recusada (486).
+  - `total-quota=13000` (80% das portas).
+  - `max-bps=625000`: 5 Mbps por sessão, em cada sentido. Sobra para voz, câmera e a transmissão retransmitida.
+  - Sem `bps-capacity`: nela, o coturn reserva o `max-bps` inteiro de cada sessão, e recusaria chamadas de voz muito antes de a rede encher (8 sessões já ocupariam 40 Mbps).
+- **Teto de rede do mês** (`server/health.js`):
+  - O site lê quanto a máquina mandou pela rede (`/proc/net/dev`, todas as placas menos a interna) e soma no mês (UTC). O total fica em `rede-do-mes.json`, ao lado do banco: sobrevive a reinícios do site e da máquina (a placa zera, a soma não).
+  - **Ritmo:** até cada momento do mês, o site pode ter gastado a fração do mês que já passou de 6,7 TB, mais 300 GB de folga (um dia cheio). No fim do mês, são os 7 TB da meta.
+  - Acima do ritmo, o servidor para de entregar senhas do retransmissor (vai só o STUN). Quem já está numa chamada continua até a senha vencer. Quem precisa do retransmissor não conecta com gente nova até a rede voltar ao ritmo.
+  - Por que ritmo e não um corte fixo: o ritmo guarda rede para os dias que faltam. Com um corte fixo em 6,5 TB no dia 10, o site sozinho ainda gastaria uns 2 TB até o fim do mês.
+  - **Parada de verdade:** se a rede passar 1 TB do ritmo, o site escreve `parado` em `retransmissor.estado`, e uma unidade do systemd (`resenhex-retransmissor.path`) para o coturn. Isso só acontece com abuso usando senhas já entregues, que valem até 30 h. O coturn volta sozinho quando a rede alcança o ritmo, e o site não precisa ser administrador para nada disso.
+    - Testado com o systemd do WSL: parar, religar, e parar de novo depois de uma publicação que religou o coturn (ao subir, o site sempre grava o estado).
+  - **Pior caso:** ~8 TB no mês (os 7 TB do ritmo mais 1 TB antes da parada), abaixo dos 10 TB grátis.
+  - Painel do dono: cartão "Rede no mês", com o ritmo de hoje e o estado do retransmissor. A linha `[saúde]` do log também mostra.
+- **Transmissão retransmitida mais leve:** quando o `getStats` mostra que a ligação com um espectador passa pelo retransmissor (candidato `relay`), a transmissão para ele vai em até 720p e 1,5 Mbps (`MediaPolicy.relayCap`). Se a ligação passa a ser direta, volta à qualidade cheia.
+- **Medir o retransmissor:** `tools/uso-retransmissor.js` soma o log do coturn (o `verbose` da Fase 1) por dia: GB enviados e recebidos, sessões, contas e as contas que mais usaram. Conferido com linhas reais do coturn 4.6.1. Só dá para medir depois de publicar.
+- **Previsão de rede com 5 mil online.** Premissas do plano: 250 salas de 4 pessoas (1.500 ligações) e 150 transmissões com 3 espectadores. A média do dia é a metade do pico.
+
+  | Parte | No pico | No mês |
+  |---|---|---|
+  | Site (avisos, mensagens, estados, prévias) | ~2,3 MB/s | ~3 TB |
+  | Retransmissor, se 5% das ligações precisarem dele | ~6 MB/s | ~8 TB |
+  | Retransmissor, se 10% | ~12 MB/s | ~16 TB |
+
+  - Por ligação retransmitida: voz ~160 kbps (os dois sentidos), transmissão ~1,6 Mbps. As transmissões são 3/4 do retransmissor.
+  - **O mês fica em até 7 TB (8 no pior caso).** Mas, com essas premissas, o retransmissor pede mais do que sobra para ele (~4 TB). Nesse caso, ele fica sem gente nova em parte dos horários cheios: quem depende dele (rede de empresa, parte do 4G) não entra em chamadas com gente nova nesses horários.
+  - **Falta medir quantas ligações precisam do retransmissor.** Costuma ficar entre 5% e 20%; o IPv6, que muitas operadoras daqui já dão, ajuda a ligar direto. Depois de publicar, `tools/uso-retransmissor.js` e o cartão "Rede no mês" mostram o número real.
+  - Se for alto, a alavanca é a transmissão retransmitida: em 480p e ~0,6 Mbps, o retransmissor gasta quase a metade.
+  - **Situação do "pronto quando":** o teto está pronto. A previsão fica abaixo de 7 TB com folga só se até ~2% das ligações precisarem do retransmissor (ou se houver menos transmissões que nas premissas). Isso só se confirma medindo depois de publicar.
+
 ### Fase 6 — Servidores grandes, só se aparecerem (M)
 
 Igual ao Discord:
@@ -503,7 +540,7 @@ Quem não está olhando um servidor não recebe nada dele (o Discord chama isso 
 5. Fase 2 (banco): era o próximo teto. Com o banco da meta, cada gravação parava o servidor ~0,3 s. **Pronta**: a pior gravação leva 2,8 ms.
 6. Fase 3 (avisos pequenos). **Pronta**: com o banco da meta, 5.000 online passaram no simulador.
 7. Fase 4b. **Pronta**: nenhuma foto trava o servidor, prévias ~5× mais leves, custo por mudança igual com 500 e 5 mil online.
-8. Fase 5, o resto.
+8. Fase 5, o resto. **Pronta**: senha temporária e limites no retransmissor, rede do mês gasta num ritmo (no máximo ~8 TB), transmissão retransmitida em 720p. Falta medir o retransmissor depois de publicar.
 9. Fase 7.
 10. Fase 6 só quando aparecer um servidor grande.
 

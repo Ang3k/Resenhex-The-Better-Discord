@@ -111,6 +111,14 @@
     return { maxBitrate: Math.max(10_000, Math.round(bitrate)), maxFramerate: target.fps, scaleResolutionDownBy: Math.ceil(scale * 100) / 100, active: bitrate > 0 };
   }
 
+  // Ligação pelo retransmissor (candidato "relay"): a transmissão inteira passa pela rede do servidor, que
+  // tem limite no mês. Para esse espectador ela vai em até 720p e 1,5 Mbps; quem conecta direto segue cheia.
+  const RELAY = { height: 720, bitrate: 1_500_000 };
+  function relayCap(encoding, sourceHeight) {
+    const scale = Math.ceil(Math.max(1, (sourceHeight || RELAY.height) / RELAY.height) * 100) / 100;
+    return { ...encoding, maxBitrate: Math.min(encoding.maxBitrate, RELAY.bitrate), scaleResolutionDownBy: Math.max(encoding.scaleResolutionDownBy || 1, scale) };
+  }
+
   // A transmissão está engasgando? O próprio codificador diz (banda ou processador), ou os quadros
   // enviados ficam bem abaixo dos capturados. Tela parada captura poucos quadros e não conta.
   function strained({ reason, sentFps, sourceFps, targetFps } = {}) {
@@ -330,5 +338,5 @@
     const captured = measurements.some((item) => Number.isFinite(item.sourceFps)) ? `captura ${range('sourceFps')} fps` : '';
     return [size, `${range('fps')} fps`, captured, rate, codecs].filter(Boolean).join(' · ');
   }
-  return { presets, watchModes, CODECS, captureFps, viewerDemand, screenTarget, stepHeights, allocate, screenEncoding, screenCodecs, h264Rank, hardwareH264, pickCodec, cpuFallback, cpuStrain, sustained, encoderLoad, strained, adapt, ladder, encoding, enqueue, startBitrate, audioMids, opusStereo, formatVideoStats };
+  return { presets, watchModes, CODECS, captureFps, viewerDemand, screenTarget, stepHeights, allocate, screenEncoding, relayCap, RELAY, screenCodecs, h264Rank, hardwareH264, pickCodec, cpuFallback, cpuStrain, sustained, encoderLoad, strained, adapt, ladder, encoding, enqueue, startBitrate, audioMids, opusStereo, formatVideoStats };
 });

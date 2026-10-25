@@ -14,6 +14,7 @@ window.SiteHealth = function ({ request, el }) {
   const visible = () => !settings.classList.contains('hidden') && !page.classList.contains('hidden') && !document.hidden;
   const fmt = (value, digits = 1) => value == null ? '—' : (digits ? number : integer).format(value);
   const memory = (mb) => mb >= 1024 ? `${fmt(mb / 1024)} GB` : `${integer.format(mb)} MB`;
+  const volume = (gb) => gb >= 1000 ? `${fmt(gb / 1000)} TB` : `${fmt(gb)} GB`;
   const ago = (at) => {
     const s = Math.round((Date.now() - at) / 1000);
     return s < 60 ? `há ${s} s` : `há ${Math.round(s / 60)} min`;
@@ -40,7 +41,14 @@ window.SiteHealth = function ({ request, el }) {
     { key: 'turnPorts', label: 'Portas do retransmissor', value: (p) => p.turnPorts == null ? '—' : integer.format(p.turnPorts), unit: '',
       note: (p) => p.turnPorts == null ? 'só medido no servidor Linux' : `de ${integer.format(range.max - range.min + 1)} disponíveis`, target: targets.turnPorts,
       level: (p) => p.turnPorts == null ? null : p.turnPorts / targets.turnPorts, goal: 'meta: abaixo de 80% das portas' },
+    // A Oracle dá 10 TB de saída por mês. A meta é gastar no ritmo de 7 TB (server/health.js): acima dele, o
+    // retransmissor não recebe gente nova, e bem acima, fica parado.
+    { key: 'monthGB', label: 'Rede no mês', value: (p) => p.monthGB == null ? '—' : volume(p.monthGB), unit: 'GB',
+      note: (p) => p.monthGB == null ? 'só medido no servidor Linux' : RELAY_NOTES[p.relay] ?? `ritmo de hoje: até ${volume(p.monthPaceGB)}`,
+      target: targets.monthGB, level: (p) => p.monthGB == null || !p.monthPaceGB ? null : p.monthGB / p.monthPaceGB,
+      goal: `meta: no ritmo de ${volume(targets.monthGB)} no mês; acima dele, o retransmissor não recebe gente nova` },
   ];
+  const RELAY_NOTES = { paused: 'retransmissor sem gente nova', stopped: 'retransmissor parado' };
   // Sem medição (level null), sem estado.
   const stateOf = (level) => level == null ? null : level > 1 ? 'bad' : level >= 0.7 ? 'warn' : 'ok';
   const STATES = { ok: ['check', 'Dentro da meta'], warn: ['alert', 'Perto da meta'], bad: ['alert', 'Acima da meta'] };

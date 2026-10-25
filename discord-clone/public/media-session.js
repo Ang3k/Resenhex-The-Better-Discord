@@ -272,8 +272,10 @@ window.MediaSession = function ({ state, socket, call, el, toast, voiceEntry, me
               if (sender.track?.kind === 'audio' && kind === 'screen') { await setEncoding(sender, { maxBitrate: 96000, priority: 'high' }); continue; }
               if (sender.track?.kind !== 'video') continue;
               if (kind === 'screen') await setCodec(sender, screenCodecs(peer.sid));
-              const encoding = kind === 'screen' ? MediaPolicy.screenEncoding(preset, rates.screen, demandOf(peer.sid), sender.track.getSettings?.(), peer.adaptation.level || 0)
+              let encoding = kind === 'screen' ? MediaPolicy.screenEncoding(preset, rates.screen, demandOf(peer.sid), sender.track.getSettings?.(), peer.adaptation.level || 0)
                 : MediaPolicy.encoding({ fps: 30 }, rates.camera);
+              // Ligação pelo retransmissor: a transmissão para esta pessoa vai mais leve (MediaPolicy.relayCap).
+              if (kind === 'screen' && peer.relayed) encoding = MediaPolicy.relayCap(encoding, sender.track.getSettings?.().height);
               await setEncoding(sender, encoding, kind === 'screen' ? preset.degradation : 'balanced');
             }
           }
@@ -520,14 +522,16 @@ window.MediaSession = function ({ state, socket, call, el, toast, voiceEntry, me
 
   // O TURN por TCP ocupa mais uma porta do retransmissor em cada conexão. A conexão nasce só com UDP
   // (public/app.js); no primeiro reinício do ICE (caiu ou não fechou) entra o TCP, para quem está numa
-  // rede que só deixa passar TCP.
+  // rede que só deixa passar TCP. Nos reinícios seguintes, a lista só é trocada se a senha do retransmissor
+  // mudou (ela vence em 24 a 30 h, e o app pede outra antes).
   function firstIceServers(servers = state.iceServers || []) {
     return servers.map((s) => ({ ...s, urls: [].concat(s.urls).filter((url) => !/[?&]transport=tcp\b/i.test(url)) })).filter((s) => s.urls.length);
   }
   function restartIce(peer) {
-    if (!peer.tcpRelay && peer.pc.setConfiguration) {
-      peer.tcpRelay = true;
-      try { peer.pc.setConfiguration({ iceServers: state.iceServers || [] }); } catch (error) { console.warn('TURN por TCP não entrou na conexão:', error); }
+    const servers = state.iceServers || [];
+    if (peer.restartServers !== servers && peer.pc.setConfiguration) {
+      peer.restartServers = servers;
+      try { peer.pc.setConfiguration({ iceServers: servers }); } catch (error) { console.warn('O retransmissor não entrou na conexão:', error); }
     }
     peer.pc.restartIce();
   }
@@ -630,7 +634,8 @@ window.MediaSession = function ({ state, socket, call, el, toast, voiceEntry, me
             stats.rtt = r.currentRoundTripTime;
             // Só informativa: decide se dá para subir um degrau, nunca limita o codificador.
             if (Number.isFinite(r.availableOutgoingBitrate)) peer.estimate = { bitrate: r.availableOutgoingBitrate, at: now };
-            stats.path = report.get(r.localCandidateId)?.candidateType === 'relay' || report.get(r.remoteCandidateId)?.candidateType === 'relay' ? 'Via retransmissão' : 'Conexão direta';
+            stats.relayed = report.get(r.localCandidateId)?.candidateType === 'relay' || report.get(r.remoteCandidateId)?.candidateType === 'relay';
+            stats.path = stats.relayed ? 'Via retransmissão' : 'Conexão direta';
           }
           const video = r.kind === 'video' || r.mediaType === 'video';
           const sender = peer.senders.screen.find((s) => s.track?.kind === 'video');
@@ -639,6 +644,8 @@ window.MediaSession = function ({ state, socket, call, el, toast, voiceEntry, me
             if (source?.trackIdentifier === sender.track.id) outbound = r;
           }
         });
+        // A ligação passou a usar o retransmissor (ou deixou de usar): a transmissão para esta pessoa muda de teto.
+        if (stats.path && !!peer.relayed !== stats.relayed) { peer.relayed = stats.relayed; if (peer.senders.screen.length) tuneSenders(peer); }
         // Sender reports distinguish screen from camera even on browsers without mediaSourceId.
         const screenSender = peer.senders.screen.find((s) => s.track?.kind === 'video');
         if (!outbound && screenSender) {

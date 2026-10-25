@@ -5085,6 +5085,7 @@
       const res = await call('voice:join', isDm(channel) ? { dm: channel, silent: !!opts.silent, mediaVersion: 1 } : { channel, serverId: opts.serverId ?? state.server.serverId, mediaVersion: 1 });
       if (abandoned() || dropped() || !res) return;
       joined = true;
+      if (res.iceServers) state.iceServers = res.iceServers; // senha do retransmissor nova a cada entrada
       earlySignals = [];
       const media = await call('voice:media');
       if (abandoned() || dropped() || !media) return;
@@ -5251,6 +5252,13 @@
       if (state.voiceChannel) renderControls();
     }
   }
+  // A senha do retransmissor vale de 24 a 30 h (server/turn.js) e chega no login e a cada entrada na sala.
+  // Numa chamada mais longa, o app pede outra quando faltam menos de 6 h, para uma reconexão não ficar sem ele.
+  setInterval(() => {
+    const relay = (state.iceServers || []).find((server) => /^\d+:/.test(server.username || ''));
+    if (!state.voiceChannel || !relay || !socket.connected || Number(relay.username.split(':')[0]) * 1000 - Date.now() > 6 * 3600_000) return;
+    socket.timeout(10000).emit('ice:servers', {}, (error, res) => { if (!error && res?.iceServers) state.iceServers = res.iceServers; });
+  }, 30 * 60_000);
   setInterval(() => {
     const stream = state.micStream;
     if (!state.voiceChannel || !stream || stream.listenOnly || joining || micWatch.busy) return;

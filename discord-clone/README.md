@@ -355,7 +355,8 @@ Depois de criar sua conta, mande aos amigos o **link de convite do servidor**, d
 | `MAX_UPLOAD_MB` | Tamanho máximo de cada arquivo (padrão `50`) |
 | `TRUST_PROXY` | `1` quando roda atrás de um proxy HTTPS (Caddy, Nginx), para ler o IP real de quem conecta. O instalador do VPS já define |
 | `TURN_URL` | Servidor(es) TURN, separados por vírgula, ex.: `turn:meu-turn.com:3478` |
-| `TURN_USERNAME` / `TURN_CREDENTIAL` | Credenciais do TURN |
+| `TURN_SECRET` | Segredo das senhas temporárias do TURN (`use-auth-secret` + `static-auth-secret` no coturn). Cada conta recebe uma senha própria que vale de 24 a 30 h. O instalador do VPS cria |
+| `TURN_USERNAME` / `TURN_CREDENTIAL` | Senha fixa do TURN, para serviços prontos que não aceitam o segredo. Sem `TURN_SECRET`, é a que vai para todos |
 | `DOWNLOAD_DIR` | Pasta com o instalador do app para Windows e o `latest.yml` (padrão `downloads/`; o instalador do VPS já define) |
 | `MS_STORE_ID` | ID do app na Microsoft Store (ex.: `9NBLGGH4R32N`). Com ele, a página `/baixar` entrega o instalador oficial da Microsoft |
 | `KLIPY_KEY` | Chave da API de GIFs do [KLIPY](https://partner.klipy.com/api-keys). Com ela aparece o botão de GIF no chat; a busca sai do navegador de quem usa (regra do KLIPY), então a chave chega aos clientes logados. A chave de teste faz 100 buscas por hora; peça a de produção no painel deles |
@@ -370,7 +371,7 @@ Na maioria das redes domésticas o WebRTC conecta direto usando só o STUN do Go
 - Instalar o [coturn](https://github.com/coturn/coturn) numa VPS
 - Usar um serviço pronto (ex.: Metered, Twilio, Cloudflare Calls TURN)
 
-Depois é só preencher `TURN_URL`, `TURN_USERNAME` e `TURN_CREDENTIAL`.
+Depois é só preencher `TURN_URL` e `TURN_SECRET` (coturn com `use-auth-secret`), ou `TURN_USERNAME` e `TURN_CREDENTIAL` num serviço pronto. O instalador do VPS já instala e configura o coturn.
 
 ## Personalizando
 

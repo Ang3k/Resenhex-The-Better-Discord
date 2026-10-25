@@ -25,13 +25,13 @@ if [ "${QA_USE_TURN:-0}" = 1 ]; then
     - host: $turn_domain
       port: 3478
       protocol: udp
-      username: $turn_user
-      credential: $turn_secret
+      username: \"$turn_user\"
+      credential: \"$turn_secret\"
     - host: $turn_domain
       port: 3478
       protocol: tcp
-      username: $turn_user
-      credential: $turn_secret"
+      username: \"$turn_user\"
+      credential: \"$turn_secret\""
 fi
 cat > livekit.yaml <<EOF
 port: 17880

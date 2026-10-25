@@ -9,6 +9,7 @@ const express = require('express');
 const { Server } = require('socket.io');
 const { validateAvatarCrop } = require('./server/avatar');
 const { createImages } = require('./server/images');
+const { createTurn } = require('./server/turn');
 const { decodeSound, soundName, MAX_SOUND_BYTES, MAX_SERVER_SOUNDS } = require('./server/soundboard');
 const linkPreview = require('./server/link-preview');
 const { channelActions } = require('./server/channels');
@@ -83,19 +84,14 @@ const PERMS = {
 const SOUNDBOARD = ['grilo', 'trovao', 'aplausos', 'badumtss', 'buzina', 'fail', 'vitoria', 'suspense'];
 const ALL_PERMS = Object.keys(PERMS);
 
-// Servidores STUN/TURN entregues ao navegador. TURN é opcional, mas necessário
-// quando alguém está atrás de NAT restritivo (redes de empresa, 4G etc).
-function iceServers() {
-  const servers = [{ urls: 'stun:stun.l.google.com:19302' }];
-  if (process.env.TURN_URL) {
-    servers.push({
-      urls: process.env.TURN_URL.split(','),
-      username: process.env.TURN_USERNAME,
-      credential: process.env.TURN_CREDENTIAL,
-    });
-  }
-  return servers;
-}
+// Servidores STUN/TURN entregues ao navegador. TURN é opcional, mas necessário quando alguém está atrás de
+// NAT restritivo (redes de empresa, 4G etc). Com TURN_SECRET, cada conta recebe uma senha temporária
+// (server/turn.js); acima do limite de rede do mês (server/health.js), só STUN.
+const turn = createTurn({
+  urls: process.env.TURN_URL || '', secret: process.env.TURN_SECRET || '',
+  username: process.env.TURN_USERNAME || '', credential: process.env.TURN_CREDENTIAL || '',
+  allowed: () => health.relayAllowed(),
+});
 
 const newId = () => crypto.randomBytes(8).toString('hex');
 
@@ -196,7 +192,12 @@ for (const sig of ['SIGINT', 'SIGTERM']) {
 }
 
 // Medidor de saúde (server/health.js): conexões e contas online são lidas na hora de cada amostra.
-const health = createHealth({ connections: () => io.engine.clientsCount, online: () => online.accounts.size });
+// O total da rede do mês fica ao lado do banco (o contador da placa zera quando a máquina reinicia), e o
+// estado do retransmissor também: o systemd para ou religa o coturn quando ele muda (deploy/instalar-vps.sh).
+const health = createHealth({
+  connections: () => io.engine.clientsCount, online: () => online.accounts.size,
+  monthFile: path.join(path.dirname(DATA_DB), 'rede-do-mes.json'), relayFile: path.join(path.dirname(DATA_DB), 'retransmissor.estado'),
+});
 
 // Quem muda um dado marca o pedaço (save(chunk.account(id)), por exemplo) e o banco grava só os marcados, 250 ms
 // depois da primeira marca: se o processo cair, perde no máximo esse quarto de segundo. Mudanças diretas em contas e servidores
@@ -1690,7 +1691,7 @@ io.on('connection', (socket) => {
     const legacy = typeof payload.version === 'string' && /^\d/.test(payload.version) && payload.patches !== 1;
     online.set(socket.id, { accountId: acc.id, serverId, voice: null, voiceServerId: null, muted: false, deafened: false, sharing: false, camera: false, legacy });
     save();
-    ack({ token, accountId: acc.id, name: acc.name, since: acc.createdAt || null, serverId, sid: socket.id, presence: acc.presence || 'online', statusText: acc.statusText || '', iceServers: iceServers(), permNames: PERMS, maxUploadMb: MAX_UPLOAD_MB, version: APP_VERSION, gifKey: process.env.KLIPY_KEY || null, siteOwner: isSiteOwner(acc), ...recovery.view(acc), mailEnabled: recovery.enabled });
+    ack({ token, accountId: acc.id, name: acc.name, since: acc.createdAt || null, serverId, sid: socket.id, presence: acc.presence || 'online', statusText: acc.statusText || '', iceServers: turn.iceServers(acc.id), permNames: PERMS, maxUploadMb: MAX_UPLOAD_MB, version: APP_VERSION, gifKey: process.env.KLIPY_KEY || null, siteOwner: isSiteOwner(acc), ...recovery.view(acc), mailEnabled: recovery.enabled });
     // Páginas de antes da 0.99.3 não mandam a versão nem sabem mostrar o aviso de atualização.
     if (!payload.version) socket.emit('notice', 'Saiu uma versão nova do Resenhex. Aperte F5 para atualizar.');
     socket.emit('social', socialFor(acc));
@@ -2237,8 +2238,14 @@ io.on('connection', (socket) => {
       const dropped = dropOtherVoiceSessions(socket, acc.id);
       notifyVoice(s);
       sendPreviews(peers);
-      return { peers: peers.filter((p) => !dropped.includes(p)) };
+      // Senha do retransmissor nova a cada entrada: a do login pode ter sido entregue há mais de um dia.
+      return { peers: peers.filter((p) => !dropped.includes(p)), iceServers: turn.iceServers(acc.id) };
     });
+  });
+  // Chamada longa: o app pede uma senha nova do retransmissor antes de a atual vencer (public/app.js).
+  on('ice:servers', (acc) => {
+    if (!allow('ice-servers:' + acc.id, 10, 60 * 60 * 1000)) fail('Aguarde um pouco.');
+    return { iceServers: turn.iceServers(acc.id) };
   });
 
   // Chamada privada: entra na sala da conversa. Quem chega numa sala vazia começa a chamada e
@@ -2259,7 +2266,7 @@ io.on('connection', (socket) => {
     dmCalls.joined(dm, acc.id, conversation.users.find((u) => u !== acc.id), { first: !peers.length, silent });
     notifyVoice(s);
     sendPreviews(peers);
-    return { peers: peers.filter((p) => !dropped.includes(p)) };
+    return { peers: peers.filter((p) => !dropped.includes(p)), iceServers: turn.iceServers(acc.id) };
   }
 
   // Quem entra na sala já vê a última prévia de cada transmissão. Vai depois do estado novo, que traz

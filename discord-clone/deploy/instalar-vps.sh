@@ -27,6 +27,14 @@ ENV_FILE=/etc/resenhex.env
 # chega a n × (n − 1). Com 41 portas (49160–49200) faltava porta nas noites de mais movimento.
 TURN_MIN_PORT=49152
 TURN_MAX_PORT=65535
+# Limites do retransmissor. Alocações por conta: uma por pessoa da sala que passa por ele, mais as dos
+# reinícios da conexão e de um segundo aparelho. No total: 80% das portas. Banda por sessão em bytes por
+# segundo (625000 = 5 Mbps, cada sentido): sobra para voz, câmera e a transmissão retransmitida (até 1,5 Mbps).
+# Sem bps-capacity: o coturn reserva a banda inteira de cada sessão e recusaria chamadas de voz muito antes
+# de a rede encher. O teto do mês fica no site (server/health.js): acima de 6,5 TB ele para de dar senhas.
+TURN_USER_QUOTA=60
+TURN_TOTAL_QUOTA=13000
+TURN_MAX_BPS=625000
 
 say() { printf '\n\033[1;35m==> %s\033[0m\n' "$*"; }
 read_env() { sed -n "s/^${1}=//p" "$ENV_FILE" | tail -n 1; }
@@ -40,8 +48,7 @@ if [ -f "$ENV_FILE" ]; then
   say "Instalação existente encontrada: atualizando e mantendo as configurações"
   DOMAIN="$(read_env RESENHEX_DOMAIN)"
   PUBLIC_IP="$(read_env PUBLIC_IP)"
-  TURN_USERNAME="$(read_env TURN_USERNAME)"
-  TURN_CREDENTIAL="$(read_env TURN_CREDENTIAL)"
+  TURN_SECRET="$(read_env TURN_SECRET)"
   OLD_DOMAINS="$(read_env RESENHEX_OLD_DOMAINS)"
 else
   apt-get update -q
@@ -59,9 +66,15 @@ else
   echo "Se você tem um domínio (ex.: resenha.seudominio.com), aponte ele para $PUBLIC_IP e digite abaixo."
   read -rp "Domínio (Enter para usar um endereço gratuito automático): " DOMAIN
   DOMAIN="${DOMAIN:-$(echo "$PUBLIC_IP" | tr . -).sslip.io}"
-  TURN_USERNAME=resenhex
-  TURN_CREDENTIAL="$(od -An -N24 -tx1 /dev/urandom | tr -d '[:space:]')"
 fi
+# Segredo das senhas temporárias do retransmissor (server/turn.js, use-auth-secret no coturn). Nunca sai do
+# servidor: cada conta recebe só um usuário e uma senha que vencem em 24 a 30 h. Instalações antigas usavam
+# uma senha fixa, igual para todos e visível no navegador; ela deixa de valer aqui.
+[ -n "${TURN_SECRET:-}" ] || TURN_SECRET="$(od -An -N32 -tx1 /dev/urandom | tr -d '[:space:]')"
+# Senha do SFU (LiveKit, desligado por padrão), no mesmo formato, valendo 10 anos a partir desta instalação
+# (o coturn compara datas em 32 bits: uma data além de 2038 conta como vencida).
+TURN_USERNAME="$(( $(date +%s) + 10 * 365 * 86400 )):sfu"
+TURN_CREDENTIAL="$(printf '%s' "$TURN_USERNAME" | openssl dgst -sha1 -hmac "$TURN_SECRET" -binary | base64)"
 
 # Troca de domínio (ex.: RESENHEX_SET_DOMAIN=resenhex.dev). O domínio precisa já apontar
 # para este servidor; senão o HTTPS falharia e o site sairia do ar.
@@ -96,7 +109,7 @@ for checked in $DOMAIN $OLD_DOMAINS; do
     [[ "$label" =~ ^[A-Za-z0-9]([A-Za-z0-9-]{0,61}[A-Za-z0-9])?$ ]] || { echo "Domínio inválido: $checked"; exit 1; }
   done
 done
-[[ "$TURN_USERNAME" =~ ^[A-Za-z0-9_-]+$ && "$TURN_CREDENTIAL" =~ ^[A-Za-z0-9]+$ ]] || { echo "Credenciais TURN inválidas."; exit 1; }
+[[ "$TURN_SECRET" =~ ^[a-f0-9]{64}$ && "$TURN_CREDENTIAL" =~ ^[A-Za-z0-9+/]{27}=$ ]] || { echo "Segredo do TURN inválido."; exit 1; }
 # IP da máquina na rede interna (na Oracle, 10.0.0.x; num VPS comum, o próprio IP público).
 LOCAL_IP="$( (ip -4 route get 1.1.1.1 2>/dev/null || true) | sed -n 's/.* src \([0-9.]*\).*/\1/p')"
 [[ "$LOCAL_IP" =~ ^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$ ]] || LOCAL_IP=""
@@ -115,6 +128,8 @@ UPLOAD_DIR=$DATA_DIR/uploads
 DOWNLOAD_DIR=$DATA_DIR/downloads
 TRUST_PROXY=1
 TURN_URL=turn:$DOMAIN:3478?transport=udp,turn:$DOMAIN:3478?transport=tcp
+TURN_SECRET=$TURN_SECRET
+# Só para o SFU (o site usa TURN_SECRET):
 TURN_USERNAME=$TURN_USERNAME
 TURN_CREDENTIAL=$TURN_CREDENTIAL
 EOF
@@ -266,9 +281,12 @@ say "Configurando o servidor TURN"
 cat > /etc/turnserver.conf <<EOF
 listening-port=3478
 fingerprint
-lt-cred-mech
-user=$TURN_USERNAME:$TURN_CREDENTIAL
+use-auth-secret
+static-auth-secret=$TURN_SECRET
 realm=$DOMAIN
+user-quota=$TURN_USER_QUOTA
+total-quota=$TURN_TOTAL_QUOTA
+max-bps=$TURN_MAX_BPS
 external-ip=$PUBLIC_IP
 min-port=$TURN_MIN_PORT
 max-port=$TURN_MAX_PORT
@@ -285,6 +303,38 @@ denied-peer-ip=127.0.0.0-127.255.255.255
 ${LOCAL_IP:+allowed-peer-ip=$LOCAL_IP}
 EOF
 sed -i 's/^#\?TURNSERVER_ENABLED=.*/TURNSERVER_ENABLED=1/' /etc/default/coturn 2>/dev/null || echo 'TURNSERVER_ENABLED=1' > /etc/default/coturn
+
+# Teto de rede do mês. O site (server/health.js) escreve "parado" em $DATA_DIR/retransmissor.estado quando a
+# rede do mês passa 1 TB do ritmo (abuso com senhas do retransmissor já entregues) e "ligado" quando ela volta
+# ao ritmo. Estas unidades param ou religam o coturn quando o arquivo muda: o site não precisa ser administrador.
+cat > /usr/local/sbin/resenhex-retransmissor <<EOF
+#!/bin/sh
+# Liga ou para o coturn conforme o teto de rede do mês (server/health.js).
+if [ "\$(cat $DATA_DIR/retransmissor.estado 2>/dev/null)" = parado ]; then
+  systemctl stop coturn
+else
+  systemctl start coturn
+fi
+EOF
+chmod 755 /usr/local/sbin/resenhex-retransmissor
+cat > /etc/systemd/system/resenhex-retransmissor.service <<EOF
+[Unit]
+Description=Resenhex: liga ou para o coturn pelo teto de rede do mês
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/sbin/resenhex-retransmissor
+EOF
+cat > /etc/systemd/system/resenhex-retransmissor.path <<EOF
+[Unit]
+Description=Resenhex: acompanha o teto de rede do mês
+
+[Path]
+PathChanged=$DATA_DIR/retransmissor.estado
+
+[Install]
+WantedBy=multi-user.target
+EOF
 
 # ---------- firewall ----------
 say "Liberando portas no firewall"
@@ -346,6 +396,8 @@ say "Iniciando os serviços"
 systemctl daemon-reload
 systemctl enable --now coturn >/dev/null 2>&1 || true
 systemctl restart coturn
+# Antes do site: ao subir, ele grava o estado do retransmissor, e o coturn recém-religado para se o mês pedir.
+systemctl enable --now resenhex-retransmissor.path >/dev/null
 systemctl enable resenhex >/dev/null
 systemctl restart resenhex
 systemctl restart caddy

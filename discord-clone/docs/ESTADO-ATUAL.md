@@ -1,4 +1,4 @@
-# Onde paramos (24/10/2026)
+# Onde paramos (25/10/2026)
 
 Resumo para retomar o trabalho em outra sessão do Claude sem depender da conversa anterior.
 
@@ -13,8 +13,9 @@ Deixar o Resenhex aguentar **5 mil pessoas online ao mesmo tempo**, espalhadas e
   - a Fase 4a (índices em vez de percorrer o site inteiro);
   - a Fase 2 (banco SQLite gravado em pedaços). Veja "Fase 2: feita", logo abaixo;
   - a Fase 3 (avisos pequenos, entregues por sala). Veja "Fase 3: feita";
-  - a Fase 4b (fotos num worker, prévias mais leves, limite de memória). Veja "Fase 4b: feita".
-- **Próxima: o resto da Fase 5 (senha temporária do TURN, limites e teto de rede).** Depois: a Fase 7. A Fase 6 só se aparecer um servidor grande.
+  - a Fase 4b (fotos num worker, prévias mais leves, limite de memória). Veja "Fase 4b: feita";
+  - a Fase 5 (senha temporária e limites no retransmissor, teto de rede do mês). Veja "Fase 5: feita".
+- **Próxima: a Fase 7 (proteção e operação).** A Fase 6 só se aparecer um servidor grande.
 - **Teto medido com o simulador:** era de 200 a 300 online (Fase 0). Com a Fase 4a, 1.500 online passaram com 15 mil contas.
   - Com a Fase 2, a gravação deixou de travar: com o banco da meta (50 mil contas, 1,35 milhão de mensagens), a pior gravação caiu de 70 ms para 2,8 ms, com 1.000 online.
   - Com a Fase 3, **5.000 online passaram** no banco da meta (50 mil contas): atraso p99 de 5 ms, processador de 29% e 0,66 ms por mudança no ARM, com ~2,6× menos rede que antes.
@@ -46,7 +47,8 @@ Tudo na branch `claude/chamada-atual` (pasta `.claude/worktrees/chamada-atual`),
 | `77d633a` | Fase 2 (em andamento): banco SQLite gravado em pedaços (`server/store.js`) |
 | `ffcebe6` | Fase 2 pronta: checkpoint do WAL numa worker_thread, mensagens antigas carregadas depois de abrir, backup do banco pela publicação |
 | `8803bf3` | Fase 3: avisos pequenos por sala (`public/state-patch.js`), entregues de uma vez a quem precisa |
-| este commit | Fase 4b: fotos num worker, prévias de transmissão mais leves, limite de memória, socket.io mais leve por conexão |
+| `96b88bc` | Fase 4b: fotos num worker, prévias de transmissão mais leves, limite de memória, socket.io mais leve por conexão |
+| este commit | Fase 5: senha temporária e limites no retransmissor, teto de rede do mês, transmissão retransmitida em 720p, `tools/uso-retransmissor.js` |
 
 ## Fase 2: feita
 
@@ -92,6 +94,19 @@ Detalhes e medições na Fase 4b do [plano](plano-5000-online.md).
 - O serviço sobe com `--max-old-space-size=6144`. O painel do dono mostra quanto do limite do JavaScript está em uso e avisa a partir de 70%.
 - Cada conexão do socket.io solta a requisição HTTP do começo; a compressão por mensagem segue desligada.
 
+## Fase 5: feita
+
+Detalhes, testes e a previsão de rede na Fase 5 do [plano](plano-5000-online.md).
+
+- **Senha temporária no retransmissor** (`server/turn.js`): o coturn usa `use-auth-secret`. O segredo (`TURN_SECRET`) fica só no servidor. Cada conta recebe uma senha própria, que vale de 24 a 30 h e chega no login e a cada entrada em chamada. Numa chamada longa, o app pede outra antes de vencer.
+- **Limites:** 60 alocações por conta, 13 mil no total, 5 Mbps por sessão.
+- **Teto de rede do mês** (`server/health.js`): o site soma o que a máquina mandou no mês (`/var/lib/resenhex/rede-do-mes.json`) e gasta num ritmo que fecha o mês em 7 TB.
+  - Acima do ritmo, o retransmissor não recebe gente nova.
+  - Se passar 1 TB do ritmo (abuso), o site escreve `parado` em `/var/lib/resenhex/retransmissor.estado`, e o systemd para o coturn até a rede voltar ao ritmo. Pior caso: ~8 TB, abaixo dos 10 TB grátis.
+  - Cartão "Rede no mês" na aba "Saúde do servidor".
+- **Transmissão retransmitida:** até 720p e 1,5 Mbps para quem a recebe pelo retransmissor.
+- **Ponto em aberto:** com as premissas do plano (150 transmissões), o retransmissor pediria mais rede do que sobra. O teto segura o custo em zero, mas quem depende dele pode ficar sem chamadas com gente nova nos horários cheios. Falta medir quantas ligações passam por ele (`tools/uso-retransmissor.js`, depois de publicar). Se for muito, a transmissão retransmitida pode cair para 480p.
+
 O dono pediu para **publicar só quando ele mandar, e só com o plano inteiro pronto** (24/10): nada de publicar fase por fase.
 
 ## Urgente (já afeta quem usa hoje): pronto, falta publicar
@@ -126,6 +141,12 @@ O que já está no código (este commit):
    - `systemctl cat resenhex | grep max-old-space` mostra `--max-old-space-size=6144`;
    - trocar a foto de perfil e o banner funciona, e `sudo journalctl -u resenhex --since -10min | grep imagens` não mostra `worker parou`;
    - com duas contas numa sala, uma transmite e a outra vê a prévia sem assistir; ao assistir e parar, a prévia volta.
+9. Conferir a Fase 5 (a publicação reinicia o coturn, e a senha fixa antiga deixa de valer):
+   - `sudo grep -cE "^(use-auth-secret|static-auth-secret|user-quota|total-quota|max-bps)" /etc/turnserver.conf` dá 5, e `sudo grep -c "^user=" /etc/turnserver.conf` dá 0;
+   - `systemctl is-enabled resenhex-retransmissor.path` responde `enabled`, e `cat /var/lib/resenhex/retransmissor.estado` mostra `ligado`;
+   - depois de 1 minuto, existe `/var/lib/resenhex/rede-do-mes.json`, e a aba "Saúde do servidor" mostra o cartão "Rede no mês" com número;
+   - uma call entre duas pessoas funciona, e depois dela `sudo journalctl -u coturn --since -1h | grep usage` mostra `username=<número>:<conta>`;
+   - para medir o retransmissor (alguns dias depois): `sudo journalctl -u coturn --since "7 days ago" -o short-iso | node /opt/resenhex/tools/uso-retransmissor.js`.
 
 ## Como publicar sem susto
 

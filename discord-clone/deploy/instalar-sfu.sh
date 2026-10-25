@@ -42,13 +42,13 @@ rtc:
     - host: $DOMAIN
       port: 3478
       protocol: udp
-      username: $TURN_USERNAME
-      credential: $TURN_CREDENTIAL
+      username: "$TURN_USERNAME"
+      credential: "$TURN_CREDENTIAL"
     - host: $DOMAIN
       port: 3478
       protocol: tcp
-      username: $TURN_USERNAME
-      credential: $TURN_CREDENTIAL
+      username: "$TURN_USERNAME"
+      credential: "$TURN_CREDENTIAL"
 keys:
   $api_key: $api_secret
 webhook:

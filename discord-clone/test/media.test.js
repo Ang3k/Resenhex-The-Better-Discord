@@ -482,6 +482,31 @@ test('unsupported per-viewer scaling retains bitrate/FPS without shrinking the s
   assert.match(h.peer.mediaError, /resolução por espectador/);
 });
 
+test('a viewer reached through the relay gets the stream at up to 720p and 1.5 Mbps, and full quality again when direct', async () => {
+  assert.deepEqual(policy.relayCap({ maxBitrate: 8e6, maxFramerate: 60, scaleResolutionDownBy: 1, active: true }, 1080), { maxBitrate: 1.5e6, maxFramerate: 60, scaleResolutionDownBy: 1.5, active: true });
+  assert.equal(policy.relayCap({ maxBitrate: 1e6, scaleResolutionDownBy: 3 }, 1080).scaleResolutionDownBy, 3, 'a smaller step stays');
+  assert.equal(policy.relayCap({ maxBitrate: 1e6 }, 720).scaleResolutionDownBy, 1, 'never upscales');
+  const h = mediaHarness();
+  h.self.viewers = ['viewer']; h.media.syncScreenSubscriptions(); await settle(h);
+  const path = (type) => new Map([
+    { id: 'transport', type: 'transport', selectedCandidatePairId: 'pair' },
+    { id: 'pair', type: 'candidate-pair', state: 'succeeded', nominated: true, localCandidateId: 'local', remoteCandidateId: 'remote', currentRoundTripTime: .05 },
+    { id: 'local', type: 'local-candidate', candidateType: type },
+    { id: 'remote', type: 'remote-candidate', candidateType: 'srflx' },
+  ].map((r) => [r.id, r]));
+  const video = () => h.peer.senders.screen.find((s) => s.track.kind === 'video').params.encodings[0];
+  h.peer.pc.report = path('relay');
+  await h.media.updateStreamStats(); await settle(h);
+  assert.equal(h.peer.stats.path, 'Via retransmissão');
+  assert.ok(video().maxBitrate <= 1.5e6, `relay bitrate ${video().maxBitrate}`);
+  assert.equal(video().scaleResolutionDownBy, 1.5);
+  h.peer.pc.report = path('host');
+  await h.media.updateStreamStats(); await settle(h);
+  assert.equal(h.peer.stats.path, 'Conexão direta');
+  assert.equal(video().scaleResolutionDownBy, 1);
+  assert.ok(video().maxBitrate > 1.5e6, `direct bitrate ${video().maxBitrate}`);
+});
+
 test('stats use the selected ICE path and do not downgrade a static screen from stale trouble', async () => {
   const h = mediaHarness();
   h.self.viewers = ['viewer']; h.media.syncScreenSubscriptions(); await settle(h);
@@ -776,7 +801,13 @@ test('connections start with UDP-only TURN and add TURN over TCP on the first IC
   assert.deepEqual(pc.configs, [{ iceServers: plain(h.state.iceServers) }], 'the restart brings TURN over TCP');
   h.listeners.online();
   assert.equal(pc.restarts, 2);
-  assert.equal(pc.configs.length, 1, 'only once per connection');
+  assert.equal(pc.configs.length, 1, 'the same servers are not applied again');
+  // A senha do retransmissor foi renovada (public/app.js): o próximo reinício já usa a nova.
+  h.state.iceServers = [h.state.iceServers[0], { ...h.state.iceServers[1], username: '1800000000:conta', credential: 'nova' }];
+  pc.connectionState = 'failed';
+  h.listeners.online();
+  assert.equal(pc.restarts, 3);
+  assert.deepEqual(pc.configs.at(-1), { iceServers: plain(h.state.iceServers) });
   clearTimeout(h.peer.recoveryTimer);
 });
 
