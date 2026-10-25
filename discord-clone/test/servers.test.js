@@ -6,6 +6,7 @@ const os = require('node:os');
 const path = require('node:path');
 const crypto = require('node:crypto');
 const { io } = require('socket.io-client');
+const { readRoot } = require('../server/store');
 const wait = (ms = 70) => new Promise((r) => setTimeout(r, ms));
 // O estado de OUTRA conexão pode chegar depois da confirmação de quem agiu: espera ele chegar.
 async function eventually(check, timeout = 2000) {
@@ -31,7 +32,10 @@ async function fixture(t, password = '', seed = null, corrupt = false) {
   await new Promise((resolve, reject) => {
     const timer = setTimeout(() => reject(new Error('Server startup timeout')), 5000);
     proc.stdout.on('data', (data) => { if (String(data).includes('rodando')) { clearTimeout(timer); resolve(); } });
-    proc.once('exit', (code) => { clearTimeout(timer); reject(new Error('Server exited: ' + code)); });
+    // O erro do servidor vai junto (no Windows, a porta sorteada às vezes está reservada: listen EACCES).
+    let stderr = '';
+    proc.stderr.on('data', (data) => { stderr += data; });
+    proc.once('exit', (code) => { clearTimeout(timer); reject(new Error('Server exited: ' + code + ' ' + stderr)); });
   });
   }
   await start();
@@ -422,7 +426,7 @@ test('server deletion requires its owner and name, removes only that server, and
   assert.ok((await owner.call('chat:history', { channel: chat })).error);
   assert.equal((await owner.call('chat:history', { channel: dm })).messages[0].text, 'conversa preservada');
   await app.restart();
-  const persisted = JSON.parse(fs.readFileSync(path.join(app.dir, 'data.json'), 'utf8'));
+  const persisted = readRoot(path.join(app.dir, 'data.db'));
   assert.equal(persisted.servers[id], undefined); assert.equal(persisted.messages[chat], undefined);
   assert.equal(persisted.uploads[upload.id], undefined);
   assert.equal(persisted.accounts[friend.auth.accountId].lastRead[chat], undefined);
@@ -494,19 +498,19 @@ test('only the site owner sees every call: server, room and people, with private
   assert.equal(back.auth.siteOwner, true);
 });
 
-test('nonstop activity still reaches the disk within about 2 seconds', async (t) => {
+test('nonstop activity still reaches the database within half a second', async (t) => {
   const app = await fixture(t);
   const owner = await app.connect('Dono');
-  const file = path.join(app.dir, 'data.json');
-  // Uma mudança a cada 200 ms: antes, cada uma adiava a gravação mais 300 ms e nada chegava ao disco.
+  const file = path.join(app.dir, 'data.db');
+  // Uma mudança a cada 200 ms: no data.json antigo, cada uma adiava a gravação e nada chegava ao disco.
   const started = Date.now();
   let landed = null;
   for (let i = 0; Date.now() - started < 3000; i++) {
     assert.ok(!(await owner.call('presence', { statusText: 'frase ' + i })).error);
-    if (landed === null && fs.existsSync(file) && /"statusText":"frase \d+"/.test(fs.readFileSync(file, 'utf8'))) landed = Date.now() - started;
+    if (landed === null && /^frase \d+$/.test(readRoot(file).accounts[owner.auth.accountId]?.statusText || '')) landed = Date.now() - started;
     await wait(200);
   }
-  assert.ok(landed !== null && landed < 2700, `a primeira mudança chegou ao disco em ${landed} ms`);
+  assert.ok(landed !== null && landed < 700, `a primeira mudança chegou ao banco em ${landed} ms`);
 });
 
 test('only the site owner reads the server health meter', async (t) => {

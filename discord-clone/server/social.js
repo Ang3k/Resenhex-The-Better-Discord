@@ -4,7 +4,8 @@
 const pairKey = (a, b) => [a, b].sort().join('-');
 const NONE = new Set();
 
-function socialStore(db) {
+// `changed(chave)` marca o pedaço do banco que mudou (server/store.js).
+function socialStore(db, changed = () => {}) {
   db.friendships ||= {}; // "idA-idB" (em ordem) -> { status: 'friends' | 'pending', from, ts }
   db.dms ||= {}; // "dm-idA-idB" -> { id, users: [idA, idB], closed: { idDaConta: true } }
   db.blocks ||= {}; // idDeQuemBloqueou -> [ids bloqueados]
@@ -37,27 +38,32 @@ function socialStore(db) {
     blockersOf: (id) => blockers.get(id) || NONE,
     setFriendship(a, b, value) {
       db.friendships[pairKey(a, b)] = value;
+      changed('friendships/' + pairKey(a, b));
       link(related, a, b);
       link(related, b, a);
     },
     removeFriendship(a, b) {
       delete db.friendships[pairKey(a, b)];
+      changed('friendships/' + pairKey(a, b));
       unlink(related, a, b);
       unlink(related, b, a);
     },
     addDm(dm) {
       db.dms[dm.id] = dm;
+      changed('dms/' + dm.id);
       for (const id of dm.users) link(conversations, id, dm.id);
     },
     block(blocker, id) {
       const list = (db.blocks[blocker] ||= []);
       if (!list.includes(id)) list.push(id);
+      changed('blocks/' + blocker);
       link(blockers, id, blocker);
     },
     unblock(blocker, id) {
       const list = (db.blocks[blocker] || []).filter((b) => b !== id);
       if (list.length) db.blocks[blocker] = list;
       else delete db.blocks[blocker];
+      changed('blocks/' + blocker);
       unlink(blockers, id, blocker);
     },
   };

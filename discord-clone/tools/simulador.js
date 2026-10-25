@@ -8,6 +8,7 @@
 //   STEPS=250,500,1000 node tools/simulador.js
 //   RATIO=10 contas por pessoa online (ou ACCOUNTS=50000 fixo) · RATE=1 multiplica o ritmo · DURATION=60 s medindo por degrau · SETTLE=15 s
 //   RECONNECT=1 no fim derruba todo mundo e mede a volta em 60 s · KEEP_GOING=1 segue depois de um degrau reprovado
+//   MESSAGES=50 põe 50 mensagens antigas em cada canal de texto e em cada conversa privada (banco maior, como o de verdade)
 //   SERVER_JS=<outro server.js> mede outra versão (na mesma pasta do server.js, para os require relativos funcionarem).
 // No PC, multiplique processador e atraso por ~1,7 para ter a estimativa do servidor ARM (o relatório já faz isso).
 const { spawn, fork } = require('node:child_process');
@@ -16,6 +17,7 @@ const os = require('node:os');
 const path = require('node:path');
 const crypto = require('node:crypto');
 const { io } = require('socket.io-client');
+const { readRoot, writeRoot } = require('../server/store');
 
 const PORT = Number(process.env.PORT || 3172);
 const URL = 'http://127.0.0.1:' + PORT;
@@ -119,6 +121,8 @@ const ACCOUNTS = Math.max(ONLINE, Number(process.env.ACCOUNTS) || ONLINE * RATIO
 const WORKERS = Math.max(1, Math.min(os.cpus().length - 4, Math.ceil(ONLINE / 600)));
 const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'resenhex-simulador-'));
 const DATA = path.join(dir, 'data.json');
+const DB = path.join(dir, 'data.db'); // o servidor atual grava em SQLite; versões antigas (SERVER_JS) no data.json
+const MESSAGES = Number(process.env.MESSAGES || 0);
 let proc;
 const workers = [];
 
@@ -134,7 +138,7 @@ function start() {
 const stopServer = async () => { if (proc && proc.exitCode === null) { const done = new Promise((r) => proc.once('exit', r)); proc.kill(); await done; } };
 const call = (socket, event, payload = {}) => new Promise((r) => socket.timeout(30_000).emit(event, payload, (error, res) => r(error ? { error: error.message } : res)));
 
-// Banco do tamanho do site: o servidor de modelo vem de um cadastro de verdade; o resto é copiado direto no data.json
+// Banco do tamanho do site: o servidor de modelo vem de um cadastro de verdade; o resto é copiado direto no banco
 // (criar servidor tem limite de 5 por minuto).
 async function buildDatabase() {
   await start();
@@ -142,7 +146,8 @@ async function buildDatabase() {
   await new Promise((r) => owner.on('connect', r));
   const reg = await call(owner, 'auth', { mode: 'register', name: 'Dono', password: 'teste123', confirmPassword: 'teste123', version: 'x' });
   await wait(800); owner.disconnect(); await stopServer();
-  const root = JSON.parse(fs.readFileSync(DATA, 'utf8'));
+  const sqlite = fs.existsSync(DB);
+  const root = sqlite ? readRoot(DB) : JSON.parse(fs.readFileSync(DATA, 'utf8'));
   const template = root.servers[root.defaultServerId];
   const hex = () => crypto.randomBytes(8).toString('hex');
   const ids = [];
@@ -173,6 +178,14 @@ async function buildDatabase() {
   for (let i = 0; i < ACCOUNTS * 1.5; i++) { const a = pick(ids), b = pick(ids); if (a !== b) { const id = 'dm-' + pair(a, b); root.dms[id] = { id, users: [a, b], closed: {} }; } }
   root.blocks ||= {};
   for (let i = 0; i < ACCOUNTS / 100; i++) root.blocks[pick(ids)] = [pick(ids)];
+  if (MESSAGES) {
+    const old = (author, k) => ({ id: hex(), authorId: author, text: `mensagem antiga ${k}: uma frase comum de conversa, com umas palavras a mais`, ts: Date.now() - (MESSAGES - k) * 60_000, mentions: { users: [], roles: [], everyone: false } });
+    for (const s of servers) {
+      const members = Object.keys(s.members);
+      for (const c of s.channels) if (c.type === 'text' && members.length) root.messages[c.id] = Array.from({ length: MESSAGES }, (_, k) => old(pick(members), k));
+    }
+    for (const dm of Object.values(root.dms)) root.messages[dm.id] = Array.from({ length: MESSAGES }, (_, k) => old(pick(dm.users), k));
+  }
   // Quem fica online: as primeiras ONLINE contas, cada uma com sessão e os canais dos seus servidores.
   const channelsOf = (s) => ({ id: s.id, text: s.channels.find((c) => c.type === 'text').id, voices: s.channels.filter((c) => c.type === 'voice').map((c) => c.id) });
   const memberOf = new Map();
@@ -185,9 +198,10 @@ async function buildDatabase() {
     root.accounts[id].lastServerId = home;
     return { token, home, servers: mine };
   });
-  fs.writeFileSync(DATA, JSON.stringify(root));
+  if (sqlite) writeRoot(DB, root); else fs.writeFileSync(DATA, JSON.stringify(root));
   const sizes = servers.map((s) => Object.keys(s.members).length).sort((a, b) => b - a);
-  console.log(`banco: ${ACCOUNTS} contas, ${servers.length} servidores (maiores: ${sizes.slice(0, 3).join(', ')} membros), ${Object.keys(root.friendships).length} amizades, ${Object.keys(root.dms).length} conversas · data.json ${(fs.statSync(DATA).size / 1048576).toFixed(1)} MB`);
+  const messages = Object.values(root.messages).reduce((n, list) => n + list.length, 0);
+  console.log(`banco: ${ACCOUNTS} contas, ${servers.length} servidores (maiores: ${sizes.slice(0, 3).join(', ')} membros), ${Object.keys(root.friendships).length} amizades, ${Object.keys(root.dms).length} conversas, ${messages} mensagens · ${sqlite ? 'data.db' : 'data.json'} ${(fs.statSync(sqlite ? DB : DATA).size / 1048576).toFixed(1)} MB`);
   return { ownerToken: reg.token, people };
 }
 

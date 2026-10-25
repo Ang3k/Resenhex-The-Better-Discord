@@ -24,6 +24,7 @@ const { createMailer } = require('./server/mailer');
 const { createRecovery, normalizeEmail } = require('./server/recovery');
 const { createClipStore, MAX_CLIP_BYTES, MAX_THUMB_BYTES, MAX_CLIP_SECONDS } = require('./server/clip-store');
 const { createHealth } = require('./server/health');
+const { openStore } = require('./server/store');
 const { Online } = require('./server/online');
 const { socialStore, pairKey } = require('./server/social');
 const { version: APP_VERSION } = require('./package.json');
@@ -31,6 +32,8 @@ const { version: APP_VERSION } = require('./package.json');
 const PORT = process.env.PORT || 3000;
 const HOST = process.env.HOST || '0.0.0.0';
 const DATA_FILE = process.env.DATA_FILE || path.join(__dirname, 'data.json');
+// O banco de verdade (SQLite, server/store.js). O data.json só é lido uma vez, para passar os dados para cá.
+const DATA_DB = process.env.DATA_DB || DATA_FILE.replace(/\.json$/i, '') + '.db';
 const MAX_MESSAGES = 300;
 const UPLOAD_DIR = process.env.UPLOAD_DIR || path.join(__dirname, 'uploads');
 const MAX_UPLOAD_MB = Number(process.env.MAX_UPLOAD_MB) || 50;
@@ -95,7 +98,7 @@ function iceServers() {
 
 const newId = () => crypto.randomBytes(8).toString('hex');
 
-// ---------------- banco de dados (arquivo JSON) ----------------
+// ---------------- banco de dados ----------------
 function defaultDb() {
   const text = ['geral', 'jogos', 'links'];
   const voice = ['Sala 1', 'Sala 2', 'AFK'];
@@ -153,20 +156,25 @@ function loadDb() {
   }
 }
 
-const loadedDb = loadDb();
+// STORE_VERIFY=<arquivo> (só nos testes): registra ali o que mudou sem marca, em vez de deixar a conferência gravar.
+const store = openStore(DATA_DB, { verify: process.env.STORE_VERIFY || '' });
+// Banco ainda vazio: os dados vêm do data.json (formatos antigos inclusive) ou começam do zero.
+const fromJson = !store.saved;
+const loadedDb = fromJson ? loadDb() : store.load();
 // Keep the original single-server database even after subsequent restarts replace .bak.
-const legacySource = fs.existsSync(DATA_FILE) ? DATA_FILE : fs.existsSync(DATA_FILE + '.bak') ? DATA_FILE + '.bak' : null;
+const legacySource = !fromJson ? null : fs.existsSync(DATA_FILE) ? DATA_FILE : fs.existsSync(DATA_FILE + '.bak') ? DATA_FILE + '.bak' : null;
 if (!loadedDb.servers && legacySource) {
   try { fs.copyFileSync(legacySource, DATA_FILE + '.pre-0.9.1.bak', fs.constants.COPYFILE_EXCL); }
   catch (error) { if (error.code !== 'EEXIST') throw error; }
 }
-const communities = communityStore(loadedDb, newId, defaultDb);
+const communities = communityStore(loadedDb, newId, defaultDb, save);
 const db = communities.db;
+store.attach(communities.root);
 const channelStore = channelActions(db, newId);
 db.uploads ||= {};
-const clipStore = createClipStore({ root: communities.root, randomId: () => crypto.randomBytes(16).toString('hex'), serverExists: (id) => !!communities.root.servers?.[id] });
+const clipStore = createClipStore({ root: communities.root, randomId: () => crypto.randomBytes(16).toString('hex'), serverExists: (id) => !!communities.root.servers?.[id], changed: save });
 // Amizades, conversas privadas (as mensagens ficam em db.messages[id]) e bloqueios, com índices por conta.
-const social = socialStore(db);
+const social = socialStore(db, save);
 // Conta pelo nome (sem diferenciar maiúsculas), para entrar e adicionar amigo sem percorrer todas as contas.
 // Nomes não mudam e contas não são apagadas: só o cadastro acrescenta.
 const accountIdByName = new Map(Object.values(communities.root.accounts).map((a) => [a.name.toLowerCase(), a.id]));
@@ -177,13 +185,10 @@ const recovery = createRecovery({ db, save, mailer: createMailer(), publicUrl: p
 setInterval(() => recovery.prune(), 60 * 60 * 1000).unref();
 
 // Grava na hora ao desligar o servidor (Ctrl+C), para não perder o que estava pendente.
-function saveNow() {
-  clearTimeout(saveTimer);
-  fs.writeFileSync(DATA_FILE, JSON.stringify(communities.root));
-}
 for (const sig of ['SIGINT', 'SIGTERM']) {
   process.on(sig, () => {
-    saveNow();
+    flushStore();
+    store.close();
     process.exit(0);
   });
 }
@@ -191,38 +196,39 @@ for (const sig of ['SIGINT', 'SIGTERM']) {
 // Medidor de saúde (server/health.js): conexões e contas online são lidas na hora de cada amostra.
 const health = createHealth({ connections: () => io.engine.clientsCount, online: () => online.accounts.size });
 
-// Grava 300 ms depois da última mudança, mas nunca espera mais de 2 s com o site sem pausa (antes, atividade
-// contínua adiava a gravação para sempre). Uma gravação só começa quando a anterior terminou: as duas
-// escreviam no mesmo .tmp, e a segunda falhava ou deixava um arquivo misturado.
-const SAVE_QUIET_MS = 300;
-const SAVE_MAX_WAIT_MS = 2000;
-let saveTimer = null;
-let pendingSince = 0; // quando chegou a mudança mais antiga ainda não gravada
-let writing = false;
-let writeAgain = false;
-function save() {
-  const now = Date.now();
-  pendingSince ||= now;
-  clearTimeout(saveTimer);
-  saveTimer = setTimeout(writeData, Math.max(0, Math.min(SAVE_QUIET_MS, pendingSince + SAVE_MAX_WAIT_MS - now)));
+// Quem muda um dado marca o pedaço (save(chunk.account(id)), por exemplo) e o banco grava só os marcados, 250 ms
+// depois da primeira marca: se o processo cair, perde no máximo esse quarto de segundo. Mudanças diretas em contas e servidores
+// (acc.avatar = …, db.serverName = …) já se marcam sozinhas (server/communities.js); o resto (listas, mapas,
+// mensagens) precisa da marca. O que escapar, a conferência lenta grava e avisa no log.
+const FLUSH_MS = 250;
+let flushTimer = null;
+const chunk = {
+  account: (id) => 'accounts/' + id,
+  server: (id = communities.currentId()) => 'servers/' + id,
+  session: (token) => 'sessions/' + token,
+  upload: (id) => 'uploads/' + id,
+  dm: (id) => 'dms/' + id,
+  channel: (id) => 'messages/' + id, // o canal inteiro (canal apagado, muitas mensagens de uma vez)
+  message: (channel, id) => `messages/${channel}/${id}`,
+};
+function save(...keys) {
+  for (const key of keys) store.mark(key);
+  flushTimer ||= setTimeout(flushStore, FLUSH_MS);
 }
-function writeData() {
-  clearTimeout(saveTimer);
-  saveTimer = null;
-  if (writing) { writeAgain = true; return; }
-  writing = true;
-  pendingSince = 0;
-  const tmp = DATA_FILE + '.tmp';
-  const started = performance.now();
-  const json = JSON.stringify(communities.root);
-  health.saved(performance.now() - started); // o tempo em que o servidor fica parado preparando o arquivo
-  const done = (err) => {
-    if (err) console.error('Falha ao salvar dados:', err);
-    writing = false;
-    if (writeAgain) { writeAgain = false; writeData(); }
-  };
-  fs.writeFile(tmp, json, (err) => (err ? done(err) : fs.rename(tmp, DATA_FILE, done)));
+function flushStore() {
+  clearTimeout(flushTimer);
+  flushTimer = null;
+  try {
+    const ms = store.flush();
+    if (ms) health.saved(ms); // o tempo em que o servidor fica parado gravando
+  } catch (error) {
+    console.error('Falha ao salvar dados:', error);
+    flushTimer = setTimeout(flushStore, FLUSH_MS); // as marcas continuam: tenta de novo
+  }
 }
+// Conferência lenta: 2 ms por segundo, passando por todos os pedaços. Nos testes, quem confere é o modo STORE_VERIFY.
+if (process.env.STORE_VERIFY) setInterval(() => store.verify(), 200).unref();
+else setInterval(() => { try { store.sweep(2); } catch (error) { console.error('Falha na conferência do banco:', error); } }, 1000).unref();
 
 // ---------------- senhas e sessões ----------------
 // scrypt assíncrono: calcular o hash leva ~70 ms e não pode travar o servidor
@@ -280,7 +286,7 @@ const clientIp = (headers, address) => String(
 function createSession(accountId) {
   const token = crypto.randomBytes(32).toString('hex');
   db.sessions[token] = accountId;
-  save();
+  save(chunk.session(token));
   return token;
 }
 
@@ -366,10 +372,21 @@ function deleteUpload(id) {
   const up = db.uploads[id];
   if (!up) return;
   delete db.uploads[id];
+  save(chunk.upload(id));
   fs.unlink(path.join(UPLOAD_DIR, up.file), () => {});
 }
 
 const deleteAttachments = (msg) => (msg.attachments || []).forEach((a) => deleteUpload(a.id));
+// Mensagem nova no fim do canal. As mais antigas além do limite saem, com os anexos.
+function pushMessage(channelId, list, msg) {
+  list.push(msg);
+  save(chunk.message(channelId, msg.id));
+  while (list.length > MAX_MESSAGES) {
+    const old = list.shift();
+    deleteAttachments(old);
+    save(chunk.message(channelId, old.id));
+  }
+}
 
 // Apaga anexos enviados mas nunca usados numa mensagem (ex.: a pessoa desistiu).
 setInterval(() => {
@@ -565,7 +582,7 @@ app.post('/password/reset', recoveryJson, async (req, res) => {
   const account = recovery.takeReset(req.body?.token);
   if (!account) return res.status(400).json({ error: 'Esse link expirou ou já foi usado. Peça outro em "Esqueci a senha".' });
   Object.assign(account, await hashPassword(next));
-  for (const [token, id] of Object.entries(db.sessions)) if (id === account.id) delete db.sessions[token];
+  for (const [token, id] of Object.entries(db.sessions)) if (id === account.id) { delete db.sessions[token]; save(chunk.session(token)); }
   for (const key of loginFailures.keys()) if (key.endsWith('|' + account.name.toLowerCase())) loginFailures.delete(key);
   for (const [sid] of sessionsOf(online.sidsOf(account.id))) {
     const other = io.sockets.sockets.get(sid);
@@ -683,7 +700,7 @@ app.post('/servers/:serverId/sounds', express.raw({ type: () => true, limit: MAX
       const file = crypto.createHash('sha256').update(data).digest('hex') + '.wav';
       fs.writeFileSync(path.join(SOUND_DIR, file), data);
       const sound = { id: newId(), name, file, duration, createdBy: acc.id };
-      db.soundboard.push(sound); save(); broadcastState();
+      db.soundboard.push(sound); save(chunk.server()); broadcastState();
       res.json({ ok: true, id: sound.id });
     } catch (error) { res.status(400).json({ error: error.message }); }
   });
@@ -700,7 +717,7 @@ app.get('/servers/:serverId/sounds/:soundId', (req, res) => {
 });
 // ---------------- prévias de links ----------------
 // A chave que assina as imagens das prévias fica no banco: as prévias antigas continuam abrindo.
-db.linkSecret ||= crypto.randomBytes(32).toString('hex');
+if (!db.linkSecret) { db.linkSecret = crypto.randomBytes(32).toString('hex'); save('root'); }
 const linkImages = linkPreview.imageProxy(db.linkSecret);
 app.get('/link-image', (req, res) => {
   if (!allow('link-image:' + clientIp(req.headers, req.socket.remoteAddress), 120, 60_000)) return res.status(429).end();
@@ -720,7 +737,7 @@ function attachPreviews(c, msg, emit) {
     const embeds = found.map((e) => ({ ...e, image: linkImages.proxied(e.image) }));
     if (!embeds.length && !live.embeds) return;
     if (embeds.length) live.embeds = embeds; else delete live.embeds;
-    emit(); save();
+    emit(); save(chunk.message(c.id, live.id));
   });
 }
 
@@ -751,7 +768,7 @@ app.post('/servers/:serverId/emojis', express.raw({ type: () => true, limit: MAX
       const file = crypto.createHash('sha256').update(data).digest('hex') + '.' + ext;
       fs.writeFileSync(path.join(AVATAR_DIR, file), data);
       const emoji = { id: newId(), name, file, createdBy: acc.id, ts: Date.now() };
-      db.emojis.push(emoji); imagesChanged(); save(); broadcastState();
+      db.emojis.push(emoji); imagesChanged(); save(chunk.server()); broadcastState();
       res.json({ ok: true, id: emoji.id });
     } catch (error) { res.status(400).json({ error: error.message }); }
   });
@@ -885,7 +902,7 @@ app.post('/upload', express.raw({ type: () => true, limit: MAX_UPLOAD_MB * 1024 
     }
     const up = { id, file, name, size: req.body.length, type: INLINE_TYPES[ext] || 'application/octet-stream', uploaderId: acc.id, ts: Date.now(), messageId: null, serverId: dm ? null : communities.currentId(), channelId: targetId || null };
     db.uploads[id] = up;
-    save();
+    save(chunk.upload(id));
     res.json({ id, name, size: up.size, type: up.type, url: '/uploads/' + file });
   });
 });
@@ -983,14 +1000,13 @@ const dmCalls = createDmCalls({
     const list = (db.messages[dm] ||= []);
     // Para quem recebe, a chamada conta como menção (badge vermelho), como as mensagens diretas.
     msg.mentions = { users: db.dms[dm].users.filter((u) => u !== msg.authorId), roles: [], everyone: false };
-    list.push(msg);
-    while (list.length > MAX_MESSAGES) deleteAttachments(list.shift());
+    pushMessage(dm, list, msg);
     db.dms[dm].closed = {}; // a conversa volta para a lista dos dois, como numa mensagem nova
     emitToDm(dm, 'chat:message', { channel: dm, msg, author: publicProfiles([msg.authorId])[0] });
     pushSocial(...db.dms[dm].users);
-    save();
+    save(chunk.dm(dm));
   },
-  update: (dm, msg) => { emitToDm(dm, 'chat:update', { channel: dm, msg }); save(); },
+  update: (dm, msg) => { emitToDm(dm, 'chat:update', { channel: dm, msg }); save(chunk.message(dm, msg.id)); },
   changed: (dm) => notify({ accounts: db.dms[dm]?.users }),
 });
 // Contas de uma sala de voz (para saber quem continua na chamada privada).
@@ -1376,6 +1392,7 @@ function selectServer(socket, accountId, id) {
 
 function removeMembership(accountId, reason) {
   communities.membership(accountId).active = false;
+  save(chunk.server());
   dropVoice(accountId, reason);
   for (const socket of socketsOf(accountId, true)) {
     selectServer(socket, accountId, communities.choose(accountId));
@@ -1431,7 +1448,7 @@ io.on('connection', (socket) => {
       if (!can(acc, 'ADMIN')) fail('Só administradores podem revogar o convite anterior.');
       if (!allow('invite-rotate:' + acc.id, 10, 60_000)) fail('Aguarde antes de renovar o convite.');
       communities.current().inviteCode = communities.inviteCode();
-      save();
+      save(chunk.server());
     }
     return { code: communities.current().inviteCode, name: db.serverName };
   });
@@ -1461,6 +1478,7 @@ io.on('connection', (socket) => {
     for (const channelId of channels) {
       (db.messages[channelId] || []).forEach(deleteAttachments);
       delete db.messages[channelId];
+      save(chunk.channel(channelId));
     }
     for (const upload of Object.values(db.uploads)) {
       if (upload.serverId === id || channels.has(upload.channelId)) deleteUpload(upload.id);
@@ -1471,12 +1489,13 @@ io.on('connection', (socket) => {
     const soundFiles = community.soundboard.map((s) => s.file);
     communities.drop(id);
     soundFiles.forEach(removeSoundIfUnused);
-    if (communities.root.defaultServerId === id) communities.root.defaultServerId = Object.keys(communities.root.servers)[0] || null;
+    if (communities.root.defaultServerId === id) { communities.root.defaultServerId = Object.keys(communities.root.servers)[0] || null; save('root'); }
     // Só quem tinha registro de membro leu canais dali ou tinha o servidor como último aberto.
     for (const memberId of Object.keys(community.members)) {
       const account = db.accounts[memberId];
       if (!account) continue;
       for (const channelId of channels) if (account.lastRead) delete account.lastRead[channelId];
+      save(chunk.account(memberId));
       if (account.lastServerId === id) account.lastServerId = communities.choose(account.id);
     }
     for (const [sid, session] of sessionsOf(new Set([...online.viewers(id), ...online.inCalls(id)]))) {
@@ -1547,6 +1566,7 @@ io.on('connection', (socket) => {
           communities.join(acc.id, legacy);
           legacy.ownerId = acc.id;
           communities.root.siteOwnerId ??= acc.id;
+          save('root', chunk.server(legacy.id));
         }
       } else {
         const key = ip + '|' + name.toLowerCase();
@@ -1579,7 +1599,7 @@ io.on('connection', (socket) => {
 
   on('logout', (acc, { token }) => {
     if (db.sessions[token] === acc.id) delete db.sessions[token];
-    save();
+    save(chunk.session(token));
   });
 
   // O nome de usuário é fixo; só a senha muda. Trocar a senha encerra as outras sessões
@@ -1593,8 +1613,7 @@ io.on('connection', (socket) => {
     if (!allow('password:' + acc.id, 5, 10 * 60 * 1000)) fail('Muitas tentativas. Aguarde alguns minutos.');
     Object.assign(acc, await hashPassword(next));
     const keep = socket.data.token;
-    for (const [token, id] of Object.entries(db.sessions)) if (id === acc.id && token !== keep) delete db.sessions[token];
-    save();
+    for (const [token, id] of Object.entries(db.sessions)) if (id === acc.id && token !== keep) { delete db.sessions[token]; save(chunk.session(token)); }
     for (const [sid] of sessionsOf(online.sidsOf(acc.id))) {
       if (sid === socket.id) continue;
       const other = io.sockets.sockets.get(sid);
@@ -1712,11 +1731,10 @@ io.on('connection', (socket) => {
   const postMudae = (c, acc, command, data, live = null) => {
     const list = (db.messages[c.id] ||= []);
     const msg = { id: newId(), authorId: null, bot: 'mudae', by: acc.id, command, ts: Date.now(), mudae: data };
-    list.push(msg);
-    while (list.length > MAX_MESSAGES) deleteAttachments(list.shift());
+    pushMessage(c.id, list, msg);
     (acc.lastRead ||= {})[c.id] = msg.ts;
     emitToChat(c, 'chat:message', { channel: c.id, msg: live ? { ...msg, mudae: { ...data, ...live } } : msg });
-    save();
+    save(chunk.account(acc.id), chunk.server()); // o Mudae guarda casamentos e rolls no servidor
     return msg;
   };
   const mudaeAllowed = (acc) => {
@@ -1778,6 +1796,7 @@ io.on('connection', (socket) => {
     const d = msg.mudae;
     mudae.claim(mudaeStore(), acc.id, d.card.id, { revealAt: d.revealAt ?? msg.ts, rollerId: msg.by, priority: d.priorityUntil ? PRIORITY_MS : 0 });
     d.ownerId = acc.id;
+    save(chunk.message(c.id, msg.id));
     emitToChat(c, 'chat:update', { channel: c.id, msg });
     // Casar com o roll de outra pessoa é um roubo, e o chat conta isso.
     postMudae(c, acc, null, { kind: 'married', card: d.card, ownerId: acc.id, from: msg.by && msg.by !== acc.id ? msg.by : null });
@@ -1813,7 +1832,7 @@ io.on('connection', (socket) => {
   on('mudae:favorite', (acc, { charId }) => {
     mudaeAllowed(acc);
     mudae.setFavorite(mudaeStore(), acc.id, charId === null ? null : charKey(charId));
-    save();
+    save(chunk.server());
   });
 
   // Divórcio pelo álbum (por id); a notícia sai no Salão aberto.
@@ -1854,20 +1873,19 @@ io.on('connection', (socket) => {
     const msg = { id: newId(), authorId: acc.id, text, ts: Date.now() };
     if (ups.length) {
       msg.attachments = ups.map((up) => ({ id: up.id, name: up.name, size: up.size, type: up.type, url: '/uploads/' + up.file }));
-      ups.forEach((up) => (up.messageId = msg.id));
+      ups.forEach((up) => { up.messageId = msg.id; save(chunk.upload(up.id)); });
     }
     if (gif) msg.gif = gif;
     if (replied) msg.replyTo = replied.id;
     msg.mentions = mentionsFor(acc, c, text, replied?.authorId);
-    list.push(msg);
-    while (list.length > MAX_MESSAGES) deleteAttachments(list.shift());
+    pushMessage(c.id, list, msg);
     (acc.lastRead ||= {})[c.id] = msg.ts;
     // A conversa aparece na lista de quem recebe a primeira mensagem e volta para quem a tinha fechado.
     const listChanged = c.dm && (list.length === 1 || c.dm.closed?.[peer.id] || c.dm.closed?.[acc.id]);
-    if (c.dm) c.dm.closed = {};
+    if (c.dm) { c.dm.closed = {}; save(chunk.dm(c.dm.id)); }
     emitToChat(c, 'chat:message', { channel: c.id, msg, author: publicProfiles([acc.id])[0] });
     if (listChanged) pushSocial(acc.id, peer.id);
-    save();
+    save(chunk.account(acc.id));
     attachPreviews(c, msg, () => emitToChat(c, 'chat:update', { channel: c.id, msg }));
   });
 
@@ -1886,7 +1904,7 @@ io.on('connection', (socket) => {
     if (msg.embeds) msg.embeds = msg.embeds.filter((e) => linkPreview.linksIn(text).includes(e.url));
     if (msg.embeds && !msg.embeds.length) delete msg.embeds;
     emitToChat(c, 'chat:update', { channel: c.id, msg });
-    save();
+    save(chunk.message(c.id, msg.id));
     attachPreviews(c, msg, () => emitToChat(c, 'chat:update', { channel: c.id, msg }));
   });
 
@@ -1897,7 +1915,7 @@ io.on('connection', (socket) => {
     msg.noEmbeds = true;
     delete msg.embeds;
     emitToChat(c, 'chat:update', { channel: c.id, msg });
-    save();
+    save(chunk.message(c.id, msg.id));
   });
 
   on('chat:delete', (acc, { channel, id }) => {
@@ -1907,7 +1925,7 @@ io.on('connection', (socket) => {
     list.splice(i, 1);
     deleteAttachments(msg);
     emitToChat(c, 'chat:delete', { channel: c.id, id });
-    save();
+    save(chunk.message(c.id, msg.id));
   });
 
   on('chat:react', (acc, { channel, id, emoji }) => {
@@ -1928,13 +1946,13 @@ io.on('connection', (socket) => {
     }
     if (!reactions[emoji].length) delete reactions[emoji];
     emitToChat(c, 'chat:update', { channel: c.id, msg });
-    save();
+    save(chunk.message(c.id, msg.id));
   });
 
   on('chat:read', (acc, { channel }) => {
     const c = chatTarget(acc, channel);
     (acc.lastRead ||= {})[c.id] = Date.now();
-    save();
+    save(chunk.account(acc.id));
   });
 
   // Quais canais têm mensagens não lidas e quantas menções a você.
@@ -1953,7 +1971,7 @@ io.on('connection', (socket) => {
       const fresh = (db.messages[dm.id] || []).filter((m) => m.ts > (lastRead[dm.id] ?? 0) && m.authorId !== acc.id);
       if (fresh.length) result[dm.id] = { unread: true, mentions: fresh.length };
     }
-    save();
+    save(chunk.account(acc.id));
     return { unread: result };
   });
 
@@ -2076,7 +2094,7 @@ io.on('connection', (socket) => {
     delete db.dms[id].closed?.[acc.id];
     (acc.lastRead ||= {})[id] ??= 0;
     pushSocial(acc.id);
-    save();
+    save(chunk.dm(id), chunk.account(acc.id));
     return { id };
   });
 
@@ -2087,7 +2105,7 @@ io.on('connection', (socket) => {
     (dm.closed ||= {})[acc.id] = true;
     (acc.lastRead ||= {})[id] = Date.now();
     pushSocial(acc.id);
-    save();
+    save(chunk.dm(id), chunk.account(acc.id));
   });
 
   // --- Voz ---
@@ -2332,7 +2350,7 @@ io.on('connection', (socket) => {
     name = String(name || '').trim();
     try { checkEmojiName(name, id); } catch (error) { fail(error.message); }
     emoji.name = name;
-    save(); broadcastState();
+    save(chunk.server()); broadcastState();
     return { ok: true };
   });
 
@@ -2475,7 +2493,7 @@ io.on('connection', (socket) => {
       const role = { id: newId(), name: cleanName(name, 32) || 'novo cargo', color: cleanColor(color, '#99aab5'), hoist: !!hoist, perms: checkPerms(perms) };
       // Como no Discord, cargo novo entra no fim da hierarquia (logo acima do @everyone).
       db.roles.splice(1, 0, role);
-      save();
+      save(chunk.server());
       broadcastState();
       return { id: role.id };
     }
@@ -2504,7 +2522,7 @@ io.on('connection', (socket) => {
     } else {
       fail('Ação desconhecida');
     }
-    save();
+    save(chunk.server());
     broadcastState();
   });
 
@@ -2534,7 +2552,7 @@ io.on('connection', (socket) => {
   on('category', (acc, payload) => {
     if (!can(acc, 'MANAGE_CHANNELS')) fail('Você não tem permissão para gerenciar canais.');
     const result = channelStore.category(payload);
-    save();
+    save(chunk.server());
     broadcastState();
     return result;
   });
@@ -2550,7 +2568,7 @@ io.on('connection', (socket) => {
     const removedMessages = payload.action === 'delete' ? db.messages[payload.id] || [] : [];
     const result = channelStore.channel(payload);
     removedMessages.forEach(deleteAttachments);
-    save();
+    save(chunk.server(), ...(payload.action === 'delete' ? [chunk.channel(payload.id)] : []));
     broadcastState();
     return result;
   });
@@ -2572,6 +2590,13 @@ function formatMinutes(m) {
 
 // Chamadas privadas abertas antes de reiniciar: quem estava nelas tem um minuto para voltar.
 setTimeout(() => dmCalls.sweep(Object.keys(db.dms)), 60_000).unref();
+
+// Banco: na primeira vez, passa tudo do data.json para o SQLite (o data.json fica guardado com outro nome);
+// nas outras, grava o que as migrações do início mudaram.
+if (fromJson) {
+  store.importAll();
+  if (fs.existsSync(DATA_FILE)) fs.renameSync(DATA_FILE, DATA_FILE + '.antes-do-sqlite');
+} else store.checkAll();
 
 server.listen(PORT, HOST, () => {
   console.log(`Resenhex rodando em http://${HOST}:${PORT}`);

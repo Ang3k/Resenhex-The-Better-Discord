@@ -184,7 +184,7 @@ test('groups, moving, duplication and deletion preserve live calls and attachmen
   assert.deepEqual((await member.call('chat:history', { channel: chat })).messages, history);
   assert.equal((await fetch(app.base + file.url)).status, 200);
   await delay(500);
-  const saved = JSON.parse(fs.readFileSync(app.dataFile, 'utf8'));
+  const saved = require('../server/store').readRoot(app.dataFile.replace(/\.json$/, '.db'));
   assert.ok(saved.accounts[member.authResult.accountId].lastRead[chat]);
   const token = owner.authResult.token;
   await app.restart();

@@ -10,13 +10,15 @@ const MAX_CLIP_BYTES = 25 * 1024 * 1024;
 const MAX_THUMB_BYTES = 40 * 1024;
 const MAX_CLIP_SECONDS = 31;
 
-function createClipStore({ root, now = Date.now, randomId, serverExists = () => true }) {
+// `changed(chave)` marca o pedaço do banco que mudou (server/store.js).
+function createClipStore({ root, now = Date.now, randomId, serverExists = () => true, changed = () => {} }) {
   root.clips ||= {};
   const tokens = new Map(); // token -> { id, accountId, expires }
 
   function add({ file, voice, serverId, creatorId, duration, channelName, recipients, thumb }) {
     const clip = { id: randomId(), file, voice, serverId, creatorId, duration, channelName, recipients: [...new Set(recipients)], thumb, createdAt: now() };
     root.clips[clip.id] = clip;
+    changed('clips/' + clip.id);
     return clip;
   }
 
@@ -45,6 +47,7 @@ function createClipStore({ root, now = Date.now, randomId, serverExists = () => 
     for (const clip of Object.values(root.clips)) {
       if (clip.createdAt < limit || (clip.serverId && !serverExists(clip.serverId))) {
         delete root.clips[clip.id];
+        changed('clips/' + clip.id);
         removed.push(clip.file);
       }
     }

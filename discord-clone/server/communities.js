@@ -8,7 +8,9 @@ const inviteCode = () => crypto.randomBytes(18).toString('base64url');
 
 // Profiles, sessions and DMs belong to the account. Permissions belong to a membership.
 // AsyncLocalStorage keeps concurrent sockets and HTTP uploads in their own server context.
-function communityStore(root, newId, defaultDb) {
+// `changed(chave)` marca o pedaço do banco que mudou (server/store.js): toda escrita direta numa conta ou num
+// servidor passa pelos Proxies daqui e se marca sozinha; mudanças dentro de listas e mapas são marcadas por quem muda.
+function communityStore(root, newId, defaultDb, changed = () => {}) {
   if (!root.servers) {
     const id = newId();
     const legacy = { id, members: {}, inviteCode: inviteCode() };
@@ -71,6 +73,7 @@ function communityStore(root, newId, defaultDb) {
   const empty = { ownerId: null, serverName: '', serverIcon: null, roles: [], channels: [], categories: [], members: {}, soundboard: [], emojis: [] };
   const currentId = () => context.getStore() === undefined ? root.defaultServerId : context.getStore();
   const current = () => root.servers[currentId()] || empty;
+  const serverChanged = (id = currentId()) => { if (root.servers[id]) changed('servers/' + id); };
   const membership = (accountId, serverId = currentId()) => root.servers[serverId]?.members[accountId];
   const joined = (accountId, serverId = currentId()) => !!membership(accountId, serverId)?.active && !membership(accountId, serverId)?.banned;
   const accountView = (account) => account && new Proxy(account, {
@@ -80,14 +83,34 @@ function communityStore(root, newId, defaultDb) {
         const member = membership(target.id);
         if (!member) throw new Error('Membro não encontrado neste servidor.');
         member[key] = value;
-      } else target[key] = value;
+        serverChanged();
+      } else {
+        target[key] = value;
+        changed('accounts/' + target.id);
+      }
+      return true;
+    },
+    deleteProperty(target, key) {
+      if (MEMBER_FIELDS.has(key)) {
+        const member = membership(target.id);
+        if (member) { delete member[key]; serverChanged(); }
+      } else {
+        delete target[key];
+        changed('accounts/' + target.id);
+      }
       return true;
     },
   });
-  const accounts = new Proxy(root.accounts, { get(target, key) { return accountView(target[key]); } });
+  const accounts = new Proxy(root.accounts, {
+    get(target, key) { return accountView(target[key]); },
+    set(target, key, value) { target[key] = value; changed('accounts/' + key); return true; },
+  });
   const db = new Proxy(root, {
     get(target, key) { return key === 'accounts' ? accounts : SERVER_FIELDS.has(key) ? current()[key] : target[key]; },
-    set(target, key, value) { if (SERVER_FIELDS.has(key)) current()[key] = value; else target[key] = value; return true; },
+    set(target, key, value) {
+      if (SERVER_FIELDS.has(key)) { current()[key] = value; serverChanged(); } else target[key] = value;
+      return true;
+    },
   });
   const memberServers = (accountId) => [...(serversOf.get(accountId) || [])].filter((id) => root.servers[id])
     .sort((a, b) => position.get(a) - position.get(b));
@@ -101,6 +124,7 @@ function communityStore(root, newId, defaultDb) {
     if (!joined(accountId, server.id) && list(accountId).length >= 100) throw new Error('Você já participa de 100 servidores.');
     if (!joined(accountId, server.id)) server.members[accountId] = { active: true, roles: [], joinedAt: Date.now() };
     addMember(accountId, server.id);
+    serverChanged(server.id);
   }
   // Exclui o servidor do site (e dos índices).
   function drop(serverId) {
@@ -109,6 +133,7 @@ function communityStore(root, newId, defaultDb) {
     for (const accountId of Object.keys(server.members)) serversOf.get(accountId)?.delete(serverId);
     position.delete(serverId);
     delete root.servers[serverId];
+    changed('servers/' + serverId);
   }
   function create(accountId, name) {
     if (list(accountId).length >= 100) throw new Error('Você já participa de 100 servidores.');

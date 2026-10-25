@@ -962,7 +962,7 @@ test('server validates viewers and cleans subscriptions on stop, leave and disco
     const edited = await emit(host, 'profile', { color: '#654321' });
     assert.equal(edited.avatarUrl, profile.avatarUrl);
     await until(() => {
-      try { return Object.values(JSON.parse(fs.readFileSync(path.join(dir, 'data.json'), 'utf8')).accounts).some((account) => account.name === 'Host' && '/avatars/' + account.avatar === profile.avatarUrl); } catch { return false; }
+      try { return Object.values(require('../server/store').readRoot(path.join(dir, 'data.db')).accounts).some((account) => account.name === 'Host' && '/avatars/' + account.avatar === profile.avatarUrl); } catch { return false; }
     });
     assert.equal((await emit(host, 'profile', { avatar: null })).avatarUrl, null);
     assert.equal((await fetch(base + profile.avatarUrl)).status, 200);

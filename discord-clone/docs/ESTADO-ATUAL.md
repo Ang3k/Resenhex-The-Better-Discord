@@ -11,7 +11,8 @@ Deixar o Resenhex aguentar **5 mil pessoas online ao mesmo tempo**, espalhadas e
   - a Fase 0 (medidor de saúde e simulador);
   - a Fase 1 inteira (avisos só para quem foi afetado, portas do retransmissor, início rápido, gravação garantida, arquivos pelo Caddy, backups dos uploads);
   - a Fase 4a (índices em vez de percorrer o site inteiro).
-- Próxima: a Fase 2 (banco SQLite).
+- **Em andamento: a Fase 2 (banco SQLite).** Quase pronta, salva num commit de trabalho. Veja "Fase 2: onde parou", logo abaixo.
+- Depois dela: Fase 3, Fase 4b, o resto da Fase 5 (com a senha temporária do TURN) e a Fase 7. A Fase 6 só se aparecer um servidor grande.
 - **Teto medido com o simulador:** era de 200 a 300 online (Fase 0). Com a Fase 4a, 1.500 online passaram com 15 mil contas.
   - O que trava agora é a gravação do banco: com o banco da meta, de 50 mil contas, cada gravação leva ~0,3 s.
   - Sem a gravação, 1.000 online custam o mesmo com 15 mil e com 50 mil contas.
@@ -38,7 +39,46 @@ Tudo na branch `claude/chamada-atual` (pasta `.claude/worktrees/chamada-atual`),
 | `455edc0` | Fase 1, itens 2 e 3: portas e ajustes do retransmissor, TURN por TCP só na segunda tentativa, início rápido |
 | `f023dc0` | Fase 0: medidor de saúde (aba "Saúde do servidor" do dono) e simulador v2 com o banco do tamanho da meta; primeira medição do teto |
 | `ca9127a` | Fase 1, itens 4 a 7: gravação garantida, arquivos e instaladores pelo Caddy, backups dos uploads só com os novos |
-| este commit | Fase 4a: índices de conexões, relações entre contas, servidores de cada conta, nomes, fotos e emojis (`server/online.js`, `server/social.js`) |
+| `801d5ce` | Fase 4a: índices de conexões, relações entre contas, servidores de cada conta, nomes, fotos e emojis (`server/online.js`, `server/social.js`) |
+| este commit | Fase 2 (em andamento): banco SQLite gravado em pedaços (`server/store.js`) |
+
+## Fase 2: onde parou
+
+**Já feito** (testado, tudo neste commit):
+
+- O banco virou `data.db` (node:sqlite, WAL). Cada conta, servidor, sessão, amizade, conversa, bloqueio, envio, clipe e token de e-mail é uma linha; cada mensagem também é uma linha.
+- Quem muda algo marca o pedaço com `save('accounts/<id>')` e afins. Uma gravação a cada 250 ms grava só o que foi marcado.
+  - Uma conferência lenta (2 ms por segundo) grava o que mudou sem marca e avisa no log: `faltou marcar`.
+  - Com `STORE_VERIFY=<arquivo>`, a conferência só anota no arquivo o que ficou sem marca. A suíte inteira rodou assim sem nenhuma falta.
+- No primeiro início, o servidor importa o `data.json` e o renomeia para `data.json.antes-do-sqlite`.
+- O simulador lê e grava `data.db`. Com `MESSAGES=12`, ele enche o banco de mensagens antigas.
+- Testes: `test/store.test.js` (6). A suíte inteira passou, fora as falhas de porta do Windows que passam ao repetir.
+
+**Medido** com o simulador (`ACCOUNTS=50000 STEPS=1000 MESSAGES=12`, banco de 524 MB, 1,35 milhão de mensagens): 1.000 online passaram.
+
+- p99 de 13,8 ms e pior caso de 112 ms no ARM.
+- Mas **a pior gravação levou 70 ms** (a meta é 5 ms) e **o início levou 10 s** (a meta é 5 s).
+
+**Causa da gravação lenta, achada agora:** é o checkpoint automático do WAL. Ele roda dentro da gravação a cada ~4 MB.
+
+- Medido com o script de teste `bench-flush.js` (na pasta temporária da sessão; refazer se sumir): mediana de 1,2 ms, mas 5 gravações de 116 passaram de 140 ms.
+
+**Falta fazer:**
+
+1. Checkpoint fora da linha principal:
+   - `PRAGMA wal_autocheckpoint = 0` na conexão principal;
+   - um `worker_thread` com conexão própria roda `PRAGMA wal_checkpoint(PASSIVE)` a cada ~1 s;
+   - `journal_size_limit` para o arquivo `-wal` não crescer;
+   - se o worker morrer, volta o checkpoint automático e avisa no log.
+   - Medir de novo: nenhuma gravação acima de 5 ms.
+2. Início rápido: o `checkAll()` do início pode conferir só `root` e os pedaços que não são mensagens. A conferência lenta cuida do resto, e nenhuma migração do início mexe em mensagens (`communities.js` nem cita `messages`). Isso também deixa de guardar o texto de cada mensagem no `load()`, o que economiza memória.
+   - Medir com o script `bench-start.js` (mesma pasta) e depois com o simulador.
+3. Conferir se o node:sqlite funciona no Node do servidor (22.23): rodar `node -e "require('node:sqlite')"` lá. Só leitura.
+4. Ajustar a publicação para o banco novo:
+   - o backup em `deploy/atualizar-oracle.ps1` (hoje é um tar do `data.json`) passa a ser uma cópia do `data.db` com `VACUUM INTO`, feita pelo node no servidor;
+   - em `deploy/instalar-vps.sh`, as permissões de `data.db`, `-wal` e `-shm`;
+   - `tools/carga-teste.js` ainda usa `data.json`.
+5. Atualizar este resumo, a Fase 2 do plano (marcar "Feito" com as medições) e a memória. Depois, fazer o commit final da fase.
 
 O dono pediu para **publicar só quando ele mandar, e só com o plano inteiro pronto** (24/10): nada de publicar fase por fase.
 

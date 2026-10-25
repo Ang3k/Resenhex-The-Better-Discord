@@ -303,7 +303,7 @@ test('friends and direct messages survive a server restart', async (t) => {
   // Aguarda a gravação real para testar o reinício em qualquer sistema.
   let persisted = false;
   for (let attempt = 0; attempt < 100 && !persisted; attempt++) {
-    try { persisted = JSON.parse(fs.readFileSync(path.join(dir, 'data.json'), 'utf8')).messages[id]?.some((m) => m.text === 'persistiu?'); } catch {}
+    try { persisted = require('../server/store').readRoot(path.join(dir, 'data.db')).messages[id]?.some((m) => m.text === 'persistiu?'); } catch {}
     if (!persisted) await wait(30);
   }
   assert.ok(persisted, 'As mensagens devem ser gravadas antes do reinício.');

@@ -111,7 +111,8 @@ test('clipes: envio, aviso só na sala, recusas, download de uso único, lista e
     assert.equal((await postClip(host, { ...meta, participants: [host.accountId], voice: rooms[0].id })).status, 200);
   } finally {
     for (const socket of clients) socket.close();
-    child.kill();
+    // O banco fica aberto até o processo sair (no Windows, apagar antes falha).
+    const exited = new Promise((r) => child.once('exit', r)); child.kill(); await exited;
     fs.rmSync(dir, { recursive: true, force: true });
   }
 });

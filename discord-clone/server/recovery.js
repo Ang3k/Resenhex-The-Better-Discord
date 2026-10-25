@@ -38,8 +38,10 @@ function message(to, subject, paragraphs) {
   return { to, subject, text, html };
 }
 
+// save(...chaves) marca os pedaços do banco que mudaram (server/store.js); os campos da conta se marcam sozinhos.
 function createRecovery({ db, save, mailer, publicUrl, now = Date.now, log = console.error }) {
   db.mailTokens ||= {};
+  const tokenKey = (key) => 'mailTokens/' + key;
   const base = String(publicUrl).replace(/\/+$/, '');
   const sentAt = new Map(); // endereço → horários de envio nas últimas 24 h
   let sentTotal = [];
@@ -48,13 +50,13 @@ function createRecovery({ db, save, mailer, publicUrl, now = Date.now, log = con
   function issue(kind, account, ttl) {
     const token = crypto.randomBytes(32).toString('hex');
     db.mailTokens[digest(token)] = { kind, accountId: account.id, email: account.email, expires: now() + ttl };
-    save();
+    save(tokenKey(digest(token)));
     return token;
   }
   // Sem "kind", derruba todos os links da conta.
   function drop(accountId, kind) {
     for (const [key, entry] of Object.entries(db.mailTokens)) {
-      if (entry.accountId === accountId && (!kind || entry.kind === kind)) delete db.mailTokens[key];
+      if (entry.accountId === accountId && (!kind || entry.kind === kind)) { delete db.mailTokens[key]; save(tokenKey(key)); }
     }
   }
   // Usa o token uma vez só. Ele vale apenas para a conta e o e-mail para os quais foi enviado.
@@ -64,7 +66,7 @@ function createRecovery({ db, save, mailer, publicUrl, now = Date.now, log = con
     const entry = db.mailTokens[key];
     if (!entry || entry.kind !== kind) return null;
     delete db.mailTokens[key];
-    save();
+    save(tokenKey(key));
     const account = db.accounts[entry.accountId];
     if (entry.expires <= now() || !account || account.email !== entry.email) return null;
     return account;
@@ -170,11 +172,9 @@ function createRecovery({ db, save, mailer, publicUrl, now = Date.now, log = con
       ]));
     },
     prune() {
-      let changed = false;
       for (const [key, entry] of Object.entries(db.mailTokens)) {
-        if (entry.expires <= now()) { delete db.mailTokens[key]; changed = true; }
+        if (entry.expires <= now()) { delete db.mailTokens[key]; save(tokenKey(key)); }
       }
-      if (changed) save();
       const since = now() - DAY;
       for (const [to, times] of sentAt) if (!times.some((t) => t > since)) sentAt.delete(to);
     },
