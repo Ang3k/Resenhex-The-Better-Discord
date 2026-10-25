@@ -55,7 +55,8 @@ Tudo na branch `claude/chamada-atual` (pasta `.claude/worktrees/chamada-atual`),
 | `e09fadf` | Versão **2.0.0** com item nas Novidades; chamada que não fecha em 8 s tenta de novo já com o TURN por TCP |
 | `705afd4` | Novidades da 2.0.0: recado do dev chamando a galera, com o confete da 1.0 |
 | `22253aa` | Novidades da 2.0.0: seção "Por dentro" |
-| este commit | Correções da revisão do GPT 6.1 (seção "Revisão do GPT 6.1") |
+| `f7fe0ab` | Correções da revisão do GPT 6.1 (seção "Revisão do GPT 6.1") |
+| `d5811b6` | Corte final de rede: com 9,5 TB no mês, o site sai do ar até o mês virar |
 
 ## Conferência antes de publicar (25/10)
 
