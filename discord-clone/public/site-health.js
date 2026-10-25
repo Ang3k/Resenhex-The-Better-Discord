@@ -47,6 +47,10 @@ window.SiteHealth = function ({ request, el }) {
       note: (p) => p.monthGB == null ? 'só medido no servidor Linux' : RELAY_NOTES[p.relay] ?? `ritmo de hoje: até ${volume(p.monthPaceGB)}`,
       target: targets.monthGB, level: (p) => p.monthGB == null || !p.monthPaceGB ? null : p.monthGB / p.monthPaceGB,
       goal: `meta: no ritmo de ${volume(targets.monthGB)} no mês; acima dele, o retransmissor não recebe gente nova` },
+    // Uploads, clipes, banco e backups. Acima da meta, aumentar o disco (a Oracle dá até 200 GB de graça).
+    { key: 'diskPct', label: 'Disco', value: (p) => p.diskPct == null ? '—' : `${fmt(p.diskPct)}%`, unit: '%',
+      note: (p) => p.diskPct == null ? 'sem medição' : `${volume(p.diskFreeGB)} livres`, target: targets.diskPct,
+      level: (p) => p.diskPct == null ? null : p.diskPct / targets.diskPct, goal: `meta: abaixo de ${targets.diskPct}% do disco` },
   ];
   const RELAY_NOTES = { paused: 'retransmissor sem gente nova', stopped: 'retransmissor parado' };
   // Sem medição (level null), sem estado.

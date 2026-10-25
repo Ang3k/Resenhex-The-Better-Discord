@@ -14,8 +14,9 @@ Deixar o Resenhex aguentar **5 mil pessoas online ao mesmo tempo**, espalhadas e
   - a Fase 2 (banco SQLite gravado em pedaços). Veja "Fase 2: feita", logo abaixo;
   - a Fase 3 (avisos pequenos, entregues por sala). Veja "Fase 3: feita";
   - a Fase 4b (fotos num worker, prévias mais leves, limite de memória). Veja "Fase 4b: feita";
-  - a Fase 5 (senha temporária e limites no retransmissor, teto de rede do mês). Veja "Fase 5: feita".
-- **Próxima: a Fase 7 (proteção e operação).** A Fase 6 só se aparecer um servidor grande.
+  - a Fase 5 (senha temporária e limites no retransmissor, teto de rede do mês). Veja "Fase 5: feita";
+  - a Fase 7 (proteção e operação). Veja "Fase 7: feita".
+- **O plano está pronto.** Só a Fase 6 ficou de fora, e ela é só para quando aparecer um servidor grande. Próximo passo: publicar tudo junto, quando o dono mandar.
 - **Teto medido com o simulador:** era de 200 a 300 online (Fase 0). Com a Fase 4a, 1.500 online passaram com 15 mil contas.
   - Com a Fase 2, a gravação deixou de travar: com o banco da meta (50 mil contas, 1,35 milhão de mensagens), a pior gravação caiu de 70 ms para 2,8 ms, com 1.000 online.
   - Com a Fase 3, **5.000 online passaram** no banco da meta (50 mil contas): atraso p99 de 5 ms, processador de 29% e 0,66 ms por mudança no ARM, com ~2,6× menos rede que antes.
@@ -48,7 +49,8 @@ Tudo na branch `claude/chamada-atual` (pasta `.claude/worktrees/chamada-atual`),
 | `ffcebe6` | Fase 2 pronta: checkpoint do WAL numa worker_thread, mensagens antigas carregadas depois de abrir, backup do banco pela publicação |
 | `8803bf3` | Fase 3: avisos pequenos por sala (`public/state-patch.js`), entregues de uma vez a quem precisa |
 | `96b88bc` | Fase 4b: fotos num worker, prévias de transmissão mais leves, limite de memória, socket.io mais leve por conexão |
-| este commit | Fase 5: senha temporária e limites no retransmissor, teto de rede do mês, transmissão retransmitida em 720p, `tools/uso-retransmissor.js` |
+| `60d21db` | Fase 5: senha temporária e limites no retransmissor, teto de rede do mês, transmissão retransmitida em 720p, `tools/uso-retransmissor.js` |
+| este commit | Fase 7: volta espalhada depois de publicar, limites contra abuso, cota de envio, alarmes por e-mail, cartão do disco, sessões de 90 dias |
 
 ## Fase 2: feita
 
@@ -107,6 +109,17 @@ Detalhes, testes e a previsão de rede na Fase 5 do [plano](plano-5000-online.md
 - **Transmissão retransmitida:** até 720p e 1,5 Mbps para quem a recebe pelo retransmissor.
 - **Ponto em aberto:** com as premissas do plano (150 transmissões), o retransmissor pediria mais rede do que sobra. O teto segura o custo em zero, mas quem depende dele pode ficar sem chamadas com gente nova nos horários cheios. Falta medir quantas ligações passam por ele (`tools/uso-retransmissor.js`, depois de publicar). Se for muito, a transmissão retransmitida pode cair para 480p.
 
+## Fase 7: feita
+
+Detalhes e testes na Fase 7 do [plano](plano-5000-online.md).
+
+- **Publicar sem derrubar todos de uma vez:** antes de desligar, o servidor avisa os apps para espalhar a volta em até 30 s (5 mil online → 30 s). O app conecta direto por websocket.
+- **Limites:** 50 conexões abertas por endereço, 300 pedidos de folga por conexão (quem inunda cai), trocar de servidor 20 vezes a cada 10 s, envio de arquivos de 2 GB por dia por conta (5 GB por endereço).
+- **Alarmes por e-mail:** servidor lento, memória alta, disco > 80%, rede do mês acima do ritmo, portas do retransmissor. Vão para o e-mail confirmado da conta dona do site (ou `ALERT_EMAIL`), no máximo um a cada 6 h por alarme.
+- **Disco:** cartão "Disco" na aba "Saúde do servidor". Se o alarme do disco tocar, aumentar o disco no painel da Oracle (até 200 GB grátis).
+- **Sessões** sem uso há 90 dias são apagadas.
+- Cloudflare na frente ficou de fora (opcional, acima de ~1.000 online).
+
 O dono pediu para **publicar só quando ele mandar, e só com o plano inteiro pronto** (24/10): nada de publicar fase por fase.
 
 ## Urgente (já afeta quem usa hoje): pronto, falta publicar
@@ -147,6 +160,12 @@ O que já está no código (este commit):
    - depois de 1 minuto, existe `/var/lib/resenhex/rede-do-mes.json`, e a aba "Saúde do servidor" mostra o cartão "Rede no mês" com número;
    - uma call entre duas pessoas funciona, e depois dela `sudo journalctl -u coturn --since -1h | grep usage` mostra `username=<número>:<conta>`;
    - para medir o retransmissor (alguns dias depois): `sudo journalctl -u coturn --since "7 days ago" -o short-iso | node /opt/resenhex/tools/uso-retransmissor.js`.
+10. Conferir a Fase 7:
+   - a conta dona do site tem o e-mail confirmado (ou existe `ALERT_EMAIL` num drop-in do systemd, como o `mail.conf`); sem isso, os alarmes só vão para o journal;
+   - a aba "Saúde do servidor" mostra o cartão "Disco" com número;
+   - no navegador (F12 → Rede), a conexão do socket.io é `websocket`, sem `transport=polling`;
+   - na publicação seguinte, os apps abertos voltam sozinhos em até 30 s, sem todos ao mesmo tempo;
+   - `sudo journalctl -u resenhex --since -1h | grep -E "alarme|limites|sessões"` mostra só o esperado (na primeira subida, `[sessões]` só aparece se houver sessão velha para apagar).
 
 ## Como publicar sem susto
 

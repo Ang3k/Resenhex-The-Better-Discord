@@ -529,6 +529,22 @@ Quem não está olhando um servidor não recebe nada dele (o Discord chama isso 
    - o retransmissor de chamadas (UDP) fica fora e precisa de um endereço sem Cloudflare.
 6. **Sessões antigas:** apagar as que estão sem uso há 90 dias. Hoje nunca são apagadas.
 
+**Feito (25/10):**
+- **Publicar sem derrubar todos de uma vez.** Antes de desligar, o servidor avisa os conectados (`server:restart`) quanto tempo espalhar a volta: 6 ms por pessoa online, até 30 s (5 mil online → 30 s). Cada app sorteia sua espera nessa faixa e depois volta ao ritmo normal (1–5 s). Numa queda sem aviso, o ritmo normal já sorteia.
+  - O app conecta direto por websocket (`transports: ['websocket', 'polling']` com `tryAllTransports`): se o websocket falhar, ele tenta o modo de requisições HTTP. Conferido no navegador: nenhuma requisição de polling.
+  - No simulador (PC), 5 mil pessoas voltando em 30 s: todos de volta em 30,5 s, pior travada de 19 ms (~33 ms no ARM). Com 5 mil online e o banco da meta: atraso p99 de 12,8 ms e processador de 22,5% no ARM. Os ~3,7 mil "websocket error" são do PC, como na Fase 3.
+- **Limites contra abuso** (`server.js`):
+  - no máximo 50 conexões abertas e 60 conexões novas por minuto por endereço (o próprio computador não tem limite: simulador e testes). Quem passa vê "Muitas conexões deste endereço" e o app tenta de novo em 30–60 s;
+  - cada conexão tem um balde de 300 pedidos que enche 30 por segundo. Sem balde, o pedido é ignorado; 100 ignorados seguidos derrubam a conexão (`[limites]` no journal);
+  - trocar de servidor: 20 a cada 10 s;
+  - cadastros por endereço: já existia (20 por hora);
+  - envio de arquivos: 2 GB por dia por conta e 5 GB por endereço (`UPLOAD_DAY_MB`); o servidor confere a sessão antes de receber o arquivo.
+- **Disco:** a aba "Saúde do servidor" ganhou o cartão "Disco" (uso e espaço livre). Aumentar de 47 para 200 GB (grátis na Oracle) fica para quando o alarme do disco tocar: é um passo no painel da Oracle, não no código.
+- **Alarmes por e-mail** (`server/alarms.js`): servidor lento (p99 > 100 ms por 5 min), memória alta (> 70% do limite do JavaScript ou > 6 GB), disco > 80%, rede do mês acima do ritmo (no lugar de "> 7 TB": o ritmo já fecha o mês em 7 TB) e portas do retransmissor > 80%. Liga com 80% das amostras ruins e desliga com 80% boas; cada alarme manda no máximo um e-mail a cada 6 h, e outro quando volta ao normal. Vai para o e-mail confirmado da conta dona do site, ou para `ALERT_EMAIL`. Tudo também no journal (`[alarme]`).
+- **Sessões:** cada login e cada volta de sessão marcam o dia; as sessões sem uso há 90 dias são apagadas (5 s depois de subir e a cada 10 min). As de antes desta versão contam a partir do dia da publicação.
+- **Cloudflare:** não feito (opcional). Fica para quando passar de ~1.000 online.
+- Testes: `test/protecao.test.js`, `test/alarms.test.js`, `test/health.test.js`.
+
 ---
 
 ## 4. Ordem sugerida
@@ -541,7 +557,7 @@ Quem não está olhando um servidor não recebe nada dele (o Discord chama isso 
 6. Fase 3 (avisos pequenos). **Pronta**: com o banco da meta, 5.000 online passaram no simulador.
 7. Fase 4b. **Pronta**: nenhuma foto trava o servidor, prévias ~5× mais leves, custo por mudança igual com 500 e 5 mil online.
 8. Fase 5, o resto. **Pronta**: senha temporária e limites no retransmissor, rede do mês gasta num ritmo (no máximo ~8 TB), transmissão retransmitida em 720p. Falta medir o retransmissor depois de publicar.
-9. Fase 7.
+9. Fase 7. **Pronta**: volta espalhada depois de publicar, limites contra abuso, cota de envio, alarmes por e-mail, cartão do disco, sessões de 90 dias.
 10. Fase 6 só quando aparecer um servidor grande.
 
 Depois de cada fase: simulador no PC. A publicação é uma só, no fim, com tudo junto (pedido do dono em 24/10): em horário calmo, conferindo quem está online antes, e com uma rodada do simulador no servidor ARM de madrugada.

@@ -23,7 +23,7 @@ test('each sample turns the counters into per-second rates and keeps the slowest
   t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
   fs.writeFileSync(path.join(dir, 'udp'), UDP);
   const lines = [];
-  const health = createHealth({ connections: () => 3, online: () => 2, log: (line) => lines.push(line), every: 100, udpTable: path.join(dir, 'udp') });
+  const health = createHealth({ connections: () => 3, online: () => 2, log: (line) => lines.push(line), every: 100, udpTable: path.join(dir, 'udp'), diskPath: dir });
   for (let i = 0; i < 5; i++) health.count('changes');
   health.count('bytes', 2048);
   health.saved(4); health.saved(12.34);
@@ -43,6 +43,8 @@ test('each sample turns the counters into per-second rates and keeps the slowest
   assert.ok(first.loopP99 >= 0 && first.loopP99 < first.loopMax + 1);
   assert.equal(targets.loopP99, 50);
   assert.equal(turnRange.min, 49152);
+  assert.ok(first.diskPct > 0 && first.diskPct < 100 && first.diskFreeGB > 0, `disco: ${first.diskPct}%, ${first.diskFreeGB} GB livres`);
+  assert.equal(targets.diskPct, 80);
   // O minuto seguinte começa do zero; o log ganha uma linha a cada 6 amostras.
   await new Promise((r) => setTimeout(r, 560));
   const later = health.view().history;
@@ -89,7 +91,7 @@ test('network of the month survives restarts and reboots', async (t) => {
   fs.writeFileSync(dev, netDev(1.5e9));
   await wait(100);
   assert.equal(second.view().history.at(-1).monthGB, 3.5);
-  assert.ok(lines.some((line) => / rede do mês [0-9.]+ GB \(ritmo [0-9.]+\) · portas/.test(line)));
+  assert.ok(lines.some((line) => / rede do mês [0-9.]+ GB \(ritmo [0-9.]+\) · disco \?% · portas/.test(line)));
 });
 
 test('the month is spent at a pace: above it the relay takes no one new, far above it coturn stops', async (t) => {

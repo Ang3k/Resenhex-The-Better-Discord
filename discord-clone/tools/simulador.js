@@ -7,7 +7,8 @@
 // As pessoas ficam em vários processos (um só não aguenta milhares de conexões).
 //   STEPS=250,500,1000 node tools/simulador.js
 //   RATIO=10 contas por pessoa online (ou ACCOUNTS=50000 fixo) · RATE=1 multiplica o ritmo · DURATION=60 s medindo por degrau · SETTLE=15 s
-//   RECONNECT=1 no fim derruba todo mundo e mede a volta em 60 s · KEEP_GOING=1 segue depois de um degrau reprovado
+//   RECONNECT=1 no fim derruba todo mundo e mede a volta, espalhada em RECONNECT_WINDOW=60 s (30 s é a publicação
+//   com 5 mil online; 5 s, uma queda) · KEEP_GOING=1 segue depois de um degrau reprovado
 //   MESSAGES=50 põe 50 mensagens antigas em cada canal de texto e em cada conversa privada (banco maior, como o de verdade)
 //   SERVER_JS=<outro server.js> mede outra versão (na mesma pasta do server.js, para os require relativos funcionarem).
 // No PC, multiplique processador e atraso por ~1,7 para ter a estimativa do servidor ARM (o relatório já faz isso).
@@ -272,14 +273,15 @@ const pad = (text, n) => String(text).padStart(n);
   if (process.env.RECONNECT && lastPassed) {
     const before = onlineNow();
     const since = Date.now();
-    workers.forEach((child) => child.send({ type: 'reconnect', windowMs: 60_000 }));
+    const windowS = Number(process.env.RECONNECT_WINDOW || 60);
+    workers.forEach((child) => child.send({ type: 'reconnect', windowMs: windowS * 1000 }));
     await wait(3000);
     while (onlineNow() < before * 0.98 && Date.now() - since < 5 * 60_000) await wait(500);
     const back = (Date.now() - since) / 1000;
     await wait(12_000);
     const points = await samples(since);
     const worst = Math.max(...points.map((p) => p.loopMax));
-    console.log(`\nreconexão em massa (${before} pessoas em 60 s): todos de volta em ${f1(back)} s · pior travada ${f1(worst)} ms (ARM ≈ ${f1(worst * ARM)} ms) · ${worst * ARM > 1000 || back > 120 ? 'NÃO PASSOU' : 'passou'}`);
+    console.log(`\nreconexão em massa (${before} pessoas em ${windowS} s): todos de volta em ${f1(back)} s · pior travada ${f1(worst)} ms (ARM ≈ ${f1(worst * ARM)} ms) · ${worst * ARM > 1000 || back > 120 ? 'NÃO PASSOU' : 'passou'}`);
   }
 
   if (errorsNow()) console.log(`\nrespostas com erro (as mais comuns):\n${reasonsNow()}`);

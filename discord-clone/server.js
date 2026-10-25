@@ -26,6 +26,7 @@ const { createMailer } = require('./server/mailer');
 const { createRecovery, normalizeEmail } = require('./server/recovery');
 const { createClipStore, MAX_CLIP_BYTES, MAX_THUMB_BYTES, MAX_CLIP_SECONDS } = require('./server/clip-store');
 const { createHealth } = require('./server/health');
+const { createAlarms } = require('./server/alarms');
 const { openStore } = require('./server/store');
 const { Online } = require('./server/online');
 const { socialStore, pairKey } = require('./server/social');
@@ -179,15 +180,24 @@ const accountIdByName = new Map(Object.values(communities.root.accounts).map((a)
 const accountByName = (name) => db.accounts[accountIdByName.get(name.toLowerCase())];
 // E-mail de recuperação (opcional). Os links usam PUBLIC_URL, nunca o Host da requisição,
 // para ninguém conseguir um e-mail com link apontando para outro site.
-const recovery = createRecovery({ db, save, mailer: createMailer(), publicUrl: process.env.PUBLIC_URL || 'https://resenhex.duckdns.org' });
+const mailer = createMailer();
+const recovery = createRecovery({ db, save, mailer, publicUrl: process.env.PUBLIC_URL || 'https://resenhex.duckdns.org' });
 setInterval(() => recovery.prune(), 60 * 60 * 1000).unref();
 
-// Grava na hora ao desligar o servidor (Ctrl+C), para não perder o que estava pendente.
+// Publicação ou parada (Ctrl+C): avisa todo mundo antes de sair e diz por quanto tempo espalhar a volta
+// (public/app.js): 6 ms por pessoa online, até 30 s. Com 5 mil online, cada um volta num momento sorteado desses
+// 30 s, e não todos no mesmo segundo. Meio segundo depois, com o aviso já enviado, grava o que estava pendente e sai.
+let stopping = false;
 for (const sig of ['SIGINT', 'SIGTERM']) {
   process.on(sig, () => {
-    flushStore();
-    store.close();
-    process.exit(0);
+    if (stopping) return;
+    stopping = true;
+    try { io.emit('server:restart', { spreadMs: Math.min(30_000, online.accounts.size * 6) }); } catch { /* sinal antes de o servidor terminar de subir */ }
+    setTimeout(() => {
+      flushStore();
+      store.close();
+      process.exit(0);
+    }, 500);
   });
 }
 
@@ -197,7 +207,18 @@ for (const sig of ['SIGINT', 'SIGTERM']) {
 const health = createHealth({
   connections: () => io.engine.clientsCount, online: () => online.accounts.size,
   monthFile: path.join(path.dirname(DATA_DB), 'rede-do-mes.json'), relayFile: path.join(path.dirname(DATA_DB), 'retransmissor.estado'),
+  diskPath: path.dirname(DATA_DB),
 });
+// Alarmes por e-mail (server/alarms.js): vão para ALERT_EMAIL ou para o e-mail confirmado da conta dona do site.
+const alarms = createAlarms({
+  to: () => {
+    if (process.env.ALERT_EMAIL) return process.env.ALERT_EMAIL;
+    const owner = communities.root.accounts[communities.root.siteOwnerId];
+    return owner?.emailVerified ? owner.email : null;
+  },
+  send: (message) => mailer.send(message),
+});
+setInterval(() => alarms.check(health.view()), 10_000).unref();
 
 // Quem muda um dado marca o pedaço (save(chunk.account(id)), por exemplo) e o banco grava só os marcados, 250 ms
 // depois da primeira marca: se o processo cair, perde no máximo esse quarto de segundo. Mudanças diretas em contas e servidores
@@ -209,6 +230,7 @@ const chunk = {
   account: (id) => 'accounts/' + id,
   server: (id = communities.currentId()) => 'servers/' + id,
   session: (token) => 'sessions/' + token,
+  sessionUse: (token) => 'sessionUse/' + token,
   upload: (id) => 'uploads/' + id,
   dm: (id) => 'dms/' + id,
   channel: (id) => 'messages/' + id, // o canal inteiro (canal apagado, muitas mensagens de uma vez)
@@ -290,8 +312,40 @@ function createSession(accountId) {
   const token = crypto.randomBytes(32).toString('hex');
   db.sessions[token] = accountId;
   save(chunk.session(token));
+  sessionUsed(token);
   return token;
 }
+
+// Sessões: o dia do último uso (entrar ou voltar a conexão) fica em sessionUse. Sem uso há 90 dias, a sessão é
+// apagada e a pessoa entra de novo com a senha. As de antes disso contam a partir do dia em que a limpeza as viu.
+// Cada passada muda no máximo 1.000 (a primeira, num banco grande, termina em algumas passadas).
+const DAY_MS = 24 * 60 * 60 * 1000;
+const SESSION_DAYS = 90;
+db.sessionUse ||= {};
+const today = () => Math.floor(Date.now() / DAY_MS);
+function sessionUsed(token) {
+  if (db.sessionUse[token] === today()) return;
+  db.sessionUse[token] = today();
+  save(chunk.sessionUse(token));
+}
+function pruneSessions(limit = 1000) {
+  const now = today();
+  let changes = 0, removed = 0;
+  for (const token of Object.keys(db.sessions)) {
+    if (changes >= limit) break;
+    const day = db.sessionUse[token];
+    if (day === undefined) { db.sessionUse[token] = now; save(chunk.sessionUse(token)); changes++; }
+    else if (now - day > SESSION_DAYS) { delete db.sessions[token]; delete db.sessionUse[token]; save(chunk.session(token), chunk.sessionUse(token)); changes++; removed++; }
+  }
+  for (const token of Object.keys(db.sessionUse)) {
+    if (changes >= limit) break;
+    if (!(token in db.sessions)) { delete db.sessionUse[token]; save(chunk.sessionUse(token)); changes++; }
+  }
+  if (removed) console.log(`[sessões] ${removed} sem uso há ${SESSION_DAYS} dias apagadas`);
+  return changes;
+}
+setTimeout(pruneSessions, 5000).unref();
+setInterval(pruneSessions, 10 * 60 * 1000).unref();
 
 // ---------------- permissões ----------------
 const roleIndex = (id) => db.roles.findIndex((r) => r.id === id);
@@ -876,7 +930,33 @@ function profileImageRoutes(field, tooMany) {
 profileImageRoutes('banner', 'Muitas trocas de banner. Aguarde um minuto.');
 profileImageRoutes('background', 'Muitas trocas de fundo. Aguarde um minuto.');
 
-app.post('/upload', express.raw({ type: () => true, limit: MAX_UPLOAD_MB * 1024 * 1024 }), (req, res) => {
+// Envios de arquivos e clipes: no máximo 2 GB por conta (UPLOAD_DAY_MB) e 2,5 vezes isso por endereço em 24 h. Sem
+// isso, uma conta enchia o disco em uma hora (20 arquivos de 50 MB por minuto). A sessão e a cota são conferidas
+// antes de receber o arquivo, pelo tamanho anunciado; o que entra é descontado pelo tamanho de verdade.
+const UPLOAD_DAY_BYTES = (Number(process.env.UPLOAD_DAY_MB) || 2000) * 1e6;
+const UPLOAD_QUOTA = { account: UPLOAD_DAY_BYTES, ip: UPLOAD_DAY_BYTES * 2.5 };
+const uploaded = new Map(); // chave -> [[quando, bytes], ...] das últimas 24 h
+function uploadedToday(key) {
+  const now = Date.now();
+  const list = (uploaded.get(key) || []).filter(([at]) => now - at < DAY_MS);
+  if (list.length) uploaded.set(key, list); else uploaded.delete(key);
+  return list.reduce((sum, [, bytes]) => sum + bytes, 0);
+}
+setInterval(() => { for (const key of [...uploaded.keys()]) uploadedToday(key); }, 60 * 60 * 1000).unref();
+function uploadGate(req, res, next) {
+  const acc = db.accounts[db.sessions[req.get('x-token')]];
+  if (!acc) return res.status(401).json({ error: 'Não autenticado' });
+  const size = Number(req.get('content-length')) || 0;
+  const keys = ['upload-day:' + acc.id, 'upload-day-ip:' + clientIp(req.headers, req.socket.remoteAddress)];
+  if (uploadedToday(keys[0]) + size > UPLOAD_QUOTA.account || uploadedToday(keys[1]) + size > UPLOAD_QUOTA.ip) {
+    return res.status(429).json({ error: 'Você já enviou muitos arquivos hoje. O limite volta aos poucos nas próximas 24 horas.' });
+  }
+  req.uploadKeys = keys;
+  next();
+}
+const chargeUpload = (req, bytes) => { for (const key of req.uploadKeys || []) uploaded.set(key, [...(uploaded.get(key) || []), [Date.now(), bytes]]); };
+
+app.post('/upload', uploadGate, express.raw({ type: () => true, limit: MAX_UPLOAD_MB * 1024 * 1024 }), (req, res) => {
   const acc = db.accounts[db.sessions[req.get('x-token')]];
   if (!acc) return res.status(401).json({ error: 'Não autenticado' });
   const targetId = req.get('x-channel-id');
@@ -909,6 +989,7 @@ app.post('/upload', express.raw({ type: () => true, limit: MAX_UPLOAD_MB * 1024 
     const up = { id, file, name, size: req.body.length, type: INLINE_TYPES[ext] || 'application/octet-stream', uploaderId: acc.id, ts: Date.now(), messageId: null, serverId: dm ? null : communities.currentId(), channelId: targetId || null };
     db.uploads[id] = up;
     save(chunk.upload(id));
+    chargeUpload(req, up.size);
     res.json({ id, name, size: up.size, type: up.type, url: '/uploads/' + file });
   });
 });
@@ -930,7 +1011,7 @@ app.get('/uploads/:file', (req, res) => {
 // Clipe da chamada. Corpo: u32 (tamanho da miniatura) | miniatura JPEG | MP4. Metadados em x-clip.
 const clipError = (res, status, error) => res.status(status).json({ error });
 const clipSlug = (name) => String(name || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 40) || 'chamada';
-app.post('/clips', express.raw({ type: () => true, limit: MAX_CLIP_BYTES + MAX_THUMB_BYTES + 4 }), (req, res) => {
+app.post('/clips', uploadGate, express.raw({ type: () => true, limit: MAX_CLIP_BYTES + MAX_THUMB_BYTES + 4 }), (req, res) => {
   const acc = db.accounts[db.sessions[req.get('x-token')]];
   if (!acc) return clipError(res, 401, 'Não autenticado');
   const s = sessionsOf(online.sidsOf(acc.id)).map(([, x]) => x).find((x) => x.voice);
@@ -958,6 +1039,7 @@ app.post('/clips', express.raw({ type: () => true, limit: MAX_CLIP_BYTES + MAX_T
       recipients: room.map((x) => x.accountId), thumb: 'data:image/jpeg;base64,' + thumb.toString('base64'),
     });
     save();
+    chargeUpload(req, body.length);
     io.to('voice:' + s.voice).emit('clip:new', clipStore.publicView(clip));
     res.json({ id: clip.id });
   });
@@ -989,6 +1071,24 @@ app.use((err, req, res, _next) => {
 const server = http.createServer(app);
 // Compressão por mensagem desligada (já é o padrão): custaria processador e memória em cada conexão.
 const io = new Server(server, { maxHttpBufferSize: 1e6, perMessageDeflate: false });
+// Conexões por endereço: no máximo 50 abertas e 60 novas por minuto do mesmo IP. A volta depois de uma publicação
+// vem espalhada (até 30 s), e redes que dividem um IP (4G, faculdade, empresa) ficam bem abaixo disso. O próprio
+// computador (simulador de carga, testes) não conta.
+const CONNECTIONS_PER_IP = 50;
+const connectionsByIp = new Map();
+const loopback = (ip) => ip === '127.0.0.1' || ip === '::1' || ip === '::ffff:127.0.0.1';
+io.use((socket, next) => {
+  const ip = clientIp(socket.handshake.headers, socket.handshake.address);
+  if (loopback(ip)) return next();
+  const open = connectionsByIp.get(ip) || 0;
+  if (open >= CONNECTIONS_PER_IP || !allow('connect:' + ip, 60, 60_000)) return next(new Error('Muitas conexões deste endereço. Tentando de novo em um minuto…'));
+  connectionsByIp.set(ip, open + 1);
+  socket.once('disconnect', () => {
+    const left = (connectionsByIp.get(ip) || 1) - 1;
+    if (left > 0) connectionsByIp.set(ip, left); else connectionsByIp.delete(ip);
+  });
+  next();
+});
 // Bytes enviados, para o medidor de saúde (o tamanho do texto já codificado de cada pacote).
 io.engine.on('connection', (raw) => raw.on('packetCreate', (packet) => health.count('bytes', packet.data?.length || 0)));
 
@@ -1504,6 +1604,20 @@ io.on('connection', (socket) => {
   // A requisição HTTP do começo ficaria presa a cada conexão. Cabeçalhos e endereço (o IP do login) já estão
   // copiados em socket.handshake, então ela pode ir embora, como recomenda a documentação do socket.io.
   socket.conn.request = null;
+  // Pacotes por conexão: um balde de 300 que enche 30 por segundo. Uma pessoa de verdade fica longe disso, até no
+  // começo de uma chamada cheia (dezenas de sinais do WebRTC). O que passar é descartado; 100 descartados
+  // seguidos derrubam a conexão.
+  let budget = 300, refilledAt = Date.now(), dropped = 0;
+  socket.use((_packet, next) => {
+    const now = Date.now();
+    budget = Math.min(300, budget + (now - refilledAt) * 0.03);
+    refilledAt = now;
+    if (budget >= 1) { budget--; dropped = 0; return next(); }
+    if (++dropped === 100) {
+      console.warn(`[limites] pacotes demais de ${clientIp(socket.handshake.headers, socket.handshake.address)}: conexão derrubada`);
+      socket.disconnect(true);
+    }
+  });
   const me = () => {
     const s = online.get(socket.id);
     return s && db.accounts[s.accountId];
@@ -1540,6 +1654,7 @@ io.on('connection', (socket) => {
     return { id: community.id };
   });
   on('server:select', (acc, { id }) => {
+    if (!allow('select:' + socket.id, 20, 10_000)) fail('Trocando de servidor rápido demais. Espere um pouco.');
     if (!communities.joined(acc.id, id)) fail('Você não participa deste servidor.');
     if (online.get(socket.id).serverId !== id) selectServer(socket, acc.id, id);
     return { id };
@@ -1636,6 +1751,7 @@ io.on('connection', (socket) => {
     if (payload.token) {
       acc = db.accounts[db.sessions[payload.token]];
       if (!acc) return ack({ error: 'Sessão expirada, entre de novo.' });
+      sessionUsed(payload.token);
     } else {
       const name = cleanName(payload.name);
       const password = String(payload.password || '');

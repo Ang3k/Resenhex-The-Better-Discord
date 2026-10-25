@@ -4,7 +4,9 @@
 // Cargos e moderação são validados no servidor; aqui só escondemos o que a pessoa não pode usar.
 (() => {
   const $ = (sel) => document.querySelector(sel);
-  const socket = io({ autoConnect: false });
+  // Direto por websocket: começar por requisições HTTP e só depois trocar dobra os pedidos quando todo mundo volta
+  // junto (publicação). Se o websocket não passar (proxy de empresa), tenta as requisições HTTP.
+  const socket = io({ autoConnect: false, transports: ['websocket', 'polling'], tryAllTransports: true });
 
   // Perfis de transmissão de tela. "hint" diz ao codificador o tipo de conteúdo e
   // "degradation" decide o que sacrificar quando falta internet: nitidez ou fluidez.
@@ -783,7 +785,27 @@
     holdCall();
     setConnBanner('Conexão perdida. Tentando reconectar…');
   });
+  // Publicação: o servidor avisa antes de reiniciar e diz por quanto tempo espalhar a volta (server.js, 6 ms por
+  // pessoa online, até 30 s). Cada um volta num momento sorteado desse intervalo, e não todos no mesmo segundo.
+  const RECONNECT = { delay: 1000, max: 5000, jitter: 0.5 }; // o padrão do socket.io
+  let spreadReconnect = false;
+  socket.on('server:restart', ({ spreadMs } = {}) => {
+    const spread = Math.min(30_000, Number(spreadMs) || 0);
+    if (spread < 2000) return;
+    spreadReconnect = true;
+    socket.io.reconnectionDelay(spread / 2).reconnectionDelayMax(spread).randomizationFactor(1);
+  });
+  // O servidor recusou a conexão (muitas do mesmo endereço): o socket.io não tenta de novo sozinho nesse caso.
+  socket.on('connect_error', (error) => {
+    if (socket.active) return; // erro de rede: o socket.io já está tentando de novo
+    if (state.me) setConnBanner(error.message); else toast(error.message);
+    setTimeout(() => { if (!socket.connected && !socket.active) socket.connect(); }, 30_000 + Math.random() * 30_000);
+  });
   socket.on('connect', () => {
+    if (spreadReconnect) {
+      spreadReconnect = false;
+      socket.io.reconnectionDelay(RECONNECT.delay).reconnectionDelayMax(RECONNECT.max).randomizationFactor(RECONNECT.jitter);
+    }
     const token = localStorage.getItem('token');
     if (!reconnecting || state.removed || !token) return;
     reconnecting = false;

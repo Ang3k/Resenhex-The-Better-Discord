@@ -13,7 +13,7 @@ process.emitWarning = (warning, ...rest) => (String(warning).includes('SQLite') 
 const { DatabaseSync } = require('node:sqlite');
 process.emitWarning = emitWarning;
 
-const COLLECTIONS = ['accounts', 'sessions', 'servers', 'friendships', 'blocks', 'dms', 'uploads', 'clips', 'mailTokens'];
+const COLLECTIONS = ['accounts', 'sessions', 'sessionUse', 'servers', 'friendships', 'blocks', 'dms', 'uploads', 'clips', 'mailTokens'];
 const SPLIT = new Set([...COLLECTIONS, 'messages']);
 
 // Chave de cada pedaço: 'root' (o que sobra: id do servidor padrão, dono do site…), 'accounts/<id>',
