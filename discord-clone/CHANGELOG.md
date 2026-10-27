@@ -3,6 +3,17 @@
 Histórico de versões. A mesma lista aparece dentro do app em **Novidades** (menu do servidor ou rodapé das Configurações).
 O Resenhex chegou à versão 1.0 em 4 de outubro de 2026.
 
+## v1.8.9 — Atalhos de voz fora da janela do app
+
+27 de outubro de 2026.
+
+No app do Windows, mutar, ensurdecer, clipar e apertar para falar voltam a funcionar com o Resenhex atrás de outra janela, minimizado ou na bandeja.
+
+### Correções
+
+- App do Windows 1.4.5: Ctrl+Shift+M, Ctrl+Shift+D, Alt+C e a tecla de apertar para falar só funcionavam com a janela do Resenhex em foco. O app agora avisa o site quando a tecla chega com ele em segundo plano, e o atalho vale no meio do jogo ou de qualquer outro programa. O app se atualiza sozinho.
+- Apertar para falar: soltar a tecla sempre fecha o microfone, mesmo que a janela do Resenhex tenha ganhado foco enquanto você segurava.
+
 ## v1.8.8 — Animações mais suaves e páginas do site com as cores do app
 
 18 de outubro de 2026.

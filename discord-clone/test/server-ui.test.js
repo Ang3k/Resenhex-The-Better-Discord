@@ -1206,6 +1206,36 @@ test('keyboard shortcuts follow Discord defaults, can be rebound in settings and
   assert.equal(JSON.parse(w.localStorage.getItem('keybinds')).toggleMute, 'Ctrl+Shift+KeyM');
 });
 
+test('app do Windows: atalhos de voz e push-to-talk valem com a janela atrás de outra', async (t) => {
+  const bridge = { setPushToTalk() {}, setKeybinds() {}, onPushToTalk(fn) { bridge.ptt = fn; }, onKeybind(fn) { bridge.keybind = fn; } };
+  const app = await voicePreviewApp(t, {
+    storage: { voiceFx: 'robo', ptt: JSON.stringify({ enabled: true, code: 'Backquote', label: '`' }) },
+    setup: (w) => { w.resenhexDesktop = bridge; },
+  });
+  const effect = app.effects[0];
+  const played = [];
+  app.w.Sounds.play = (name) => played.push(name);
+  // A página pode achar que tem foco com a janela do app atrás do jogo: vale o que o app diz.
+  app.d.querySelector('#btn-mute').focus();
+  assert.equal(app.d.hasFocus(), true);
+  bridge.ptt(true, true); await settle();
+  assert.equal(effect.blocked, false);
+  bridge.ptt(false, false); await settle();
+  assert.equal(effect.blocked, true, 'soltar a tecla fecha o microfone mesmo com a janela em foco');
+  bridge.ptt(true, false); await settle();
+  assert.equal(effect.blocked, true, 'com a janela em foco, quem cuida da tecla é a própria página');
+  bridge.keybind('toggleMute', true);
+  assert.deepEqual(played.splice(0), ['mute']);
+  bridge.keybind('toggleMute', false);
+  assert.deepEqual(played, [], 'com a janela em foco, o atalho já disparou pela página');
+  // Versões do app que não mandam a informação: segue o foco da página.
+  bridge.keybind('toggleDeafen');
+  assert.deepEqual(played, []);
+  app.d.activeElement.blur();
+  bridge.keybind('toggleDeafen');
+  assert.deepEqual(played, ['deafen']);
+});
+
 test('Mudae: card do roll com botão de casar, dono depois do claim e resposta só para quem pediu', async (t) => {
   const status = { command: '$tu', kind: 'status', rollsLeft: 3, rollsMax: 10, rollResetIn: 10 * 60_000, claimReady: true, claimResetIn: 0 };
   const app = await ui(t, false, { reply: { 'chat:send': (p) => (p.text === '$tu' ? { ephemeral: status } : { ok: true }) } });

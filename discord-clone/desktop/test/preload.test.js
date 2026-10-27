@@ -50,3 +50,24 @@ test('picker updates stay with the active request and close sends its result', a
   listeners.get('desktop:pick-source:update')({}, 10, [], {});
   assert.equal(updates.length, 1);
 });
+
+test('teclas do gancho global chegam ao site dizendo se a janela estava em segundo plano', () => {
+  const exposed = {}, listeners = new Map();
+  const electron = {
+    contextBridge: { exposeInMainWorld: (name, value) => { exposed[name] = value; } },
+    ipcRenderer: { on: (name, fn) => listeners.set(name, fn), send() {} },
+  };
+  vm.runInNewContext(fs.readFileSync(path.join(__dirname, '../preload.js'), 'utf8'), {
+    require: () => electron, process: { argv: ['--resenhex-origin=https://resenhex.test'], platform: 'win32' },
+    location: { origin: 'https://resenhex.test', protocol: 'https:' },
+  });
+  const keys = [], ptt = [];
+  exposed.resenhexDesktop.onKeybind((...args) => keys.push(args));
+  exposed.resenhexDesktop.onPushToTalk((...args) => ptt.push(args));
+  listeners.get('desktop:keybind')({}, 'toggleMute', true);
+  listeners.get('desktop:keybind')({}, 'toggleDeafen', false);
+  listeners.get('desktop:ptt')({}, 1, true);
+  listeners.get('desktop:ptt')({}, 0, undefined);
+  assert.deepEqual(keys, [['toggleMute', true], ['toggleDeafen', false]]);
+  assert.deepEqual(ptt, [[true, true], [false, false]]);
+});

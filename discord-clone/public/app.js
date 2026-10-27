@@ -6183,10 +6183,14 @@
   });
   // App de desktop: com o Resenhex em segundo plano, a tecla chega pelo gancho global do app.
   // Com a janela em foco, quem cuida da tecla são os eventos acima (e eles respeitam campos de texto).
+  // O app diz se a janela estava em segundo plano; o document.hasFocus() pode continuar true com ela
+  // atrás de outra, e só vale para as versões do app que ainda não mandam essa informação.
   const desktopApp = window.resenhexDesktop;
+  const inBackground = (background) => (typeof background === 'boolean' ? background : !document.hasFocus());
   const syncDesktopPtt = () => desktopApp?.setPushToTalk(state.ptt);
-  desktopApp?.onPushToTalk((pressed) => {
-    if (!state.ptt.enabled || document.hasFocus() || state.pttHeld === pressed || capturingKey) return;
+  desktopApp?.onPushToTalk((pressed, background) => {
+    // Soltar a tecla sempre solta o microfone, mesmo que a janela tenha ganhado foco no meio.
+    if (!state.ptt.enabled || state.pttHeld === pressed || capturingKey || (pressed && !inBackground(background))) return;
     state.pttHeld = pressed;
     applyAudio();
   });
@@ -6195,8 +6199,8 @@
   const syncDesktopKeybinds = () => desktopApp?.setKeybinds?.(Keybinds.ACTIONS
     .filter((action) => action.global && state.keybinds[action.id])
     .map((action) => ({ id: action.id, combo: state.keybinds[action.id] })));
-  desktopApp?.onKeybind?.((id) => {
-    if (document.hasFocus() || capturingKey || !state.me || !VOICE_ACTIONS.has(id)) return;
+  desktopApp?.onKeybind?.((id, background) => {
+    if (!inBackground(background) || capturingKey || !state.me || !VOICE_ACTIONS.has(id)) return;
     KEY_ACTIONS[id]?.();
   });
   syncDesktopKeybinds();

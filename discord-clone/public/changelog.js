@@ -4,6 +4,16 @@
 // O título deve destacar as principais funcionalidades ou correções, com termos objetivos.
 window.CHANGELOG = [
   {
+    version: '1.8.9', date: '2026-10-27', name: 'Atalhos de voz fora da janela do app',
+    summary: 'No app do Windows, mutar, ensurdecer, clipar e apertar para falar voltam a funcionar com o Resenhex atrás de outra janela, minimizado ou na bandeja.',
+    sections: [
+      { kind: 'fixed', items: [
+        'App do Windows 1.4.5: Ctrl+Shift+M, Ctrl+Shift+D, Alt+C e a tecla de apertar para falar só funcionavam com a janela do Resenhex em foco. O app agora avisa o site quando a tecla chega com ele em segundo plano, e o atalho vale no meio do jogo ou de qualquer outro programa. O app se atualiza sozinho.',
+        'Apertar para falar: soltar a tecla sempre fecha o microfone, mesmo que a janela do Resenhex tenha ganhado foco enquanto você segurava.',
+      ] },
+    ],
+  },
+  {
     version: '1.8.8', date: '2026-10-18', name: 'Animações mais suaves e páginas do site com as cores do app',
     summary: 'Menus, janelas e telas entram e saem com o mesmo movimento suave. A página inicial, a de baixar e a de privacidade ganharam o preto com roxo do app, e baixar para Windows agora oferece o .exe ou a Microsoft Store.',
     sections: [

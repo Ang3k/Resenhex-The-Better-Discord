@@ -29,8 +29,9 @@ if (location.protocol === 'file:') {
     if (activePick === id) updateSource?.(sources, options);
   });
   ipcRenderer.on('desktop:app-audio:plan', (_event, plan) => { audioPlan = plan; });
-  ipcRenderer.on('desktop:ptt', (_event, pressed) => pttListener?.(!!pressed));
-  ipcRenderer.on('desktop:keybind', (_event, id) => keybindListener?.(String(id)));
+  // background: a tecla chegou com o site fora de foco (janela minimizada, na bandeja ou atrás de um jogo).
+  ipcRenderer.on('desktop:ptt', (_event, pressed, background) => pttListener?.(!!pressed, !!background));
+  ipcRenderer.on('desktop:keybind', (_event, id, background) => keybindListener?.(String(id), !!background));
   ipcRenderer.on('desktop:share-follow', (_event, message) => followListener?.({ action: String(message?.action || ''), to: String(message?.to || ''), name: String(message?.name || '') }));
 
   contextBridge.exposeInMainWorld('resenhexDesktop', {
@@ -59,6 +60,7 @@ if (location.protocol === 'file:') {
       stop: () => ipcRenderer.send('desktop:share-follow:stop'),
     },
     setPushToTalk: (config) => ipcRenderer.send('desktop:set-ptt', { enabled: !!config?.enabled, code: String(config?.code || '') }),
+    // listener(pressed, background) e, abaixo, listener(id, background); background existe desde o app 1.4.5.
     onPushToTalk: (listener) => { pttListener = typeof listener === 'function' ? listener : null; },
     // list: [{ id, combo }] dos atalhos que valem com o app em segundo plano.
     setKeybinds: (list) => ipcRenderer.send('desktop:set-keybinds', Array.isArray(list) ? list.map((item) => ({ id: String(item?.id || ''), combo: String(item?.combo || '') })) : []),

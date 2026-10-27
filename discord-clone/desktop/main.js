@@ -566,16 +566,20 @@ let pttDown = false;
 let bindings = [];
 const held = new Set(); // segurar a tecla repete o keydown: o atalho dispara uma vez por toque
 
+// Cada aviso diz se a tecla chegou com o site fora de foco. O site não pode perguntar ao
+// document.hasFocus(): dentro do WebContentsView ele pode continuar true com a janela atrás de outra.
+const inBackground = () => !win?.isFocused() || !site?.webContents.isFocused();
+
 function onGlobalKeydown(event) {
-  if (event.keycode === pttKey && !pttDown) { pttDown = true; site?.webContents.send('desktop:ptt', true); }
+  if (event.keycode === pttKey && !pttDown) { pttDown = true; site?.webContents.send('desktop:ptt', true, inBackground()); }
   if (held.has(event.keycode)) return;
   held.add(event.keycode);
   const binding = matchBinding(bindings, event);
-  if (binding) site?.webContents.send('desktop:keybind', binding.id);
+  if (binding) site?.webContents.send('desktop:keybind', binding.id, inBackground());
 }
 function onGlobalKeyup(event) {
   held.delete(event.keycode);
-  if (event.keycode === pttKey && pttDown) { pttDown = false; site?.webContents.send('desktop:ptt', false); }
+  if (event.keycode === pttKey && pttDown) { pttDown = false; site?.webContents.send('desktop:ptt', false, inBackground()); }
 }
 
 function updateHook() {
