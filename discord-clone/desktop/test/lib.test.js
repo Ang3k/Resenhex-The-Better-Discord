@@ -148,3 +148,70 @@ test('o gancho global fica só no teclado, sem passar o mouse pelo app', () => {
   const installed = path.join(__dirname, '..', 'node_modules', 'uiohook-napi', 'libuiohook', 'src', 'windows', 'input_hook.c');
   if (fs.existsSync(installed)) assert.ok(fs.readFileSync(installed, 'utf8').includes(MARK), 'rode npm install para corrigir o uiohook');
 });
+
+test('atalhos com programa de administrador na frente: teclas que o RegisterHotKey aceita, sem repetir', () => {
+  const { virtualKey, hotkeysFor } = require('../lib/elevated-hotkeys');
+  assert.equal(virtualKey('KeyM'), 0x4d);
+  assert.equal(virtualKey('Digit7'), 0x37);
+  assert.equal(virtualKey('F1'), 0x70);
+  assert.equal(virtualKey('F24'), 0x87);
+  assert.equal(virtualKey('F25'), null);
+  assert.equal(virtualKey('Numpad3'), 0x63);
+  assert.equal(virtualKey('ArrowUp'), 0x26);
+  assert.equal(virtualKey('Backquote'), null); // pontuação muda de lugar no ABNT2: fica só com o gancho
+  assert.equal(virtualKey('constructor'), null);
+  const hotkeys = hotkeysFor(globalBindings([
+    { id: 'toggleMute', combo: 'Ctrl+Shift+KeyM' },
+    { id: 'toggleDeafen', combo: 'Alt+Meta+F13' },
+    { id: 'toggleNoise', combo: 'Ctrl+Backquote' },
+  ]));
+  assert.deepEqual(hotkeys, [
+    { id: 'toggleMute', modifiers: 0x4000 | 0x0002 | 0x0004, vk: 0x4d },
+    { id: 'toggleDeafen', modifiers: 0x4000 | 0x0001 | 0x0008, vk: 0x7c },
+  ]);
+});
+
+test('atalhos com programa de administrador na frente: só ficam registrados enquanto ele está na frente', (t) => {
+  t.mock.timers.enable({ apis: ['setInterval'] });
+  const { createElevatedHotkeys } = require('../lib/elevated-hotkeys');
+  let elevated = false;
+  const windows = new Map(); // número -> tecla registrada no "Windows"
+  const fired = [];
+  const warnings = [];
+  const api = {
+    register: (number, modifiers, vk) => (vk === 0x44 ? false : (windows.set(number, vk), true)), // D já é de outro programa
+    unregister: (number) => windows.delete(number),
+  };
+  const hotkeys = createElevatedHotkeys({
+    elevated: () => elevated, api, onKeybind: (id) => fired.push(id),
+    log: { info() {}, warn: (text) => warnings.push(text) },
+  });
+  hotkeys.set(globalBindings([{ id: 'toggleMute', combo: 'Ctrl+Shift+KeyM' }, { id: 'toggleDeafen', combo: 'Ctrl+Shift+KeyD' }]));
+  t.mock.timers.tick(250);
+  assert.equal(windows.size, 0); // janela comum na frente: o gancho cuida e a tecla continua chegando no jogo
+  assert.equal(hotkeys.handles('toggleMute'), false);
+
+  elevated = true;
+  t.mock.timers.tick(250);
+  assert.deepEqual([...windows.values()], [0x4d]);
+  assert.equal(warnings.length, 1);
+  assert.equal(hotkeys.handles('toggleMute'), true);
+  assert.equal(hotkeys.handles('toggleDeafen'), false);
+  hotkeys.pressed(1);
+  hotkeys.pressed(2); // não registrado: ignora
+  assert.deepEqual(fired, ['toggleMute']);
+
+  hotkeys.set(globalBindings([{ id: 'toggleMute', combo: 'Ctrl+Alt+KeyN' }])); // trocou o atalho com o jogo aberto
+  assert.deepEqual([...windows.values()], [0x4e]);
+
+  elevated = false;
+  t.mock.timers.tick(250);
+  assert.equal(windows.size, 0);
+  hotkeys.pressed(1);
+  assert.deepEqual(fired, ['toggleMute']);
+
+  elevated = true;
+  t.mock.timers.tick(250);
+  hotkeys.stop();
+  assert.equal(windows.size, 0);
+});

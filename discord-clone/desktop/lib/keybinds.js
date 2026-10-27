@@ -14,7 +14,7 @@ function globalBindings(list) {
     if (parts.some((part) => !MODIFIERS.includes(part))) return [];
     const keycode = uiohookKeycode(code);
     if (keycode == null) return [];
-    return [{ id: item.id, keycode, ctrl: parts.includes('Ctrl'), alt: parts.includes('Alt'), shift: parts.includes('Shift'), meta: parts.includes('Meta') }];
+    return [{ id: item.id, code, keycode, ctrl:parts.includes('Ctrl'), alt: parts.includes('Alt'), shift: parts.includes('Shift'), meta: parts.includes('Meta') }];
   });
 }
 

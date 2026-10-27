@@ -24,6 +24,9 @@ function createForeground() {
   const OpenProcess = kernel32.func('void *OpenProcess(uint32 access, bool inherit, uint32 pid)');
   const QueryFullProcessImageNameW = kernel32.func('bool QueryFullProcessImageNameW(void *process, uint32 flags, _Out_ void *name, _Inout_ uint32 *size)');
   const CloseHandle = kernel32.func('bool CloseHandle(void *handle)');
+  const PostMessageW = user32.func('bool PostMessageW(uintptr_t hWnd, uint32 msg, uintptr_t wParam, intptr_t lParam)');
+  const RegisterWindowMessageW = user32.func('uint32 RegisterWindowMessageW(str16 name)');
+  const UIPI_TEST = RegisterWindowMessageW('ResenhexUipiTest');
 
   function imageOf(pid) {
     let exe = '';
@@ -67,6 +70,15 @@ function createForeground() {
   current.alive = (hwnd) => !!hwnd && IsWindow(hwnd);
   // Escondida (o client do LoL durante a partida) ou já fechada: false.
   current.visible = (hwnd) => !!hwnd && IsWindow(hwnd) && IsWindowVisible(hwnd);
+  // A janela da frente é de um programa aberto como administrador? O Windows recusa as mensagens de um
+  // app comum para ela, o mesmo bloqueio que esconde do gancho de teclado as teclas que vão para ela.
+  // A mensagem existe só para o teste (quem recebe ignora) e só é mandada quando a janela da frente muda.
+  let uipi = { hwnd: 0, blocked: false };
+  current.elevated = () => {
+    const hwnd = GetForegroundWindow();
+    if (hwnd !== uipi.hwnd) uipi = { hwnd, blocked: !!hwnd && IsWindow(hwnd) && !PostMessageW(hwnd, UIPI_TEST, 0, 0) };
+    return uipi.blocked;
+  };
   return (instance = current);
 }
 

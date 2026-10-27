@@ -13,6 +13,7 @@ const { createStore } = require('./lib/store');
 const { parseTitle, badgeName } = require('./lib/title-badge');
 const { uiohookKeycode } = require('./lib/ptt-keys');
 const { globalBindings, matchBinding } = require('./lib/keybinds');
+const { WM_HOTKEY, windowsHotkeyApi, createElevatedHotkeys } = require('./lib/elevated-hotkeys');
 const { createLog } = require('./lib/log');
 const { execFile } = require('node:child_process');
 const { systemAudioDevice, appAudioSupported, appAudioDevice, AUDIO_APPS_SCRIPT, encodeScript, parseAudioApps, windowHandle } = require('./lib/system-audio');
@@ -77,6 +78,7 @@ let update = null; // { version } quando uma atualização já foi baixada
 let offline = false;
 let retryTimer = null;
 let overlay = null; // criado quando o app fica pronto (o módulo screen só existe depois disso)
+let elevatedHotkeys = null; // microfone e áudio com um programa de administrador na frente (só no Windows)
 
 const isAppUrl = (url) => { try { return new URL(url).origin === ORIGIN; } catch { return false; } };
 const fromSite = (event) => isAppUrl(event.senderFrame?.url || '');
@@ -146,6 +148,7 @@ function createWindow(hidden) {
     }
   });
   win.on('closed', () => { win = null; site = null; });
+  if (process.platform === 'win32') win.hookWindowMessage(WM_HOTKEY, (wParam) => elevatedHotkeys?.pressed(wParam.readUInt32LE(0)));
 
   wireSite(site.webContents);
   loadSite();
@@ -560,6 +563,8 @@ ipcMain.on('desktop:share-follow:stop', (event) => { if (fromVoiceSite(event)) s
 // ---------------- push-to-talk e atalhos globais ----------------
 // O site cuida das teclas com a janela em foco; com o app em segundo plano, o gancho global avisa o site.
 // Só a tecla do push-to-talk e os atalhos que o site pediu (microfone e áudio) são repassados.
+// Com um programa de administrador na frente, o gancho não vê as teclas e os atalhos vão pelo
+// RegisterHotKey (lib/elevated-hotkeys.js).
 let hook = null;
 let pttKey = null;
 let pttDown = false;
@@ -571,7 +576,7 @@ function onGlobalKeydown(event) {
   if (held.has(event.keycode)) return;
   held.add(event.keycode);
   const binding = matchBinding(bindings, event);
-  if (binding) site?.webContents.send('desktop:keybind', binding.id);
+  if (binding && !elevatedHotkeys?.handles(binding.id)) site?.webContents.send('desktop:keybind', binding.id);
 }
 function onGlobalKeyup(event) {
   held.delete(event.keycode);
@@ -606,10 +611,27 @@ function setPushToTalk(config) {
   updateHook();
 }
 
+function setupElevatedHotkeys() {
+  if (process.platform !== 'win32') return;
+  try {
+    const windows = require('./lib/foreground').createForeground();
+    if (!windows) return;
+    elevatedHotkeys = createElevatedHotkeys({
+      elevated: windows.elevated,
+      api: windowsHotkeyApi(() => (win ? Number(win.getNativeWindowHandle().readBigUInt64LE(0)) : 0)),
+      onKeybind: (id) => site?.webContents.send('desktop:keybind', id),
+      log,
+    });
+  } catch (error) {
+    log.warn('Atalhos com programas de administrador na frente indisponíveis:', error.message);
+  }
+}
+
 ipcMain.on('desktop:set-keybinds', (event, list) => {
   if (!fromSite(event)) return;
   bindings = globalBindings(list);
   updateHook();
+  elevatedHotkeys?.set(bindings);
 });
 ipcMain.on('desktop:set-ptt', (event, config) => { if (fromSite(event)) setPushToTalk(config); });
 ipcMain.on('desktop:set-theme', (event, colors) => {
@@ -678,6 +700,7 @@ function installUpdate() {
   setImmediate(() => {
     app.removeAllListeners('window-all-closed');
     try { hook?.stop(); } catch { /* já parado */ }
+    elevatedHotkeys?.stop();
     tray?.destroy();
     tray = null;
     for (const window of BrowserWindow.getAllWindows()) window.destroy();
@@ -713,6 +736,7 @@ app.on('will-quit', () => {
   if (capture?.sessions) log.info('Capturas de tela:', capture);
   log.info('Encerrando');
   try { hook?.stop(); } catch { /* já parado */ }
+  elevatedHotkeys?.stop();
 });
 app.on('window-all-closed', () => { if (quitting) app.quit(); });
 
@@ -722,6 +746,7 @@ app.whenReady().then(() => {
   const games = createGameList({ cacheFile: path.join(app.getPath('userData'), 'jogos.json'), origin: ORIGIN, fetch: (url) => net.fetch(url, { cache: 'no-store' }), log });
   overlay = createOverlay({ BrowserWindow, screen, origin: ORIGIN, preload: path.join(__dirname, 'overlay-preload.js'), games, log });
   setupShareFollow(games);
+  setupElevatedHotkeys();
   createTray();
   createWindow(process.argv.includes('--startup'));
   setupUpdates();
