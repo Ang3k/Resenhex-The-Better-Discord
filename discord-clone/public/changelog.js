@@ -4,6 +4,15 @@
 // O título deve destacar as principais funcionalidades ou correções, com termos objetivos.
 window.CHANGELOG = [
   {
+    version: '2.1.0', date: '2026-10-27', name: 'Atalhos de microfone e áudio dentro de jogos abertos como administrador',
+    summary: 'Mutar e ensurdecer pelo atalho agora funcionam com o jogo na frente, também nos jogos que rodam como administrador. Precisa do app do Windows 1.4.5, que se atualiza sozinho.',
+    sections: [
+      { kind: 'fixed', items: [
+        'App do Windows: com um jogo aberto como administrador na frente (vários jogos rodam assim), Ctrl+Shift+M e Ctrl+Shift+D não faziam nada, porque o Windows esconde do Resenhex as teclas desse jogo. Agora o app percebe esse jogo e, enquanto ele estiver na frente, pede os atalhos direto ao Windows. Segurar a tecla muta uma vez só.',
+      ] },
+    ],
+  },
+  {
     version: '2.0.0', date: '2026-10-25', name: 'Resenhex 2.0: chamem seus amigos',
     celebrate: true,
     summary: 'Um recado do dev: refiz o Resenhex por dentro, e agora ele aguenta milhares de pessoas online ao mesmo tempo. Então o pedido é um só: chamem seus amigos. O time do jogo, a turma da faculdade, aquele grupo que ainda vive no Discord. Manda o convite no grupo e traz todo mundo pra call. O Resenhex está pronto.',
