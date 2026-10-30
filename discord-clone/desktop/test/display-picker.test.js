@@ -26,7 +26,7 @@ function harness(progressive = true, autoStart = true) {
   const requests = [];
   let audioCalls = 0, elapsed = 0, tuned = 0;
   const contents = { send: (...args) => messages.push(args), isDestroyed: () => false };
-  const context = { site: { webContents: contents }, win: { getMediaSourceId: () => 'window:99:0' }, tuneCapture: () => { tuned++; return { ok: true }; },
+  const context = { site: { webContents: contents }, win: { getMediaSourceId: () => 'window:99:0' }, tuneCapture: () => { tuned++; return { ok: true }; }, store: { get: () => true },
     ipcMain: { on: (name, handler) => handlers.set(name, handler), handle: (name, handler) => handlers.set(name, handler) }, fromSite: () => true, isAppUrl: () => true, fromVoiceSite: () => true,
     AppAudioPlans, selectedAudioApps, MAX_AUDIO_APPS, Date: { now: () => Date.now() + elapsed },
     desktopCapturer: { getSources: (options) => {
