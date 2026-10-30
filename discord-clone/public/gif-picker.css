@@ -5,7 +5,7 @@
   position: fixed; z-index: 31; display: flex; flex-direction: column;
   width: min(424px, calc(100vw - 16px)); height: min(460px, calc(100dvh - 16px));
   background: var(--bg-floating); border: 1px solid var(--divider); border-radius: 12px;
-  box-shadow: 0 12px 32px rgba(0, 0, 0, .5); overflow: hidden;
+  box-shadow: var(--elev-2), var(--edge-light); overflow: hidden;
 }
 #gif-picker.hidden { display: none; }
 

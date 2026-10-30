@@ -515,7 +515,7 @@ blockquote { margin: 2px 0; padding: 0 8px 0 12px; border-left: 4px solid color-
   /* Sem desfoque: a barra fica por cima do vídeo, e o blur seria refeito a cada quadro dele. Fundo quase opaco e
      um brilho de 1 px no topo dão a mesma lâmina de vidro. */
   background: color-mix(in srgb, var(--bg-floating) 94%, transparent);
-  box-shadow: 0 12px 32px rgba(0, 0, 0, .42), inset 0 1px 0 rgba(255, 255, 255, .05);
+  box-shadow: var(--elev-2), var(--edge-light);
 }
 .sc-btn {
   border-radius: 50%; border: 0; display: grid; place-items: center;
@@ -549,7 +549,7 @@ blockquote { margin: 2px 0; padding: 0 8px 0 12px; border-left: 4px solid color-
 }
 .card {
   background: var(--bg-main); border-radius: 8px; padding: 24px; width: min(460px, 100%); max-height: calc(100vh - 32px);
-  display: flex; flex-direction: column; gap: 16px; box-shadow: 0 0 0 1px rgba(32, 34, 37, .6), 0 2px 10px rgba(0, 0, 0, .2);
+  display: flex; flex-direction: column; gap: 16px; box-shadow: 0 0 0 1px var(--divider), var(--elev-2), var(--edge-light);
   animation: pop var(--motion-base) var(--ease-enter);
 }
 .card h2 { margin: 0; font-size: 20px; font-weight: 600; color: var(--text-strong); }

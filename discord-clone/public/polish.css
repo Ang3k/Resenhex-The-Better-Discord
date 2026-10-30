@@ -112,7 +112,7 @@
 .ico { stroke-width: var(--ico-stroke, 2); }
 :is(.channel .lock, .voice-user .flags, #stage-strip > .tile .tb, #stage-strip > .tile .watch-btn, .mini-label) .ico { --ico-stroke: 2.5; }
 .channel-gear .ico { --ico-stroke: 2.4; }
-#tooltip { font-size: 13px; font-weight: 600; padding: 6px 10px; border-radius: 6px; background: var(--bg-floating); color: var(--text-strong); box-shadow: 0 6px 18px rgba(0, 0, 0, .45); }
+#tooltip { font-size: 13px; font-weight: 600; padding: 6px 10px; border-radius: 6px; background: var(--bg-floating); color: var(--text-strong); box-shadow: var(--elev-1); }
 #tooltip.top::after { border-top-color: var(--bg-floating); }
 #tooltip.right::after { border-right-color: var(--bg-floating); }
 #tooltip.bottom::after { border-bottom-color: var(--bg-floating); }
@@ -198,7 +198,7 @@
 .reaction { border-radius: 8px; }
 .reaction:hover { background: color-mix(in srgb, var(--text) 8%, var(--bg-panel)); border-color: color-mix(in srgb, var(--text) 20%, transparent); }
 .reaction.mine:hover { background: color-mix(in srgb, var(--brand) 26%, var(--bg-panel)); border-color: var(--brand); }
-.msg-actions { border-radius: 8px; background: var(--bg-panel); border: 1px solid var(--divider); box-shadow: 0 4px 14px rgba(0, 0, 0, .35); }
+.msg-actions { border-radius: 8px; background: var(--bg-panel); border: 1px solid var(--divider); box-shadow: var(--elev-1), var(--edge-light); }
 
 /* ---------- Caixa de mensagem integrada ---------- */
 #composer { padding-inline: 16px; }

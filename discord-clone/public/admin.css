@@ -178,7 +178,7 @@
 .input-prefix:focus-within { box-shadow: 0 0 0 2px var(--brand); }
 
 /* Barra de alterações não salvas */
-.admin-savebar { display: flex; align-items: center; gap: 12px; padding: 12px; border: 1px solid var(--divider); border-radius: 10px; background: var(--bg-panel); box-shadow: 0 6px 20px #0002; animation: savebar-in .2s ease-out; }
+.admin-savebar { display: flex; align-items: center; gap: 12px; padding: 12px; border: 1px solid var(--divider); border-radius: 10px; background: var(--bg-panel); box-shadow: var(--elev-1), var(--edge-light); animation: savebar-in .2s ease-out; }
 .admin-savebar.hidden { display: none; }
 .admin-savebar span { flex: 1; font-size: 13px; font-weight: 500; color: var(--text-strong); }
 #server-settings .admin-savebar .btn-save { background: var(--brand); }
@@ -190,7 +190,7 @@
 
 /* Confirmação */
 .confirm-overlay { position: fixed; inset: 0; z-index: 48; display: grid; place-items: center; padding: 16px; background: #000a; }
-.confirm-card { width: min(440px, 100%); background: var(--bg-main); border-radius: 10px; box-shadow: 0 16px 48px #0008; overflow: hidden; }
+.confirm-card { width: min(440px, 100%); background: var(--bg-main); border-radius: 10px; box-shadow: var(--elev-3), var(--edge-light); overflow: hidden; }
 .confirm-card h2 { margin: 0; padding: 20px 20px 8px; font-size: 20px; color: var(--text-strong); }
 .confirm-card p { margin: 0; padding: 0 20px 22px; color: var(--text); font-size: 15px; line-height: 1.45; }
 .confirm-actions { display: flex; justify-content: flex-end; gap: 8px; padding: 16px 20px; background: var(--bg-sidebar); }

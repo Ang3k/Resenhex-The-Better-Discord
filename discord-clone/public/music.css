@@ -197,7 +197,7 @@
   /* Altura fixa: buscar ou a fila mudar não faz o painel pular de lugar. */
   position: fixed; z-index: 30; width: min(400px, calc(100vw - 16px)); height: min(560px, calc(100dvh - 16px));
   display: flex; flex-direction: column; overflow: hidden;
-  background: var(--bg-floating); border: 1px solid var(--divider); border-radius: 12px; box-shadow: 0 16px 48px rgba(0, 0, 0, .5);
+  background: var(--bg-floating); border: 1px solid var(--divider); border-radius: 12px; box-shadow: var(--elev-2), var(--edge-light);
   animation: menu-in .16s var(--ease-out, ease-out);
 }
 .dj-panel-head { display: flex; align-items: center; gap: 10px; padding: 12px 10px 10px 14px; }

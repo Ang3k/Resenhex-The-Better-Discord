@@ -355,7 +355,7 @@
 #toast {
   display: flex; align-items: center; gap: 10px; padding: 11px 16px 11px 12px; border-radius: 12px;
   background: var(--bg-floating); color: var(--text-strong); border: 1px solid var(--divider);
-  box-shadow: 0 16px 40px rgba(0, 0, 0, .5), inset 0 1px 0 rgba(255, 255, 255, .04); animation: toast-in var(--spring-snappy-dur) var(--spring-snappy);
+  box-shadow: var(--elev-2), var(--edge-light); animation: toast-in var(--spring-snappy-dur) var(--spring-snappy);
 }
 #toast.hidden { display: none; transform: translate(-50%, 8px); }
 #toast .ico { flex-shrink: 0; padding: 5px; width: 28px; height: 28px; border-radius: 8px; }

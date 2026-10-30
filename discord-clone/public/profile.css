@@ -3,7 +3,7 @@
 /* ---------- Menus de contexto (clique direito) ---------- */
 #context-menu, #context-submenu {
   background: var(--bg-floating); border: 1px solid var(--divider); border-radius: 8px; padding: 6px;
-  box-shadow: 0 12px 32px rgba(0, 0, 0, .5);
+  box-shadow: var(--elev-2), var(--edge-light);
 }
 #context-menu { width: 232px; }
 #context-submenu { position: fixed; z-index: 31; width: 216px; max-height: calc(100vh - 16px); overflow-y: auto; }
@@ -38,7 +38,7 @@
   --pc-color: #5865f2;
   position: fixed; z-index: 29; width: 300px; max-height: calc(100vh - 16px); overflow-y: auto;
   background: var(--bg-sidebar); border: 1px solid var(--divider); border-radius: 12px;
-  box-shadow: 0 16px 48px rgba(0, 0, 0, .55);
+  box-shadow: var(--elev-2), var(--edge-light);
 }
 .pc-banner {
   height: 96px; position: relative;
