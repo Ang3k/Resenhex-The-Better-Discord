@@ -242,6 +242,7 @@ Não entram neste ramo porque mudam a essência ou o orçamento. Ficam para o do
 | `#5865f2` mantido como cor padrão de perfil | é o dado da cor (o mesmo do avatar no `app.js` e da amostra "Anil"), não um resto de tema; trocar só no CSS deixaria o cartão de uma cor e o avatar de outra. |
 | Peças duplicadas (achado 24) e a escala de 49 tamanhos e 47 raios (achado 22) não consolidadas | mexer em dezenas de regras espalhadas por arquivos em que a última vence tem risco alto de regressão para pouco ganho visível; os tokens novos ficam como base. Só os textos de 8–9,5 px que ainda são lidos subiram. |
 | `desktop/titlebar.html` (achado 23) sem mudança | o que está em `desktop/` só chega aos usuários com o app de Windows publicado, e publicar está fora do escopo. |
+| Gesto do alto-falante tirado depois da revisão do dono | as ondas do ícone de som que acendiam ao passar o mouse nas salas de voz não agradaram; o ícone voltou a ser estático, como o mapa de ícones já previa. |
 
 ## Pesquisa (Fase 2)
 

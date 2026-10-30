@@ -1,0 +1,14 @@
+Mensagem de áudio: quanto demora para começar a gravar (ferramentas/probe-gravacao.js), 30/10/2026.
+Microfone falso do Chromium, 5 cliques por versão. Tempos em ms desde o clique no microfone:
+"aberto" = "Abrindo o microfone…" sumiu (getUserMedia respondeu e o gravador ligou); "relogio" = o relógio passou de 0:00
+(arredonda, então vira 0:01 aos 0,5 s); "medidor" = a primeira barrinha mexeu (só medível no visual-polish).
+
+fora da call  main          aberto 76 23 15 21 15   relogio 587 532 521 523 524
+fora da call  visual-polish aberto 57 21 17 16 15   relogio 562 519 523 523 521   medidor 121 69 72 72 80
+na call       main          aberto 12 18 26 20 14   relogio 520 527 525 515 520
+na call       visual-polish aberto 13 10 10 10 10   relogio 524 524 517 521 516   medidor 76 65 68 68 68
+
+Leitura: o código começa a gravar 10–80 ms depois do clique nas duas versões. A demora de segundos relatada no PC do
+dono vem de abrir o microfone de verdade (getUserMedia), que o app mostra como "Abrindo o microfone…", ou do microfone
+entregar silêncio nos primeiros segundos (fone Bluetooth trocando de modo, ganho automático começando baixo).
+O fluxo da gravação é o mesmo no main e no visual-polish; no ramo só mudou o visual do medidor (transform no lugar de height).

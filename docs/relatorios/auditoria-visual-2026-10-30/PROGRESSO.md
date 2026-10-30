@@ -62,6 +62,11 @@ Registro de trabalho para retomar de onde parou depois de uma interrupção. Lei
 - [x] Cópia de trabalho do `main` removida, servidores locais parados, último envio feito.
 - [x] Fase 4 concluída. Conferido no fim: `origin/main` intocado (`5681fd5`), nenhum arquivo criado, movido ou renomeado em `public/`, sem versão nova nem entrada de changelog, nada em `deploy/`, `desktop/` ou `android/`, nenhuma captura ou relatório dentro de `discord-clone/`.
 
+## Depois da entrega (revisão do dono)
+
+- [x] Gesto do alto-falante das salas de voz removido (ícone estático, igual ao `main`; conferido com `ferramentas/probe-hover-sala.js`).
+- [x] Gravação de áudio que demora a começar no PC do dono: medido nas duas versões (`medicoes/gravacao-inicio.txt`); o código grava 10–80 ms depois do clique, a demora vem de abrir o microfone de verdade. Sem mudança no código.
+
 ## Próximo passo
 
 Nenhum: o trabalho terminou. Ramo `visual-polish` enviado (sem merge e sem pull request), à espera do dono.
