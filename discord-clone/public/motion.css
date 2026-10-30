@@ -224,6 +224,57 @@
 .tile:not(.screen) { background-image: radial-gradient(circle at 50% 38%, rgba(255, 255, 255, .07), transparent 62%); }
 .tile.speaking .avatar { box-shadow: 0 0 0 3px color-mix(in srgb, var(--tile, var(--brand)) 22%, var(--bg-rail)), 0 0 0 5px var(--green), 0 0 18px 3px color-mix(in srgb, var(--green) 40%, transparent); }
 
+/* ---------- Momentos: as pessoas acendem a sala ---------- */
+/* A chegada: o bloco de quem entra na chamada cresce com a mola e um anel com o degradê da marca se abre e some. */
+.tile.tile-arrive { animation: tile-arrive var(--spring-soft-dur) var(--spring-soft) var(--arrive-delay, 0ms) both; }
+.tile.tile-arrive::before {
+  content: ''; position: absolute; inset: 0; z-index: 3; padding: 3px; border-radius: inherit; pointer-events: none;
+  background: var(--brand-gradient);
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0); -webkit-mask-composite: xor;
+  mask: linear-gradient(#000 0 0) content-box exclude, linear-gradient(#000 0 0);
+  opacity: 0; animation: tile-ping .9s ease-out calc(var(--arrive-delay, 0ms) + 120ms) both;
+}
+@keyframes tile-arrive { from { opacity: 0; transform: scale(.94); } }
+@keyframes tile-ping { 25% { opacity: 1; } to { opacity: 0; } }
+
+/* O voo: a sua mensagem sobe da caixa de texto e assenta com a mola (as dos outros deslizam, como antes). */
+.msg-new.msg-mine { transform-origin: 30% 100%; animation: msg-fly var(--spring-soft-dur) var(--spring-soft); }
+@keyframes msg-fly { from { opacity: 0; transform: translateY(14px) scale(.985); } }
+
+/* O cutucão: mensagem nova que menciona você desenha a barra amarela de cima para baixo. */
+.msg-new.mentioned::before { transform-origin: 50% 0; animation: mention-draw .42s var(--ease-enter) both; }
+@keyframes mention-draw { from { transform: scaleY(0); } }
+
+/* O pouso: a reação cai no chip, e o emoji quica. */
+.reaction .reaction-glyph { display: inline-block; font-size: inherit; font-weight: inherit; color: inherit; line-height: 1; }
+.reaction.react-pop { animation: react-pop var(--spring-pop-dur) var(--spring-pop); }
+.reaction.react-pop .reaction-glyph { animation: react-hop .5s var(--spring) 40ms; }
+@keyframes react-pop { from { transform: scale(.6); } }
+@keyframes react-hop { 40% { transform: translateY(-4px) rotate(-12deg) scale(1.18); } }
+
+/* Acendeu: o amigo que fica online acende a bolinha com um pulo e um anel verde que se abre. */
+.member.came-online .status { animation: status-pop var(--spring-pop-dur) var(--spring-pop) both; }
+.member.came-online .status::before {
+  content: ''; position: absolute; inset: -3px; border-radius: 50%; border: 2px solid var(--green); pointer-events: none;
+  opacity: 0; animation: status-ring .8s ease-out .12s;
+}
+@keyframes status-pop { from { transform: scale(0); } }
+@keyframes status-ring { from { opacity: .9; transform: scale(.6); } to { opacity: 0; transform: scale(2.3); } }
+
+/* Digitando: os três pontinhos da página inicial (só existem enquanto alguém digita). */
+#typing { display: flex; align-items: center; }
+.typing-dots { display: inline-flex; align-items: center; gap: 3px; margin-right: 7px; flex-shrink: 0; }
+.typing-dots i { width: 5px; height: 5px; border-radius: 50%; background: var(--interactive); animation: typing-dot 1.2s ease-in-out infinite; }
+.typing-dots i:nth-child(2) { animation-delay: .15s; }
+.typing-dots i:nth-child(3) { animation-delay: .3s; }
+@keyframes typing-dot { 0%, 60%, 100% { opacity: .35; transform: none; } 30% { opacity: 1; transform: translateY(-3px); } }
+.typing-text { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* Avisos: o ícone pula ao chegar; no de erro ele sacode de leve. */
+#toast:not(.hidden) .ico { animation: g-pop .45s var(--spring) 80ms both; }
+#toast.error:not(.hidden) .ico { animation: toast-shake .42s ease-in-out 90ms both; }
+@keyframes toast-shake { 20%, 60% { transform: translateX(-2px) rotate(-6deg); } 40%, 80% { transform: translateX(2px) rotate(6deg); } }
+
 /* ---------- Entradas ---------- */
 /* Menus e cartões saem do ponto em que foram abertos; os que abrem para cima (emoji, GIF, sugestões) sobem. */
 :is(#context-menu, #context-submenu, #profile-card, #emoji-picker, #gif-picker, #autocomplete) { animation: menu-in var(--spring-soft-dur) var(--spring-soft); }

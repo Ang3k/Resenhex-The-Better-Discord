@@ -1739,13 +1739,24 @@
       if (!entry || entry.sig !== sig || entry.epoch !== epoch) {
         // Só a mensagem que acabou de chegar entra deslizando; histórico e reconstruções aparecem direto.
         const arriving = !entry && !firstPaint && Date.now() - msg.ts < 15000;
-        entry = { sig, epoch, node: msg.call
+        const before = entry?.reactions;
+        entry = { sig, epoch, reactions: reactionCounts(msg), node: msg.call
           ? dmCall.messageNode(msg, { channel: state.textChannel, time: hhmm(msg.ts), stamp: formatStamp(msg.ts) })
           : buildMessage(msg, continued, replied, msg.replyTo && !replied) };
         if (arriving) {
           const node = entry.node;
+          // A sua sobe da caixa com a mola (o voo); a dos outros desliza.
           node.classList.add('msg-new');
-          node.addEventListener('animationend', () => node.classList.remove('msg-new'), { once: true });
+          if (msg.authorId && msg.authorId === state.me.accountId) node.classList.add('msg-mine');
+          node.addEventListener('animationend', () => node.classList.remove('msg-new', 'msg-mine'), { once: true });
+        }
+        // O pouso: a reação que acabou de chegar cai no chip com um pulo.
+        if (before) for (const [emoji, n] of Object.entries(entry.reactions)) {
+          if (n <= (before[emoji] || 0)) continue;
+          const chip = [...entry.node.querySelectorAll('.reaction[data-emoji]')].find((c) => c.dataset.emoji === emoji);
+          if (!chip) continue;
+          chip.classList.add('react-pop');
+          chip.addEventListener('animationend', () => chip.classList.remove('react-pop'), { once: true });
         }
         msgNodes.set(msg.id, entry);
       }
@@ -1762,6 +1773,8 @@
     if (scrollToEnd) stickToBottom = true;
     keepBottom();
   }
+
+  const reactionCounts = (msg) => Object.fromEntries(Object.entries(msg.reactions || {}).map(([emoji, users]) => [emoji, users.length]));
 
   function buildMessage(msg, continued, replied, replyMissing) {
     const bot = msg.bot === 'mudae';
@@ -1831,8 +1844,9 @@
         reactions.map(([emoji, users]) => el('button', {
           class: 'reaction' + (users.includes(state.me.accountId) ? ' mine' : ''),
           tip: users.map((id) => member(id)?.name || '?').join(', '),
+          data: { emoji },
           onclick: () => react(msg.id, emoji),
-        }, reactionGlyph(emoji), el('span', { textContent: String(users.length) }))),
+        }, el('span', { class: 'reaction-glyph' }, reactionGlyph(emoji)), el('span', { textContent: String(users.length) }))),
         canWrite() ? el('button', { class: 'reaction add', tip: 'Adicionar reação', ariaLabel: 'Adicionar reação', onclick: (e) => openEmojiPicker(e.currentTarget, (em) => react(msg.id, em)) }, Icon('smilePlus', 16)) : null));
     }
     row.append(body);
@@ -2547,7 +2561,12 @@
   function renderTyping() {
     const now = Date.now();
     const names = [...typers].filter(([, t]) => t.until > now && t.channel === state.textChannel).map(([n]) => n);
-    $('#typing').textContent = names.length ? names.join(', ') + (names.length > 1 ? ' estão' : ' está') + ' digitando…' : '';
+    const box = $('#typing');
+    if (!names.length) { box.replaceChildren(); return; }
+    // Os três pontinhos só existem enquanto alguém digita (a animação infinita vai embora junto com eles).
+    let text = box.querySelector('.typing-text');
+    if (!text) box.replaceChildren(el('span', { class: 'typing-dots', ariaHidden: 'true' }, el('i'), el('i'), el('i')), text = el('span', { class: 'typing-text' }));
+    text.textContent = names.join(', ') + (names.length > 1 ? ' estão' : ' está') + ' digitando…';
   }
 
   // Palco de voz: telas em grade ou uma em destaque, com miniaturas em uma faixa horizontal.
