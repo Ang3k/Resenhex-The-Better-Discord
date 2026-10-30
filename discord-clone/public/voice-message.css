@@ -24,7 +24,7 @@
 @keyframes voice-rec-blink { 50% { opacity: .25; } }
 .voice-rec-time { flex-shrink: 0; min-width: 34px; color: var(--text-strong); font-size: 14px; font-weight: 600; font-variant-numeric: tabular-nums; }
 .voice-rec-meter { flex: 1; display: flex; align-items: center; justify-content: flex-end; gap: 2px; height: 28px; min-width: 0; overflow: hidden; }
-.voice-rec-meter span { flex: 0 0 3px; height: 8%; min-height: 3px; border-radius: 2px; background: color-mix(in srgb, var(--red) 75%, var(--text)); transition: height 50ms linear; }
+.voice-rec-meter span { flex: 0 0 3px; height: 100%; border-radius: 2px; background: color-mix(in srgb, var(--red) 75%, var(--text)); transform: scaleY(.11); transition: transform 50ms linear; } /* a altura vem do JS como scaleY (animar height refazia o layout) */
 .voice-rec-status { flex-shrink: 0; color: var(--text-muted); font-size: 13px; }
 .voice-rec-status:empty { display: none; }
 #voice-rec.sending .voice-rec-meter, #voice-rec.sending .voice-rec-dot { opacity: .35; animation: none; }

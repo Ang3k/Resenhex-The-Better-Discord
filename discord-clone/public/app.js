@@ -2198,7 +2198,7 @@
           $('#voice-rec-time').textContent = voiceMessages.clock(seconds);
           const bar = meter.firstElementChild;
           if (!bar) return;
-          bar.style.height = Math.max(8, level * 100) + '%';
+          bar.style.transform = `scaleY(${Math.max(0.11, level).toFixed(3)})`;
           meter.append(bar); // a onda anda da direita para a esquerda
         },
         onLimit: () => { toast('O áudio chegou a 5 minutos e foi enviado.', 'info'); sendVoiceRecording(); },
