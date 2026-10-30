@@ -28,7 +28,7 @@ Registro de trabalho para retomar de onde parou depois de uma interrupção. Lei
 ## Fase 1 — Auditoria
 
 - [x] Subir o app local, criar contas e servidor de teste
-- [x] Capturas "antes" em 1440×900 e 390×844 (123, em `antes/`)
+- [x] Capturas "antes" em 1440×900 e 390×844 (121, em `antes/`)
 - [x] Inventário (`inventario.md`)
 - [x] Achados com severidade (25, no relatório)
 - [x] Linha de base de desempenho (`medicoes/desempenho-antes-*.json`, `respostas-por-acao-antes.json`)
