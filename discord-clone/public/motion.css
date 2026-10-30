@@ -109,12 +109,12 @@
 .menu-item:hover .ico { transform: scale(1.1); }
 .msg-actions button .ico { transition: transform var(--motion-base) var(--ease-enter); }
 .msg-actions button:hover .ico { transform: scale(1.15); }
-#emoji-picker .ep-emoji { transition: background var(--motion-fast), transform var(--motion-fast) var(--ease-enter); }
+#emoji-picker .ep-emoji { transition: transform var(--motion-fast) var(--ease-enter); }
 #emoji-picker .ep-emoji:hover { transform: scale(1.18); }
 
 /* ---------- Resposta ao clique ---------- */
 .icon-btn, .vp-btn, .friend-btn, .pc-btn, .pc-icon-btn, .ft-tab, .msg-actions button, #chat-form button, .tc-btn, .cat-add, .group-action {
-  transition-property: background, color, transform, opacity, box-shadow; transition-duration: var(--motion-fast); transition-timing-function: var(--ease-enter);
+  transition-property: transform, opacity; transition-duration: var(--motion-fast); transition-timing-function: var(--ease-enter);
 }
 :is(.icon-btn, .vp-btn, .friend-btn, .pc-icon-btn, .msg-actions button, #chat-form button, .tc-btn, .cat-add, .group-action):active:not(:disabled) { transform: scale(var(--press-icon)); }
 :is(.pc-btn, .ft-tab, .friends-add-submit, .friend-text-btn, .watch-btn):active:not(:disabled) { transform: scale(var(--press)); }
@@ -130,7 +130,7 @@
 .sc-btn.hangup::after { box-shadow: 0 8px 22px rgba(217, 67, 75, .45); }
 
 /* Faixa de servidores: o ícone afunda um pouco ao clicar. A pílula tem 40 px e cresce com scaleY (8 → 20 → 40 px). */
-.rail-icon { transition: border-radius var(--motion-base) var(--ease-enter), background var(--motion-base), color var(--motion-base), transform var(--motion-fast); }
+.rail-icon { transition: transform var(--motion-fast); }
 .rail-item:active .rail-icon { transform: translateY(1px) scale(.96); }
 .rail-pill { transition: transform var(--motion-base) var(--ease-enter); }
 
@@ -241,7 +241,7 @@
 @keyframes banner-in { from { transform: translate(-50%, -100%); } }
 
 /* Listas: realce do mouse entra e sai suave. */
-.channel, .member, .voice-user, .friend-row, .admin-row { transition: background var(--motion-fast), color var(--motion-fast); }
+.channel, .member, .voice-user, .friend-row, .admin-row { transition: none; }
 
 /* "Reduzir animações" também vale para os detalhes desenhados com ::before e ::after. */
 :root[data-reduce-motion=true] *::before, :root[data-reduce-motion=true] *::after { animation: none !important; transition: none !important; }

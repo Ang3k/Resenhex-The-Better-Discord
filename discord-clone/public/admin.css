@@ -33,28 +33,28 @@
 
 /* Botões */
 #server-settings .btn-primary, #server-settings .admin-content .btn-primary, #server-settings .btn-save {
-  display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 40px; background: var(--brand); color: #fff; padding: 0 16px; border-radius: 10px; font-size: 14px; font-weight: 600; white-space: nowrap; box-shadow: 0 4px 14px color-mix(in srgb, var(--brand) 22%, transparent); transition: background .15s, transform .12s, box-shadow .15s;
+  display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 40px; background: var(--brand); color: #fff; padding: 0 16px; border-radius: 10px; font-size: 14px; font-weight: 600; white-space: nowrap; box-shadow: 0 4px 14px color-mix(in srgb, var(--brand) 22%, transparent); transition: transform .12s;
 }
 #server-settings .btn-primary:hover:not(:disabled), #server-settings .btn-save:hover:not(:disabled) { background: var(--brand-hover); }
-#server-settings .admin-content .btn-secondary { display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 40px; padding: 0 16px; border-radius: 10px; font-size: 14px; font-weight: 600; white-space: nowrap; background: var(--hover-strong); color: var(--text-strong); box-shadow: inset 0 0 0 1px var(--divider); transition: background .15s, transform .12s; }
+#server-settings .admin-content .btn-secondary { display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 40px; padding: 0 16px; border-radius: 10px; font-size: 14px; font-weight: 600; white-space: nowrap; background: var(--hover-strong); color: var(--text-strong); box-shadow: inset 0 0 0 1px var(--divider); transition: transform .12s; }
 #server-settings .admin-content .btn-secondary:hover:not(:disabled) { background: color-mix(in srgb, var(--text) 14%, transparent); }
-#server-settings .admin-content .btn-danger-outline { display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 40px; border: 1px solid var(--red); border-radius: 10px; color: var(--red); padding: 0 16px; font-size: 14px; font-weight: 600; white-space: nowrap; transition: background .15s, color .15s, transform .12s; }
+#server-settings .admin-content .btn-danger-outline { display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 40px; border: 1px solid var(--red); border-radius: 10px; color: var(--red); padding: 0 16px; font-size: 14px; font-weight: 600; white-space: nowrap; transition: transform .12s; }
 #server-settings .admin-content .btn-danger-outline:hover:not(:disabled) { background: var(--red-dark); color: #fff; }
 #server-settings .link-btn, .confirm-card .btn-ghost { background: none; border: 0; color: var(--text); font-size: 14px; font-weight: 500; padding: 6px 10px; }
 #server-settings .link-btn:hover { text-decoration: underline; }
-#server-settings .admin-content .btn-ghost { display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 40px; padding: 0 14px; border-radius: 10px; color: var(--interactive); font-size: 14px; font-weight: 600; transition: background .15s, color .15s, transform .12s; }
+#server-settings .admin-content .btn-ghost { display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 40px; padding: 0 14px; border-radius: 10px; color: var(--interactive); font-size: 14px; font-weight: 600; transition: transform .12s; }
 #server-settings .admin-content .btn-ghost:hover:not(:disabled) { background: var(--hover-strong); color: var(--text-strong); }
 #server-settings .admin-content .btn-ghost.danger { color: var(--red); }
 #server-settings :is(.btn-primary, .btn-save, .btn-secondary, .btn-danger-outline, .btn-ghost):active:not(:disabled) { transform: scale(.97); }
 #server-settings :is(.btn-primary, .btn-save, .btn-secondary, .btn-danger-outline, .btn-ghost):disabled { opacity: .45; box-shadow: none; }
-#server-settings .icon-btn { display: grid; place-items: center; width: 32px; height: 32px; border-radius: 50%; color: var(--interactive); background: var(--bg-panel); transition: background .15s, color .15s; }
+#server-settings .icon-btn { display: grid; place-items: center; width: 32px; height: 32px; border-radius: 50%; color: var(--interactive); background: var(--bg-panel); transition: none; }
 #server-settings .admin-content .icon-btn:hover:not(:disabled) { background: var(--hover-strong); color: var(--text-strong); }
 #server-settings .admin-content .icon-btn.danger:hover:not(:disabled) { background: var(--red-dark); color: #fff; }
 #server-settings .icon-btn:disabled { opacity: .35; }
 .kebab { font-size: 18px; line-height: 1; letter-spacing: 1px; }
 
 /* Interruptor e caixa de seleção do Discord */
-.ds-switch { appearance: none; flex-shrink: 0; width: 40px !important; height: 24px !important; border-radius: 14px; background: #80848e; position: relative; cursor: pointer; transition: background .15s; margin: 0; }
+.ds-switch { appearance: none; flex-shrink: 0; width: 40px !important; height: 24px !important; border-radius: 14px; background: #80848e; position: relative; cursor: pointer; transition: none; margin: 0; }
 .ds-switch::after { content: ''; position: absolute; top: 3px; left: 3px; width: 18px; height: 18px; border-radius: 50%; background: #fff; box-shadow: 0 1px 2px #0003; }
 .ds-switch:checked { background: var(--green); }
 .ds-switch:disabled { opacity: .45; cursor: not-allowed; }
@@ -69,7 +69,7 @@
 .admin-stack { display: flex; flex-direction: column; gap: 22px; }
 .admin-table { display: flex; flex-direction: column; }
 .admin-table-head { display: flex; align-items: center; gap: 12px; min-height: 36px; padding: 0 8px; font-size: 12px; font-weight: 700; letter-spacing: .02em; color: var(--interactive); border-bottom: 1px solid var(--divider); }
-.admin-row { display: flex; align-items: center; gap: 12px; min-height: 56px; padding: 8px; border-bottom: 1px solid var(--divider); border-radius: 6px; transition: background .1s; }
+.admin-row { display: flex; align-items: center; gap: 12px; min-height: 56px; padding: 8px; border-bottom: 1px solid var(--divider); border-radius: 6px; transition: none; }
 .admin-row.clickable { cursor: pointer; }
 .admin-row:hover { background: var(--hover); }
 .admin-row:focus-visible { outline: 2px solid var(--link); }
@@ -98,7 +98,7 @@
 .admin-empty.big strong { font-size: 17px; color: var(--text-strong); }
 
 /* Cartão clicável (@everyone, acesso do canal) */
-#server-settings .admin-content .admin-callout { display: flex; align-items: center; gap: 14px; width: 100%; padding: 16px; text-align: left; background: var(--bg-sidebar); border: 1px solid var(--divider); border-radius: 10px; transition: background .15s; }
+#server-settings .admin-content .admin-callout { display: flex; align-items: center; gap: 14px; width: 100%; padding: 16px; text-align: left; background: var(--bg-sidebar); border: 1px solid var(--divider); border-radius: 10px; transition: none; }
 #server-settings .admin-content .admin-callout:hover { background: var(--hover-strong); }
 .admin-callout .grow { flex: 1; display: grid; gap: 4px; }
 .admin-callout strong { font-size: 16px; color: var(--text-strong); }

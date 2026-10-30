@@ -5,13 +5,13 @@
   position: relative; width: min(880px, 100%); height: min(640px, 100%); display: grid; grid-template-columns: 220px minmax(0, 1fr);
   background: var(--bg-main); border: 1px solid var(--divider); border-radius: 14px; overflow: hidden; box-shadow: 0 24px 80px rgba(0, 0, 0, .6);
 }
-.cl-close { position: absolute; top: 14px; right: 14px; z-index: 2; display: grid; place-items: center; width: 34px; height: 34px; border: 0; border-radius: 50%; background: rgba(0, 0, 0, .35); color: #fff; transition: background .12s; }
+.cl-close { position: absolute; top: 14px; right: 14px; z-index: 2; display: grid; place-items: center; width: 34px; height: 34px; border: 0; border-radius: 50%; background: rgba(0, 0, 0, .35); color: #fff; transition: none; }
 .cl-close:hover { background: rgba(0, 0, 0, .6); }
 
 /* Linha do tempo das versões */
 .cl-versions { display: flex; flex-direction: column; gap: 2px; padding: 22px 12px; background: var(--bg-sidebar); border-right: 1px solid var(--divider); overflow-y: auto; position: relative; }
 .cl-versions-title { font-size: 11px; font-weight: 700; letter-spacing: .06em; color: var(--text-muted); padding: 0 10px 10px; }
-.cl-version { position: relative; display: flex; align-items: center; gap: 12px; width: 100%; padding: 10px; border: 0; border-radius: 8px; background: transparent; color: var(--interactive); text-align: left; transition: background .12s, color .12s; }
+.cl-version { position: relative; display: flex; align-items: center; gap: 12px; width: 100%; padding: 10px; border: 0; border-radius: 8px; background: transparent; color: var(--interactive); text-align: left; transition: none; }
 .cl-version:hover { background: var(--hover); color: var(--text-strong); }
 .cl-version.active { background: var(--hover-strong); color: var(--text-strong); }
 /* traço vertical ligando as bolinhas */

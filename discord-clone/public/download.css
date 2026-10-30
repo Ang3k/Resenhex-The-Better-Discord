@@ -19,7 +19,7 @@ body.dl-page::before {
 .dl-brand .brand-mark { width: 34px; height: 34px; border-radius: 11px; }
 .dl-open {
   position: relative; display: inline-flex; align-items: center; gap: 2px; padding: 8px 10px 8px 14px; border-radius: 999px;
-  color: var(--text); font-size: 14px; font-weight: 600; text-decoration: none; transition: color .15s;
+  color: var(--text); font-size: 14px; font-weight: 600; text-decoration: none; transition: none;
 }
 .dl-open:hover { color: var(--text-strong); }
 /* No hover, um traço roxo embaixo, como no menu da página inicial. */
@@ -59,7 +59,7 @@ body.dl-page::before {
   display: inline-flex; align-items: center; gap: 10px; height: 56px; padding: 0 30px 0 24px; border-radius: 16px;
   background: var(--brand); color: #fff; font-size: 17px; font-weight: 700; text-decoration: none;
   box-shadow: 0 6px 18px rgba(0, 0, 0, .2);
-  transition: background .15s, box-shadow .2s, transform .15s;
+  transition: transform .15s;
 }
 .dl-button:hover { background: var(--brand-hover); transform: translateY(-2px); box-shadow: 0 8px 24px rgba(0, 0, 0, .25); }
 .dl-button:active { transform: translateY(0) scale(.98); }
@@ -70,7 +70,7 @@ body.dl-page::before {
 .dl-alt {
   margin-top: -4px; color: var(--text); font-size: 13px; font-weight: 600;
   text-decoration: underline; text-decoration-color: color-mix(in srgb, currentColor 35%, transparent); text-underline-offset: 3px;
-  transition: color .15s, text-decoration-color .15s;
+  transition: none;
 }
 .dl-alt:hover { color: var(--text-strong); text-decoration-color: currentColor; }
 .dl-note {
@@ -138,7 +138,7 @@ body.dl-page::before {
   transition: opacity 150ms ease-in, transform 150ms ease-in, overlay 150ms ease-in allow-discrete, display 150ms ease-in allow-discrete;
 }
 .dl-dialog[open] { opacity: 1; transform: none; transition-duration: 300ms; transition-timing-function: cubic-bezier(.22, 1, .36, 1); }
-.dl-dialog::backdrop { background: rgba(0, 0, 0, 0); transition: background 150ms ease-in, overlay 150ms ease-in allow-discrete, display 150ms ease-in allow-discrete; }
+.dl-dialog::backdrop { background: rgba(0, 0, 0, 0); transition: overlay 150ms ease-in allow-discrete, display 150ms ease-in allow-discrete; }
 .dl-dialog[open]::backdrop { background: rgba(0, 0, 0, .6); transition-duration: 300ms; }
 @starting-style {
   .dl-dialog[open] { opacity: 0; transform: translateY(8px) scale(.97); }
@@ -148,7 +148,7 @@ body.dl-page:has(.dl-dialog[open]) { overflow: hidden; }
 .dl-dialog-body { position: relative; display: grid; gap: 14px; padding: 28px 28px 24px; }
 .dl-dialog-close {
   position: absolute; top: 14px; right: 14px; display: grid; place-items: center; width: 32px; height: 32px;
-  border: 0; border-radius: 8px; background: transparent; color: var(--text-muted); cursor: pointer; transition: background .15s, color .15s;
+  border: 0; border-radius: 8px; background: transparent; color: var(--text-muted); cursor: pointer; transition: none;
 }
 .dl-dialog-close:hover { background: var(--hover-strong); color: var(--text-strong); }
 .dl-dialog-emblem {
@@ -168,7 +168,7 @@ body.dl-page:has(.dl-dialog[open]) { overflow: hidden; }
 .dl-dialog-actions { display: flex; justify-content: flex-end; gap: 10px; padding: 16px 24px; border-top: 1px solid var(--divider); }
 .dl-dialog-btn {
   display: inline-flex; align-items: center; justify-content: center; height: 40px; padding: 0 18px; border-radius: 10px;
-  font-size: 14px; font-weight: 600; white-space: nowrap; text-decoration: none; transition: background .15s, color .15s, transform .12s;
+  font-size: 14px; font-weight: 600; white-space: nowrap; text-decoration: none; transition: transform .12s;
 }
 .dl-dialog-btn:active { transform: scale(.97); }
 .dl-dialog-btn.primary { background: var(--brand); color: #fff; }
@@ -181,7 +181,7 @@ body.dl-page:has(.dl-dialog[open]) { overflow: hidden; }
 
 /* ---------- Recursos ---------- */
 .dl-features { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 16px; }
-.dl-features article { display: flex; flex-direction: column; gap: 8px; padding: 20px; border-radius: 16px; transition: background .2s; }
+.dl-features article { display: flex; flex-direction: column; gap: 8px; padding: 20px; border-radius: 16px; transition: none; }
 .dl-features article:hover { background: var(--bg-sidebar); }
 .dl-feature-icon { display: grid; place-items: center; width: 40px; height: 40px; margin-bottom: 4px; border-radius: 12px; background: var(--bg-panel); color: var(--text-strong); box-shadow: inset 0 0 0 1px var(--divider); }
 .dl-features article:hover .dl-feature-icon { color: var(--brand); }

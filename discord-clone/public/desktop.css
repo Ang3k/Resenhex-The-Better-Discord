@@ -16,7 +16,7 @@ a.download-app { text-decoration: none; }
 .confirm-card .share-head p { margin: 6px 0 0; padding: 0; color: var(--text-muted); font-size: 14px; }
 .share-close {
   display: grid; place-items: center; flex-shrink: 0; width: 32px; height: 32px; margin: -4px -6px 0 0; padding: 0; border: 0; border-radius: 8px;
-  background: transparent; color: var(--interactive); transition: background .15s, color .15s, transform .2s;
+  background: transparent; color: var(--interactive); transition: transform .2s;
 }
 .share-close:hover { background: var(--hover-strong); color: var(--text-strong); transform: rotate(90deg); }
 
@@ -25,7 +25,7 @@ a.download-app { text-decoration: none; }
 .share-tabs { display: flex; gap: 4px; width: fit-content; padding: 4px; border-radius: 12px; background: var(--bg-rail); }
 .share-tabs button {
   display: inline-flex; align-items: center; gap: 8px; height: 34px; padding: 0 14px; border: 0; border-radius: 9px;
-  background: transparent; color: var(--interactive); font-size: 14px; font-weight: 600; transition: background .15s, color .15s;
+  background: transparent; color: var(--interactive); font-size: 14px; font-weight: 600; transition: none;
 }
 .share-tabs button:hover:not(:disabled) { color: var(--text-strong); background: var(--hover); }
 .share-tabs button.active { background: var(--bg-input); color: var(--text-strong); box-shadow: 0 1px 3px rgba(0, 0, 0, .25); }
@@ -41,7 +41,7 @@ a.download-app { text-decoration: none; }
 .share-source {
   display: flex; flex-direction: column; gap: 8px; min-width: 0; padding: 8px; border: 0; border-radius: 14px; text-align: left;
   background: var(--bg-sidebar); color: var(--text); box-shadow: inset 0 0 0 1px var(--divider);
-  transition: background .15s, box-shadow .15s, transform .15s;
+  transition: transform .15s;
   animation: share-in .22s ease-out backwards;
 }
 .share-source:nth-child(2) { animation-delay: .02s; } .share-source:nth-child(3) { animation-delay: .04s; } .share-source:nth-child(4) { animation-delay: .06s; }
@@ -89,12 +89,12 @@ a.download-app { text-decoration: none; }
 }
 .share-chip {
   position: relative; display: grid; justify-items: center; gap: 3px; min-width: 0; padding: 8px 4px; border: 0; border-radius: 9px;
-  background: transparent; color: var(--interactive); cursor: pointer; transition: color .15s, background .15s;
+  background: transparent; color: var(--interactive); cursor: pointer; transition: none;
 }
 .share-chip-label { display: inline-flex; align-items: center; gap: 5px; max-width: 100%; }
-.share-chip-label .ico { flex-shrink: 0; transition: color .15s, transform .2s; }
+.share-chip-label .ico { flex-shrink: 0; transition: transform .2s; }
 .share-chip strong { font-size: 13.5px; font-weight: 600; color: inherit; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.share-chip-spec { font-size: 11.5px; font-weight: 500; color: var(--text-muted); white-space: nowrap; font-variant-numeric: tabular-nums; transition: color .15s; }
+.share-chip-spec { font-size: 11.5px; font-weight: 500; color: var(--text-muted); white-space: nowrap; font-variant-numeric: tabular-nums; transition: none; }
 .share-chip:hover:not(.selected) { color: var(--text-strong); background: var(--hover); }
 .share-chip:hover .share-chip-label .ico { transform: scale(1.12); }
 .share-chip.selected { color: var(--text-strong); }
@@ -107,7 +107,7 @@ a.download-app { text-decoration: none; }
 .share-audio-icon img { width: 24px; height: 24px; }
 .share-audio-select {
   flex: 1; min-width: 0; height: 46px; padding: 0 12px; border: 0; border-radius: 9px;
-  background-color: transparent; color: var(--text-strong); font-size: 14px; font-weight: 600; cursor: pointer; transition: background-color .15s;
+  background-color: transparent; color: var(--text-strong); font-size: 14px; font-weight: 600; cursor: pointer; transition: none;
 }
 .share-audio-select:hover { background-color: var(--hover); }
 .share-audio-select option, .share-audio-select optgroup { background: var(--bg-input); color: var(--text); }
@@ -143,7 +143,7 @@ a.download-app { text-decoration: none; }
 /* Na aba de telas some sem mexer na altura da linha (a lista não pula); em tela estreita, sai de vez. */
 .share-follow[hidden] { visibility: hidden; }
 .share-follow-row { display: flex; align-items: center; gap: 10px; min-width: 0; padding: 6px 12px 6px 6px; border-radius: 12px; background: var(--bg-rail); cursor: pointer; }
-.share-follow-icon { display: grid; place-items: center; flex-shrink: 0; width: 30px; height: 30px; border-radius: 8px; background: var(--bg-input); color: var(--interactive); transition: color .15s; }
+.share-follow-icon { display: grid; place-items: center; flex-shrink: 0; width: 30px; height: 30px; border-radius: 8px; background: var(--bg-input); color: var(--interactive); transition: none; }
 .share-follow-row:hover .share-follow-icon, .share-follow-row:has(input:checked) .share-follow-icon { color: var(--text-strong); }
 .share-follow-text { display: grid; flex: 1; gap: 1px; min-width: 0; }
 .share-follow-text strong { font-size: 13px; font-weight: 600; line-height: 1.25; color: var(--text-strong); }
@@ -205,7 +205,7 @@ html.touch .share-source:not(.selected):hover { background: var(--bg-sidebar); }
 }
 #settings .settings-content .overlay-segmented button {
   position: relative; z-index: 1; min-height: 30px; padding: 0 12px; border: 0; border-radius: 6px; background: none; box-shadow: none;
-  color: var(--text-muted); font-size: 13px; font-weight: 600; white-space: nowrap; transition: color .15s;
+  color: var(--text-muted); font-size: 13px; font-weight: 600; white-space: nowrap; transition: none;
 }
 #settings .settings-content .overlay-segmented button:hover:not(:disabled) { color: var(--text); background: none; }
 #settings .settings-content .overlay-segmented button[aria-checked=true] { color: var(--text-strong); }
@@ -244,7 +244,7 @@ html.touch .share-source:not(.selected):hover { background: var(--bg-sidebar); }
 /* Réplica do overlay de verdade (overlay.css), em escala. */
 .overlay-puck {
   position: absolute; z-index: 2; display: grid; gap: 5px; padding: 5px; border-radius: 9px; cursor: grab; outline: none;
-  transition: box-shadow .15s, background .15s, transform .15s, opacity .25s;
+  transition: transform .15s, opacity .25s;
 }
 .overlay-puck:hover, .overlay-puck:focus-visible { background: color-mix(in srgb, var(--brand) 14%, transparent); box-shadow: 0 0 0 1px color-mix(in srgb, var(--brand) 80%, transparent); }
 .overlay-stage.dragging { cursor: grabbing; }

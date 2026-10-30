@@ -25,7 +25,7 @@
 .ep-tabs.searching { opacity: .45; }
 .ep-tab {
   display: grid; place-items: center; width: 34px; height: 34px; flex-shrink: 0; padding: 0; border: 0; border-radius: 8px;
-  background: transparent; color: var(--text-muted); transition: background .12s, color .12s;
+  background: transparent; color: var(--text-muted); transition: none;
 }
 .ep-tab:hover { background: var(--hover); color: var(--text-strong); }
 .ep-tab.active { background: var(--hover-strong); color: var(--text-strong); }
@@ -73,7 +73,7 @@
 /* Página "Emojis" nas configurações do servidor */
 .emoji-dropzone {
   display: grid; justify-items: center; gap: 8px; padding: 22px; border: 1px dashed var(--interactive); border-radius: 14px;
-  background: var(--bg-main); color: var(--text); transition: background .15s, border-color .15s;
+  background: var(--bg-main); color: var(--text); transition: none;
 }
 .emoji-dropzone:hover:not(:disabled), .emoji-dropzone.dragging { border-color: var(--brand); background: color-mix(in srgb, var(--brand) 8%, var(--bg-main)); }
 .emoji-dropzone small { color: var(--text-muted); font-size: 13px; text-align: center; }

@@ -19,7 +19,7 @@
 }
 .sz-btn {
   width: 32px; height: 32px; border: 0; border-radius: 8px; display: grid; place-items: center;
-  background: transparent; color: #fff; cursor: pointer; transition: background .12s, transform .12s;
+  background: transparent; color: #fff; cursor: pointer; transition: transform .12s;
 }
 .sz-btn:hover:not(:disabled) { background: rgba(255, 255, 255, .14); }
 .sz-btn:active:not(:disabled) { transform: scale(.9); }
@@ -27,7 +27,7 @@
 .sz-btn.active { background: var(--brand); }
 .sz-level {
   min-width: 58px; height: 32px; padding: 0 8px; border: 0; border-radius: 8px; background: transparent; color: #fff; cursor: pointer;
-  font: inherit; font-size: 13px; font-weight: 700; font-variant-numeric: tabular-nums; transition: background .12s;
+  font: inherit; font-size: 13px; font-weight: 700; font-variant-numeric: tabular-nums; transition: none;
 }
 .sz-level:hover { background: rgba(255, 255, 255, .14); }
 .sz-sep { width: 1px; height: 20px; margin: 0 4px; background: rgba(255, 255, 255, .16); }

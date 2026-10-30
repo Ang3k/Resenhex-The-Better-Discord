@@ -13,7 +13,7 @@
 @keyframes voice-rec-in { from { opacity: 0; transform: translateY(4px); } }
 #voice-rec button {
   display: grid; place-items: center; flex-shrink: 0; width: 38px; height: 38px; padding: 0; border: 0; border-radius: 10px;
-  background: transparent; color: var(--interactive); transition: color .12s, background .12s, transform .12s;
+  background: transparent; color: var(--interactive); transition: transform .12s;
 }
 #voice-rec button:hover { color: var(--text-strong); background: var(--hover-strong); }
 #voice-rec button:active { transform: scale(.92); }
@@ -39,7 +39,7 @@
 }
 .vm-play {
   display: grid; place-items: center; flex-shrink: 0; width: 36px; height: 36px; padding: 0; border: 0; border-radius: 50%;
-  background: var(--vm-accent); color: #fff; transition: background .12s, transform .12s;
+  background: var(--vm-accent); color: #fff; transition: transform .12s;
 }
 .vm-play:hover { background: var(--brand-hover); }
 .vm-play:active { transform: scale(.92); }
@@ -47,7 +47,7 @@
 .voice-message.playing .vm-play .ico { transform: none; }
 .vm-track { flex: 1; display: flex; align-items: center; gap: 10px; min-width: 0; }
 .vm-wave { flex: 1; display: flex; align-items: center; gap: 2px; height: 30px; min-width: 0; overflow: hidden; cursor: pointer; border-radius: 4px; }
-.vm-wave span { flex: 1 1 0; min-width: 2px; max-width: 4px; border-radius: 2px; background: color-mix(in srgb, var(--text) 28%, transparent); transition: background .12s; }
+.vm-wave span { flex: 1 1 0; min-width: 2px; max-width: 4px; border-radius: 2px; background: color-mix(in srgb, var(--text) 28%, transparent); transition: none; }
 .vm-wave span.on { background: var(--vm-accent); }
 .vm-wave:hover span:not(.on) { background: color-mix(in srgb, var(--text) 40%, transparent); }
 .vm-time { flex-shrink: 0; min-width: 32px; color: var(--text-muted); font-size: 12px; font-variant-numeric: tabular-nums; text-align: right; }
@@ -55,7 +55,7 @@
 .vm-speed {
   flex-shrink: 0; min-width: 38px; height: 24px; padding: 0 8px; border: 0; border-radius: 999px;
   background: var(--hover-strong); color: var(--interactive); font-size: 12px; font-weight: 700; font-variant-numeric: tabular-nums;
-  transition: background .12s, color .12s;
+  transition: none;
 }
 .vm-speed:hover { color: var(--text-strong); }
 .voice-message.fast .vm-speed { background: color-mix(in srgb, var(--brand) 25%, transparent); color: var(--text-strong); }

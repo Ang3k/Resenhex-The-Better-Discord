@@ -31,7 +31,7 @@
 #landing a { color: inherit; text-decoration: none; }
 
 /* "Voltar ao início" no cartão de login, só para quem veio da página inicial. */
-.auth-back { display: none; align-self: center; align-items: center; gap: 4px; margin-top: -4px; padding: 4px 10px 4px 6px; border-radius: 999px; color: var(--text-muted); font-size: 13.5px; font-weight: 600; text-decoration: none; transition: color .15s, background .15s; }
+.auth-back { display: none; align-self: center; align-items: center; gap: 4px; margin-top: -4px; padding: 4px 10px 4px 6px; border-radius: 999px; color: var(--text-muted); font-size: 13.5px; font-weight: 600; text-decoration: none; transition: none; }
 :root[data-landing=on] .auth-back { display: inline-flex; }
 .auth-back .ico { transform: rotate(180deg); transition: transform .2s; }
 .auth-back:hover { color: var(--text-strong); background: var(--hover); }
@@ -57,7 +57,7 @@
 .ld-login {
   display: inline-flex; align-items: center; height: 40px; padding: 0 20px; border-radius: 999px;
   background: var(--ld-purple); color: #fff !important; font-size: 14.5px; font-weight: 700;
-  transition: background .15s, box-shadow .2s, transform .15s;
+  transition: transform .15s;
 }
 .ld-login:hover { background: var(--ld-purple-press); box-shadow: 0 8px 20px rgba(10, 10, 12, .35); transform: translateY(-1px); }
 
@@ -82,7 +82,7 @@
 
 .ld-btn {
   display: inline-flex; align-items: center; justify-content: center; gap: 10px; height: 58px; padding: 0 30px; border-radius: 999px;
-  font-size: 17px; font-weight: 700; white-space: nowrap; transition: color .15s, background .15s, box-shadow .2s, transform .15s;
+  font-size: 17px; font-weight: 700; white-space: nowrap; transition: transform .15s;
 }
 .ld-btn:active { transform: translateY(0) scale(.98) !important; }
 .ld-btn-light { background: #fff; color: #1e1f22 !important; }
@@ -306,7 +306,7 @@
 .ld-footer .ld-brand { font-size: 15px; }
 .ld-footer .brand-mark { width: 30px; height: 30px; border-radius: 10px; }
 .ld-footer nav { display: flex; flex-wrap: wrap; gap: 20px; }
-.ld-footer nav a { color: var(--ld-muted) !important; font-size: 14.5px; font-weight: 600; transition: color .15s; }
+.ld-footer nav a { color: var(--ld-muted) !important; font-size: 14.5px; font-weight: 600; transition: none; }
 .ld-footer nav a:hover { color: #fff !important; }
 
 /* ---------- Soundboard ---------- */
@@ -316,7 +316,7 @@
 .ld-pad {
   position: relative; display: grid; justify-items: center; gap: 6px; padding: 14px 6px 12px; overflow: hidden; border: 0; border-radius: 10px;
   background: var(--bg-input); color: var(--text); font: inherit; font-size: 13.5px; font-weight: 600; cursor: pointer;
-  transition: background .15s, color .15s, transform .1s;
+  transition: transform .1s;
   -webkit-tap-highlight-color: transparent;
 }
 .ld-pad:hover { background: var(--hover-strong); color: var(--text-strong); }

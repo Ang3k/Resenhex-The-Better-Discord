@@ -44,7 +44,7 @@
 .sound-dialog-emblem { display: grid; place-items: center; width: 54px; height: 54px; flex-shrink: 0; border-radius: 16px; background: var(--brand-gradient); color: #fff; }
 .sound-limit-note { display: flex; gap: 8px; color: var(--text-muted); font-size: 13px; line-height: 1.5; }
 .sound-limit-note .ico { margin-top: 2px; color: var(--interactive); }
-.sound-dropzone { display: grid; justify-items: center; gap: 10px; padding: 24px; border: 1px dashed var(--interactive); border-radius: 14px; background: var(--bg-panel); color: var(--text); transition: background .15s, border-color .15s; }
+.sound-dropzone { display: grid; justify-items: center; gap: 10px; padding: 24px; border: 1px dashed var(--interactive); border-radius: 14px; background: var(--bg-panel); color: var(--text); transition: none; }
 .sound-dropzone:hover, .sound-dropzone.dragging { background: color-mix(in srgb, var(--brand) 12%, var(--bg-panel)); border-color: var(--brand); }
 .sound-upload-icon { display: grid; place-items: center; width: 56px; height: 56px; border-radius: 50%; background: var(--hover-strong); color: var(--interactive); }
 .sound-dropzone strong { max-width: 100%; overflow-wrap: anywhere; }
@@ -60,7 +60,7 @@
    em arquivo longo, a faixa com o arquivo inteiro. */
 .sound-trim { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 8px 12px; align-items: center; }
 .sound-trim-side { grid-row: 1; display: grid; justify-items: center; gap: 6px; width: 52px; }
-.sound-trim-play { display: grid; place-items: center; width: 44px; height: 44px; border: 0; border-radius: 50%; background: var(--brand); color: #fff; box-shadow: 0 4px 14px color-mix(in srgb, var(--brand) 40%, transparent); transition: transform .12s, background .15s; }
+.sound-trim-play { display: grid; place-items: center; width: 44px; height: 44px; border: 0; border-radius: 50%; background: var(--brand); color: #fff; box-shadow: 0 4px 14px color-mix(in srgb, var(--brand) 40%, transparent); transition: transform .12s; }
 .sound-trim-play:hover { background: var(--brand-hover, var(--brand)); transform: scale(1.05); }
 .sound-trim-play:active { transform: scale(.96); }
 .sound-trim-play .ico-play { margin-left: 2px; fill: currentColor; }
@@ -75,7 +75,7 @@
 .sound-trim-shade.right { right: 0; }
 .sound-trim-window {
   position: absolute; top: 0; bottom: 0; border-block: 2px solid var(--brand); pointer-events: none;
-  background: color-mix(in srgb, var(--brand) 10%, transparent); box-shadow: 0 0 18px color-mix(in srgb, var(--brand) 30%, transparent); transition: box-shadow .15s;
+  background: color-mix(in srgb, var(--brand) 10%, transparent); box-shadow: 0 0 18px color-mix(in srgb, var(--brand) 30%, transparent); transition: none;
 }
 .sound-trim-wave.dragging .sound-trim-window { box-shadow: 0 0 24px color-mix(in srgb, var(--brand) 50%, transparent); }
 /* As bordas ficam por fora do trecho, como colchetes; quem recebe o arraste é a onda inteira. */
@@ -102,7 +102,7 @@
 .sound-file-row { display: flex; align-items: center; gap: 10px; min-width: 0; padding: 6px 6px 6px 12px; border: 1px solid var(--divider); border-radius: 8px; background: var(--bg-input); color: var(--interactive); }
 .sound-file-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text-strong); font-size: 14px; }
 .sound-file-row small { flex-shrink: 0; color: var(--text-muted); font-size: 12px; font-variant-numeric: tabular-nums; }
-.sound-file-change { flex-shrink: 0; min-height: 34px; padding: 0 14px; border: 0; border-radius: 8px; background: var(--hover-strong); color: var(--text-strong); box-shadow: inset 0 0 0 1px var(--divider); font-size: 13px; font-weight: 600; transition: background .15s, transform .12s; }
+.sound-file-change { flex-shrink: 0; min-height: 34px; padding: 0 14px; border: 0; border-radius: 8px; background: var(--hover-strong); color: var(--text-strong); box-shadow: inset 0 0 0 1px var(--divider); font-size: 13px; font-weight: 600; transition: transform .12s; }
 .sound-file-change:hover:not(:disabled) { background: color-mix(in srgb, var(--text) 14%, transparent); }
 .sound-file-change:active:not(:disabled) { transform: scale(.97); }
 .sound-file-change:disabled { opacity: .45; }
@@ -177,7 +177,7 @@ html.touch .sound-trim-wave { height: 88px; }
 
 /* Imagens: uma linha por imagem, miniatura no formato real e ações sempre à vista */
 #page-profile .profile-media-list { display: grid; overflow: hidden; container: profile-media / inline-size; }
-#page-profile .profile-media-card { display: grid; grid-template-columns: 84px minmax(0, 1fr); align-items: center; gap: 14px; padding: 14px 16px; transition: background .15s; }
+#page-profile .profile-media-card { display: grid; grid-template-columns: 84px minmax(0, 1fr); align-items: center; gap: 14px; padding: 14px 16px; transition: none; }
 #page-profile .profile-media-card + .profile-media-card { border-top: 1px solid var(--divider); }
 #page-profile .profile-media-card:hover { background: color-mix(in srgb, var(--text) 3%, transparent); }
 #page-profile .profile-media-thumb-wrap { display: grid; place-items: center; height: 64px; }
@@ -213,7 +213,7 @@ html.touch .sound-trim-wave { height: 88px; }
 
 /* Amostras de cor */
 #page-profile .profile-swatches { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; padding: 14px 16px; }
-#settings .settings-content .profile-swatch { position: relative; display: grid; place-items: center; width: 30px; min-height: 0; height: 30px; padding: 0; margin: 0; border: 0; border-radius: 50%; background: var(--swatch); box-shadow: inset 0 0 0 1px rgb(255 255 255 / .12); cursor: pointer; transition: transform .12s, box-shadow .15s; }
+#settings .settings-content .profile-swatch { position: relative; display: grid; place-items: center; width: 30px; min-height: 0; height: 30px; padding: 0; margin: 0; border: 0; border-radius: 50%; background: var(--swatch); box-shadow: inset 0 0 0 1px rgb(255 255 255 / .12); cursor: pointer; transition: transform .12s; }
 #settings .settings-content .profile-swatch:hover:not(:disabled) { background: var(--swatch); transform: scale(1.1); }
 #settings .settings-content .profile-swatch:focus-visible { outline: 2px solid var(--text-strong); outline-offset: 3px; }
 #settings .settings-content .profile-swatch[aria-pressed="true"], #settings .settings-content .profile-swatch-custom.selected { box-shadow: 0 0 0 2px var(--bg-panel), 0 0 0 4px var(--swatch, var(--brand)); }
@@ -242,7 +242,7 @@ html.touch .sound-trim-wave { height: 88px; }
 #page-profile .profile-cover { height: 96px; }
 #page-profile .profile-preview-body { display: grid; gap: 12px; align-items: start; padding: 0 16px 16px; }
 #page-profile .profile-preview-avatar-wrap { position: relative; justify-self: start; width: 84px; height: 84px; margin-top: -42px; }
-#page-profile #profile-preview-avatar { width: 84px; height: 84px; margin: 0; border: 6px solid var(--bg-sidebar); font-size: 30px; transition: outline-color .15s; }
+#page-profile #profile-preview-avatar { width: 84px; height: 84px; margin: 0; border: 6px solid var(--bg-sidebar); font-size: 30px; transition: none; }
 #page-profile .profile-preview.has-bg #profile-preview-avatar { border-color: var(--pc-surface, var(--bg-sidebar)); }
 #page-profile .profile-preview-info { display: grid; justify-items: start; gap: 6px; padding: 0; min-width: 0; }
 #page-profile .profile-preview-info strong { color: var(--text-strong); font-size: 20px; font-weight: 800; line-height: 1.2; letter-spacing: -.01em; overflow-wrap: anywhere; }
@@ -265,7 +265,7 @@ html.touch .sound-trim-wave { height: 88px; }
 #page-profile:has(.profile-media-background:hover) .profile-preview-body::after { box-shadow: inset 0 0 0 2px color-mix(in srgb, var(--brand) 75%, #fff); }
 #page-profile #profile-preview-avatar { outline: 2px solid transparent; outline-offset: 1px; }
 #page-profile:has(.profile-media-photo:hover) #profile-preview-avatar { outline-color: color-mix(in srgb, var(--brand) 75%, #fff); }
-#settings .settings-content .profile-preview-edit-photo { position: absolute; z-index: 2; right: -2px; bottom: -2px; display: grid; place-items: center; width: 28px; min-height: 0; height: 28px; padding: 0; border: 0; border-radius: 50%; color: #fff; background: var(--brand); box-shadow: 0 0 0 3px var(--bg-sidebar); opacity: 0; transition: opacity .15s, background .15s; }
+#settings .settings-content .profile-preview-edit-photo { position: absolute; z-index: 2; right: -2px; bottom: -2px; display: grid; place-items: center; width: 28px; min-height: 0; height: 28px; padding: 0; border: 0; border-radius: 50%; color: #fff; background: var(--brand); box-shadow: 0 0 0 3px var(--bg-sidebar); opacity: 0; transition: opacity .15s; }
 #settings .settings-content .profile-preview-edit-photo:hover:not(:disabled) { background: var(--brand-hover); }
 #page-profile .profile-preview-avatar-wrap:hover .profile-preview-edit-photo,
 #page-profile:has(.profile-media-photo:hover) .profile-preview-edit-photo,

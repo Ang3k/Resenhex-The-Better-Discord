@@ -68,7 +68,7 @@
 #voice-room-name {
   display: block; max-width: 100%; margin-top: 1px; padding: 0; border: 0; background: none;
   font: inherit; font-size: 12px; color: var(--text-muted); text-align: left; cursor: pointer;
-  text-underline-offset: 2px; transition: color .12s;
+  text-underline-offset: 2px; transition: none;
 }
 #voice-room-name:hover, #voice-room-name:focus-visible { color: var(--text); text-decoration: underline; }
 .vp-actions { gap: 6px; }
@@ -76,7 +76,7 @@
 .vp-btn:hover:not(:disabled) { background: var(--hover-strong); }
 .vp-btn.on { background: var(--green); color: #fff; }
 #user-panel { height: 56px; padding: 0 8px 0 6px; gap: 2px; background: transparent; border-top: 0; }
-.me-card { padding: 4px 6px; border-radius: 8px; gap: 10px; transition: background .12s; }
+.me-card { padding: 4px 6px; border-radius: 8px; gap: 10px; transition: none; }
 .me-card:hover { background: var(--hover); }
 .me-card .avatar { width: 34px; height: 34px; }
 .me-name { font-size: 14px; }
@@ -84,7 +84,7 @@
 #user-panel .status { --ring: var(--bg-panel); }
 
 /* ---------- Controles: mesma área de clique, estados claros ---------- */
-.icon-btn { width: 32px; height: 32px; border-radius: 6px; color: var(--interactive); transition: background .12s, color .12s; }
+.icon-btn { width: 32px; height: 32px; border-radius: 6px; color: var(--interactive); transition: none; }
 .icon-btn:hover { background: var(--hover-strong); color: var(--text-strong); }
 .icon-btn .ico { width: 20px; height: 20px; }
 .icon-btn.off { color: var(--red); }
@@ -113,7 +113,7 @@
 .cat-toggle:hover { color: var(--text); }
 .cat-add { color: var(--text-muted); opacity: .8; border-radius: 4px; }
 .cat-add:hover { color: var(--text-strong); opacity: 1; }
-.channel { min-height: 0; height: 32px; margin: 1px 0; padding: 0 8px; gap: 8px; border-radius: 6px; font-size: 15px; font-weight: 500; transition: background .1s, color .1s; }
+.channel { min-height: 0; height: 32px; margin: 1px 0; padding: 0 8px; gap: 8px; border-radius: 6px; font-size: 15px; font-weight: 500; transition: none; }
 .channel .icon .ico { width: 18px; height: 18px; }
 .channel:hover { background: var(--hover); color: var(--text); }
 .channel.active { background: var(--hover-strong); color: var(--text-strong); }
@@ -175,13 +175,13 @@
 #composer { padding-inline: 16px; }
 #chat-form {
   align-items: flex-end; padding: 0 6px 0 4px; border-radius: 10px; background: var(--bg-input);
-  border: 1px solid transparent; box-shadow: 0 1px 0 rgba(255, 255, 255, .02) inset; transition: border-color .15s, background .15s;
+  border: 1px solid transparent; box-shadow: 0 1px 0 rgba(255, 255, 255, .02) inset; transition: none;
 }
 #chat-form:focus-within { border-color: rgba(255, 255, 255, .1); background: #28282e; }
 :root[data-theme=midnight] #chat-form:focus-within, :root[data-theme=contrast] #chat-form:focus-within { background: var(--bg-input); }
 #chat-input { padding: 12px 6px; line-height: 20px; min-height: 44px; font-size: var(--chat-size); }
 #chat-input::placeholder { color: var(--text-muted); opacity: .75; }
-#chat-form button { width: 38px; height: 44px; border-radius: 8px; color: var(--interactive); transition: color .12s; }
+#chat-form button { width: 38px; height: 44px; border-radius: 8px; color: var(--interactive); transition: none; }
 #chat-form button .ico { width: 22px; height: 22px; }
 #chat-form button:hover:not(:disabled) { color: var(--text-strong); }
 #reply-bar { background: var(--bg-panel); border: 1px solid var(--divider); border-bottom: 0; border-radius: 10px 10px 0 0; }
@@ -192,7 +192,7 @@
 #members { background: var(--bg-members); border-left: 1px solid var(--divider); padding: 8px 8px 20px; }
 #member-list .category { padding: 20px 10px 6px; font-size: 11.5px; font-weight: 600; letter-spacing: .03em; color: var(--text-muted); text-transform: uppercase; }
 #member-list .category:first-child { padding-top: 12px; }
-.member { height: 44px; min-height: 0; gap: 12px; padding: 0 10px; margin: 1px 0; border-radius: 8px; --ring: var(--bg-members); transition: background .1s; }
+.member { height: 44px; min-height: 0; gap: 12px; padding: 0 10px; margin: 1px 0; border-radius: 8px; --ring: var(--bg-members); transition: none; }
 .member:hover { --ring: color-mix(in srgb, var(--text) 4.5%, var(--bg-members)); background: var(--ring); }
 .member .avatar { width: 32px; height: 32px; }
 .member-name { font-size: 15px; font-weight: 500; line-height: 19px; }

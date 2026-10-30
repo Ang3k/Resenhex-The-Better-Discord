@@ -5,7 +5,7 @@
 .sc-caret {
   position: absolute; right: -4px; bottom: -4px; z-index: 1; display: grid; place-items: center;
   width: 22px; height: 22px; padding: 0; border: 2px solid var(--bg-floating); border-radius: 50%;
-  background: var(--bg-panel); color: var(--text-strong); cursor: pointer; transition: background .15s, transform .15s;
+  background: var(--bg-panel); color: var(--text-strong); cursor: pointer; transition: transform .15s;
 }
 .sc-caret:hover { background: color-mix(in srgb, var(--text) 18%, var(--bg-panel)); transform: translateY(-1px); }
 .sc-caret:focus-visible { outline: 2px solid var(--brand); outline-offset: 1px; }
@@ -75,7 +75,7 @@
 .sa-actions { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; margin-top: 12px; }
 .sa-btn {
   display: inline-flex; align-items: center; gap: 8px; height: 38px; padding: 0 14px; border: 1px solid var(--divider); border-radius: 8px;
-  background: var(--bg-panel); color: var(--text-strong); font: inherit; font-size: 14px; font-weight: 600; cursor: pointer; transition: background .15s, transform .15s;
+  background: var(--bg-panel); color: var(--text-strong); font: inherit; font-size: 14px; font-weight: 600; cursor: pointer; transition: transform .15s;
 }
 .sa-btn:hover { background: var(--hover-strong); transform: translateY(-1px); }
 .sa-btn:focus-visible { outline: 2px solid var(--brand); outline-offset: 2px; }
@@ -154,7 +154,7 @@
 .vfx-chip {
   display: flex; flex-direction: column; align-items: center; gap: 2px; min-width: 0; padding: 7px 4px 6px; border: 1px solid transparent; border-radius: 8px;
   background: color-mix(in srgb, var(--text) 5%, transparent); color: var(--interactive); font: inherit; font-size: 12px; font-weight: 600; cursor: pointer;
-  transition: background .15s, border-color .15s, color .15s;
+  transition: none;
 }
 .vfx-chip span:first-child { font-size: 18px; line-height: 1.1; }
 .vfx-chip span:last-child { max-width: 100%; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
@@ -177,7 +177,7 @@
 .vfx-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(124px, 1fr)); gap: 8px; }
 .vfx-card {
   display: flex; flex-direction: column; align-items: flex-start; gap: 2px; padding: 12px; border: 1px solid var(--divider); border-radius: 10px;
-  background: var(--bg-panel); color: var(--text); font: inherit; text-align: left; cursor: pointer; transition: border-color .15s, background .15s, transform .15s;
+  background: var(--bg-panel); color: var(--text); font: inherit; text-align: left; cursor: pointer; transition: transform .15s;
 }
 .vfx-card:hover { border-color: color-mix(in srgb, var(--brand) 55%, var(--divider)); transform: translateY(-1px); }
 .vfx-card:focus-visible { outline: 2px solid var(--brand); outline-offset: 2px; }

@@ -4,7 +4,7 @@
 /* ---------- Player: um só, posicionado sobre o lugar visível ---------- */
 #dj-player {
   position: fixed; z-index: 4; pointer-events: none; overflow: hidden; border-radius: 12px; background: #000;
-  transition: border-radius .2s;
+  transition: none;
 }
 #dj-player.off { left: -10000px !important; top: 0 !important; width: 320px !important; height: 180px !important; visibility: hidden; }
 #dj-player .dj-frame, #dj-player iframe { position: absolute; inset: 0; width: 100%; height: 100%; border: 0; }
@@ -77,7 +77,7 @@
 .tile.dj.paused .dj-stage-status { background: rgba(255, 255, 255, .1); color: var(--text-muted); }
 .dj-stage-status.live { background: color-mix(in srgb, var(--red) 75%, transparent); }
 .dj-stage-actions { flex-shrink: 0; display: flex; gap: 6px; }
-.dj-stage .tc-btn { background: rgba(255, 255, 255, .08); transition: background .12s, transform .15s var(--spring, ease); }
+.dj-stage .tc-btn { background: rgba(255, 255, 255, .08); transition: transform .15s var(--spring, ease); }
 .dj-stage .tc-btn:hover { background: rgba(255, 255, 255, .18); }
 .dj-stage .tc-btn:active { transform: scale(.92); }
 
@@ -101,7 +101,7 @@
   background: rgba(0, 0, 0, .5); border: 1px solid rgba(255, 255, 255, .08);
 }
 .dj-next-list { list-style: none; margin: 0; padding: 0; flex: 1; min-height: 0; overflow-y: auto; }
-.dj-next-list li { display: flex; align-items: center; gap: 8px; padding: 6px 8px; border-radius: 8px; transition: background .12s; }
+.dj-next-list li { display: flex; align-items: center; gap: 8px; padding: 6px 8px; border-radius: 8px; transition: none; }
 .dj-next-list li:hover { background: var(--hover); }
 .dj-next-list img { flex-shrink: 0; width: 56px; height: 32px; border-radius: 6px; object-fit: cover; background: #000; }
 .dj-next-list .dj-track-text strong { font-size: 12.5px; }
@@ -113,7 +113,7 @@
 .dj-next-empty .ico { color: var(--brand); }
 .dj-next-more {
   flex-shrink: 0; display: flex; align-items: center; justify-content: center; gap: 6px; height: 34px; margin-top: 4px; border: 0; border-radius: 8px;
-  background: var(--hover); color: var(--text-strong); font: inherit; font-size: 13px; font-weight: 600; cursor: pointer; transition: background .12s;
+  background: var(--hover); color: var(--text-strong); font: inherit; font-size: 13px; font-weight: 600; cursor: pointer; transition: none;
 }
 .dj-next-more:hover { background: var(--brand); }
 
@@ -208,7 +208,7 @@
 
 .dj-search {
   display: flex; align-items: center; gap: 8px; margin: 0 12px 8px; padding: 0 12px; height: 40px; border-radius: 8px;
-  background: var(--bg-input); color: var(--text-muted); box-shadow: inset 0 0 0 1px transparent; transition: box-shadow .15s;
+  background: var(--bg-input); color: var(--text-muted); box-shadow: inset 0 0 0 1px transparent; transition: none;
 }
 .dj-search:focus-within { box-shadow: inset 0 0 0 2px var(--brand); }
 .dj-input { flex: 1; min-width: 0; height: 100%; border: 0; outline: none; background: transparent; color: var(--text); font: inherit; font-size: 14px; }
@@ -229,7 +229,7 @@
 .dj-status { margin: 4px 8px 10px; color: var(--text-muted); font-size: 13px; }
 
 .dj-list { list-style: none; margin: 0 0 6px; padding: 0; }
-.dj-track { display: flex; align-items: center; gap: 10px; padding: 6px 8px; border-radius: 8px; transition: background .12s; }
+.dj-track { display: flex; align-items: center; gap: 10px; padding: 6px 8px; border-radius: 8px; transition: none; }
 .dj-track:hover { background: var(--hover); }
 .dj-index { width: 16px; text-align: center; color: var(--text-muted); font-size: 12px; font-variant-numeric: tabular-nums; flex-shrink: 0; }
 .dj-thumb { width: 64px; height: 36px; border-radius: 6px; object-fit: cover; background: var(--bg-input); flex-shrink: 0; }
@@ -244,7 +244,7 @@
 .dj-track:hover .dj-remove, .dj-remove:focus-visible { opacity: 1; }
 .dj-add {
   flex-shrink: 0; width: 32px; height: 32px; border: 0; border-radius: 50%; display: grid; place-items: center; cursor: pointer;
-  background: var(--hover-strong); color: var(--text-strong); transition: background .12s, transform .15s var(--spring, ease);
+  background: var(--hover-strong); color: var(--text-strong); transition: transform .15s var(--spring, ease);
 }
 .dj-add:hover:not(:disabled) { background: var(--brand); color: #fff; transform: scale(1.08); }
 .dj-add.done { background: var(--green); color: #fff; cursor: default; }
@@ -264,7 +264,7 @@
 .dj-controls { display: flex; align-items: center; gap: 6px; padding: 4px 8px 0; }
 .dj-ctl {
   width: 36px; height: 36px; border: 0; border-radius: 50%; display: grid; place-items: center; cursor: pointer;
-  background: var(--hover); color: var(--text-strong); transition: background .12s, transform .15s var(--spring, ease);
+  background: var(--hover); color: var(--text-strong); transition: transform .15s var(--spring, ease);
 }
 .dj-ctl:hover:not(:disabled) { background: var(--hover-strong); }
 .dj-ctl:active:not(:disabled) { transform: scale(.92); }

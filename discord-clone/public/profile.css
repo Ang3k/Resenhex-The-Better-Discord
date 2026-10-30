@@ -46,7 +46,7 @@
   background-size: cover; background-position: center; background-repeat: no-repeat;
 }
 .pc-top-actions { position: absolute; top: 10px; right: 10px; display: flex; gap: 6px; }
-.pc-icon-btn { display: grid; place-items: center; width: 30px; height: 30px; border: 0; border-radius: 50%; background: rgba(0, 0, 0, .45); color: #fff; transition: background .12s; }
+.pc-icon-btn { display: grid; place-items: center; width: 30px; height: 30px; border: 0; border-radius: 50%; background: rgba(0, 0, 0, .45); color: #fff; transition: none; }
 .pc-icon-btn:hover { background: rgba(0, 0, 0, .7); }
 .pc-avatar-row { padding: 0 16px; height: 50px; position: relative; }
 .pc-avatar { position: absolute; top: -46px; left: 14px; }
@@ -70,7 +70,7 @@
 .pc-since { display: flex; align-items: center; gap: 8px; font-size: 14px; color: var(--text); }
 .pc-bio { font-size: 14px; line-height: 1.45; color: var(--text); white-space: pre-wrap; overflow-wrap: anywhere; }
 .pc-bio a { color: var(--link, var(--brand-text)); }
-.pc-bio-add { display: inline-flex; align-items: center; gap: 8px; align-self: flex-start; padding: 7px 12px; border: 1px dashed color-mix(in srgb, var(--text) 22%, transparent); border-radius: 8px; background: transparent; color: var(--text-muted); font-size: 13px; font-weight: 600; transition: color .12s, border-color .12s, background .12s; }
+.pc-bio-add { display: inline-flex; align-items: center; gap: 8px; align-self: flex-start; padding: 7px 12px; border: 1px dashed color-mix(in srgb, var(--text) 22%, transparent); border-radius: 8px; background: transparent; color: var(--text-muted); font-size: 13px; font-weight: 600; transition: none; }
 .pc-bio-add:hover { color: var(--text-strong); border-color: color-mix(in srgb, var(--brand) 60%, transparent); background: color-mix(in srgb, var(--brand) 10%, transparent); }
 .pc-playing { display: flex; align-items: center; gap: 12px; }
 .pc-playing-icon { display: grid; place-items: center; flex-shrink: 0; width: 44px; height: 44px; border-radius: 10px; background: color-mix(in srgb, var(--green) 16%, transparent); color: var(--green); }
@@ -90,7 +90,7 @@ button.pc-role.add:hover { background: rgba(255, 255, 255, .12); color: var(--te
 .pc-vol-value { width: 38px; text-align: right; font-size: 12px; color: var(--text-muted); font-variant-numeric: tabular-nums; }
 .pc-switch { display: flex; align-items: center; justify-content: space-between; gap: 12px; font-size: 14px; color: var(--text); cursor: pointer; }
 .pc-actions { display: flex; flex-wrap: wrap; gap: 8px; }
-.pc-btn { flex: 1 1 auto; white-space: nowrap; padding: 0 12px; display: inline-flex; align-items: center; justify-content: center; gap: 8px; height: 36px; border: 0; border-radius: 8px; background: rgba(255, 255, 255, .07); color: var(--text-strong); font-size: 14px; font-weight: 600; transition: background .12s; }
+.pc-btn { flex: 1 1 auto; white-space: nowrap; padding: 0 12px; display: inline-flex; align-items: center; justify-content: center; gap: 8px; height: 36px; border: 0; border-radius: 8px; background: rgba(255, 255, 255, .07); color: var(--text-strong); font-size: 14px; font-weight: 600; transition: none; }
 .pc-btn:hover { background: rgba(255, 255, 255, .12); }
 .pc-btn.primary { background: var(--brand); color: #fff; }
 .pc-btn.primary:hover { background: var(--brand-hover); }
@@ -110,8 +110,8 @@ button.pc-role.add:hover { background: rgba(255, 255, 255, .12); color: var(--te
   background: linear-gradient(180deg, rgb(0 0 0 / .55) 0%, rgb(0 0 0 / .6) 45%, rgb(0 0 0 / .74) 100%);
 }
 /* O anel da foto e a borda do status pegam o tom do fundo (calculado em app.js). */
-#profile-card.has-bg .pc-avatar .avatar { box-shadow: 0 0 0 6px var(--pc-surface, #18181b); transition: box-shadow .2s; }
-#profile-card.has-bg .pc-status { border-color: var(--pc-surface, #18181b); transition: border-color .2s; }
+#profile-card.has-bg .pc-avatar .avatar { box-shadow: 0 0 0 6px var(--pc-surface, #18181b); transition: none; }
+#profile-card.has-bg .pc-status { border-color: var(--pc-surface, #18181b); transition: none; }
 #profile-card.has-bg .pc-name { text-shadow: 0 1px 3px rgb(0 0 0 / .6); }
 #profile-card.has-bg .pc-username { color: var(--text); text-shadow: 0 1px 2px rgb(0 0 0 / .6); }
 /* Tudo que tinha fundo translúcido claro vira vidro escuro, para não sumir em imagens claras. */

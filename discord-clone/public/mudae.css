@@ -49,12 +49,12 @@
   position: relative; overflow: hidden; display: inline-flex; align-items: center; gap: 6px; height: 34px; padding: 0 14px 0 10px;
   border: 1px solid color-mix(in srgb, var(--red) 25%, transparent); border-radius: 8px; font: inherit; font-size: 14px; font-weight: 600; cursor: pointer;
   background: color-mix(in srgb, var(--red) 16%, var(--bg-input)); color: var(--text-strong);
-  transition: background .15s ease, transform .1s ease, opacity .15s ease;
+  transition: transform .1s ease, opacity .15s ease;
 }
 .mudae-claim:hover:not(:disabled) { background: var(--red); color: #fff; }
 .mudae-claim:active:not(:disabled) { transform: translateY(1px); }
 .mudae-claim:focus-visible { outline: 2px solid var(--link); outline-offset: 2px; }
-.mudae-heart { display: inline-flex; color: var(--red); transition: color .15s ease; }
+.mudae-heart { display: inline-flex; color: var(--red); transition: none; }
 .mudae-heart svg { fill: currentColor; }
 .mudae-claim:hover:not(:disabled) .mudae-heart { color: #fff; }
 .mudae-claim:hover:not(:disabled) .mudae-heart svg { animation: mudae-beat .9s ease-in-out 2; }
@@ -91,7 +91,7 @@
 .mudae-pager { display: flex; align-items: center; gap: 8px; margin-top: 10px; font-size: 12px; color: var(--text-muted); }
 .mudae-pager button {
   display: grid; place-items: center; width: 32px; height: 30px; border: 1px solid var(--divider); border-radius: 8px;
-  background: var(--bg-input); color: var(--interactive); cursor: pointer; transition: background .15s ease, color .15s ease;
+  background: var(--bg-input); color: var(--interactive); cursor: pointer; transition: none;
 }
 .mudae-pager button:hover { background: var(--hover-strong); color: var(--text-strong); }
 

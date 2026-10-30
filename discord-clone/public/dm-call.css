@@ -30,7 +30,7 @@
 /* ---------- quem ainda não entrou ---------- */
 .tile.dm-pending { flex-direction: column; gap: 10px; cursor: default; background: color-mix(in srgb, var(--tile, var(--brand)) 10%, var(--bg-rail)); }
 .dp-avatar { position: relative; display: grid; place-items: center; }
-.tile.dm-pending .avatar { opacity: .55; filter: grayscale(.35); transition: opacity .2s, filter .2s; }
+.tile.dm-pending .avatar { opacity: .55; filter: grayscale(.35); transition: opacity .2s; }
 .tile.dm-pending.ringing .avatar { opacity: 1; filter: none; }
 .dp-status { font-size: 13px; font-weight: 600; color: var(--text-muted); min-height: 32px; display: grid; place-items: center; }
 .dp-status .watch-btn { display: inline-flex; align-items: center; gap: 6px; background: var(--green); }
@@ -61,7 +61,7 @@
 .ic-actions { grid-column: 1 / -1; display: flex; justify-content: center; gap: 14px; }
 .ic-btn {
   width: 48px; height: 48px; border: 0; border-radius: 50%; display: grid; place-items: center; color: #fff;
-  background: var(--bg-panel); transition: transform .12s ease, background .15s ease, box-shadow .15s ease;
+  background: var(--bg-panel); transition: transform .12s ease;
 }
 .ic-btn:hover { transform: translateY(-1px); }
 .ic-btn:active { transform: scale(.95); }
