@@ -1519,6 +1519,7 @@
     render();
   }
 
+  const memberOnline = new Map(); // id -> online na última lista (para acender quem acabou de entrar)
   function renderMembers() {
     const s = state.server;
     if (!changed('members', [s.members, s.roles, s.ownerId, s.voice.map((v) => [v.accountId, v.channel, v.sharing]), s.channels.map((c) => [c.id, c.name])])) return;
@@ -1547,8 +1548,10 @@
         else if (m.activity) sub = playingLine(m, 'sub');
         else if (v) sub = 'Em ' + (channelById(v.channel)?.name || 'um canal de voz');
         else sub = statusTextOf(m);
+        const cameOnline = memberOnline.get(m.id) === false && !!m.online;
+        memberOnline.set(m.id, !!m.online);
         list.append(el('div', {
-          class: 'member' + (m.online ? '' : ' offline'),
+          class: 'member' + (m.online ? '' : ' offline') + (cameOnline ? ' came-online' : ''),
           onclick: (e) => { e.stopPropagation(); openProfile(m.id, e.currentTarget); },
           oncontextmenu: (e) => openMemberMenu(m.id, e),
         }, el('div', { class: 'avatar-wrap' }, avatar(m), statusDot(m)),
@@ -2619,7 +2622,17 @@
     return el('span', { class: 'voice-fx-indicator', tip: label, ariaLabel: label, role: 'img', textContent: 'FX' });
   }
 
+  // A chegada: o bloco de quem entra cresce com a mola e um anel com o degradê da marca se abre (motion.css).
+  // Quem entra na sala vê os blocos de quem já estava chegando em sequência.
+  function arrive(tile, order) {
+    const delay = Math.min(order, 6) * 40;
+    tile.style.setProperty('--arrive-delay', delay + 'ms');
+    tile.classList.add('tile-arrive');
+    setTimeout(() => { tile.classList.remove('tile-arrive'); tile.style.removeProperty('--arrive-delay'); }, 1100 + delay);
+  }
+
   function renderStage() {
+    let arrivals = 0;
     const stage = $('#stage');
     const primary = $('#stage-primary');
     const strip = $('#stage-strip');
@@ -2702,6 +2715,7 @@
         el('div', { class: 'tile-badges' }), el('div', { class: 'tile-fx' }), el('div', { class: 'label' }), el('div', { class: 'tile-controls' }));
         setupTile(tile);
         primary.append(tile);
+        arrive(tile, arrivals++);
       }
       const cam = tile.querySelector('video.cam');
       const camStream = v.camera ? remote.camera : null;
