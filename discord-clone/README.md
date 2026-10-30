@@ -262,6 +262,9 @@ Você está compartilhando **uma janela** e ela foi minimizada: o navegador para
 **Jogo aparece preto ou travado.**
 Jogos em *tela cheia exclusiva* não podem ser capturados como janela. Coloque o jogo em **"janela sem bordas"** (borderless) e compartilhe a **Tela inteira**.
 
+**A transmissão cai para 20–30 fps com o jogo aberto.**
+Com o jogo usando a placa de vídeo inteira, a captura de tela do Chromium espera a placa terminar a cópia de cada quadro e ainda dobra o intervalo entre quadros quando essa espera passa da metade dele. Desde o app do Windows 1.4.7, quando a captura fica lenta assim, o app entrega a cópia do quadro anterior, que a placa já terminou, em vez de esperar a do quadro atual: a imagem sai um quadro mais velha, o que a espera que some compensa. Sem jogo pesado, a captura continua como antes. Para comparar ou desligar, use **Captura sem esperar a placa (teste)** no ícone da bandeja (vale a partir da próxima transmissão) ou `RESENHEX_CAPTURA_ANEL=0`. Os detalhes estão em [`desktop/native/captura/captura.cc`](desktop/native/captura/captura.cc).
+
 **Trava quando mais gente assiste.**
 Como a chamada é direta entre os navegadores, quem transmite envia **uma cópia para cada pessoa**. Em ⚙️ Configurações, escolha em **"Limite de upload disponível"** o valor do seu teste de velocidade. O padrão é 50 Mbps; se a sua internet envia menos que isso, escolha um valor menor. O app distribui a banda entre os espectadores conforme suas necessidades e recupera qualidade gradualmente. Esse valor continua sendo um teto configurado, não um teste de velocidade automático. Se ainda travar, use o perfil **720p · 30 fps**, que gasta menos.
 

@@ -4,6 +4,27 @@
 // O título deve destacar as principais funcionalidades ou correções, com termos objetivos.
 window.CHANGELOG = [
   {
+    version: '2.3.0', date: '2026-10-30', name: 'Transmissão mais fluida com jogo pesado e um visual mais leve e vivo',
+    summary: 'Com um jogo pesando a placa de vídeo, a transmissão pelo app do Windows fica com cerca do dobro de quadros por segundo. E o Resenhex ganhou movimento nos momentos certos, gasta bem menos durante a chamada e ficou mais fácil de ler. A transmissão mais fluida precisa do app do Windows 1.4.7, que se atualiza sozinho.',
+    sections: [
+      { kind: 'new', items: [
+        'Momentos: a sua mensagem sobe da caixa ao ser enviada, a reação cai no lugar, uma menção a você dá um cutucão, o amigo que fica online acende, quem entra na chamada chega com uma animação e aparecem os três pontinhos quando alguém está digitando.',
+        'Ao abrir, o Resenhex mostra o logo enquanto conecta. Se demorar mais de 10 segundos, um aviso sugere conferir a internet.',
+        'O começo de um canal novo mostra a marca do Resenhex e convida a mandar a primeira mensagem.',
+      ] },
+      { kind: 'improved', items: [
+        'Transmissão com jogo pesado (app do Windows 1.4.7): quando o jogo ocupa toda a placa de vídeo, a transmissão caía para 20 a 30 fps, porque a captura esperava a placa terminar cada quadro. Agora ela não espera mais. Nos testes, com um jogo médio a transmissão subiu de 19 para 39 fps e com um pesado de 12 para 22 fps, com o mesmo atraso. Sem jogo pesado, nada muda. Para desligar, use "Captura sem esperar a placa (teste)" no ícone do Resenhex na bandeja.',
+        'Chamada mais leve: com a chamada na tela, o Resenhex redesenhava tudo 60 vezes por segundo, mesmo sem ninguém mexer. Agora são 6, e o uso da placa de vídeo pela página caiu para um décimo. Com a janela minimizada ou em segundo plano, as animações param.',
+        'Botões, menus e janelas se mexem com efeito de mola, e uns 25 ícones fazem um gesto quando o mouse passa por cima, como responder, reagir, editar e a lixeira que abre a tampa.',
+        'Mais fácil de ler: hora das mensagens, membros offline e o botão Adicionar amigo com mais contraste, textos pequenos um pouco maiores e um destaque claro e único em volta do que está selecionado pelo teclado. No celular, as setinhas dos dispositivos na chamada ficaram maiores.',
+      ] },
+      { kind: 'fixed', items: [
+        'Quando a conexão voltava, o aviso aparecia duas vezes. Agora aparece "Conectado de novo", uma vez só.',
+        'A roleta do Mudae agora respeita a opção Reduzir animações das Configurações.',
+      ] },
+    ],
+  },
+  {
     version: '2.2.0', date: '2026-10-30', name: 'Jogando agora, mensagem de áudio e Sobre mim no perfil',
     summary: 'O Resenhex mostra o jogo que a galera está jogando, o chat ganhou mensagem de áudio e o perfil ganhou um Sobre mim. O Jogando agora precisa do app do Windows 1.4.6, que se atualiza sozinho.',
     sections: [
