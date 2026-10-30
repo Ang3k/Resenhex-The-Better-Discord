@@ -1,0 +1,254 @@
+{
+ "ocioso": [
+  {
+   "segundos": 10.11,
+   "cpu_ms_por_s": {
+    "browser": 2,
+    "renderer": 12.9,
+    "gpu": 1,
+    "outros": 5.9
+   },
+   "thread_principal_ms_por_s": 7.2,
+   "script_ms_por_s": 0.9,
+   "estilo_ms_por_s": 0,
+   "layout_ms_por_s": 0,
+   "recalc_estilo": 0,
+   "layouts": 0,
+   "pinturas": 0,
+   "pinturas_por_s": 0,
+   "quadros": 0,
+   "quadros_por_s": 0,
+   "estados_quadro": {},
+   "commits": 0,
+   "timers_por_s": 43.8,
+   "tarefas_longas": 0,
+   "maior_tarefa_ms": 0,
+   "loaf": 0,
+   "maior_loaf_ms": 0,
+   "eventos": 0,
+   "maior_resposta_ms": 0,
+   "respostas_acima_100ms": 0
+  },
+  {
+   "segundos": 10.13,
+   "cpu_ms_por_s": {
+    "browser": 3,
+    "renderer": 11.8,
+    "gpu": 2,
+    "outros": 7.9
+   },
+   "thread_principal_ms_por_s": 7.2,
+   "script_ms_por_s": 0.7,
+   "estilo_ms_por_s": 0,
+   "layout_ms_por_s": 0,
+   "recalc_estilo": 0,
+   "layouts": 0,
+   "pinturas": 0,
+   "pinturas_por_s": 0,
+   "quadros": 0,
+   "quadros_por_s": 0,
+   "estados_quadro": {},
+   "commits": 0,
+   "timers_por_s": 43.9,
+   "tarefas_longas": 0,
+   "maior_tarefa_ms": 0,
+   "loaf": 0,
+   "maior_loaf_ms": 0,
+   "eventos": 0,
+   "maior_resposta_ms": 0,
+   "respostas_acima_100ms": 0
+  }
+ ],
+ "chamada_palco": [
+  {
+   "segundos": 11.63,
+   "cpu_ms_por_s": {
+    "browser": 19.8,
+    "renderer": 348.2,
+    "gpu": 4.3,
+    "outros": 191.7
+   },
+   "thread_principal_ms_por_s": 24.8,
+   "script_ms_por_s": 4.9,
+   "estilo_ms_por_s": 3,
+   "layout_ms_por_s": 0.7,
+   "recalc_estilo": 12,
+   "layouts": 12,
+   "pinturas": 20,
+   "pinturas_por_s": 1.7,
+   "quadros": 55,
+   "quadros_por_s": 4.7,
+   "estados_quadro": {
+    "desconhecido": 55
+   },
+   "commits": 29,
+   "timers_por_s": 39.8,
+   "tarefas_longas": 0,
+   "maior_tarefa_ms": 0,
+   "loaf": 0,
+   "maior_loaf_ms": 0,
+   "eventos": 0,
+   "maior_resposta_ms": 0,
+   "respostas_acima_100ms": 0
+  },
+  {
+   "segundos": 11.75,
+   "cpu_ms_por_s": {
+    "browser": 20.4,
+    "renderer": 357.5,
+    "gpu": 4.3,
+    "outros": 201.7
+   },
+   "thread_principal_ms_por_s": 25.4,
+   "script_ms_por_s": 5.7,
+   "estilo_ms_por_s": 2.4,
+   "layout_ms_por_s": 0.7,
+   "recalc_estilo": 12,
+   "layouts": 12,
+   "pinturas": 20,
+   "pinturas_por_s": 1.7,
+   "quadros": 37,
+   "quadros_por_s": 3.1,
+   "estados_quadro": {
+    "desconhecido": 37
+   },
+   "commits": 29,
+   "timers_por_s": 39.5,
+   "tarefas_longas": 0,
+   "maior_tarefa_ms": 0,
+   "loaf": 0,
+   "maior_loaf_ms": 0,
+   "eventos": 0,
+   "maior_resposta_ms": 0,
+   "respostas_acima_100ms": 0
+  }
+ ],
+ "chamada_no_chat": [
+  {
+   "segundos": 11.85,
+   "cpu_ms_por_s": {
+    "browser": 23.6,
+    "renderer": 367.2,
+    "gpu": 6.8,
+    "outros": 214.4
+   },
+   "thread_principal_ms_por_s": 30.3,
+   "script_ms_por_s": 5.5,
+   "estilo_ms_por_s": 4.1,
+   "layout_ms_por_s": 0.7,
+   "recalc_estilo": 11,
+   "layouts": 11,
+   "pinturas": 20,
+   "pinturas_por_s": 1.7,
+   "quadros": 97,
+   "quadros_por_s": 8.2,
+   "estados_quadro": {
+    "desconhecido": 97
+   },
+   "commits": 69,
+   "timers_por_s": 39.1,
+   "tarefas_longas": 0,
+   "maior_tarefa_ms": 0,
+   "loaf": 0,
+   "maior_loaf_ms": 0,
+   "eventos": 0,
+   "maior_resposta_ms": 0,
+   "respostas_acima_100ms": 0
+  },
+  {
+   "segundos": 11.99,
+   "cpu_ms_por_s": {
+    "browser": 22.5,
+    "renderer": 381.8,
+    "gpu": 6.7,
+    "outros": 225.1
+   },
+   "thread_principal_ms_por_s": 31.4,
+   "script_ms_por_s": 6.7,
+   "estilo_ms_por_s": 4.1,
+   "layout_ms_por_s": 0.8,
+   "recalc_estilo": 12,
+   "layouts": 12,
+   "pinturas": 20,
+   "pinturas_por_s": 1.7,
+   "quadros": 92,
+   "quadros_por_s": 7.7,
+   "estados_quadro": {
+    "desconhecido": 92
+   },
+   "commits": 69,
+   "timers_por_s": 38.6,
+   "tarefas_longas": 0,
+   "maior_tarefa_ms": 0,
+   "loaf": 0,
+   "maior_loaf_ms": 0,
+   "eventos": 0,
+   "maior_resposta_ms": 0,
+   "respostas_acima_100ms": 0
+  }
+ ],
+ "chamada_sem_foco": [
+  {
+   "segundos": 11.7,
+   "cpu_ms_por_s": {
+    "browser": 20.5,
+    "renderer": 345.3,
+    "gpu": 2.6,
+    "outros": 194
+   },
+   "thread_principal_ms_por_s": 23.4,
+   "script_ms_por_s": 5.6,
+   "estilo_ms_por_s": 2.3,
+   "layout_ms_por_s": 0.4,
+   "recalc_estilo": 12,
+   "layouts": 12,
+   "pinturas": 20,
+   "pinturas_por_s": 1.7,
+   "quadros": 39,
+   "quadros_por_s": 3.3,
+   "estados_quadro": {
+    "desconhecido": 39
+   },
+   "commits": 28,
+   "timers_por_s": 39.5,
+   "tarefas_longas": 0,
+   "maior_tarefa_ms": 0,
+   "loaf": 0,
+   "maior_loaf_ms": 0,
+   "eventos": 0,
+   "maior_resposta_ms": 0,
+   "respostas_acima_100ms": 0
+  },
+  {
+   "segundos": 12.06,
+   "cpu_ms_por_s": {
+    "browser": 22.4,
+    "renderer": 360,
+    "gpu": 3.3,
+    "outros": 223.9
+   },
+   "thread_principal_ms_por_s": 26,
+   "script_ms_por_s": 6,
+   "estilo_ms_por_s": 3.2,
+   "layout_ms_por_s": 0.7,
+   "recalc_estilo": 12,
+   "layouts": 12,
+   "pinturas": 20,
+   "pinturas_por_s": 1.7,
+   "quadros": 57,
+   "quadros_por_s": 4.7,
+   "estados_quadro": {
+    "desconhecido": 57
+   },
+   "commits": 28,
+   "timers_por_s": 38.2,
+   "tarefas_longas": 0,
+   "maior_tarefa_ms": 0,
+   "loaf": 0,
+   "maior_loaf_ms": 0,
+   "eventos": 0,
+   "maior_resposta_ms": 0,
+   "respostas_acima_100ms": 0
+  }
+ ]
+}
