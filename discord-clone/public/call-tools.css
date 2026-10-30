@@ -141,7 +141,7 @@
 .tile-fx:empty { display: none; }
 .voice-fx-indicator {
   display: inline-flex; align-items: center; justify-content: center; flex: 0 0 auto; align-self: center;
-  color: var(--text-muted); font-size: 9px; font-weight: 600; line-height: 1; letter-spacing: .04em;
+  color: var(--text-muted); font-size: 10px; font-weight: 600; line-height: 1; letter-spacing: .04em;
 }
 .tile-fx .voice-fx-indicator {
   height: 16px; padding: 0 4px; border-radius: 3px; background: rgba(0, 0, 0, .35); color: #c1c3c8; pointer-events: auto;

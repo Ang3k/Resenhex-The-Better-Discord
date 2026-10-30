@@ -22,7 +22,7 @@
 .cl-version-text { display: grid; gap: 1px; min-width: 0; flex: 1; }
 .cl-version-text strong { font-size: 14px; display: flex; align-items: center; gap: 8px; }
 .cl-version-text small { font-size: 12px; color: var(--text-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.cl-badge { font-size: 9.5px; font-weight: 800; letter-spacing: .05em; padding: 2px 6px; border-radius: 4px; background: var(--brand); color: #fff; }
+.cl-badge { font-size: 10px; font-weight: 800; letter-spacing: .05em; padding: 2px 6px; border-radius: 4px; background: var(--brand); color: #fff; }
 
 /* Conteúdo */
 .cl-body { overflow-y: auto; padding-bottom: 28px; }
