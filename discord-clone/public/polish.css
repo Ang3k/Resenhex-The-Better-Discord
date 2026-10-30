@@ -88,7 +88,7 @@
 .vp-actions { gap: 6px; }
 .vp-btn { height: 32px; border-radius: 6px; background: var(--hover); font-size: 13px; color: var(--text); gap: 6px; }
 .vp-btn:hover:not(:disabled) { background: var(--hover-strong); }
-.vp-btn.on { background: var(--green); color: #fff; }
+.vp-btn.on { background: var(--green-strong); color: #fff; }
 #user-panel { height: 56px; padding: 0 8px 0 6px; gap: 2px; background: transparent; border-top: 0; }
 .me-card { padding: 4px 6px; border-radius: 8px; gap: 10px; transition: none; }
 .me-card:hover { background: var(--hover); }

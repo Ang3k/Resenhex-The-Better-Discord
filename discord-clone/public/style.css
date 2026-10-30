@@ -156,7 +156,7 @@ html.moving body { visibility: hidden; } /* mudando para o endereço oficial do 
 .rail-item.active .rail-pill { transform: none; }
 .rail-badge { position: absolute; right: 8px; bottom: -2px; box-shadow: 0 0 0 4px var(--bg-rail); }
 /* Servidor onde está a chamada (dá para navegar pelos outros sem sair dela). */
-.rail-call { position: absolute; left: 8px; bottom: -2px; width: 20px; height: 20px; border-radius: 50%; display: grid; place-items: center; background: var(--green); color: #fff; box-shadow: 0 0 0 3px var(--bg-rail); pointer-events: none; }
+.rail-call { position: absolute; left: 8px; bottom: -2px; width: 20px; height: 20px; border-radius: 50%; display: grid; place-items: center; background: var(--green-strong); color: #fff; box-shadow: 0 0 0 3px var(--bg-rail); pointer-events: none; }
 
 /* ---------- Canais ---------- */
 #sidebar { background: var(--bg-sidebar); display: flex; flex-direction: column; min-width: 0; min-height: 0; }
@@ -234,7 +234,7 @@ html.moving body { visibility: hidden; } /* mudando para o endereço oficial do 
   background: #2b2d31; color: var(--text); font-size: 14px; font-weight: 500; transition: none;
 }
 .vp-btn:hover:not(:disabled) { background: #35373c; }
-.vp-btn.on { background: var(--green); color: #fff; }
+.vp-btn.on { background: var(--green-strong); color: #fff; }
 .vp-btn:disabled { opacity: .4; }
 
 /* Painel do usuário */

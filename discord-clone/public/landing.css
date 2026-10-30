@@ -215,7 +215,7 @@
 .ld-invite-body i { width: 8px; height: 8px; border-radius: 50%; background: var(--channel); }
 .ld-invite-body i.on { background: var(--green); }
 .ld-invite-body i:not(:first-child) { margin-left: 6px; }
-.ld-invite-btn { margin-left: auto; padding: 9px 16px; border-radius: 8px; background: var(--green); color: #fff; font-size: 14px; font-weight: 700; }
+.ld-invite-btn { margin-left: auto; padding: 9px 16px; border-radius: 8px; background: var(--green-strong); color: #fff; font-size: 14px; font-weight: 700; }
 .ld-channels { display: grid; gap: 1px; width: min(260px, 90%); padding: 10px 10px 12px; transform: rotate(2.5deg) translate(56px, -6px); }
 .ld-channels .ld-w-group:first-child { margin-top: 2px; }
 .ld-art:hover .ld-invite { transform: rotate(-1deg) translate(-18px, 6px); }

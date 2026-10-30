@@ -247,7 +247,7 @@
   background: var(--hover-strong); color: var(--text-strong); transition: transform .15s var(--spring, ease);
 }
 .dj-add:hover:not(:disabled) { background: var(--brand); color: #fff; transform: scale(1.08); }
-.dj-add.done { background: var(--green); color: #fff; cursor: default; }
+.dj-add.done { background: var(--green-strong); color: #fff; cursor: default; }
 .dj-add:disabled:not(.done) { opacity: .4; cursor: not-allowed; }
 
 .dj-now { padding-bottom: 6px; }

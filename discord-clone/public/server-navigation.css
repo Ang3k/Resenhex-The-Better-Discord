@@ -4,7 +4,7 @@
 .server-entry { border: 0; padding: 0; background: none; flex-shrink: 0; }
 .server-add { border: 0; padding: 0; background: none; flex-shrink: 0; }
 .server-add .rail-icon { color: var(--green); }
-.server-add:hover .rail-icon { background: var(--green); color: #fff; }
+.server-add:hover .rail-icon { background: var(--green-strong); color: #fff; }
 
 /* "Seus servidores": só no celular, onde a faixa de servidores fica escondida. */
 .server-picker {
