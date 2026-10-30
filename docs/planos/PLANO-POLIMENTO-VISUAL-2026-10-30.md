@@ -90,7 +90,7 @@ Plano B para WebView antigo: os tokens de mola são declarados primeiro como `cu
 | `crown` | inclina | dono |
 | `gamepad` | sacode | jogando agora |
 
-O mapa completo dos 88 ícones (atual → novo) está no fim deste plano.
+O mapa completo dos 86 ícones (atual → novo) está no fim deste plano.
 
 ## Momentos assinatura
 
@@ -140,6 +140,72 @@ Ganho visual × esforço × risco. Cada onda: `npm run check`, `npm test`, medi�
 | 5. Estados | abertura, vazios, erro/sucesso, foco único | médio | médio | baixo |
 | 6. Cor | contraste, tokens no lugar dos restos do Discord, elevação | médio | médio | baixo |
 
+## Tabela de animações (depois do polimento)
+
+Todas: "Reduzir animações" e `prefers-reduced-motion` desligam (regra global). "Pausa" = para com `html.bg-window`.
+
+| Animação | Gatilho | Propriedades | Duração | Curva | Infinita? |
+|---|---|---|---|---|---|
+| Menus, cartão de perfil, seletores (entrada) | abrir | opacity, transform (translate + scale .97) | 200 ms | `--ease-enter` | não |
+| Menus etc. (saída) | fechar | opacity, transform (scale .98) | 120 ms | `--ease-exit` | não |
+| Janelas (fundo / cartão) | abrir | opacity / opacity + transform | 200 / 280 ms | `--ease-enter` | não |
+| Telas cheias (configurações, Novidades) | abrir | opacity + transform | 380 ms | `--ease-enter` | não |
+| Gavetas do celular | abrir/fechar | transform (translateX) | 280 / 120 ms | enter / exit | não |
+| Troca de canal (lista) | trocar | opacity + transform (rise) | 280 ms | `--ease-enter` | não |
+| Clique (afundar / soltar) | pressionar / soltar | transform (scale) | 60 ms / 330 ms | `ease-out` / `--spring-snappy` | não |
+| Dica (tooltip) | hover | opacity + transform | 140 ms | `--ease-enter` | não |
+| Aviso (toast) | aparecer | opacity + transform; ícone com pulo | 280 ms; 410 ms | enter; `--spring-pop` | não |
+| Aviso de erro | aparecer | transform (sacudida curta no ícone) | 400 ms | `ease-in-out` | não |
+| Faixa de conexão | cair / voltar | transform (desce) / troca de cor instantânea | 280 ms | `--ease-enter` | não |
+| A chegada (bloco da call) | alguém entra | opacity + transform (scale .94→1); anel com o degradê (scale + opacity) | 355 ms; 600 ms | `--spring-soft`; `ease-out` | não |
+| A voz (anel de quem fala) | começar/parar de falar | troca instantânea do anel (sem transição) | — | — | não |
+| Barrinhas de fala | enquanto fala | transform (scaleY) | 900 ms | `ease-in-out` | **sim** (atividade real; pausa) |
+| O pouso (reação) | reação nova num chip | transform (scale .6→1 com sobra; emoji quica) | 410 ms | `--spring-pop` | não |
+| O voo (sua mensagem) | enviar | opacity + transform (sobe 14 px, scale .985) | 355 ms | `--spring-soft` | não |
+| Mensagem dos outros | chegar | opacity + transform (sobe 6 px) | 280 ms | `--ease-enter` | não |
+| O cutucão (menção) | chegar mensagem que menciona você | transform (scaleY da barra amarela) | 400 ms | `--ease-enter` | não |
+| Acendeu (amigo online) | ficar online | transform (scale com sobra) + anel (scale + opacity) | 410 / 600 ms | `--spring-pop` / `ease-out` | não |
+| Digitando | alguém digita | transform + opacity (3 pontinhos) | 1,2 s | `ease-in-out` | **sim** (atividade real; pausa) |
+| Conectou (painel de voz) | entrar na call | opacity + transform (sobe); barras do sinal sobem | 280 ms; 4 × 60 ms | `--ease-enter` | não |
+| Ponto do relógio da call | entrar na call | anel que se abre uma vez (scale + opacity) | 900 ms | `ease-out` | não (antes: infinito com `box-shadow`) |
+| Gestos dos ícones | hover | transform (no SVG inteiro; em partes só onde a metáfora pede) | 350–600 ms | molas / `ease-in-out` | não |
+| Troca de ícone (mudo, câmera, fixar…) | trocar estado | transform + opacity; risco com `stroke-dashoffset` (SVG de 20 px) | 380 ms; 320 ms | `--spring-pop`; `ease-out` | não |
+| Carregando (abertura, giros) | carregando | transform (giro) / opacity (brilho) | 800 ms / 1,4 s | linear / `ease-in-out` | **sim** (atividade real; pausa) |
+| Chamada tocando | receber/fazer ligação | transform (sacudida) + anel (scale + opacity) | 1,3 s / 1,6 s | `ease-in-out` / `ease-out` | **sim** (atividade real; pausa) |
+| Gravação de áudio | gravando | opacity (ponto) + transform (barras do medidor) | 1,2 s / 50 ms | `ease-in-out` / linear | **sim** (atividade real; pausa) |
+| DJ tocando | música tocando | transform (disco gira, equalizador) | 2,4 s / 1 s | linear / `ease-in-out` | **sim** (atividade real; pausa) |
+| Roleta do Mudae | rodar | transform (Web Animations API); brilho de raridade com opacity | duração do roll | — | só enquanto roda |
+| Página inicial (jogo, conversa de exemplo) | ver a página | transform/opacity | — | — | **não** (para depois de alguns ciclos) |
+
+### O que para de animar
+
+- `speak-glow` (anel que "respira" com `box-shadow`) → anel fixo, instantâneo.
+- `call-clock-pulse` (ponto do relógio da call, `box-shadow` a call inteira) → um anel único ao conectar.
+- `profile-live` ("prévia ao vivo" nas configurações) → ponto fixo.
+- `float` do ícone de amigos vazio → entrada única.
+- `salon-sheen` (brilho do lendário, propriedade personalizada) → brilho que passa uma vez (transform) ao aparecer e no hover.
+- `salon-tease`, `salon-open` (`box-shadow`) e `salon-wobble` (`filter`) → mesma ideia com `opacity`, só enquanto a roleta/a mesa está ativa.
+- `call-pulse` (anel da chamada tocando, `box-shadow`) → anel com `transform`/`opacity`.
+- `ld-speak`, `ld-speak-tile` (página inicial, `box-shadow`) → anel com `opacity`, por alguns ciclos.
+- `flash` (mensagem destacada ao pular para ela, `background`) → camada com `opacity`.
+- Hover infinito (`eq`, `dj-spin`, `mudae-beat`, setas de baixar) → um ou dois ciclos.
+- Todas as transições de `background`, `color`, `border-color`, `box-shadow`, `border-radius` e `filter` em elementos grandes → troca instantânea (ou camada com `opacity` onde a suavidade importa).
+
+## Mudanças × custo
+
+| Mudança | Antes | Depois | Por que é melhor | Custo de desempenho (estimado; medido nas ondas) |
+|---|---|---|---|---|
+| Blur fora de fundos grandes e de cima do vídeo | desfoque refeito a cada quadro do vídeo | véu sólido translúcido + brilho de 1 px | mesma profundidade, sem custo de GPU; vídeo atrás de menus deixa de pesar | **economiza** GPU e composição na call e ao abrir janelas |
+| Fim das infinitas sem atividade | repintura contínua na call (~48 pinturas/s) | zero repintura com ninguém falando | o app fica leve enquanto você joga | **economiza** ~180 ms/s de CPU da página no palco (meta) |
+| `bg-window` | nada para minimizado/sem foco | barrinhas, giros, DJ e chamada tocando param | "o programa mais leve da máquina" | **economiza**; custa 1 recálculo de estilo localizado por troca de foco |
+| Transições instantâneas | hover repinta por 100–200 ms | troca na hora | mais rápido ao olho e sem custo | **economiza** pequenas repinturas |
+| Molas no clique e nos chips | curva única de saída | afunda rápido, solta com mola | "tátil", com personalidade | igual (transform) |
+| Gestos de ícones | 12 ícones | ~40 ícones | personalidade e retorno | só no hover; SVG de 20 px; desprezível |
+| Momentos assinatura | — | chegada, pouso, voo, cutucão, acendeu, digitando, conectou | o app reage às pessoas | disparos de 0,3–0,6 s, compositor |
+| Abertura e vazios | tela preta / ícone cinza | logo + brilho; cartões com a marca | o app parece pronto e vivo | brilho só enquanto carrega |
+| Contraste e tokens | 4 falhas AA, restos do Discord | AA nas telas medidas, tokens por tema | leitura e temas coerentes | nenhum |
+| Peso ótico dos ícones | traço 1,17–1,83 px | ≥ 1,5 px | ícones pequenos nítidos | nenhum |
+
 ## Ideias ousadas (fora do escopo)
 
 Não entram neste ramo porque mudam a essência ou o orçamento. Ficam para o dono decidir.
@@ -166,3 +232,155 @@ Não entram neste ramo porque mudam a essência ou o orçamento. Ficam para o do
 | Não mexer em `desktop/` | mudanças lá só chegam com app novo publicado, e publicar está fora do escopo. |
 | Cenário "janela minimizada" medido como "chamada sem foco" | o Chromium headless não minimiza; e no Electron, como dito, a página minimizada se comporta como visível sem foco. |
 | CPU dos processos medida também sem a lentidão de 4× | a lentidão artificial do CDP gasta CPU por conta própria; para "quanto o app consome" vale a medida sem ela, e para quadros/tarefas longas/resposta, a com 4×. |
+
+## Pesquisa (Fase 2)
+
+Fontes primárias primeiro. "Suporte" foi conferido contra o Chromium 152 do Electron 44 e contra o WebView do Android (atualizado pela Play Store desde o Android 5; no Android 7 a 9 é o próprio Chrome, a partir do 10 é o "Android System WebView", com a mesma versão do Chrome). WebView antigo e sem atualização é tratado como "navegador sem o recurso": tudo abaixo tem plano B que só tira o enfeite.
+
+### Plataforma (o que o app roda)
+
+| # | Fonte | O que confirmou |
+|---|---|---|
+| 1 | [Electron 44.0.0 — release](https://releases.electronjs.org/release/v44.0.0) | Electron 44 = Chromium 152.0.7977.54, Node 24.18.1, V8 15.2. |
+| 2 | [Electron — `webPreferences.backgroundThrottling`](https://www.electronjs.org/docs/latest/api/structures/web-preferences) | Com o throttling desligado, "frames will be drawn and swapped for the whole window" e a Page Visibility API é afetada. |
+| 3 | [Electron — BrowserWindow, visibilidade da página](https://www.electronjs.org/docs/latest/api/browser-window) | "If `backgroundThrottling` is disabled, the visibility state will remain `visible` even if the window is minimized." → no app de Windows o site **não** sabe que foi minimizado por `document.hidden`; o sinal que sobra é o foco da janela (`blur`/`focus`, `document.hasFocus()`). |
+| 4 | [Chrome Releases — Android WebView](https://chromereleases.googleblog.com/search/label/Android%20WebView) | O WebView acompanha as versões do Chrome. |
+
+### Movimento barato
+
+| # | Fonte | O que confirmou |
+|---|---|---|
+| 5 | [web.dev — Stick to compositor-only properties and manage layer count](https://web.dev/articles/stick-to-compositor-only-properties-and-manage-layer-count) | Só `transform` e `opacity` mudam sem layout nem pintura; promover camadas demais custa memória. |
+| 6 | [web.dev — Measure performance with the RAIL model](https://web.dev/articles/rail) | Resposta visual a uma ação em até 100 ms (processar o evento em até 50 ms); cada quadro de animação em até 10 ms de trabalho. |
+| 7 | [web.dev — Interaction to Next Paint](https://web.dev/articles/inp) | INP bom ≤ 200 ms; o nosso alvo de 100 ms é mais duro, de propósito. |
+| 8 | [Chrome for Developers — Long Animation Frames API](https://developer.chrome.com/docs/web-platform/long-animation-frames) | LoAF (Chrome 123+): quadros acima de 50 ms com `blockingDuration`; usado na medição. |
+| 9 | [Chrome for Developers — `linear()` easing](https://developer.chrome.com/docs/css-ui/css-linear-easing-function) | Molas e quiques em CSS puro; Chrome/Edge 113, Firefox 112, Safari 17.2. Navegador que não entende ignora a declaração e fica com a anterior (plano B). |
+| 10 | [Chrome for Developers — Entry/exit animations (`@starting-style`, `transition-behavior: allow-discrete`, `overlay`)](https://developer.chrome.com/blog/entry-exit-animations) | Chrome 116/117. O app já usa `allow-discrete`; sem suporte, o painel só some (como antes). |
+| 11 | [Chrome for Developers — Same-document View Transitions](https://developer.chrome.com/docs/web-platform/view-transitions/same-document) | Chrome 111+. Tira foto da página inteira antes e depois — custo de captura alto para troca de canal; ficou nas ideias fora do escopo. |
+| 12 | [Chrome for Developers — Scroll-driven animations](https://developer.chrome.com/docs/css-ui/scroll-driven-animations) | Chrome 115; rodam fora da thread principal. Sem uso necessário hoje. |
+| 13 | [web.dev — `content-visibility`](https://web.dev/articles/content-visibility) | Chrome 85+; pula renderização fora da tela; precisa de `contain-intrinsic-size` para a barra de rolagem não pular. |
+| 14 | [MDN — `will-change`](https://developer.mozilla.org/en-US/docs/Web/CSS/will-change) | "Last resort": não espalhar; o Chromium já promove o elemento durante a animação. |
+| 15 | [MDN — `animation-play-state`](https://developer.mozilla.org/en-US/docs/Web/CSS/animation-play-state) | `paused` congela no ponto atual e retoma dali; disponível em todos os navegadores desde 2015. |
+| 16 | [Efeitos no compositor do Chromium (resumo técnico)](https://grida.co/docs/wg/research/chromium/effect-optimizations) | `backdrop-filter` sempre vai pelo caminho caro (saveLayer); um blur que lê pixels vizinhos expande a área danificada para a superfície inteira quando o que está atrás muda — por isso blur sobre vídeo refaz o desfoque a cada quadro do vídeo. |
+
+### Acessibilidade
+
+| # | Fonte | O que confirmou |
+|---|---|---|
+| 17 | [W3C — Understanding SC 2.2.2 Pause, Stop, Hide](https://www.w3.org/WAI/WCAG22/Understanding/pause-stop-hide) | Movimento automático que dura mais de 5 s em paralelo com outro conteúdo precisa poder parar (ou parar sozinho). |
+| 18 | [W3C — Understanding SC 2.5.8 Target Size (Minimum)](https://www.w3.org/WAI/WCAG22/Understanding/target-size-minimum.html) | AA: alvo de 24×24 px (ou espaçamento equivalente); 44×44 é o nível AAA (2.5.5). |
+| 19 | [MDN — `prefers-contrast`](https://developer.mozilla.org/en-US/docs/Web/CSS/@media/prefers-contrast) | `more`/`less`/`custom`; disponível desde 2022. |
+| 20 | [Chrome for Developers — `prefers-reduced-transparency`](https://developer.chrome.com/blog/css-prefers-reduced-transparency) | Chrome 118: pedido do sistema para menos transparência. |
+| 21 | [Apple HIG — Motion](https://developer.apple.com/design/human-interface-guidelines/motion) | Movimento com propósito; retorno curto e preciso; com "Reduzir movimento", tirar ou minimizar. |
+
+### Ícones
+
+| # | Fonte | O que confirmou |
+|---|---|---|
+| 22 | [Lucide — Icon design principles](https://lucide.dev/contribute/icons/design-principles) e [especificação](https://lucide.dev/contribute/icons/specification) | Quadro 24×24, traço 2 px, pontas e junções redondas, 1 px de respiro na borda. |
+| 23 | [Lucide — LICENSE](https://github.com/lucide-icons/lucide/blob/main/LICENSE) | ISC; os ícones herdados do Feather são MIT. Ambas compatíveis com AGPL-3.0. |
+| 24 | [Comparação Lucide × Tabler × Phosphor](https://dev.to/svgicons/lucide-vs-tabler-vs-phosphor-which-free-icon-set-fits-your-ui-4ocl) | Tabler usa o mesmo quadro 24/2 px (mistura sem choque); Phosphor é outro grid (256) com 6 pesos. |
+| 25 | [lottie-web — tamanho do pacote (issue #1184)](https://github.com/airbnb/lottie-web/issues/1184) e [dotlottie-web](https://www.npmjs.com/package/@lottiefiles/dotlottie-web) | lottie-web ≈ 240–300 KB minificado (60–75 KB gzip); a versão "light" ≈ 144 KB; dotlottie-web ≈ 320 KB minificado + WASM. Para ícones de 20 px não compensa. |
+
+### Referências de movimento e de produto
+
+| # | Fonte | O que pegamos |
+|---|---|---|
+| 26 | [Microsoft — Timing and easing (WinUI / Windows 11)](https://learn.microsoft.com/en-us/windows/apps/design/motion/timing-and-easing) | Durações nomeadas de 83/167/250 ms; entrada "fast out, slow in"; saída mais curta que a entrada. |
+| 27 | [Fluent 2 — Motion](https://fluent2.microsoft.design/motion) | Movimento "funcional, natural e consistente"; linear só para rotação constante. |
+| 28 | [Atualização visual do Discord (mar/2025) — PC Gamer](https://pcgamer.com/software/discord-drops-big-update-with-completely-new-in-game-overlay-and-new-dark-themes-for-the-desktop-client) | Temas mais escuros (Onyx), controles de voz centralizados, sinais de cor mais claros (microfone mutado em vermelho, câmera em verde), overlay em widgets. A reação ruim às mudanças de forma (ícones quadrados) reforça a regra do "usuário que volta". |
+| 29 | Material 3 Expressive (implementações públicas, p. ex. [pub.dev/expressive_m3](https://pub.dev/packages/expressive_m3)) | Separar molas "espaciais" (posição/escala, com um pouco de sobra) de molas de "efeito" (cor/opacidade, sem sobra). |
+
+
+## Mapa de ícones (atual → novo)
+
+Todos os 86 ícones do `icons.js` mantêm o desenho e o significado; todos ganham o peso ótico (traço visível ≥ 1,5 px). "Hoje" é o movimento atual; "Novo" é o que muda.
+
+| Ícone | Onde | Hoje | Novo |
+|---|---|---|---|
+| `menu` | abrir canais (celular) | estático | — |
+| `hash` | canal de texto, cabeçalho | estático | — |
+| `volume` | canal de voz, som | estático | — |
+| `volumeX` | mudo para mim, sons | notas dançam (hover) | (mantém) |
+| `lock` | canal privado, banimentos | estático | — |
+| `mic` | microfone | balança (hover) | (mantém) |
+| `micOff` | microfone desligado | balança (hover); risco desenhado ao trocar | (mantém) |
+| `headphones` | fone | pulinho (hover) | (mantém) |
+| `headphonesOff` | ensurdecido | pulinho; risco desenhado | (mantém) |
+| `settings` | configurações | gira 120° (hover) | (mantém) |
+| `screen` | tela/transmissão | estático | — |
+| `screenShare` | compartilhar tela | seta sai e volta (hover) | (mantém) |
+| `camera` | câmera | flash (hover) | flash também no vídeo da DM |
+| `cameraOff` | câmera desligada | flash (hover) | troca animada (pulo + risco) |
+| `phone` | ligar/desligar | treme no "desconectar" | treme também ao ligar (DM) |
+| `plus` | adicionar | estático | gira 90° |
+| `upload` | enviar imagem | estático | seta sobe |
+| `plusCircle` | anexar | gira 90° (anexar) | (mantém) |
+| `gif` | GIF | estático | balança |
+| `smile` | emoji | piscadinha (emoji) | (mantém) |
+| `smilePlus` | reagir | estático | pulo |
+| `reply` | responder | estático | seta recua e volta |
+| `send` | enviar (celular) | estático | — |
+| `pencil` | editar | estático | risca para o lado |
+| `trash` | apagar | estático | tampa levanta (caminho `lid` separado) |
+| `users` | membros, amigos | pulinho no botão de membros | (mantém) |
+| `chevronDown` | abrir/recolher | estático | empurra para baixo |
+| `chevronRight` | submenu | estático | empurra para a direita |
+| `chevronLeft` | voltar | estático | empurra para a esquerda |
+| `logout` | sair da conta | seta anda | (mantém) |
+| `alert` | aviso de erro | estático | sacode no aviso de erro |
+| `info` | aviso de info | estático | pulo no aviso |
+| `copy` | copiar | estático | folha se desloca |
+| `x` | fechar | estático | gira 90° em todo "fechar" |
+| `crown` | dono | estático | inclina |
+| `file` | arquivo | estático | — |
+| `music` | efeitos sonoros | notas dançam (hover) | (mantém) |
+| `download` | baixar | estático | seta desce |
+| `signal` | voz conectada, diagnóstico | estático | barras sobem uma a uma ao conectar |
+| `link` | convite | estático | elos se deslocam |
+| `userCog` | perfil (config.) | estático | — |
+| `pause` | pausado | estático | — |
+| `play` | tocar (DJ) | estático | troca animada com pausa |
+| `clapperboard` | clipar | claquete bate (hover) | (mantém) |
+| `pauseBars` | pausar (DJ) | estático | troca animada com play |
+| `skip` | pular (DJ) | estático | empurra |
+| `stop` | parar (DJ) | estático | — |
+| `disc` | DJ | gira sem parar (hover e tocando) | uma volta no hover; gira tocando, parado em segundo plano |
+| `listMusic` | fila do DJ | estático | — |
+| `refresh` | tentar de novo | estático | meia volta |
+| `waves` | supressão de ruído | equalizador infinito no hover | equalizador por 2 ciclos |
+| `pin` | fixar transmissão | estático | espeta |
+| `pinOff` | desafixar | estático | troca animada |
+| `maximize` | tela cheia | estático | cantos abrem |
+| `minimize` | sair da tela cheia | estático | cantos fecham |
+| `pip` | janela flutuante | estático | — |
+| `eye` | assistir | estático | pisca |
+| `eyeOff` | parar de assistir | estático | troca animada |
+| `sparkles` | Novidades | estático | estrelinhas cintilam (uma vez) |
+| `moreHorizontal` | mais opções | estático | — |
+| `message` | chat da sala, DMs | estático | balão quica |
+| `check` | aceitar, salvar | estático | pulo; desenha o traço ao confirmar |
+| `userPlus` | adicionar amigo | estático | o "+" pula |
+| `userMinus` | remover amigo | estático | — |
+| `ban` | banir | estático | — |
+| `search` | buscar | estático | lupa inclina |
+| `zoomIn` | aproximar | estático | cresce |
+| `zoomOut` | afastar | estático | encolhe |
+| `crop` | ajustar foto | estático | — |
+| `image` | imagem | estático | — |
+| `panelTop` | banner | estático | — |
+| `layers` | fundo do perfil | estático | — |
+| `scan` | enquadrar | estático | — |
+| `shrink` | reduzir | estático | — |
+| `heart` | casar (Mudae) | bate sem parar no hover (Mudae) | uma batida |
+| `dice` | Mudae | estático | rola |
+| `gem` | valor (Mudae) | estático | — |
+| `at` | menções, notificações | estático | gira |
+| `clock` | castigo, horário | estático | — |
+| `activity` | saúde do servidor | estático | — |
+| `star` | favorito (Mudae) | estático | gira |
+| `gamepad` | jogando agora | estático | sacode |
+| `grid` | grade do palco | estático | — |
+| `externalLink` | abrir fora | estático | seta sai |
+| `store` | Microsoft Store | estático | — |
+| `shieldAlert` | aviso de segurança | estático | — |

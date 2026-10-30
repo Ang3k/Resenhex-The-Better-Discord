@@ -28,11 +28,11 @@ Registro de trabalho para retomar de onde parou depois de uma interrupção. Lei
 ## Fase 1 — Auditoria
 
 - [x] Subir o app local, criar contas e servidor de teste
-- [ ] Capturas "antes" em 1440×900 e 390×844 (rodando: `$SP/shots-antes/`)
-- [ ] Inventário (ícones e emojis feitos; animações e tokens feitos; falta redigir)
-- [ ] Achados com severidade
-- [ ] Linha de base de desempenho (CDP, CPU 4×) — `perf.js` pronto, rodar sozinho (sem outros testes ao mesmo tempo)
-- [ ] Acessibilidade (contraste/alvos/foco) — `a11y.js` pronto
+- [x] Capturas "antes" em 1440×900 e 390×844 (123, em `antes/`)
+- [x] Inventário (`inventario.md`)
+- [x] Achados com severidade (25, no relatório)
+- [x] Linha de base de desempenho (`medicoes/desempenho-antes-*.json`, `respostas-por-acao-antes.json`)
+- [x] Acessibilidade (`medicoes/acessibilidade-antes.json`)
 
 ## Fase 2 — Pesquisa
 
@@ -40,12 +40,22 @@ Registro de trabalho para retomar de onde parou depois de uma interrupção. Lei
 
 ## Fase 3 — Proposta
 
-- [ ] `docs/planos/PLANO-POLIMENTO-VISUAL-2026-10-30.md`
+- [x] `docs/planos/PLANO-POLIMENTO-VISUAL-2026-10-30.md` (direção, tokens, ícones, momentos, estados, cor, ondas, ideias fora do escopo, decisões, pesquisa, mapa de ícones)
 
 ## Fase 4 — Implementação
 
 - [ ] Ondas, uma por vez, com `npm run check`, `npm test` e nova medição
 
+## Fase 4 — ondas
+
+- [ ] Onda 1 — Leveza (bg-window, blur, infinitas, transições, Mudae + reduzir animações, medidor de áudio)
+- [ ] Onda 2 — Movimento (tokens com molas, clique)
+- [ ] Onda 3 — Ícones (peso ótico, trocas, gestos)
+- [ ] Onda 4 — Momentos assinatura
+- [ ] Onda 5 — Estados (abertura, vazios, erro/sucesso, foco)
+- [ ] Onda 6 — Cor (contraste, tokens, elevação)
+- [ ] Capturas "depois", medição final, antes × depois no relatório, resumo final
+
 ## Próximo passo
 
-Terminar o tour de capturas, rodar `perf.js` (antes) e `a11y.js`, converter capturas para WebP em `docs/relatorios/auditoria-visual-2026-10-30/antes/` e redigir o relatório da auditoria.
+Começar a Onda 1 no ramo `visual-polish` (servidor "antes" pode ser subido de `$SP/main-wt/discord-clone`).

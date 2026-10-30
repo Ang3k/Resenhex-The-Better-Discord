@@ -56,7 +56,7 @@ Detalhes, com arquivo e linha de cada item, em [`inventario.md`](auditoria-visua
 | Tamanhos de fonte | 49 valores, com frações (11,5 · 12,5 · 13,5 · 14,5 · 15,5 px) e textos de 8–9,5 px |
 | Raios | 47 valores |
 | Sombras | 178 valores de `box-shadow` |
-| Ícones | 88 no `icons.js` (base Lucide, traço 2 px em 24×24), desenhados de 14 a 22 px; 1 SVG solto (anel do tempo do Mudae); emojis como ícone nos efeitos sonoros, efeitos de voz, fontes do Mudae e abas do seletor de emoji |
+| Ícones | 86 no `icons.js` (base Lucide, traço 2 px em 24×24), desenhados de 14 a 22 px; 1 SVG solto (anel do tempo do Mudae); emojis como ícone nos efeitos sonoros, efeitos de voz, fontes do Mudae e abas do seletor de emoji |
 | Ícones animados | 12 (microfone, fone, claquete, engrenagem, desligar, câmera, compartilhar, ruído, notas, membros, anexar, emoji) |
 | Animações | 119 declarações, 37 infinitas; 15 keyframes animam algo além de transform/opacity (`box-shadow` em 8, `filter`, uma propriedade personalizada, `background`, `stroke-dashoffset`) |
 | Transições | 237 declarações; 164 transicionam algo além de transform/opacity (`background` 112×, `box-shadow` 41×, `color` 60×, `border-color` 29×, `border-radius`, `filter`, `height`) |
@@ -130,7 +130,7 @@ Severidade: **Alta** (custa desempenho na call ou quebra acessibilidade AA), **M
 | 17 | Estados | Queda de conexão: faixa amarela sem ícone, que só some quando volta; não há confirmação de "conectado de novo". | Baixa | `desconectado-desk`, `reconectado-desk` |
 | 18 | Vida | Os momentos sociais não têm resposta própria: a sua mensagem entra igual à dos outros, a reação não "cai", quem entra na call aparece seco, o amigo que fica online não acende, e "digitando…" é só texto. | Média | `chat-geral-desk`, `chamada-voz-desk` |
 | 19 | Ícones | O mesmo traço de 2 unidades desenhado de 14 a 22 px dá traços visíveis de 1,17 a 1,83 px: ícones pequenos (selos do bloco, cadeado, bandeiras da lista de voz) ficam mais finos e borrados que os do cabeçalho. | Média | `chamada-voz-desk` (lista de voz), `membros-desk` |
-| 20 | Ícones | Só 12 dos 88 ícones têm gesto; os mais usados no dia a dia (responder, reagir, editar, apagar, GIF, mensagem de áudio, ligar e vídeo na DM, aceitar/recusar amigo, fechar, buscar) não reagem, e trocas como play/pausa, olho/olho riscado e fixar/desafixar são secas. | Baixa | `chat-hover-desk` |
+| 20 | Ícones | Só 12 dos 86 ícones têm gesto; os mais usados no dia a dia (responder, reagir, editar, apagar, GIF, mensagem de áudio, ligar e vídeo na DM, aceitar/recusar amigo, fechar, buscar) não reagem, e trocas como play/pausa, olho/olho riscado e fixar/desafixar são secas. | Baixa | `chat-hover-desk` |
 | 21 | Consistência | Tokens espalhados em três camadas e cores do Discord escritas à mão que não acompanham os temas (Meia-noite e Alto contraste herdam o cinza `#80848e` do offline, a base `#1e1f22` dos blocos etc.). | Média | `inventario.md` |
 | 22 | Consistência | 49 tamanhos de fonte, 47 raios e 178 sombras; textos de 8–9,5 px ainda lidos ("ESC", "PRÉVIA", marca das configurações). | Baixa | `config-perfil-desk` |
 | 23 | Consistência | O botão "Reiniciar para atualizar" da barra de título do app de Windows usa `#8277fa`, o roxo antigo; o app usa `#8e2fd8`. | Baixa | `barra-titulo-atualizar-desk` |
