@@ -1,24 +1,28 @@
-/* Botão discreto no canto da lista de membros: só aparece quando ela está visível, para nunca disputar espaço com o
-   chat, a call ou o chat da call. No celular, fica nas Configurações. Fica na mesma linha da barra de conversar:
-   a mesma altura (46px) e o mesmo espaço embaixo (os 24px do "digitando…"). Na largura, no meio da coluna de
-   membros (240px; a gaveta do tablet tem 260px). */
+/* Mais um item no rodapé da lista de membros, com a cara de uma linha de membro e um traço separando da lista.
+   Fica na linha da barra de conversar: a mesma altura (46px) e o mesmo espaço embaixo (os 24px do "digitando…").
+   Só aparece quando a lista está visível, para nunca disputar espaço com o chat, a call ou o chat da call.
+   No celular, fica nas Configurações. Largura: a coluna de membros (240px; a gaveta do tablet tem 260px). */
 .feedback-link {
-  position: fixed; right: 120px; bottom: 24px; z-index: 8; transform: translateX(50%);
-  display: none; align-items: center; gap: 8px; height: 46px; margin: 0;
-  padding: 0 14px 0 12px; border: 1px solid var(--divider); border-radius: 12px; background: var(--bg-panel);
-  color: var(--text); font-size: 13px; font-weight: 500; text-align: left;
+  position: fixed; right: var(--dock-gap); bottom: 24px; z-index: 8;
+  display: none; align-items: center; gap: 12px; width: 223px; height: 46px; margin: 0; padding: 0 10px;
+  border: 0; border-radius: 8px; background: transparent;
+  color: var(--interactive); font-size: 14px; font-weight: 500; text-align: left;
 }
-.feedback-link-icon { display: grid; color: var(--interactive); }
-.feedback-link:hover { color: var(--text-strong); background: var(--hover); }
+.feedback-link::before { content: ''; position: absolute; top: -9px; left: 2px; right: 2px; height: 1px; background: var(--divider); }
+.feedback-link-icon {
+  display: grid; place-items: center; flex-shrink: 0; width: 32px; height: 32px; border-radius: 50%;
+  background: var(--hover-strong); color: var(--text);
+}
+.feedback-link:hover { color: var(--text); background: var(--hover); }
 .feedback-link:hover .feedback-link-icon { color: var(--text-strong); }
 .feedback-link:focus-visible { outline: 2px solid var(--brand); outline-offset: 2px; }
 @media (min-width: 1101px) {
   #app:not(.hide-members) > .feedback-link { display: flex; }
-  #app:not(.hide-members) > #members { padding-bottom: 84px; }
+  #app:not(.hide-members) > #members { padding-bottom: 92px; }
 }
 @media (min-width: 641px) and (max-width: 1100px) {
-  #app.members-open > .feedback-link { display: flex; z-index: 14; right: 130px; }
-  #app.members-open > #members { padding-bottom: 84px; }
+  #app.members-open > .feedback-link { display: flex; z-index: 14; width: 243px; }
+  #app.members-open > #members { padding-bottom: 92px; }
 }
 body.stream-immersive .feedback-link { display: none !important; }
 .feedback-overlay {
