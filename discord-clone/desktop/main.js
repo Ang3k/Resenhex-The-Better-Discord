@@ -22,7 +22,7 @@ const { createOverlay } = require('./lib/overlay');
 const { createGameList } = require('./lib/game-list');
 const { createShareFollow } = require('./lib/share-follow');
 const { createNowPlaying } = require('./lib/now-playing');
-const { tuneCapture, captureStats } = require('./lib/capture-tuning');
+const { tuneCapture, setCaptureRing, captureStats } = require('./lib/capture-tuning');
 if (!app.isPackaged && process.env.RESENHEX_USER_DATA_DIR) app.setPath('userData', path.resolve(process.env.RESENHEX_USER_DATA_DIR));
 
 const APP_URL = new URL(process.env.RESENHEX_URL || 'https://resenhex.duckdns.org/');
@@ -60,7 +60,7 @@ function acquireLock() {
 }
 
 const store = createStore(path.join(app.getPath('userData'), 'preferencias.json'), {
-  bounds: null, maximized: false, closeToTray: true, trayHintShown: false,
+  bounds: null, maximized: false, closeToTray: true, trayHintShown: false, captureRing: true,
 });
 // Os selos e ícones da bandeja trocam a cada mudança de título; cada um é lido do disco uma vez só.
 const images = new Map();
@@ -311,6 +311,8 @@ function updateTray() {
       ? { label: 'Iniciar com o Windows…', click: () => shell.openExternal('ms-settings:startupapps') }
       : { label: 'Iniciar com o Windows', type: 'checkbox', checked: app.getLoginItemSettings().openAtLogin, click: (item) => setStartup(item.checked) },
     { label: 'Fechar para a bandeja', type: 'checkbox', checked: store.get('closeToTray'), click: (item) => { store.set('closeToTray', item.checked); } },
+    // Teste do anel da captura (captura.cc): vale a partir da próxima transmissão.
+    { label: 'Captura sem esperar a placa (teste)', type: 'checkbox', checked: store.get('captureRing'), click: (item) => { store.set('captureRing', item.checked); setCaptureRing(item.checked); } },
     { type: 'separator' },
     { label: `Versão ${app.getVersion()}`, enabled: false },
     { label: 'Sair do Resenhex', click: () => { quitting = true; app.quit(); } },
@@ -442,7 +444,7 @@ function grant(contents, request, callback, video, audioOn, pids) {
 
 async function pickDisplayMedia(request, callback) {
   if (!site || !isAppUrl(request.securityOrigin) || !request.videoRequested) return deny(callback);
-  tuneCapture(log);
+  tuneCapture(log, { ring: store.get('captureRing') });
   const contents = site.webContents;
   try {
     const extra = appAudioPlans.consume(contents, request.frame);

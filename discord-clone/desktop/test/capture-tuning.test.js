@@ -31,8 +31,17 @@ test('sem o módulo, ou se ele falhar, a captura segue sem ajuste e o motivo vai
   log = recorder();
   let asked = null;
   assert.deepEqual(install({ log, ...WINDOWS_24H2, load: () => ({ install: (options) => { asked = options; return { ok: true }; } }) }), { ok: true });
-  assert.deepEqual(asked, { intervalMs: 8, drain: true });
+  assert.deepEqual(asked, { intervalMs: 8, drain: true, anel: 1, folga: 3 });
   assert.equal(log.lines[0][0], 'info');
+  assert.match(log.lines[0][1], /sem esperar a placa/);
+
+  // O anel sai pela preferência do app ou por RESENHEX_CAPTURA_ANEL=0; o resto do ajuste continua.
+  for (const options of [{ ring: false }, { env: { RESENHEX_CAPTURA_ANEL: '0' } }]) {
+    log = recorder();
+    install({ log, ...WINDOWS_24H2, ...options, load: () => ({ install: (asked2) => { asked = asked2; return { ok: true }; } }) });
+    assert.deepEqual(asked, { intervalMs: 8, drain: true, anel: 0, folga: 0 });
+    assert.doesNotMatch(log.lines[0][1], /sem esperar a placa/);
+  }
 
   log = recorder();
   const older = install({ log, ...WINDOWS_24H2, release: '10.0.22631', load: () => assert.fail('não devia carregar o módulo') });
@@ -46,5 +55,13 @@ test('o módulo compilado troca as funções da captura do Windows', { skip: una
   const native = require(BINARY);
   assert.deepEqual(native.install({ intervalMs: 8, drain: true }), { ok: true });
   assert.deepEqual(native.install(), { ok: true }); // de novo não troca nada
-  assert.deepEqual(native.stats(), { installed: true, sessions: 0, adjusted: 0, dropped: 0, defaultMs: -1 });
+  assert.deepEqual(native.stats(), {
+    installed: true, sessions: 0, adjusted: 0, dropped: 0, defaultMs: -1,
+    anel: 0, copias: 0, noAnel: 0, entradas: 0, saidas: 0, repetidos: 0, telaParada: 0, escapes: 0, desistencias: 0,
+    mapMediaMs: 0, mapMaxMs: 0,
+  });
+  assert.deepEqual(native.install({ anel: 1, folga: 3 }), { ok: true });
+  assert.equal(native.stats().anel, 1);
+  native.install({ anel: 2 }); // o anel só liga ou desliga
+  assert.equal(native.stats().anel, 1);
 });
