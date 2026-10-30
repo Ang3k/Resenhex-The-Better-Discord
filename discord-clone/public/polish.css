@@ -17,7 +17,7 @@
   --divider: rgba(255, 255, 255, .065);
   --text: #dbdce0;
   --text-strong: #f3f3f5;
-  --text-muted: #8d8f98;
+  --text-muted: #9496a0; /* 4,8:1 até no fundo das menções; o #8d8f98 ficava em 4,4 */
   --channel: #8a8c95;
   --interactive: #b3b5bc;
   --brand: #8e2fd8;
@@ -190,7 +190,7 @@
 .msg:hover { background: rgba(255, 255, 255, .025); }
 .msg .avatar { width: 40px; height: 40px; margin-top: 2px; }
 .msg-author { font-size: 15.5px; font-weight: 600; letter-spacing: .005em; }
-.msg-time { font-size: 11.5px; font-weight: 400; color: var(--text-muted); margin-left: 8px; opacity: .85; white-space: nowrap; }
+.msg-time { font-size: 11.5px; font-weight: 400; color: var(--text-muted); margin-left: 8px; white-space: nowrap; }
 .msg-text { font-size: var(--chat-size); line-height: 1.42; color: var(--text); }
 .msg.continued .msg-text { line-height: 1.42; }
 .hover-time { font-size: 10.5px; line-height: 22px; opacity: .8; }
@@ -209,7 +209,7 @@
 #chat-form:focus-within { border-color: rgba(255, 255, 255, .1); background: #28282e; }
 :root[data-theme=midnight] #chat-form:focus-within, :root[data-theme=contrast] #chat-form:focus-within { background: var(--bg-input); }
 #chat-input { padding: 12px 6px; line-height: 20px; min-height: 44px; font-size: var(--chat-size); }
-#chat-input::placeholder { color: var(--text-muted); opacity: .75; }
+#chat-input::placeholder { color: var(--text-muted); opacity: 1; }
 #chat-form button { width: 38px; height: 44px; border-radius: 8px; color: var(--interactive); transition: none; }
 #chat-form button .ico { width: 22px; height: 22px; }
 #chat-form button:hover:not(:disabled) { color: var(--text-strong); }
@@ -226,9 +226,13 @@
 .member .avatar { width: 32px; height: 32px; }
 .member-name { font-size: 15px; font-weight: 500; line-height: 19px; }
 .member .sub { font-size: 12px; line-height: 15px; }
-.member.offline { opacity: .5; }
+/* Offline: a foto apaga, o nome fica cinza sólido (opacidade .5 deixava o nome em 3,1:1). */
+.member.offline { opacity: 1; }
+.member.offline .avatar-wrap { opacity: .5; }
 .member.offline .avatar { filter: grayscale(.55); }
-.member.offline:hover { opacity: .85; }
+.member.offline .member-info, .member.offline .member-name > span:first-child { color: var(--text-muted); }
+.member.offline:hover .avatar-wrap { opacity: .85; }
+.member.offline:hover .member-name > span:first-child { color: var(--interactive); }
 .status { width: 10px; height: 10px; box-shadow: 0 0 0 3px var(--ring, var(--bg-panel)); }
 
 /* ---------- Telas médias ---------- */
