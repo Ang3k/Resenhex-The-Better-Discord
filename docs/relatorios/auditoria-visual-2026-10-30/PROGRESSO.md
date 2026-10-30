@@ -44,7 +44,7 @@ Registro de trabalho para retomar de onde parou depois de uma interrupção. Lei
 
 ## Fase 4 — Implementação
 
-- [ ] Ondas, uma por vez, com `npm run check`, `npm test` e nova medição
+- [x] Ondas, uma por vez, com `npm run check`, `npm test` e nova medição
 
 ## Fase 4 — ondas
 
@@ -59,8 +59,9 @@ Registro de trabalho para retomar de onde parou depois de uma interrupção. Lei
 - [x] Capturas "depois" (120, as mesmas do "antes"), abertura comparada com o app ainda conectando (`carregando-conectando-*`, as duas versões) e 11 fotos dos momentos.
 - [x] Antes × depois no relatório (desempenho, A/B de respostas, acessibilidade, 20 pares de capturas, 11 momentos, testes, o que ficou de fora).
 - [x] Testes completos nas duas versões: 476 de 479 passam em ambas; as falhas são do ambiente (`desktop/` sem dependências) e testes instáveis com a mesma taxa no `main` (`medicoes/testes-finais.txt`).
-- [ ] Remover a cópia de trabalho do `main`, último envio e resumo final
+- [x] Cópia de trabalho do `main` removida, servidores locais parados, último envio feito.
+- [x] Fase 4 concluída. Conferido no fim: `origin/main` intocado (`5681fd5`), nenhum arquivo criado, movido ou renomeado em `public/`, sem versão nova nem entrada de changelog, nada em `deploy/`, `desktop/` ou `android/`, nenhuma captura ou relatório dentro de `discord-clone/`.
 
 ## Próximo passo
 
-Remover a cópia de trabalho do `main` (fora do repositório, no rascunho da sessão), último envio e resumo final.
+Nenhum: o trabalho terminou. Ramo `visual-polish` enviado (sem merge e sem pull request), à espera do dono.
