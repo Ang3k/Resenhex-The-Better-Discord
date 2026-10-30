@@ -1,0 +1,40 @@
+Testes finais (30/10/2026), mesma máquina. npm run check e npm test em discord-clone/.
+
+npm run check (visual-polish): Sintaxe OK em 85 arquivos.
+
+== npm test — visual-polish
+# tests 479
+# pass 476
+# fail 2
+# cancelled 0
+# skipped 1
+not ok 5 - desktop/test/lib.test.js
+not ok 388 - teste de voz: fechar enquanto abre o microfone cancela o retorno e as configurações continuam funcionando
+
+== npm test — main (5681fd5)
+# tests 479
+# pass 476
+# fail 2
+# cancelled 0
+# skipped 1
+not ok 5 - desktop/test/lib.test.js
+not ok 350 - a connection that floods the server loses the extra packets and then the connection
+
+== Os 2 testes de voz de test/server-ui.test.js, 5 vezes em cada versão, alternando (node --test --test-name-pattern="teste de voz")
+rodada versão resultado
+1 main # pass 0 # fail 2 
+1 polish # pass 0 # fail 2 
+2 main # pass 2 # fail 0 
+2 polish # pass 1 # fail 1 
+3 main # pass 0 # fail 2 
+3 polish # pass 2 # fail 0 
+4 main # pass 2 # fail 0 
+4 polish # pass 1 # fail 1 
+5 main # pass 1 # fail 1 
+5 polish # pass 1 # fail 1 
+
+Falhas: main 5 de 10 execuções; visual-polish 5 de 10. Instáveis nas duas versões, mesma taxa.
+
+== Teste de inundação (test/protecao.test.js, "floods the server") rodado sozinho
+main # pass 1 # fail 0
+visual-polish # pass 1 # fail 0

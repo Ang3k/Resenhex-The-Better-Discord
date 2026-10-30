@@ -57,8 +57,10 @@ Registro de trabalho para retomar de onde parou depois de uma interrupção. Lei
 - [x] Medição final: CPU 4× (3 rodadas, 7 cenários) e sem lentidão (2 rodadas, 4 cenários); acessibilidade (0 falhas de contraste e de alvo).
 - [x] A/B de respostas por ação `main` × `visual-polish` (16 a 24 cliques por ação, alternando as versões): sem diferença. A primeira medida por ação do `perf.js` (máximo de 2 cliques por rodada) sugeria piora no emoji; era ruído do método.
 - [x] Capturas "depois" (120, as mesmas do "antes"), abertura comparada com o app ainda conectando (`carregando-conectando-*`, as duas versões) e 11 fotos dos momentos.
-- [ ] Antes × depois no relatório, testes completos nas duas versões, resumo final
+- [x] Antes × depois no relatório (desempenho, A/B de respostas, acessibilidade, 20 pares de capturas, 11 momentos, testes, o que ficou de fora).
+- [x] Testes completos nas duas versões: 476 de 479 passam em ambas; as falhas são do ambiente (`desktop/` sem dependências) e testes instáveis com a mesma taxa no `main` (`medicoes/testes-finais.txt`).
+- [ ] Remover a cópia de trabalho do `main`, último envio e resumo final
 
 ## Próximo passo
 
-Antes × depois no relatório (rascunho pronto), testes completos nas duas versões, remover a cópia de trabalho do `main` e resumo final.
+Remover a cópia de trabalho do `main` (fora do repositório, no rascunho da sessão), último envio e resumo final.
