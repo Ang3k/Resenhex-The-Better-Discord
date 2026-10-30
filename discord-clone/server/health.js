@@ -1,4 +1,4 @@
-// Medidor de saúde do servidor (Fase 0 do docs/plano-5000-online.md). A cada 10 s junta o atraso do event
+// Medidor de saúde do servidor (Fase 0 do docs/planos/PLANO-5000-ONLINE-2026-10-24.md). A cada 10 s junta o atraso do event
 // loop, processador, memória, conexões, mudanças e bytes enviados por segundo, o tempo gasto montando e
 // entregando os avisos de cada mudança, o tempo que a gravação do
 // banco deixa o servidor parado, as portas do retransmissor em uso, a rede do mês e o disco. Guarda os últimos 10

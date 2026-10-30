@@ -2,11 +2,13 @@
 
 Resumo para retomar o trabalho em outra sessão do Claude sem depender da conversa anterior.
 
+> **Retrato de 25/10.** O plano de 5 mil descrito aqui foi ao ar inteiro na 2.0.0; as versões seguintes estão no [CHANGELOG](../discord-clone/CHANGELOG.md). Continuam valendo as seções "Como publicar sem susto" e "Como medir" e as notas de disco e rede, citadas nos e-mails de alarme do servidor. "Como voltar se algo der errado" foi escrita para voltar da 2.0.0 para a 1.9.0.
+
 ## O que estamos tentando fazer
 
 Deixar o Resenhex aguentar **5 mil pessoas online ao mesmo tempo**, espalhadas em vários servidores, **sem gastar nada**: na mesma máquina grátis da Oracle.
 
-- O plano completo, com medições, metas e 7 fases, está em [plano-5000-online.md](plano-5000-online.md).
+- O plano completo, com medições, metas e 7 fases, está em [PLANO-5000-ONLINE-2026-10-24.md](planos/PLANO-5000-ONLINE-2026-10-24.md).
 - Prontos e não publicados:
   - a Fase 0 (medidor de saúde e simulador);
   - a Fase 1 inteira (avisos só para quem foi afetado, portas do retransmissor, início rápido, gravação garantida, arquivos pelo Caddy, backups dos uploads);
@@ -89,7 +91,7 @@ Pedido do dono depois da revisão: **corte final de 9,5 TB**. Antes, o teto só 
 
 ## Fase 2: feita
 
-O banco virou `data.db` (node:sqlite, WAL), gravado em pedaços. Detalhes e medições na Fase 2 do [plano](plano-5000-online.md).
+O banco virou `data.db` (node:sqlite, WAL), gravado em pedaços. Detalhes e medições na Fase 2 do [plano](planos/PLANO-5000-ONLINE-2026-10-24.md).
 
 - Cada conta, servidor, sessão, amizade, conversa, bloqueio, envio, clipe e token de e-mail é uma linha; cada mensagem também.
 - Quem muda algo marca o pedaço com `save('accounts/<id>')` e afins. Uma gravação a cada 250 ms grava só o que foi marcado.
@@ -104,7 +106,7 @@ O banco virou `data.db` (node:sqlite, WAL), gravado em pedaços. Detalhes e medi
 
 ## Fase 3: feita
 
-As mudanças frequentes viraram avisos pequenos (`state:patch`). Detalhes e medições na Fase 3 do [plano](plano-5000-online.md).
+As mudanças frequentes viraram avisos pequenos (`state:patch`). Detalhes e medições na Fase 3 do [plano](planos/PLANO-5000-ONLINE-2026-10-24.md).
 
 - Quatro tipos:
   - `voice`: a sala de voz inteira;
@@ -124,7 +126,7 @@ As mudanças frequentes viraram avisos pequenos (`state:patch`). Detalhes e medi
 
 ## Fase 4b: feita
 
-Detalhes e medições na Fase 4b do [plano](plano-5000-online.md).
+Detalhes e medições na Fase 4b do [plano](planos/PLANO-5000-ONLINE-2026-10-24.md).
 
 - Fotos de perfil, banners, fundos, ícones e emojis passam por um worker (`server/images.js`, `server/image-worker.js`). O pior caso parava o servidor ~70 ms no ARM; agora não para.
 - Prévias da transmissão: 640 px em WebP (JPEG no Safari), a cada 15 s, e só para quem está na sala sem assistir. Quem para de assistir recebe a última guardada. ~5× menos rede.
@@ -133,7 +135,7 @@ Detalhes e medições na Fase 4b do [plano](plano-5000-online.md).
 
 ## Fase 5: feita
 
-Detalhes, testes e a previsão de rede na Fase 5 do [plano](plano-5000-online.md).
+Detalhes, testes e a previsão de rede na Fase 5 do [plano](planos/PLANO-5000-ONLINE-2026-10-24.md).
 
 - **Senha temporária no retransmissor** (`server/turn.js`): o coturn usa `use-auth-secret`. O segredo (`TURN_SECRET`) fica só no servidor. Cada conta recebe uma senha própria, que vale de 24 a 30 h e chega no login e a cada entrada em chamada. Numa chamada longa, o app pede outra antes de vencer.
 - **Limites:** 60 alocações por conta, 13 mil no total, 5 Mbps por sessão.
@@ -152,7 +154,7 @@ Detalhes, testes e a previsão de rede na Fase 5 do [plano](plano-5000-online.md
 
 ## Fase 7: feita
 
-Detalhes e testes na Fase 7 do [plano](plano-5000-online.md).
+Detalhes e testes na Fase 7 do [plano](planos/PLANO-5000-ONLINE-2026-10-24.md).
 
 - **Publicar sem derrubar todos de uma vez:** antes de desligar, o servidor avisa os apps para espalhar a volta em até 30 s (5 mil online → 30 s). O app conecta direto por websocket.
 - **Limites:** 50 conexões abertas por endereço, 300 pedidos de folga por conexão (quem inunda cai), trocar de servidor 20 vezes a cada 10 s, envio de arquivos de 2 GB por dia por conta (5 GB por endereço).

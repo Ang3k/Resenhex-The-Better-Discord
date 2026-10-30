@@ -2,5 +2,10 @@
 docs/superpowers/
 .claude/
 .codex/
+.superpowers/
 AGENTS.md
 CLAUDE.md
+
+# Pastas que ficam só no PC (ver ORGANIZACAO.md)
+/artifacts/
+discord-clone/marketing/

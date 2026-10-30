@@ -1,5 +1,5 @@
 // Uso do retransmissor (coturn) por dia, a partir do log dele (verbose, deploy/instalar-vps.sh). Fase 5 do
-// docs/plano-5000-online.md: quantas ligações passam por ele e quantos GB por dia. No servidor:
+// docs/planos/PLANO-5000-ONLINE-2026-10-24.md: quantas ligações passam por ele e quantos GB por dia. No servidor:
 //   sudo journalctl -u coturn --since "7 days ago" -o short-iso | node /opt/resenhex/tools/uso-retransmissor.js
 // O coturn escreve, de tempos em tempos, quanto cada sessão recebeu e mandou desde a linha anterior: "usage" é o
 // lado de quem está no Resenhex, "peer usage" o da outra ponta. O que sai do servidor (e conta nos 10 TB grátis

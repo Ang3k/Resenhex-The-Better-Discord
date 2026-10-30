@@ -1,6 +1,9 @@
 node_modules/
 data.json
 data.json.*
+data.db
+data.db-*
+data.db.*
 jogos-detectaveis.json*
 uploads/
 *.log

@@ -1,4 +1,4 @@
-// Simulador de carga v2 do Resenhex (Fase 0 do docs/plano-5000-online.md).
+// Simulador de carga v2 do Resenhex (Fase 0 do docs/planos/PLANO-5000-ONLINE-2026-10-24.md).
 // Monta um banco de teste do tamanho do site (RATIO contas cadastradas por pessoa online, com amizades, conversas,
 // bloqueios, servidores pequenos, médios e grandes), sobe uma cópia do servidor com esses dados e põe as pessoas
 // online em degraus. Cada pessoa segue o ritmo das premissas do plano: muda algo na call (entrar, sair, mutar,

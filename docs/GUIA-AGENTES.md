@@ -6,33 +6,27 @@ Leia este guia antes de mexer no código. Ele diz onde cada coisa fica, como val
 
 O Resenhex é uma plataforma de chat, voz, vídeo e compartilhamento de tela inspirada no Discord, usada por um grupo de amigos e hospedada em uma VPS da Oracle.
 
-- **Servidor:** Node.js (≥ 20; produção usa 22), Express 5 e Socket.IO, em CommonJS. Os dados ficam em um único arquivo JSON (`DATA_FILE`), sem banco de dados.
+- **Servidor:** Node.js (≥ 22.13), Express 5 e Socket.IO, em CommonJS. Desde a 2.0.0 os dados ficam num banco SQLite (`data.db`, pelo `node:sqlite` que vem com o Node), gravado em pedaços por `server/store.js`; em memória continua o mesmo objeto de sempre. Um `data.json` antigo ao lado é importado na primeira subida.
 - **Cliente web:** HTML, CSS e JavaScript puros, sem framework e sem bundler. Os scripts entram por `<script>` no `public/index.html` e conversam por variáveis globais em `window`.
 - **Apps:** o de Windows (Electron, em `desktop/`) e o de Android (WebView em Java, em `android/`) apenas abrem o site, então mudanças no site chegam a eles pelo deploy normal.
 - **Idioma:** português do Brasil na interface, na documentação, no CHANGELOG e nas mensagens de commit. Os nomes no código são, na maioria, em inglês.
 
-## Mapa do repositório
+## Mapa do aplicativo
+
+As pastas do repositório inteiro, inclusive as que ficam só no PC (`artifacts/`, `discord-clone/marketing/`, worktrees), e onde guardar cada arquivo novo estão em [`ORGANIZACAO.md`](../ORGANIZACAO.md). Aqui fica só o aplicativo:
 
 ```
-/
-├── README.md               # apresentação do projeto
-├── docs/                   # documentação que não vai para o servidor de produção
-│   ├── GUIA-AGENTES.md     # este guia
-│   ├── ROADMAP.md          # ideias e próximos passos
-│   ├── VOZ-IA.md           # vozes de personagens por IA (retiradas do app na 1.4.0; ficou o histórico)
-│   ├── planos/             # planos de trabalho datados
-│   └── relatorios/         # relatórios datados; as evidências (JSON/PNG) ficam na pasta de mesmo nome
-└── discord-clone/          # o aplicativo: tudo o que é publicado sai daqui
-    ├── server.js           # ponto de entrada do servidor (rotas, sockets, persistência, permissões)
-    ├── server/             # módulos do servidor, ligados pelo server.js
-    ├── public/             # cliente web, servido como arquivos estáticos
-    ├── test/               # testes (node:test)
-    ├── tools/              # geradores e ferramentas de desenvolvimento
-    ├── deploy/             # instalação na VPS, atualização da Oracle e publicação dos apps
-    ├── desktop/            # app de Windows (Electron), com package.json e testes próprios
-    ├── android/            # app de Android (Gradle)
-    ├── CHANGELOG.md        # histórico de versões (o mesmo conteúdo de public/changelog.js)
-    └── README.md           # manual completo
+discord-clone/              # o aplicativo: tudo o que é publicado sai daqui
+├── server.js           # ponto de entrada do servidor (rotas, sockets, permissões)
+├── server/             # módulos do servidor, ligados pelo server.js
+├── public/             # cliente web, servido como arquivos estáticos
+├── test/               # testes (node:test)
+├── tools/              # geradores e ferramentas de desenvolvimento
+├── deploy/             # instalação na VPS, atualização da Oracle e publicação dos apps
+├── desktop/            # app de Windows (Electron), com package.json e testes próprios
+├── android/            # app de Android (Gradle)
+├── CHANGELOG.md        # histórico de versões (o mesmo conteúdo de public/changelog.js)
+└── README.md           # manual completo
 ```
 
 ## Onde mexer em cada assunto
@@ -60,8 +54,16 @@ Caminhos relativos a `discord-clone/`.
 | Downloads e atualização dos apps | `server/downloads.js` | `public/download.js`, `public/baixar.html` | `test/downloads.test.js` |
 | Propor Melhorias | `server/feedback.js` | `public/feedback.js` | `test/feedback.test.js` |
 | Novidades (changelog no app) | — | `public/changelog.js` | — |
+| Banco de dados (SQLite) | `server/store.js`, `server/store-checkpoint.js` | — | `test/store.test.js`; volta para JSON com `tools/banco-para-json.js` |
+| Índices de quem está online e das relações entre contas | `server/online.js`, `server/social.js` | — | `test/indexes.test.js` |
+| Avisos pequenos por sala (`state:patch`) | `server.js` | `public/state-patch.js` | vários: procure `state:patch` em `test/` |
+| Clipar (clipes da chamada) | `server/clip-store.js` | `public/clip-*.js`, `public/clips.css` | `test/clip-*.test.js`, `test/clips-server.test.js` |
+| Saúde do servidor e alarmes por e-mail | `server/health.js`, `server/alarms.js` | `public/site-health.js` | `test/health.test.js`, `test/alarms.test.js` |
+| Retransmissor das chamadas (TURN) | `server/turn.js`, `deploy/instalar-vps.sh` | — | `test/turn.test.js` |
+| Fotos e imagens fora da linha principal | `server/images.js`, `server/image-worker.js` | — | — |
+| Animações | — | `public/motion.js`, `public/motion.css` | carregadas por `test/clip-ui.test.js` e `test/desktop.test.js` |
 
-`server.js` (~2.200 linhas) e `public/app.js` (~6.500 linhas) são grandes: procure pelo nome do evento ou da função antes de ler.
+`server.js` (~2.900 linhas) e `public/app.js` (~7.500 linhas) são grandes: procure pelo nome do evento ou da função antes de ler.
 
 ## Comandos
 
@@ -70,7 +72,7 @@ Rode dentro de `discord-clone/`.
 | Comando | Para quê |
 |---|---|
 | `npm install` | Dependências do servidor e dos testes |
-| `npm start` | Servidor em `http://localhost:3000`. Cria `data.json` e `uploads/` na pasta (ignorados pelo Git) |
+| `npm start` | Servidor em `http://localhost:3000`. Cria `data.db` (com `-wal` e `-shm`) e `uploads/` na pasta (ignorados pelo Git) |
 | `npm run check` | `node --check` em `server.js`, `server/` e `public/`. Arquivos novos entram sozinhos |
 | `npm test` | Todos os testes (`node --test`), cerca de 2 minutos |
 | `node --test test/mudae.test.js` | Um arquivo de teste só |
@@ -107,7 +109,7 @@ Os apps têm versões próprias e só precisam ser publicados quando suas pastas
 
 - **`server/mudae-catalogo.json` tem cerca de 33 MB** (um personagem por linha). Não abra o arquivo inteiro; busque com limite de resultados. Ele é gerado por `tools/mudae-catalogo.js`; as chaves das APIs (`tools/mudae-chaves.json`) e o cache (`tools/mudae-cache/`) ficam fora do Git.
 - `public/emoji-data.json` é gerado por `tools/emoji-data.js`, e os ícones dos apps por `tools/icones-app.js`.
-- **Tudo em `discord-clone/` (menos `desktop/`) vai para o servidor de produção.** Relatórios, planos e evidências ficam em `docs/`, na raiz.
+- **Tudo o que o Git conhece em `discord-clone/` (menos `desktop/`) vai para o servidor de produção.** Relatórios, planos e evidências ficam em `docs/`, na raiz; não crie `discord-clone/docs/`. O material de divulgação fica em `discord-clone/marketing/`, fora do Git.
 - `public/gacha/` é a cena 3D antiga do Salão do Mudae. Ela não é mais carregada, mas continua testada (`test/gacha-*.test.mjs`) e serve de referência.
 - As vozes de personagens por IA foram retiradas na 1.4.0. `desktop/voice-engine/`, os scripts de voz de `desktop/tools/` e `docs/VOZ-IA.md` guardam o experimento, e o pacote do app exclui `lib/voice-*`.
 - O `.gitignore` da raiz mantém `AGENTS.md`, `CLAUDE.md`, `.claude/` e `.codex/` locais. Não os versione.
@@ -120,4 +122,6 @@ Os apps têm versões próprias e só precisam ser publicados quando suas pastas
 - [`discord-clone/desktop/store/LOJA.md`](../discord-clone/desktop/store/LOJA.md): textos e respostas da Microsoft Store.
 - [`discord-clone/tools/voice-chosen/README.md`](../discord-clone/tools/voice-chosen/README.md): laboratório dos efeitos de voz.
 - [`discord-clone/tools/stream-lab/README.md`](../discord-clone/tools/stream-lab/README.md): laboratório da transmissão de tela (nitidez, FPS, travadas e atraso, antes × depois, P2P e SFU). Mudou codec, camada ou taxa da transmissão? Meça com ele antes de concluir que melhorou.
+- [`ORGANIZACAO.md`](../ORGANIZACAO.md): todas as pastas, onde guardar cada arquivo novo, branches e worktrees.
+- [`ESTADO-ATUAL.md`](ESTADO-ATUAL.md): como publicar sem susto, como medir e o retrato do plano de 5 mil (25/10).
 - [`ROADMAP.md`](ROADMAP.md), [`planos/`](planos/) e [`relatorios/`](relatorios/): planejamento e histórico.

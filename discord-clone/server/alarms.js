@@ -1,4 +1,4 @@
-// Alarmes por e-mail (Fase 7 do docs/plano-5000-online.md). A cada amostra do medidor de saúde (server/health.js),
+// Alarmes por e-mail (Fase 7 do docs/planos/PLANO-5000-ONLINE-2026-10-24.md). A cada amostra do medidor de saúde (server/health.js),
 // confere as medidas abaixo. Quando uma fica acima do limite por um tempo, o dono do site recebe um e-mail; quando ela
 // volta ao normal, outro. Cada alarme manda no máximo um e-mail a cada 6 h: um problema que vai e volta não lota a
 // caixa de entrada.

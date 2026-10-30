@@ -1,4 +1,4 @@
-// Fase 7 do docs/plano-5000-online.md: limites contra abuso e sessões antigas, com o servidor de verdade.
+// Fase 7 do docs/planos/PLANO-5000-ONLINE-2026-10-24.md: limites contra abuso e sessões antigas, com o servidor de verdade.
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const { spawn } = require('node:child_process');

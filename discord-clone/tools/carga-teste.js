@@ -8,7 +8,7 @@
 //   na mesma pasta do server.js, para os require relativos funcionarem; apague depois).
 //   SETTLE=6000 espera as conexões assentarem antes de medir (padrão 1500 ms).
 // Criar servidor tem limite de 5 por minuto: por isso o teste cria um de modelo e copia os outros direto no banco.
-// Mais em docs/plano-5000-online.md (Fase 0 pede uma versão mais completa deste simulador).
+// Mais em docs/planos/PLANO-5000-ONLINE-2026-10-24.md (Fase 0 pede uma versão mais completa deste simulador).
 const { spawn, execFileSync } = require('node:child_process');
 const fs = require('node:fs');
 const os = require('node:os');

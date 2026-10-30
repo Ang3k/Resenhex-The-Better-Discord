@@ -2,7 +2,7 @@
 // Monta em memória um banco do tamanho pedido, usa o server/communities.js de verdade e repete os laços do server.js
 // (socialFor, sharedState, notifyAccount, communities.list e o agendamento dos castigos ao ligar).
 //   ACCOUNTS=50000 SERVERS=10000 node tools/varreduras.js
-// O servidor ARM é ~1,7× mais lento que o PC. Mais em docs/plano-5000-online.md (problemas 2 e 3, Fase 4a).
+// O servidor ARM é ~1,7× mais lento que o PC. Mais em docs/planos/PLANO-5000-ONLINE-2026-10-24.md (problemas 2 e 3, Fase 4a).
 const crypto = require('node:crypto');
 const { communityStore } = require('../server/communities');
 
