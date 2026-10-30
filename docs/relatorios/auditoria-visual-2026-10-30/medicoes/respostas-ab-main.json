@@ -1,0 +1,145 @@
+{
+ "menus_modais": [
+  {
+   "segundos": 35.29,
+   "cpu_ms_por_s": {
+    "browser": 48.7,
+    "renderer": 1069.8,
+    "gpu": 159.3,
+    "outros": 125.8
+   },
+   "thread_principal_ms_por_s": 539.3,
+   "script_ms_por_s": 95.7,
+   "estilo_ms_por_s": 84.9,
+   "layout_ms_por_s": 50.5,
+   "recalc_estilo": 660,
+   "layouts": 227,
+   "pinturas": 400,
+   "pinturas_por_s": 11.3,
+   "quadros": 2059,
+   "quadros_por_s": 58.3,
+   "estados_quadro": {
+    "desconhecido": 2059
+   },
+   "commits": 1253,
+   "timers_por_s": 26.2,
+   "tarefas_longas": 38,
+   "maior_tarefa_ms": 1256,
+   "loaf": 59,
+   "maior_loaf_ms": 1275,
+   "eventos": 72,
+   "maior_resposta_ms": 1384,
+   "respostas_acima_100ms": 38,
+   "quadros_raf": 987,
+   "quadros_atrasados": 91,
+   "pct_atrasados": 9.2,
+   "fps_medio": 33.9,
+   "p95_quadro_ms": 66.7,
+   "por_acao": {
+    "menu-membro": 144,
+    "emoji": 496,
+    "menu-servidor": 96,
+    "perfil": 112,
+    "configuracoes": 464,
+    "canal-memes": 352,
+    "canal-geral": 1384,
+    "servidor-2": 96,
+    "servidor-1": 64
+   }
+  },
+  {
+   "segundos": 36.62,
+   "cpu_ms_por_s": {
+    "browser": 47.5,
+    "renderer": 1078,
+    "gpu": 161.4,
+    "outros": 133
+   },
+   "thread_principal_ms_por_s": 554.1,
+   "script_ms_por_s": 104.9,
+   "estilo_ms_por_s": 82.8,
+   "layout_ms_por_s": 40.4,
+   "recalc_estilo": 653,
+   "layouts": 230,
+   "pinturas": 429,
+   "pinturas_por_s": 11.7,
+   "quadros": 2111,
+   "quadros_por_s": 57.6,
+   "estados_quadro": {
+    "desconhecido": 2111
+   },
+   "commits": 1255,
+   "timers_por_s": 25.5,
+   "tarefas_longas": 41,
+   "maior_tarefa_ms": 1667,
+   "loaf": 62,
+   "maior_loaf_ms": 1682,
+   "eventos": 72,
+   "maior_resposta_ms": 1808,
+   "respostas_acima_100ms": 44,
+   "quadros_raf": 986,
+   "quadros_atrasados": 100,
+   "pct_atrasados": 10.1,
+   "fps_medio": 32.8,
+   "p95_quadro_ms": 83.3,
+   "por_acao": {
+    "menu-membro": 136,
+    "emoji": 552,
+    "menu-servidor": 96,
+    "perfil": 120,
+    "configuracoes": 544,
+    "canal-memes": 240,
+    "canal-geral": 1808,
+    "servidor-2": 168,
+    "servidor-1": 88
+   }
+  },
+  {
+   "segundos": 33.37,
+   "cpu_ms_por_s": {
+    "browser": 47.6,
+    "renderer": 1070.5,
+    "gpu": 166.6,
+    "outros": 124.4
+   },
+   "thread_principal_ms_por_s": 541.6,
+   "script_ms_por_s": 100.3,
+   "estilo_ms_por_s": 89.6,
+   "layout_ms_por_s": 48.7,
+   "recalc_estilo": 651,
+   "layouts": 226,
+   "pinturas": 411,
+   "pinturas_por_s": 12.3,
+   "quadros": 1971,
+   "quadros_por_s": 59.1,
+   "estados_quadro": {
+    "desconhecido": 1971
+   },
+   "commits": 1188,
+   "timers_por_s": 26.6,
+   "tarefas_longas": 35,
+   "maior_tarefa_ms": 1397,
+   "loaf": 56,
+   "maior_loaf_ms": 1424,
+   "eventos": 72,
+   "maior_resposta_ms": 1512,
+   "respostas_acima_100ms": 46,
+   "quadros_raf": 925,
+   "quadros_atrasados": 90,
+   "pct_atrasados": 9.7,
+   "fps_medio": 33.3,
+   "p95_quadro_ms": 66.7,
+   "por_acao": {
+    "menu-membro": 136,
+    "emoji": 464,
+    "menu-servidor": 112,
+    "perfil": 144,
+    "configuracoes": 616,
+    "canal-memes": 304,
+    "canal-geral": 1512,
+    "servidor-2": 120,
+    "servidor-1": 64
+   }
+  }
+ ]
+}

@@ -1,0 +1,11 @@
+Microteste (ferramentas/bench-var.js): inserir 2000 botões com transição e forçar estilo + layout, CPU 4×, 7 rodadas.
+Pergunta: as molas linear() de ~29 pontos passadas por var() custam mais por elemento que um cubic-bezier?
+
+caso                     mediana (ms)   rodadas (ms)
+sem transição            161,7          142 153 157 162 170 189 226
+var(cubic-bezier)        162,7          122 123 158 163 163 207 208
+var(linear 29 pontos)    165,6          82 115 116 166 181 199 233
+linear literal           177,6          130 134 144 178 181 182 226
+cubic-bezier literal     143,4          128 133 139 143 180 182 286
+
+Leitura: a diferença entre os casos fica dentro da variação entre rodadas; nenhum custo mensurável das molas linear() nesta escala.
