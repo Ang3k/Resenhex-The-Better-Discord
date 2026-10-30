@@ -209,6 +209,8 @@
   const statusTextOf = (m) => (m?.id === state.me?.accountId ? state.statusText : m?.statusText) || '';
   // "Jogando agora": o jogo que o app do Windows reconheceu ({ name, since }), igual para todo mundo.
   const playingText = (m) => (m?.activity ? 'Jogando ' + m.activity.name : '');
+  // Na lista de membros e nos amigos: com o ícone e o nome do jogo em destaque.
+  const playingLine = (m, cls) => el('div', { class: cls + ' playing' }, Icon('gamepad', 13), el('span', {}, 'Jogando ', el('strong', { textContent: m.activity.name })));
   function playingSince(since) {
     const minutes = Math.floor((Date.now() - since) / 60000);
     if (minutes < 1) return 'Começou agora';
@@ -1542,7 +1544,7 @@
         let sub = '';
         if (timedOut(m)) sub = 'De castigo até ' + formatUntil(m.timeoutUntil);
         else if (v?.sharing) sub = 'Transmitindo em ' + (channelById(v.channel)?.name || 'um canal de voz');
-        else if (m.activity) sub = el('div', { class: 'sub playing' }, Icon('gamepad', 13), el('span', {}, 'Jogando ', el('strong', { textContent: m.activity.name })));
+        else if (m.activity) sub = playingLine(m, 'sub');
         else if (v) sub = 'Em ' + (channelById(v.channel)?.name || 'um canal de voz');
         else sub = statusTextOf(m);
         list.append(el('div', {
@@ -3091,7 +3093,8 @@
     const v = voiceOf(m);
     if (!m.online) return 'Offline';
     if (v) return 'Em ' + (channelById(v.channel)?.name || 'um canal de voz');
-    return playingText(m) || statusTextOf(m) || presenceLabel(m);
+    if (m.activity) return playingLine(m, 'friend-sub');
+    return statusTextOf(m) || presenceLabel(m);
   };
 
   function friendButton(icon, label, onclick, cls = '') {
@@ -3103,7 +3106,7 @@
       el('div', { class: 'avatar-wrap' }, avatar(m), statusDot(m)),
       el('div', { class: 'friend-info' },
         el('div', { class: 'friend-name', style: { color: nameColor(m) || '' }, textContent: m.name }),
-        el('div', { class: 'friend-sub', textContent: sub })),
+        typeof sub === 'string' ? el('div', { class: 'friend-sub', textContent: sub }) : sub),
       el('div', { class: 'friend-actions' }, actions));
   }
 
@@ -3360,7 +3363,7 @@
     dialog.body.append(el('div', { class: 'welcome-steps' },
       server
         ? step('volume', 'brand', `Você já está em ${server}`, 'Entre numa sala de voz para falar com a turma, ou mande um oi no chat.')
-        : step('users', 'brand', 'Monte a sua turma', 'Crie um servidor e mande o convite no grupo, ou entre pelo link que te mandaram.'),
+        : step('users', 'brand', 'Monte a sua turma', 'Crie um servidor e mande o convite no grupo, ou entre pelo link que te mandaram.', ['Criar servidor', () => $('#btn-add-server').click()]),
       step('pencil', 'pink', 'Deixe o perfil com a sua cara', 'Foto, banner, fundo e um Sobre mim para a galera te conhecer.', ['Editar perfil', () => { closePanels(); preferences.open('profile'); }]),
       app),
     el('div', { class: 'dialog-actions' }, el('button', { type: 'button', class: 'btn-primary', textContent: 'Bora!', onclick: () => dialog.close() })));

@@ -125,6 +125,7 @@ button.pc-role.add:hover { background: rgba(255, 255, 255, .12); color: var(--te
 #profile-card.has-bg .pc-panel :is(.pc-label, .pc-since, .muted-text) { color: var(--text-strong); }
 #profile-card.has-bg .pc-bio { color: var(--text-strong); }
 #profile-card.has-bg .pc-playing-text span { color: var(--text); }
+#profile-card.has-bg .pc-playing-icon { background: rgb(0 0 0 / .45); backdrop-filter: blur(10px); }
 #profile-card.has-bg .pc-bio-add { background: rgb(0 0 0 / .45); backdrop-filter: blur(10px); color: var(--text); }
 #profile-card.has-bg .pc-role { background: rgb(255 255 255 / .08); }
 

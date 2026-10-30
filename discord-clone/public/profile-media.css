@@ -169,7 +169,8 @@ html.touch .sound-trim-wave { height: 88px; }
 
 /* Sobre mim: o campo com o contador no canto */
 #page-profile .profile-bio-field { position: relative; }
-#settings .settings-content #profile-bio { display: block; width: 100%; min-height: 104px; padding: 12px 14px 28px; resize: vertical; font: inherit; font-size: 14px; line-height: 1.45; border-radius: 14px; }
+/* Cresce com o texto (sem rolar por baixo do contador); só rola em textos com muitas linhas vazias. */
+#settings .settings-content #profile-bio { display: block; width: 100%; min-height: 104px; max-height: 280px; field-sizing: content; contain: inline-size; padding: 12px 14px 28px; resize: vertical; font: inherit; font-size: 14px; line-height: 1.45; border-radius: 14px; }
 #settings .settings-content #profile-bio::placeholder { color: var(--text-muted); }
 #page-profile .profile-bio-count { position: absolute; right: 12px; bottom: 8px; color: var(--text-muted); font-size: 11px; font-variant-numeric: tabular-nums; pointer-events: none; }
 #page-profile .profile-bio-count.near { color: var(--yellow, #f0b232); }
@@ -280,6 +281,7 @@ html.touch .sound-trim-wave { height: 88px; }
 /* O texto formatado não herda o tamanho do nome e da presença da prévia. */
 #page-profile .profile-preview-bio p :is(strong, span) { font-size: inherit; }
 #page-profile .profile-preview-bio p span:not([class]) { color: inherit; }
+#page-profile .profile-preview-bio p .spoiler:not(.revealed) { color: transparent; }
 #page-profile .profile-preview.has-bg .profile-preview-bio p { color: var(--text-strong); text-shadow: 0 1px 3px rgb(0 0 0 / .8); }
 #page-profile .profile-chat-message { display: flex; align-items: flex-start; gap: 10px; min-width: 0; }
 #page-profile #profile-preview-chat-avatar { flex-shrink: 0; width: 36px; height: 36px; margin: 0; border: 0; font-size: 14px; background: var(--pc-color); }
