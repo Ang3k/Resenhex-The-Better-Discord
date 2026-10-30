@@ -53,11 +53,14 @@ window.AndroidApp = (() => {
     if (backgrounded === !visible) return;
     backgrounded = !visible;
     visibilityHandler?.(!!visible);
+    // O motion.js pausa as animações contínuas com o app fora da tela.
+    window.dispatchEvent(new CustomEvent('resenhex:app-visibility', { detail: { visible: !!visible } }));
   }
   if (!nativeVisibility) {
     window.addEventListener('blur', () => appVisibilityChanged(false));
     window.addEventListener('focus', () => appVisibilityChanged(true));
   }
+  if (backgrounded) window.dispatchEvent(new CustomEvent('resenhex:app-visibility', { detail: { visible: false } }));
   // A página acabou de abrir: se ela recarregou no meio de uma call, a call acabou junto.
   bridge.callState(false, '', false);
 

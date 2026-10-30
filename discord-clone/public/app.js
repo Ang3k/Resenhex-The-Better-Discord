@@ -4991,6 +4991,7 @@
 
   // Mantém o círculo verde por um instante depois da última sílaba, para não piscar entre palavras.
   const lastLoud = new Map(); // sid -> hora do último som
+  let speakingDirty = false; // anel de quem fala por aplicar (a página estava escondida)
 
   // ---------------- CLIPAR: os últimos 30 s da chamada ----------------
   // Cada voz que a chamada ouve também vai para um anel de 30 s por conta (clip-buffer.js). Nada sai
@@ -5086,10 +5087,14 @@
         changed = true;
       }
     }
-    if (changed) {
+    if (changed) syncOverlay(); // o overlay dos jogos acompanha mesmo com a página escondida
+    // Página escondida (aba em segundo plano, app de Android fora da tela): ninguém vê o anel, então a página não se
+    // redesenha; ao voltar, atualiza de uma vez. Só perder o foco não conta: numa segunda tela o anel continua informando.
+    if (changed) speakingDirty = true;
+    if (speakingDirty && !micInBackground()) {
+      speakingDirty = false;
       document.querySelectorAll('.avatar[data-sid]').forEach((node) => node.classList.toggle('speaking', state.speaking.has(node.dataset.sid)));
       document.querySelectorAll('#stage .tile[data-key^="user-"]').forEach((node) => node.classList.toggle('speaking', state.speaking.has(node.dataset.key.slice(5))));
-      syncOverlay();
     }
   }, 100);
 

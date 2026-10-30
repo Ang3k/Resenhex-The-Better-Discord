@@ -246,3 +246,12 @@
 .stream-preview .sp-frame { transition: opacity .7s ease; }
 .stream-preview .sp-img { transition: transform var(--motion-large) var(--ease-enter); }
 html:not(.touch) .tile.screen.has-preview:hover .stream-preview .sp-img { transform: scale(1.03); }
+
+/* ---------- Janela em segundo plano (motion.js liga .bg-window) ---------- */
+/* Só sobram animações infinitas de atividade real (quem fala, carregando, DJ tocando, chamada tocando, gravação,
+   roleta do Mudae). Com a janela escondida ou sem foco elas param onde estão e voltam dali. Toda animação
+   infinita nova entra nesta lista (uma lista explícita não obriga o navegador a recalcular a página inteira). */
+.bg-window :is(.speak-bars i, .watch-spinner, .campv-spinner, .lb-spinner, .ic-pulse, .dcb-icon, .dm-call-flag, .keybind-wait,
+  .dj-stage-badge .ico, .ico-disc, .dj-avatar .ico, .dj-eq i, .salon-reel, .salon-card, .salon-card-back, .salon-card-back svg,
+  .voice-rec-dot, .typing-dots i, .boot-mark, .boot-glow) { animation-play-state: paused; }
+.bg-window :is(.salon-reel, .salon-card, .ic-pulse)::after { animation-play-state: paused; }

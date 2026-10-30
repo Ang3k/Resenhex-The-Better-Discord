@@ -47,5 +47,18 @@ window.Motion = (() => {
       node.style.animation = '';
     },
   };
+
+  // Janela em segundo plano: aba escondida, janela sem foco (jogo na frente, app minimizado) ou app de Android
+  // fora da tela. As animações contínuas que sobraram (quem fala, carregando, DJ, chamada tocando) param
+  // (motion.css, .bg-window). No app de Windows a página minimizada continua "visível" para o site
+  // (backgroundThrottling: false), então o foco da janela é o sinal; foco que foi para um iframe do app não conta.
+  const root = document.documentElement;
+  let androidHidden = false;
+  const syncBackground = () => root.classList.toggle('bg-window', document.hidden || androidHidden || !document.hasFocus());
+  document.addEventListener('visibilitychange', syncBackground);
+  window.addEventListener('focus', syncBackground);
+  window.addEventListener('blur', () => setTimeout(syncBackground, 0));
+  window.addEventListener('resenhex:app-visibility', (e) => { androidHidden = !e.detail?.visible; syncBackground(); });
+  syncBackground();
   return api;
 })();
