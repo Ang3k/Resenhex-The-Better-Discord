@@ -1,0 +1,98 @@
+{
+ "menus_modais": [
+  {
+   "segundos": 38.46,
+   "cpu_ms_por_s": {
+    "browser": 56.7,
+    "renderer": 1083.5,
+    "gpu": 158.9,
+    "outros": 155
+   },
+   "thread_principal_ms_por_s": 544.4,
+   "script_ms_por_s": 89,
+   "estilo_ms_por_s": 83.8,
+   "layout_ms_por_s": 54,
+   "recalc_estilo": 647,
+   "layouts": 228,
+   "pinturas": 397,
+   "pinturas_por_s": 10.3,
+   "quadros": 2134,
+   "quadros_por_s": 55.5,
+   "estados_quadro": {
+    "desconhecido": 2134
+   },
+   "commits": 1226,
+   "timers_por_s": 24.1,
+   "tarefas_longas": 43,
+   "maior_tarefa_ms": 1416,
+   "loaf": 55,
+   "maior_loaf_ms": 1509,
+   "eventos": 72,
+   "maior_resposta_ms": 1368,
+   "respostas_acima_100ms": 43,
+   "quadros_raf": 967,
+   "quadros_atrasados": 96,
+   "pct_atrasados": 9.9,
+   "fps_medio": 31.8,
+   "p95_quadro_ms": 66.7,
+   "por_acao": {
+    "menu-membro": 136,
+    "emoji": 552,
+    "menu-servidor": 96,
+    "perfil": 168,
+    "configuracoes": 648,
+    "canal-memes": 328,
+    "canal-geral": 1368,
+    "servidor-2": 176,
+    "servidor-1": 72
+   }
+  },
+  {
+   "segundos": 37.34,
+   "cpu_ms_por_s": {
+    "browser": 54.4,
+    "renderer": 1088.8,
+    "gpu": 168.7,
+    "outros": 141.7
+   },
+   "thread_principal_ms_por_s": 548.2,
+   "script_ms_por_s": 94.9,
+   "estilo_ms_por_s": 87,
+   "layout_ms_por_s": 48.2,
+   "recalc_estilo": 625,
+   "layouts": 227,
+   "pinturas": 406,
+   "pinturas_por_s": 10.9,
+   "quadros": 2123,
+   "quadros_por_s": 56.9,
+   "estados_quadro": {
+    "desconhecido": 2123
+   },
+   "commits": 1218,
+   "timers_por_s": 24.7,
+   "tarefas_longas": 44,
+   "maior_tarefa_ms": 1386,
+   "loaf": 60,
+   "maior_loaf_ms": 1402,
+   "eventos": 72,
+   "maior_resposta_ms": 1504,
+   "respostas_acima_100ms": 50,
+   "quadros_raf": 958,
+   "quadros_atrasados": 98,
+   "pct_atrasados": 10.2,
+   "fps_medio": 31.8,
+   "p95_quadro_ms": 83.3,
+   "por_acao": {
+    "menu-membro": 136,
+    "emoji": 592,
+    "menu-servidor": 128,
+    "perfil": 136,
+    "configuracoes": 512,
+    "canal-memes": 336,
+    "canal-geral": 1504,
+    "servidor-2": 128,
+    "servidor-1": 64
+   }
+  }
+ ]
+}
