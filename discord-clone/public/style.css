@@ -218,7 +218,7 @@ html.moving body { visibility: hidden; } /* mudando para o endereço oficial do 
 .avatar-wrap { position: relative; flex-shrink: 0; }
 .status { position: absolute; right: -2px; bottom: -2px; width: 10px; height: 10px; border-radius: 50%; box-shadow: 0 0 0 3px var(--ring, var(--bg-panel)); }
 .status.online { background: var(--green); }
-.status.offline { background: #80848e; }
+.status.offline { background: var(--status-offline); }
 
 /* Painel "Voz conectada" */
 #voice-panel { background: var(--bg-panel); padding: 8px; border-bottom: 1px solid var(--divider); }
@@ -256,7 +256,7 @@ html.moving body { visibility: hidden; } /* mudando para o endereço oficial do 
 .card .mic-test button { flex-shrink: 0; }
 .mic-meter { flex: 1; height: 8px; border-radius: 4px; background: var(--bg-rail); overflow: hidden; }
 #mic-meter-fill { height: 100%; background: var(--green); transform: scaleX(0); transform-origin: left; transition: transform 100ms linear; }
-#mic-meter-fill.closed { background: #80848e; }
+#mic-meter-fill.closed { background: var(--status-offline); }
 .mic-meter { position: relative; }
 #sens-mark { position: absolute; top: -3px; bottom: -3px; width: 3px; margin-left: -1px; background: #fff; border-radius: 2px; }
 .card input[type=range] { accent-color: var(--brand); padding: 0; }
@@ -329,7 +329,7 @@ html.moving body { visibility: hidden; } /* mudando para o endereço oficial do 
 .msg-text.jumbo { font-size: 44px; line-height: 1.2; }
 .edited { color: var(--text-muted); font-size: 10px; }
 .reply-ref { grid-column: 2; display: flex; align-items: center; gap: 4px; font-size: 14px; color: var(--interactive); cursor: pointer; min-width: 0; position: relative; margin-bottom: 2px; }
-.reply-curve { position: absolute; left: -38px; top: 50%; width: 33px; height: 13px; border-left: 2px solid #4e5058; border-top: 2px solid #4e5058; border-top-left-radius: 6px; }
+.reply-curve { position: absolute; left: -38px; top: 50%; width: 33px; height: 13px; border-left: 2px solid var(--line-strong); border-top: 2px solid var(--line-strong); border-top-left-radius: 6px; }
 .reply-author { font-weight: 500; flex-shrink: 0; opacity: .9; }
 .reply-snippet { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text-muted); }
 .reply-ref:hover .reply-snippet { color: var(--text); }
@@ -448,7 +448,7 @@ blockquote { margin: 2px 0; padding: 0 8px 0 12px; border-left: 4px solid color-
   grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); align-content: center;
 }
 .tile {
-  position: relative; background: color-mix(in srgb, var(--tile, #5865f2) 22%, #1e1f22); border-radius: 8px; aspect-ratio: 16 / 9;
+  position: relative; background: color-mix(in srgb, var(--tile, var(--brand)) 22%, var(--bg-sidebar)); border-radius: 8px; aspect-ratio: 16 / 9;
   display: flex; align-items: center; justify-content: center; overflow: hidden;
   box-shadow: inset 0 0 0 2px transparent; transition: none;
 }
@@ -534,8 +534,8 @@ blockquote { margin: 2px 0; padding: 0 8px 0 12px; border-left: 4px solid color-
 }
 .sc-btn:hover:not(:disabled) { background: color-mix(in srgb, var(--text) 12%, var(--bg-panel)); }
 .sc-btn:active:not(:disabled) { transform: scale(.95); }
-.sc-btn.off { background: #fff; color: #313338; }
-.sc-btn.on { background: #fff; color: #313338; }
+.sc-btn.off { background: #fff; color: var(--bg-main); }
+.sc-btn.on { background: #fff; color: var(--bg-main); }
 .sc-btn.hangup { background: var(--red-dark); }
 .sc-btn.hangup:hover { background: #a12829; }
 .sc-btn.hangup .ico { transform: rotate(135deg); }
@@ -564,8 +564,8 @@ blockquote { margin: 2px 0; padding: 0 8px 0 12px; border-left: 4px solid color-
 .card button.close { background: transparent; color: var(--interactive); padding: 4px; display: grid; }
 .card button.close:hover { background: transparent; color: var(--text); }
 .buttons { display: flex; gap: 8px; justify-content: flex-end; flex-wrap: wrap; }
-.card button.secondary { background: #4e5058; }
-.card button.secondary:hover:not(:disabled) { background: #6d6f78; }
+.card button.secondary { background: var(--line-strong); }
+.card button.secondary:hover:not(:disabled) { background: var(--line-stronger); }
 .card button.danger-text { background: var(--red-dark); color: #fff; }
 .card button.danger-text:hover:not(:disabled) { background: #a12829; }
 .card button:disabled { opacity: .5; }
@@ -598,7 +598,7 @@ blockquote { margin: 2px 0; padding: 0 8px 0 12px; border-left: 4px solid color-
 .row.gap input:not([type]) { flex: 1; min-width: 0; }
 .card label.inline { flex-direction: row; align-items: center; }
 .channel-row { background: var(--bg-sidebar); border-radius: 8px; padding: 12px; margin-bottom: 8px; display: flex; flex-direction: column; gap: 8px; }
-.channel-row.new { border: 1px dashed #4e5058; background: transparent; }
+.channel-row.new { border: 1px dashed var(--line-strong); background: transparent; }
 .channel-row .category { padding: 0; font-size: 12px; font-weight: 700; color: var(--text-muted); }
 .channel-row .icon { width: 20px; display: grid; place-items: center; color: var(--text-muted); }
 .card .channel-row button, .card .ban-row button { padding: 8px 12px; }

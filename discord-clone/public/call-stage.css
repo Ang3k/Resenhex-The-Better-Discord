@@ -130,7 +130,7 @@
   flex-shrink: 0; padding: 1px 6px; border-radius: 4px; background: var(--red); color: #fff;
   font-size: 10px; font-weight: 800; letter-spacing: .05em; line-height: 16px;
 }
-.live-pill.paused { background: #4e5058; }
+.live-pill.paused { background: var(--line-strong); }
 
 /* Barras de fala: aparecem ao lado do nome enquanto a pessoa fala (claro até com a câmera ligada). */
 .speak-bars { display: none; align-items: flex-end; gap: 2px; height: 12px; flex-shrink: 0; }

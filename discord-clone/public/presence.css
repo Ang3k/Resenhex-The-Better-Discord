@@ -5,7 +5,7 @@
 .status { --cut: var(--ring, var(--bg-panel)); transition: none; }
 .status.idle { background: var(--yellow); }
 .status.dnd { background: var(--red); }
-.status.offline, .status.invisible { background: #80848e; }
+.status.offline, .status.invisible { background: var(--status-offline); }
 .status.idle::after, .status.dnd::after, .status.offline::after, .status.invisible::after,
 .pc-status.idle::after, .pc-status.dnd::after, .pc-status.offline::after, .pc-status.invisible::after {
   content: ''; position: absolute; background: var(--cut); pointer-events: none;
@@ -17,7 +17,7 @@
 .pc-status { --cut: var(--bg-sidebar); }
 .pc-status.idle { background: var(--yellow); }
 .pc-status.dnd { background: var(--red); }
-.pc-status.invisible { background: #80848e; }
+.pc-status.invisible { background: var(--status-offline); }
 #profile-card.has-bg .pc-status { --cut: var(--pc-surface, #18181b); }
 
 /* Ícone solto: menus, botões e etiquetas do perfil. */
@@ -25,7 +25,7 @@
 .pc-dot { width: 9px; height: 9px; }
 .status-glyph.idle, .pc-dot.idle { background: var(--yellow); -webkit-mask: radial-gradient(circle at 18% 18%, transparent 36%, #000 37%); mask: radial-gradient(circle at 18% 18%, transparent 36%, #000 37%); }
 .status-glyph.dnd, .pc-dot.dnd { background: var(--red); -webkit-mask: linear-gradient(#000 0 0) center / 62% 22% no-repeat, linear-gradient(#000 0 0); -webkit-mask-composite: xor; mask: linear-gradient(#000 0 0) center / 62% 22% no-repeat exclude, linear-gradient(#000 0 0); }
-.status-glyph.offline, .status-glyph.invisible, .pc-dot.offline, .pc-dot.invisible { background: #80848e; -webkit-mask: radial-gradient(circle, transparent 28%, #000 30%); mask: radial-gradient(circle, transparent 28%, #000 30%); }
+.status-glyph.offline, .status-glyph.invisible, .pc-dot.offline, .pc-dot.invisible { background: var(--status-offline); -webkit-mask: radial-gradient(circle, transparent 28%, #000 30%); mask: radial-gradient(circle, transparent 28%, #000 30%); }
 .pc-tag.idle { color: var(--yellow); }
 .pc-tag.dnd { color: color-mix(in srgb, var(--red) 80%, #fff); }
 
