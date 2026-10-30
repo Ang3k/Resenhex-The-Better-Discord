@@ -129,6 +129,65 @@
 #emoji-picker .ep-emoji { transition: transform var(--spring-pop-dur) var(--spring-pop); }
 #emoji-picker .ep-emoji:hover { transform: scale(1.18); }
 
+/* ---------- Gestos dos ícones do dia a dia ---------- */
+/* Cada ícone faz, uma vez, o gesto da própria metáfora quando o mouse chega (só com mouse de verdade). O SVG
+   inteiro se mexe com transform; partes só onde a metáfora pede (tampa da lixeira). Somam-se aos de cima
+   (microfone, fone, claquete, engrenagem…). "Reduzir animações" desliga tudo pela regra global. */
+.ico-trash .lid { transform-box: view-box; transform-origin: 20px 6px; transition: transform var(--spring-snappy-dur) var(--spring-snappy); }
+:is(.ico-plus, .ico-x, .ico-refresh) { transition: transform var(--spring-snappy-dur) var(--spring-snappy); }
+@media (hover: hover) and (pointer: fine) {
+  :is(button, a, [role="button"], .menu-item):hover:not(:disabled) .ico-reply { animation: g-reply .5s var(--spring); }
+  :is(button, a, [role="button"], .menu-item):hover:not(:disabled) :is(.ico-smilePlus, .ico-userPlus, .ico-check) { animation: g-pop .45s var(--spring); }
+  :is(button, a, [role="button"], .menu-item):hover:not(:disabled) .ico-pencil { animation: g-write .55s ease-in-out; }
+  :is(button, a, [role="button"], .menu-item):hover:not(:disabled) .ico-trash .lid { transform: translateY(-1.5px) rotate(14deg); }
+  :is(button, a, [role="button"]):not(.dialog-close):hover:not(:disabled) > :is(.ico-plus, .ico-x),
+  :is(button, a, [role="button"]):hover:not(:disabled) > .rail-icon > .ico-plus { transform: rotate(90deg); }
+  :is(button, a, [role="button"], .menu-item):hover:not(:disabled) .ico-refresh { transform: rotate(180deg); }
+  :is(#btn-dm-call, .ic-btn.accept, .dcb-btn):hover .ico-phone { animation: g-ring .6s ease-in-out; }
+  :is(#btn-dm-video, .ic-btn.video):hover .ico-camera { animation: cam-flash .5s var(--spring); }
+  :is(#btn-voice-chat, #sc-chat, .pc-btn, .menu-item):hover:not(:disabled) .ico-message { animation: g-bounce .5s var(--spring); }
+  #btn-gif:hover:not(:disabled) .ico-gif { animation: g-wiggle .5s ease-in-out; }
+  #btn-voice-msg:hover:not(:disabled) .ico-mic { animation: mic-sway .62s cubic-bezier(.36, .07, .19, .97); }
+  :is(button, a, [role="button"], .menu-item):hover:not(:disabled) .ico-download { animation: g-drop .5s var(--spring); }
+  :is(button, a, [role="button"], .menu-item):hover:not(:disabled) .ico-upload { animation: g-rise .5s var(--spring); }
+  :is(button, a, [role="button"], .menu-item):hover:not(:disabled) :is(.ico-link, .ico-copy, .ico-externalLink) { animation: g-nudge .45s var(--spring); }
+  :is(button, a, [role="button"], .menu-item):hover:not(:disabled) :is(.ico-eye, .ico-eyeOff) { animation: g-blink .4s ease-in-out; }
+  :is(button, a, [role="button"], .menu-item):hover:not(:disabled) :is(.ico-pin, .ico-pinOff) { animation: g-poke .45s var(--spring); }
+  :is(button, a, [role="button"], .menu-item):hover:not(:disabled) .ico-sparkles { animation: g-twinkle .6s var(--spring); }
+  :is(button, a, [role="button"], .menu-item):hover:not(:disabled) .ico-dice { animation: g-roll .6s var(--spring-snappy); }
+  :is(button, a, [role="button"], .menu-item):hover:not(:disabled) :is(.ico-maximize, .ico-zoomIn) { animation: g-grow .45s var(--spring); }
+  :is(button, a, [role="button"], .menu-item):hover:not(:disabled) :is(.ico-minimize, .ico-zoomOut, .ico-shrink) { animation: g-shrink .45s var(--spring); }
+  :is(button, a, [role="button"], .menu-item):hover:not(:disabled) .ico-volume .wave { animation: g-wave .55s ease-out both; }
+  :is(button, a, [role="button"], .menu-item):hover:not(:disabled) .ico-volume .wave + .wave { animation-delay: 90ms; }
+  :is(button, a, [role="button"], .menu-item):hover:not(:disabled) .ico-gamepad { animation: g-shake .45s ease-in-out; }
+}
+@keyframes g-reply { 40% { transform: translateX(-3px) rotate(-10deg); } 70% { transform: translateX(1px); } }
+@keyframes g-pop { 40% { transform: scale(1.2) rotate(-8deg); } }
+@keyframes g-write { 25% { transform: translate(-1px, 1px) rotate(-8deg); } 55% { transform: translate(2px, -1px) rotate(6deg); } 80% { transform: translate(-.5px, .5px); } }
+@keyframes g-ring { 15%, 45% { transform: rotate(-14deg); } 30%, 60% { transform: rotate(14deg); } 75% { transform: rotate(-5deg); } }
+@keyframes g-bounce { 35% { transform: translateY(-2px) scale(1.08); } 65% { transform: translateY(.5px) scale(.97); } }
+@keyframes g-wiggle { 25% { transform: rotate(-9deg); } 50% { transform: rotate(7deg); } 75% { transform: rotate(-3deg); } }
+@keyframes g-drop { 40% { transform: translateY(2.5px); } 70% { transform: translateY(-1px); } }
+@keyframes g-rise { 40% { transform: translateY(-2.5px); } 70% { transform: translateY(1px); } }
+@keyframes g-nudge { 40% { transform: translate(1.5px, -1.5px) rotate(-6deg); } }
+@keyframes g-blink { 45% { transform: scaleY(.12); } }
+@keyframes g-poke { 35% { transform: translateY(2px) rotate(10deg); } }
+@keyframes g-twinkle { 30% { transform: scale(1.18) rotate(10deg); } 60% { transform: scale(.94) rotate(-4deg); } }
+@keyframes g-roll { 50% { transform: rotate(180deg) scale(1.12); } to { transform: rotate(360deg); } }
+@keyframes g-grow { 40% { transform: scale(1.16); } }
+@keyframes g-shrink { 40% { transform: scale(.84); } }
+@keyframes g-wave { from { opacity: .15; } }
+@keyframes g-shake { 20%, 60% { transform: translateX(-1.5px) rotate(-4deg); } 40%, 80% { transform: translateX(1.5px) rotate(4deg); } }
+
+/* Conectou: o painel de voz sobe no dock e as barras do sinal sobem uma a uma. */
+#voice-panel:not(.hidden) { animation: rise-in var(--motion-slow) var(--ease-enter); }
+.ico-signal .bar { transform-box: fill-box; transform-origin: 50% 100%; }
+#voice-panel:not(.hidden) .ico-signal .bar { animation: sig-rise .42s var(--spring-snappy) both; }
+#voice-panel:not(.hidden) .ico-signal .bar:nth-of-type(3) { animation-delay: 60ms; }
+#voice-panel:not(.hidden) .ico-signal .bar:nth-of-type(4) { animation-delay: 120ms; }
+#voice-panel:not(.hidden) .ico-signal .bar:nth-of-type(5) { animation-delay: 180ms; }
+@keyframes sig-rise { from { transform: scaleY(0); } }
+
 /* ---------- Resposta ao clique ---------- */
 .icon-btn, .vp-btn, .friend-btn, .pc-btn, .pc-icon-btn, .ft-tab, .msg-actions button, #chat-form button, .tc-btn, .cat-add, .group-action {
   transition-property: transform, opacity; transition-duration: var(--spring-snappy-dur); transition-timing-function: var(--spring-snappy);
