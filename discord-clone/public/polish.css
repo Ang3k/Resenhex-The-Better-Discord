@@ -30,6 +30,18 @@
 :root { --rail-w: 72px; --side-w: 252px; --bg-members: var(--bg-sidebar); --dock-gap: 8px; }
 /* Tons da cor da marca para texto e fundos (seguem o tema: roxo no padrão, azul no Meia-noite). */
 :root {
+  /* Verde de fundo para texto e ícone brancos: o verde puro dá 2,3:1 com o branco; este, 5,5:1 (4,9 no Meia-noite). */
+  --green-strong: color-mix(in srgb, var(--green) 62%, #000);
+  --green-stronger: color-mix(in srgb, var(--green) 52%, #000);
+  /* Restos do Discord que viraram tokens: seguem o tema em vez de ficar no cinza-azulado de lá. */
+  --status-offline: #80848e;
+  --line-strong: color-mix(in srgb, var(--text) 26%, var(--bg-main));
+  --line-stronger: color-mix(in srgb, var(--text) 38%, var(--bg-main));
+  /* Elevação em três níveis e um brilho de 1 px no topo do que flutua: a lâmina de vidro que o blur dava, sem o custo. */
+  --elev-1: 0 4px 14px rgba(0, 0, 0, .35);
+  --elev-2: 0 12px 32px rgba(0, 0, 0, .5);
+  --elev-3: 0 24px 80px rgba(0, 0, 0, .55);
+  --edge-light: inset 0 1px 0 rgba(255, 255, 255, .05);
   --brand-text: color-mix(in srgb, var(--brand) 50%, #fff);
   /* Anel de foco único: o roxo claro (~8:1 sobre os fundos); o roxo da marca puro ficava em ~2,7:1. */
   --focus-ring: var(--brand-text);
