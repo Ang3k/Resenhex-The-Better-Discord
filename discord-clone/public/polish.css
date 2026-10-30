@@ -93,7 +93,11 @@
 .icon-btn.active { color: var(--text-strong); }
 .icon-btn.noise.active { color: var(--green); }
 .icon-btn.hangup:hover { background: rgba(240, 86, 94, .14); color: var(--red); }
-.ico { stroke-width: 2; }
+/* Peso ótico: o Icon() engrossa o traço dos ícones pequenos (--ico-stroke) para ele nunca ficar abaixo de ~1,5 px na tela.
+   Ícones que o CSS encolhe ganham o mesmo ajuste aqui. */
+.ico { stroke-width: var(--ico-stroke, 2); }
+:is(.channel .lock, .voice-user .flags, #stage-strip > .tile .tb, #stage-strip > .tile .watch-btn, .mini-label) .ico { --ico-stroke: 2.5; }
+.channel-gear .ico { --ico-stroke: 2.4; }
 #tooltip { font-size: 13px; font-weight: 600; padding: 6px 10px; border-radius: 6px; background: var(--bg-floating); color: var(--text-strong); box-shadow: 0 6px 18px rgba(0, 0, 0, .45); }
 #tooltip.top::after { border-top-color: var(--bg-floating); }
 #tooltip.right::after { border-right-color: var(--bg-floating); }

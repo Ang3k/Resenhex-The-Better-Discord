@@ -4,7 +4,7 @@ window.Icon = (() => {
   const P = {
     menu: '<path d="M4 6h16M4 12h16M4 18h16"/>',
     hash: '<path d="M4 9h16M4 15h16M10 3 8 21M16 3l-2 18"/>',
-    volume: '<path d="M11 5 6 9H2v6h4l5 4z"/><path d="M15.5 8.5a5 5 0 0 1 0 7M19 5a10 10 0 0 1 0 14"/>',
+    volume: '<path d="M11 5 6 9H2v6h4l5 4z"/><path class="wave" d="M15.5 8.5a5 5 0 0 1 0 7"/><path class="wave" d="M19 5a10 10 0 0 1 0 14"/>',
     volumeX: '<path d="M11 5 6 9H2v6h4l5 4z"/><path d="m22 9-6 6M16 9l6 6"/>',
     lock: '<rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/>',
     mic: '<rect x="9" y="2" width="6" height="12" rx="3"/><path d="M19 10v1a7 7 0 0 1-14 0v-1M12 18v4"/>',
@@ -26,7 +26,8 @@ window.Icon = (() => {
     reply: '<path d="M9 17 4 12l5-5"/><path d="M20 18v-2a4 4 0 0 0-4-4H4"/>',
     send: '<path d="M3.7 3.05a.5.5 0 0 0-.68.63l2.84 7.62a2 2 0 0 1 0 1.4l-2.84 7.62a.5.5 0 0 0 .68.63l18-8.5a.5.5 0 0 0 0-.9z"/><path d="M6 12h16"/>',
     pencil: '<path d="M21.2 6.8a2.8 2.8 0 0 0-4-4L3.8 16.2a2 2 0 0 0-.5.8l-1.3 4.4a.5.5 0 0 0 .6.6l4.4-1.3a2 2 0 0 0 .8-.5z"/><path d="m15 5 4 4"/>',
-    trash: '<path d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2M10 11v6M14 11v6"/>',
+    // A tampa é um caminho à parte para levantar no hover (motion.css); o desenho é o mesmo.
+    trash: '<path class="lid" d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6M10 11v6M14 11v6"/>',
     users: '<path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.9M16 3.1a4 4 0 0 1 0 7.8"/>',
     chevronDown: '<path d="m6 9 6 6 6-6"/>',
     chevronRight: '<path d="m9 18 6-6-6-6"/>',
@@ -40,7 +41,8 @@ window.Icon = (() => {
     file: '<path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7z"/><path d="M14 2v4a2 2 0 0 0 2 2h4"/>',
     music: '<path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/>',
     download: '<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/>',
-    signal: '<path d="M2 20h.01M7 20v-4M12 20v-8M17 20V8M22 4v16"/>',
+    // Cada barra à parte: sobem uma a uma quando a voz conecta (motion.css).
+    signal: '<path d="M2 20h.01"/><path class="bar" d="M7 20v-4"/><path class="bar" d="M12 20v-8"/><path class="bar" d="M17 20V8"/><path class="bar" d="M22 4v16"/>',
     link: '<path d="M10 13a5 5 0 0 0 7.5.5l3-3a5 5 0 0 0-7-7l-1.8 1.7"/><path d="M14 11a5 5 0 0 0-7.5-.5l-3 3a5 5 0 0 0 7 7l1.7-1.7"/>',
     userCog: '<circle cx="10" cy="7" r="4"/><path d="M10.3 15H7a4 4 0 0 0-4 4v2"/><circle cx="18" cy="18" r="3"/><path d="M18 13.5v1.5M18 21v1.5M22.5 18H21M15 18h-1.5"/>',
     pause: '<circle cx="12" cy="12" r="10"/><path d="M10 15V9M14 15V9"/>',
@@ -101,6 +103,9 @@ window.Icon = (() => {
     svg.setAttribute('fill', 'none');
     svg.setAttribute('stroke', 'currentColor');
     svg.setAttribute('stroke-width', '2');
+    // Peso ótico: no quadro de 24, traço 2 desenhado a 14–16 px fica com 1,2–1,3 px e parece apagado;
+    // abaixo de 18 px o traço cresce para manter ~1,5 px na tela (polish.css usa --ico-stroke).
+    if (size < 18) svg.style.setProperty('--ico-stroke', (36 / size).toFixed(2));
     svg.setAttribute('stroke-linecap', 'round');
     svg.setAttribute('stroke-linejoin', 'round');
     svg.setAttribute('aria-hidden', 'true');
