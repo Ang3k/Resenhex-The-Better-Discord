@@ -48,7 +48,7 @@ Registro de trabalho para retomar de onde parou depois de uma interrupção. Lei
 
 ## Fase 4 — ondas
 
-- [ ] Onda 1 — Leveza (bg-window, blur, infinitas, transições, Mudae + reduzir animações, medidor de áudio)
+- [x] Onda 1 — Leveza (6 commits). Medido: palco da call 60,6 → 6,2 quadros/s e 49,9 → 1,6 pinturas/s (CPU 4×); sem lentidão, página 603 → 426 ms/s, GPU 43 → 3 ms/s, thread principal 218 → 31 ms/s. Testes: iguais ao `main` (falham só os 2 testes de voz que já falham no `main`, `desktop/test/lib.test.js` sem `npm install` e o smoke-test por tempo).
 - [ ] Onda 2 — Movimento (tokens com molas, clique)
 - [ ] Onda 3 — Ícones (peso ótico, trocas, gestos)
 - [ ] Onda 4 — Momentos assinatura
@@ -58,4 +58,4 @@ Registro de trabalho para retomar de onde parou depois de uma interrupção. Lei
 
 ## Próximo passo
 
-Começar a Onda 1 no ramo `visual-polish` (servidor "antes" pode ser subido de `$SP/main-wt/discord-clone`).
+Onda 2 (tokens de movimento com molas e clique que solta com mola).
