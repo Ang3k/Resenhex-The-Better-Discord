@@ -2,14 +2,15 @@
 
 /* ---------- setinha de dispositivos no microfone e na câmera ---------- */
 .sc-group { position: relative; display: flex; flex: 0 0 auto; }
+/* 24 px: o mínimo de alvo do WCAG 2.2 (2.5.8). Fica para fora o bastante para o botão embaixo manter 24 × 24 livres. */
 .sc-caret {
-  position: absolute; right: -4px; bottom: -4px; z-index: 1; display: grid; place-items: center;
-  width: 22px; height: 22px; padding: 0; border: 2px solid var(--bg-floating); border-radius: 50%;
+  position: absolute; right: -6px; bottom: -6px; z-index: 1; display: grid; place-items: center;
+  width: 24px; height: 24px; padding: 0; border: 2px solid var(--bg-floating); border-radius: 50%;
   background: var(--bg-panel); color: var(--text-strong); cursor: pointer; transition: transform .15s;
 }
 .sc-caret:hover { background: color-mix(in srgb, var(--text) 18%, var(--bg-panel)); transform: translateY(-1px); }
 .sc-caret:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 1px; }
-#main.dm-call .sc-caret { width: 20px; height: 20px; right: -5px; bottom: -5px; }
+@container (max-width: 440px) { #voice-view .sc-caret { right: -8px; bottom: -8px; } }
 
 #context-menu.device-menu { padding: 6px; }
 .device-item { gap: 10px; }
