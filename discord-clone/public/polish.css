@@ -235,3 +235,26 @@
   #notify-banner #notify-enable { grid-column: 1; grid-row: 2; justify-self: start; }
   #notify-banner #notify-dismiss { grid-column: 2; grid-row: 1; align-self: start; }
 }
+
+/* ---------- Abertura: quem já tem sessão vê o logo enquanto conecta ---------- */
+/* Antes ficava uma tela preta com a linha roxa da tela de entrar (ou o cartão de entrar piscando). O brilho em volta
+   do logo é atividade real (carregando): para com a janela em segundo plano e some com "Reduzir animações". */
+#boot { display: none; }
+.booting #boot {
+  position: fixed; inset: 0; z-index: 11; display: grid; place-content: center; justify-items: center; gap: 16px; padding: 24px;
+  background: radial-gradient(520px 340px at 50% 44%, color-mix(in srgb, var(--brand) 14%, transparent), transparent 70%), var(--bg-rail);
+  color: var(--text-muted); font-size: 14px; font-weight: 600; text-align: center;
+}
+.booting #login { visibility: hidden; }
+.boot-mark { position: relative; z-index: 0; display: grid; place-items: center; width: 64px; height: 64px; animation: boot-in .5s var(--spring-soft) both; }
+.boot-mark img { display: block; width: 64px; height: 64px; border-radius: 20px; }
+.boot-mark::after {
+  content: ''; position: absolute; inset: -30px; z-index: -1; border-radius: 50%; pointer-events: none;
+  background: radial-gradient(closest-side, color-mix(in srgb, #c64cf0 55%, transparent), transparent);
+  opacity: .3; animation: boot-glow 1.4s ease-in-out .3s infinite alternate;
+}
+@keyframes boot-in { from { opacity: 0; transform: scale(.82); } }
+@keyframes boot-glow { to { opacity: .85; transform: scale(1.08); } }
+.boot-text { animation: fade-in .4s .2s both; }
+.boot-slow { display: none; margin-top: -8px; font-size: 13px; font-weight: 500; }
+.booting.boot-late .boot-slow { display: block; animation: fade-in .4s both; }

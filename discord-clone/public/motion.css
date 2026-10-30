@@ -393,4 +393,4 @@ html:not(.touch) .tile.screen.has-preview:hover .stream-preview .sp-img { transf
 .bg-window :is(.speak-bars i, .watch-spinner, .campv-spinner, .lb-spinner, .ic-pulse, .dcb-icon, .dm-call-flag, .keybind-wait,
   .dj-stage-badge .ico, .ico-disc, .dj-avatar .ico, .dj-eq i, .salon-reel, .salon-card, .salon-card-back, .salon-card-back svg,
   .voice-rec-dot, .typing-dots i, .boot-mark, .boot-glow, #conn-banner .ico) { animation-play-state: paused; }
-.bg-window :is(.salon-reel, .salon-card, .ic-pulse)::after { animation-play-state: paused; }
+.bg-window :is(.salon-reel, .salon-card, .ic-pulse, .boot-mark)::after { animation-play-state: paused; }

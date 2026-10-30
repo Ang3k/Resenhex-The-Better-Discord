@@ -575,6 +575,7 @@
   }
 
   function showLogin(notice, mode = 'login') {
+    document.documentElement.classList.remove('booting');
     setLoginMode(mode);
     $('#login-name').value = localStorage.getItem('name') || '';
     $('#app').classList.add('hidden');
@@ -645,6 +646,7 @@
       $('#login-email').value = '';
       $('#login').classList.add('hidden');
       $('#app').classList.remove('hidden');
+      document.documentElement.classList.remove('booting');
       document.documentElement.classList.remove('show-landing');
       delete document.documentElement.dataset.landing;
       if (/^#(entrar|criar-conta|esqueci|nova-senha)$/.test(location.hash)) history.replaceState(null, '', location.pathname + location.search);
@@ -791,6 +793,7 @@
     const token = localStorage.getItem('token');
     // Quem abriu um link de senha nova cria a senha antes, mesmo com uma sessão guardada neste navegador.
     if (token && !resetToken) authenticate({ token });
+    else document.documentElement.classList.remove('booting');
   }).catch(() => showLogin('Não foi possível conectar. Recarregue a página para tentar novamente.'));
 
   socket.on('removed', ({ reason }) => {

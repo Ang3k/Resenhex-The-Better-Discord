@@ -72,6 +72,11 @@
         document.documentElement.dataset.landing = 'on';
         if (!/^#(entrar|criar-conta|esqueci|nova-senha)$|^#(confirmar|redefinir|transferir)=/.test(location.hash)) document.documentElement.classList.add('show-landing');
       }
+      // Quem já tem sessão vê a abertura (logo e "Entrando na resenha…") enquanto conecta, e não o cartão de entrar.
+      if (localStorage.getItem('token') && !/^#(entrar|criar-conta|esqueci|nova-senha)$|^#(confirmar|redefinir|transferir)=/.test(location.hash)) {
+        document.documentElement.classList.add('booting');
+        setTimeout(() => { const root = document.documentElement; if (root.classList.contains('booting')) root.classList.add('boot-late'); }, 10000);
+      }
     } catch {}
   </script>
 </head>
@@ -263,6 +268,12 @@
   </div>
 
   <!-- Tela de entrada / cadastro -->
+  <!-- Abertura: só com a sessão guardada, enquanto o app conecta (html.booting, tirada pelo app.js) -->
+  <div id="boot" aria-live="polite">
+    <span class="boot-mark"><img src="/resenhax-logo.png" alt="" width="64" height="64" draggable="false"></span>
+    <span class="boot-text">Entrando na resenha…</span>
+    <span class="boot-slow">Está demorando. Confira a sua internet.</span>
+  </div>
   <div id="login" class="auth">
     <form id="login-form" class="auth-card">
       <div class="brand">
