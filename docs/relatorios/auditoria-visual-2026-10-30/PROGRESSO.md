@@ -49,13 +49,13 @@ Registro de trabalho para retomar de onde parou depois de uma interrupção. Lei
 ## Fase 4 — ondas
 
 - [x] Onda 1 — Leveza (6 commits). Medido: palco da call 60,6 → 6,2 quadros/s e 49,9 → 1,6 pinturas/s (CPU 4×); sem lentidão, página 603 → 426 ms/s, GPU 43 → 3 ms/s, thread principal 218 → 31 ms/s. Testes: iguais ao `main` (falham só os 2 testes de voz que já falham no `main`, `desktop/test/lib.test.js` sem `npm install` e o smoke-test por tempo).
-- [ ] Onda 2 — Movimento (tokens com molas, clique)
-- [ ] Onda 3 — Ícones (peso ótico, trocas, gestos)
-- [ ] Onda 4 — Momentos assinatura
-- [ ] Onda 5 — Estados (abertura, vazios, erro/sucesso, foco)
+- [x] Onda 2 — Movimento (tokens com molas `linear()` + plano B, clique que solta com mola, entradas com mola suave)
+- [x] Onda 3 — Ícones (peso ótico abaixo de 18 px, ~25 gestos de hover, sinal que sobe ao conectar). Trocas animadas além das que o app já faz ficaram de fora (os botões são recriados a cada renderização).
+- [x] Onda 4 — Momentos (chegada, voz, pouso, voo, cutucão, acendeu, digitando, conectou, reconectou; conferidos com `ferramentas/moments.js`)
+- [x] Onda 5 — Estados (abertura com logo, começo do canal, foco único, reconectado). Achado no caminho: a classe `boot-slow` no `<html>` escondia a página inteira depois de 10 s; corrigido antes do commit (`boot-late`).
 - [ ] Onda 6 — Cor (contraste, tokens, elevação)
 - [ ] Capturas "depois", medição final, antes × depois no relatório, resumo final
 
 ## Próximo passo
 
-Onda 2 (tokens de movimento com molas e clique que solta com mola).
+Onda 6 (contraste AA, restos do Discord em tokens, setinhas de 24 px, textos minúsculos, elevação).
