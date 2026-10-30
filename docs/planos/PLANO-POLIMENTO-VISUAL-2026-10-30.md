@@ -154,22 +154,22 @@ Todas: "Reduzir animações" e `prefers-reduced-motion` desligam (regra global).
 | Troca de canal (lista) | trocar | opacity + transform (rise) | 280 ms | `--ease-enter` | não |
 | Clique (afundar / soltar) | pressionar / soltar | transform (scale) | 60 ms / 330 ms | `ease-out` / `--spring-snappy` | não |
 | Dica (tooltip) | hover | opacity + transform | 140 ms | `--ease-enter` | não |
-| Aviso (toast) | aparecer | opacity + transform; ícone com pulo | 280 ms; 410 ms | enter; `--spring-pop` | não |
-| Aviso de erro | aparecer | transform (sacudida curta no ícone) | 400 ms | `ease-in-out` | não |
+| Aviso (toast) | aparecer | opacity + transform; ícone com pulo | 330 ms; 450 ms | `--spring-snappy`; `--spring` | não |
+| Aviso de erro | aparecer | transform (sacudida curta no ícone) | 420 ms | `ease-in-out` | não |
 | Faixa de conexão | cair / voltar | transform (desce) / troca de cor instantânea | 280 ms | `--ease-enter` | não |
 | A chegada (bloco da call) | alguém entra | opacity + transform (scale .94→1); anel com o degradê (scale + opacity) | 355 ms; 600 ms | `--spring-soft`; `ease-out` | não |
 | A voz (anel de quem fala) | começar/parar de falar | troca instantânea do anel (sem transição) | — | — | não |
 | Barrinhas de fala | enquanto fala | transform (scaleY) | 900 ms | `ease-in-out` | **sim** (atividade real; pausa) |
-| O pouso (reação) | reação nova num chip | transform (scale .6→1 com sobra; emoji quica) | 410 ms | `--spring-pop` | não |
+| O pouso (reação) | reação nova num chip | transform (scale .6→1 com sobra; emoji quica) | 410 ms; 500 ms | `--spring-pop`; `--spring` | não |
 | O voo (sua mensagem) | enviar | opacity + transform (sobe 14 px, scale .985) | 355 ms | `--spring-soft` | não |
 | Mensagem dos outros | chegar | opacity + transform (sobe 6 px) | 280 ms | `--ease-enter` | não |
-| O cutucão (menção) | chegar mensagem que menciona você | transform (scaleY da barra amarela) | 400 ms | `--ease-enter` | não |
-| Acendeu (amigo online) | ficar online | transform (scale com sobra) + anel (scale + opacity) | 410 / 600 ms | `--spring-pop` / `ease-out` | não |
+| O cutucão (menção) | chegar mensagem que menciona você | transform (scaleY da barra amarela) | 420 ms | `--ease-enter` | não |
+| Acendeu (amigo online) | ficar online | transform (scale com sobra) + anel (scale + opacity) | 410 / 800 ms | `--spring-pop` / `ease-out` | não |
 | Digitando | alguém digita | transform + opacity (3 pontinhos) | 1,2 s | `ease-in-out` | **sim** (atividade real; pausa) |
-| Conectou (painel de voz) | entrar na call | opacity + transform (sobe); barras do sinal sobem | 280 ms; 4 × 60 ms | `--ease-enter` | não |
+| Conectou (painel de voz) | entrar na call | opacity + transform (sobe); barras do sinal sobem uma a uma | 280 ms; 420 ms | `--ease-enter`; `--spring-snappy` | não |
 | Ponto do relógio da call | entrar na call | anel que se abre uma vez (scale + opacity) | 900 ms | `ease-out` | não (antes: infinito com `box-shadow`) |
 | Gestos dos ícones | hover | transform (no SVG inteiro; em partes só onde a metáfora pede) | 350–600 ms | molas / `ease-in-out` | não |
-| Troca de ícone (mudo, câmera, fixar…) | trocar estado | transform + opacity; risco com `stroke-dashoffset` (SVG de 20 px) | 380 ms; 320 ms | `--spring-pop`; `ease-out` | não |
+| Troca de ícone (microfone, fone) | trocar estado | transform + opacity (a que o app já tinha) | 380 ms | `--spring-pop` | não (as trocas novas de câmera, olho, fixar e play ficaram de fora; ver Decisões) |
 | Carregando (abertura, giros) | carregando | transform (giro) / opacity (brilho) | 800 ms / 1,4 s | linear / `ease-in-out` | **sim** (atividade real; pausa) |
 | Chamada tocando | receber/fazer ligação | transform (sacudida) + anel (scale + opacity) | 1,3 s / 1,6 s | `ease-in-out` / `ease-out` | **sim** (atividade real; pausa) |
 | Gravação de áudio | gravando | opacity (ponto) + transform (barras do medidor) | 1,2 s / 50 ms | `ease-in-out` / linear | **sim** (atividade real; pausa) |
@@ -232,6 +232,14 @@ Não entram neste ramo porque mudam a essência ou o orçamento. Ficam para o do
 | Não mexer em `desktop/` | mudanças lá só chegam com app novo publicado, e publicar está fora do escopo. |
 | Cenário "janela minimizada" medido como "chamada sem foco" | o Chromium headless não minimiza; e no Electron, como dito, a página minimizada se comporta como visível sem foco. |
 | CPU dos processos medida também sem a lentidão de 4× | a lentidão artificial do CDP gasta CPU por conta própria; para "quanto o app consome" vale a medida sem ela, e para quadros/tarefas longas/resposta, a com 4×. |
+| Trocas animadas novas (câmera, olho, fixar, play do DJ) ficaram de fora | esses botões são recriados a cada renderização; a animação dispararia a cada mensagem nova ou atualização da lista, não só na troca. Fazer direito pede mudar como o `app.js` desenha esses botões. |
+| Gestos de ícones só com mouse (`hover: hover` e `pointer: fine`) | no toque o hover "gruda" depois do toque, e o gesto dispararia a cada toque. |
+| Aviso "Reconectado!" tirado | a faixa de conexão agora vira "Conectado de novo" em verde; os dois juntos diziam a mesma coisa duas vezes. |
+| Verde mais escuro (`--green-strong`) só onde há texto ou ícone branco em cima | o verde do status e de quem fala continua o mesmo (como elemento gráfico já passa de 3:1); só os botões com branco precisavam de 4,5:1. |
+| Contraste dos botões no Meia-noite e no Alto contraste não corrigido | branco sobre `#829bf9` dá 2,6:1 e sobre `#a39afa`, 2,5:1. Corrigir pede texto escuro nos botões ou uma cor de marca mais escura nesses temas, o que muda o visual deles. Fica para o dono. |
+| `#5865f2` mantido como cor padrão de perfil | é o dado da cor (o mesmo do avatar no `app.js` e da amostra "Anil"), não um resto de tema; trocar só no CSS deixaria o cartão de uma cor e o avatar de outra. |
+| Peças duplicadas (achado 24) e a escala de 49 tamanhos e 47 raios (achado 22) não consolidadas | mexer em dezenas de regras espalhadas por arquivos em que a última vence tem risco alto de regressão para pouco ganho visível; os tokens novos ficam como base. Só os textos de 8–9,5 px que ainda são lidos subiram. |
+| `desktop/titlebar.html` (achado 23) sem mudança | o que está em `desktop/` só chega aos usuários com o app de Windows publicado, e publicar está fora do escopo. |
 
 ## Pesquisa (Fase 2)
 
