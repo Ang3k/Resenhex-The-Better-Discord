@@ -680,7 +680,17 @@
 
   function setConnBanner(text) {
     const banner = $('#conn-banner');
-    banner.textContent = text || '';
+    clearTimeout(setConnBanner.timer);
+    const wasDown = !banner.classList.contains('hidden') && !banner.classList.contains('ok');
+    if (!text && wasDown) {
+      // A conexão voltou: a faixa fica verde por um instante antes de sumir.
+      banner.replaceChildren(Icon('check', 16), el('span', { textContent: 'Conectado de novo' }));
+      banner.classList.add('ok');
+      setConnBanner.timer = setTimeout(() => { banner.classList.add('hidden'); banner.classList.remove('ok'); }, 1800);
+      return;
+    }
+    banner.classList.remove('ok');
+    banner.replaceChildren(...(text ? [Icon('refresh', 16), el('span', { textContent: text })] : []));
     banner.classList.toggle('hidden', !text);
   }
 
