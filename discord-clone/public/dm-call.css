@@ -72,7 +72,7 @@
 .ic-btn.decline:hover { box-shadow: 0 8px 22px color-mix(in srgb, var(--red) 45%, transparent); }
 .ic-btn.video { color: var(--text-strong); }
 .ic-btn.video:hover { background: var(--hover-strong); }
-.ic-btn:focus-visible { outline: 2px solid var(--brand); outline-offset: 2px; }
+.ic-btn:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px; }
 
 /* ---------- faixa no topo do chat ---------- */
 #dm-call-banner-slot:empty { display: none; }

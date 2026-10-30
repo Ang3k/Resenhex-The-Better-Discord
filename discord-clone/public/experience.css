@@ -3,7 +3,7 @@
 :root[data-theme=midnight] { --bg-rail:#0e1322; --bg-sidebar:#151d30; --bg-main:#1b253a; --bg-panel:#11192b; --bg-input:#26324a; --bg-floating:#0d1424; --brand:#829bf9; --brand-hover:#657fe4; }
 :root[data-theme=contrast] { --bg-rail:#090909; --bg-sidebar:#141414; --bg-main:#1c1c1c; --bg-panel:#0d0d0d; --bg-input:#303030; --bg-floating:#080808; --text:#fff; --text-muted:#c4c4c4; --channel:#d0d0d0; --interactive:#e5e5e5; --divider:#ffffff44; --brand:#a39afa; }
 button, input, select, textarea { -webkit-tap-highlight-color: transparent; }
-button:focus-visible, [tabindex]:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-visible { outline: 2px solid var(--brand-text); outline-offset: 3px; }
+button:focus-visible, [tabindex]:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 3px; }
 button[hidden] { display: none !important; }
 #app { height: 100dvh; grid-template-columns: 72px 252px minmax(0, 1fr) 232px; }
 #app.hide-members { grid-template-columns: 72px 252px minmax(0, 1fr); }
@@ -147,7 +147,7 @@ button[hidden] { display: none !important; }
   transition: none;
 }
 #settings #keybind-list button.keybind-key:hover { border-color: var(--divider); background: var(--bg-panel); }
-#settings #keybind-list button.keybind-key:focus-visible { outline: 2px solid var(--brand); outline-offset: 1px; }
+#settings #keybind-list button.keybind-key:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 1px; }
 #settings #keybind-list .keybind-row.editing button.keybind-key { border-color: var(--brand); background: var(--bg-input); }
 .keybind-key kbd { min-width: 14px; text-align: center; color: var(--text-strong); font-family: inherit; font-weight: 600; box-shadow: 0 1px 0 var(--divider); }
 .keybind-empty { color: var(--text-muted); font-style: italic; }

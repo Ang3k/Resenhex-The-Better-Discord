@@ -140,7 +140,7 @@ html.touch .sound-trim-wave { height: 88px; }
 .nickname-preview small { color: var(--text-muted); margin-top: 4px; }
 .nickname-card label { display: grid; gap: 8px; font-size: 12px; font-weight: 700; color: var(--interactive); }
 .nickname-card input { width: 100%; padding: 12px; font: inherit; font-size: 16px; font-weight: 400; color: var(--text); background: var(--bg-rail); border: 1px solid var(--divider); border-radius: 8px; }
-.nickname-card input:focus-visible { outline: 2px solid var(--brand); outline-offset: 2px; }
+.nickname-card input:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px; }
 .nickname-reset { justify-self: start; padding: 0; border: 0; background: transparent; color: var(--brand); font: inherit; font-size: 14px; }
 .nickname-reset:hover { text-decoration: underline; }
 .nickname-status { min-height: 20px; }

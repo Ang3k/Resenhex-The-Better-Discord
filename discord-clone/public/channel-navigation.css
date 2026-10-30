@@ -5,7 +5,7 @@
 .group-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .group-action { flex-shrink: 0; display: grid; place-items: center; width: 28px; height: 28px; padding: 0; border: 0; border-radius: 5px; background: transparent; color: var(--text-muted); font: inherit; font-size: 20px; }
 .group-action:hover, .group-action:focus-visible { background: var(--hover-strong); color: var(--text-strong); }
-.group-action:focus-visible, .channel-entry:focus-visible, .channel-group .cat-toggle:focus-visible { outline: 2px solid var(--brand); outline-offset: 1px; }
+.group-action:focus-visible, .channel-entry:focus-visible, .channel-group .cat-toggle:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 1px; }
 .group-channel-list { list-style: none; margin: 0; padding: 0 0 8px; min-height: 8px; }
 .grouped-channel { padding: 0 4px 0 0; gap: 2px; height: auto; min-height: 34px; }
 .channel-entry { display: flex; align-items: center; gap: 8px; align-self: stretch; flex: 1; min-width: 0; padding: 6px 8px; background: transparent; border: 0; border-radius: 5px; color: inherit; text-align: left; font: inherit; }
@@ -20,7 +20,7 @@
 .group-empty { padding: 8px; font-size: 12px; color: var(--text-muted); }
 .channel-list-add { display: flex; align-items: center; gap: 6px; width: 100%; margin-top: 4px; padding: 6px 8px; border: 1px dashed var(--divider); border-radius: 6px; background: transparent; color: var(--text-muted); font: inherit; font-size: 12px; font-weight: 600; cursor: pointer; }
 .channel-list-add:hover, .channel-list-add:focus-visible { border-color: var(--text-muted); background: var(--hover); color: var(--text-strong); }
-.channel-list-add:focus-visible { outline: 2px solid var(--brand); outline-offset: 1px; }
+.channel-list-add:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 1px; }
 .channel-dragging { opacity: .45; }
 .channel-drop-target { outline: 2px solid var(--brand); outline-offset: -2px; border-radius: 5px; background: var(--hover); }
 .admin-channel-groups .channel-group { border: 1px solid var(--divider); border-radius: 8px; margin-bottom: 12px; padding: 0 12px; background: var(--bg-sidebar); }
@@ -36,7 +36,7 @@
 .channel-dialog label { display: grid; gap: 8px; font-size: 14px; font-weight: 600; }
 .channel-dialog input, .channel-dialog select, #create-channel select, #create-channel textarea, #server-settings .admin-field select, #server-settings .admin-field textarea { width: 100%; background: var(--bg-panel); color: var(--text); border: 1px solid var(--divider); border-radius: 6px; padding: 10px; font: inherit; }
 #create-channel textarea, #server-settings .admin-field textarea { resize: vertical; min-height: 64px; }
-.channel-dialog input:focus, .channel-dialog select:focus, #create-channel select:focus, #create-channel textarea:focus, #server-settings .admin-field select:focus, #server-settings .admin-field textarea:focus { outline: 2px solid var(--brand); outline-offset: 1px; }
+.channel-dialog input:focus, .channel-dialog select:focus, #create-channel select:focus, #create-channel textarea:focus, #server-settings .admin-field select:focus, #server-settings .admin-field textarea:focus { outline: 2px solid var(--focus-ring); outline-offset: 1px; }
 .channel-dialog .confirm-actions { margin: 0 -24px -24px; border-radius: 0 0 12px 12px; }
 .channel-dialog button { font: inherit; border: 0; border-radius: 5px; padding: 10px 14px; }
 .channel-dialog .btn-primary { font-size: 14px; margin: 0; }

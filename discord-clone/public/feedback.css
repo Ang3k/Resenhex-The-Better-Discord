@@ -15,7 +15,7 @@
 }
 .feedback-link:hover { color: var(--text); background: var(--hover); }
 .feedback-link:hover .feedback-link-icon { color: var(--text-strong); }
-.feedback-link:focus-visible { outline: 2px solid var(--brand); outline-offset: 2px; }
+.feedback-link:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px; }
 @media (min-width: 1101px) {
   #app:not(.hide-members) > .feedback-link { display: flex; }
   #app:not(.hide-members) > #members { padding-bottom: 92px; }
@@ -51,7 +51,7 @@ body.stream-immersive .feedback-link { display: none !important; }
   padding: 12px 14px; border: 1px solid var(--divider); border-radius: 9px;
   font-size: 15px; line-height: 1.6; color: var(--text-strong); background: var(--bg-panel);
 }
-.feedback-card textarea:focus { outline: 2px solid var(--brand); outline-offset: 1px; }
+.feedback-card textarea:focus { outline: 2px solid var(--focus-ring); outline-offset: 1px; }
 .feedback-card textarea::placeholder { color: var(--text-muted); }
 .feedback-meta { display: flex; justify-content: space-between; gap: 12px; margin-top: 8px; color: var(--text-muted); font-size: 11px; }
 .feedback-meta span:first-child { min-width: 0; }
@@ -66,7 +66,7 @@ body.stream-immersive .feedback-link { display: none !important; }
 .feedback-actions .feedback-submit { background: var(--brand); color: #fff; font-weight: 600; }
 .feedback-actions .feedback-submit:hover:not(:disabled) { background: var(--brand-hover); }
 .feedback-actions button:disabled { opacity: .5; }
-.feedback-actions button:focus-visible, .feedback-close:focus-visible { outline: 2px solid var(--brand); outline-offset: 3px; }
+.feedback-actions button:focus-visible, .feedback-close:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 3px; }
 .feedback-success-mark { color: var(--green); background: color-mix(in srgb, var(--green) 12%, transparent); }
 @media (max-width: 640px) {
   .feedback-overlay { padding: 12px; }

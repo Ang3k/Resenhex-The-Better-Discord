@@ -10,7 +10,7 @@
 .stage-layout button:hover { color: var(--text-strong); background: var(--hover); }
 .stage-layout button[aria-pressed="true"] { color: var(--text-strong); background: var(--hover-strong); }
 .stage-layout button:disabled { opacity: .4; cursor: default; }
-.stage-layout button:focus-visible, #stage .tile:focus-visible { outline: 2px solid var(--brand); outline-offset: 2px; }
+.stage-layout button:focus-visible, #stage .tile:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px; }
 
 #main #voice-view #stage {
   display: flex; flex-direction: column; gap: 16px; min-width: 0; min-height: 0;

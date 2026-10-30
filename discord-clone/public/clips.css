@@ -44,7 +44,7 @@
 .clip-tab.active { background: var(--bg-main); color: var(--text-strong); box-shadow: 0 1px 0 rgba(255, 255, 255, .04) inset, 0 2px 8px rgba(0, 0, 0, .3); }
 .clip-tab.active svg { color: var(--brand); }
 .clip-tab:disabled { opacity: .45; cursor: not-allowed; }
-.clip-tab:focus-visible { outline: 2px solid var(--brand); outline-offset: 1px; }
+.clip-tab:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 1px; }
 .clip-tab-count {
   min-width: 20px; height: 20px; padding: 0 6px; box-sizing: border-box; border-radius: 10px; background: var(--hover-strong); color: var(--text);
   font-size: 11px; font-weight: 700; line-height: 20px; font-variant-numeric: tabular-nums;

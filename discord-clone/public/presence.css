@@ -69,4 +69,4 @@
   font-size: 13px; font-weight: 500; transition: transform .15s;
 }
 .status-idea:hover { border-color: var(--brand); color: var(--text-strong); transform: translateY(-1px); }
-.status-idea:focus-visible { outline: 2px solid var(--brand); outline-offset: 2px; }
+.status-idea:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px; }

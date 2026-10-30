@@ -36,7 +36,7 @@ input[type=checkbox]:not(:is(.ds-switch, .setting-switch input, .settings-conten
 :is(.ds-switch, .setting-switch input[type=checkbox], .settings-content label.row > input[type=checkbox], .switch-row input[type=checkbox]):active:not(:disabled)::after { transform: scaleX(1.22); }
 :is(.ds-switch, .setting-switch input[type=checkbox], .settings-content label.row > input[type=checkbox], .switch-row input[type=checkbox]):checked:active:not(:disabled)::after { transform: translateX(12px) scaleX(1.22); }
 :is(.ds-switch, .setting-switch input[type=checkbox], .settings-content label.row > input[type=checkbox], .switch-row input[type=checkbox]):disabled { opacity: .45; cursor: not-allowed; }
-:is(.ds-switch, .setting-switch input[type=checkbox], .settings-content label.row > input[type=checkbox], .switch-row input[type=checkbox]):focus-visible { outline: 2px solid var(--brand); outline-offset: 2px; }
+:is(.ds-switch, .setting-switch input[type=checkbox], .settings-content label.row > input[type=checkbox], .switch-row input[type=checkbox]):focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px; }
 
 /* Nas configurações, "caixa + texto" vira linha com o texto à esquerda e o interruptor à direita. */
 .settings-content label.row:has(> input[type=checkbox]) {

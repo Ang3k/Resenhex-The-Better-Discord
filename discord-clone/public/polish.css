@@ -31,6 +31,8 @@
 /* Tons da cor da marca para texto e fundos (seguem o tema: roxo no padrão, azul no Meia-noite). */
 :root {
   --brand-text: color-mix(in srgb, var(--brand) 50%, #fff);
+  /* Anel de foco único: o roxo claro (~8:1 sobre os fundos); o roxo da marca puro ficava em ~2,7:1. */
+  --focus-ring: var(--brand-text);
   --brand-ink: color-mix(in srgb, var(--brand) 18%, #fff);
   --brand-soft: color-mix(in srgb, var(--brand) 16%, transparent);
 }
