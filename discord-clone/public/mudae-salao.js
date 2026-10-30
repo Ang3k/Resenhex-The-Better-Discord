@@ -10,7 +10,8 @@ window.MudaeSalon = function ({ state, el, Icon, call, onSocket, member, avatar,
   const REACTIONS = ['😱', '🔥', '💖', '😂', '💀'];
   const RARITY = ui.RARITY;
   const RARITY_ORDER = ['legendary', 'epic', 'rare', 'common'];
-  const reducedMotion = () => window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+  // Vale a preferência do sistema e o "Reduzir animações" do app (a roleta é feita em JavaScript e o CSS não a desliga).
+  const reducedMotion = () => document.documentElement.dataset.reduceMotion === 'true' || !!window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
   const { num, minutes, kakera } = ui;
   const me = () => state.me.accountId;
   const now = () => ui.serverNow();
