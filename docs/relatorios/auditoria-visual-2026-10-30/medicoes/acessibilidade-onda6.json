@@ -1,0 +1,1199 @@
+{
+ "contraste": [
+  {
+   "tela": "chat-desk",
+   "violacoes": []
+  },
+  {
+   "tela": "chat-cel",
+   "violacoes": []
+  },
+  {
+   "tela": "membros-perfil-desk",
+   "violacoes": []
+  },
+  {
+   "tela": "membros-perfil-cel",
+   "violacoes": []
+  },
+  {
+   "tela": "config-perfil-desk",
+   "violacoes": []
+  },
+  {
+   "tela": "config-perfil-cel",
+   "violacoes": []
+  },
+  {
+   "tela": "config-voz-desk",
+   "violacoes": []
+  },
+  {
+   "tela": "config-voz-cel",
+   "violacoes": []
+  },
+  {
+   "tela": "amigos-desk",
+   "violacoes": []
+  },
+  {
+   "tela": "menu-servidor-desk",
+   "violacoes": []
+  },
+  {
+   "tela": "menu-servidor-cel",
+   "violacoes": []
+  },
+  {
+   "tela": "chamada-desk",
+   "violacoes": []
+  },
+  {
+   "tela": "chamada-cel",
+   "violacoes": []
+  },
+  {
+   "tela": "entrar-desk",
+   "violacoes": []
+  },
+  {
+   "tela": "entrar-cel",
+   "violacoes": []
+  }
+ ],
+ "alvos": [
+  {
+   "tela": "chat-cel",
+   "abaixo44": 9,
+   "abaixo24": 0,
+   "itens": [
+    {
+     "el": "#btn-channels",
+     "w": 32,
+     "h": 32,
+     "aa": true,
+     "label": "Abrir canais"
+    },
+    {
+     "el": "#btn-members",
+     "w": 32,
+     "h": 32,
+     "aa": true,
+     "label": "Lista de membros"
+    },
+    {
+     "el": "button.reaction.mine",
+     "w": 47,
+     "h": 26,
+     "aa": true,
+     "label": "👍1"
+    },
+    {
+     "el": "button.reaction.add",
+     "w": 32,
+     "h": 26,
+     "aa": true,
+     "label": "Adicionar reação"
+    },
+    {
+     "el": "a.",
+     "w": 248,
+     "h": 42,
+     "aa": true,
+     "label": "https://www.youtube.com/watch?"
+    },
+    {
+     "el": "a.embed-title",
+     "w": 249,
+     "h": 39,
+     "aa": true,
+     "label": "Rick Astley - Never Gonna Give"
+    },
+    {
+     "el": "#btn-attach",
+     "w": 38,
+     "h": 44,
+     "aa": true,
+     "label": "Enviar arquivo"
+    },
+    {
+     "el": "#btn-emoji",
+     "w": 38,
+     "h": 44,
+     "aa": true,
+     "label": "Emoji"
+    },
+    {
+     "el": "#btn-voice-msg",
+     "w": 38,
+     "h": 44,
+     "aa": true,
+     "label": "Gravar mensagem de áudio"
+    }
+   ]
+  },
+  {
+   "tela": "membros-perfil-cel",
+   "abaixo44": 14,
+   "abaixo24": 0,
+   "itens": [
+    {
+     "el": "#btn-channels",
+     "w": 32,
+     "h": 32,
+     "aa": true,
+     "label": "Abrir canais"
+    },
+    {
+     "el": "#btn-members",
+     "w": 32,
+     "h": 32,
+     "aa": true,
+     "label": "Lista de membros"
+    },
+    {
+     "el": "button.reaction.mine",
+     "w": 47,
+     "h": 26,
+     "aa": true,
+     "label": "👍1"
+    },
+    {
+     "el": "button.reaction.add",
+     "w": 32,
+     "h": 26,
+     "aa": true,
+     "label": "Adicionar reação"
+    },
+    {
+     "el": "a.",
+     "w": 248,
+     "h": 42,
+     "aa": true,
+     "label": "https://www.youtube.com/watch?"
+    },
+    {
+     "el": "a.embed-title",
+     "w": 249,
+     "h": 39,
+     "aa": true,
+     "label": "Rick Astley - Never Gonna Give"
+    },
+    {
+     "el": "#btn-attach",
+     "w": 38,
+     "h": 44,
+     "aa": true,
+     "label": "Enviar arquivo"
+    },
+    {
+     "el": "#btn-emoji",
+     "w": 38,
+     "h": 44,
+     "aa": true,
+     "label": "Emoji"
+    },
+    {
+     "el": "#btn-voice-msg",
+     "w": 38,
+     "h": 44,
+     "aa": true,
+     "label": "Gravar mensagem de áudio"
+    },
+    {
+     "el": "button.pc-icon-btn",
+     "w": 30,
+     "h": 30,
+     "aa": true,
+     "label": "Mais ações"
+    },
+    {
+     "el": "button.pc-role.add",
+     "w": 24,
+     "h": 24,
+     "aa": true,
+     "label": "Adicionar cargo"
+    },
+    {
+     "el": "button.pc-btn.primary",
+     "w": 189,
+     "h": 36,
+     "aa": true,
+     "label": "Enviar mensagem"
+    },
+    {
+     "el": "button.pc-btn",
+     "w": 143,
+     "h": 36,
+     "aa": true,
+     "label": "Mencionar"
+    },
+    {
+     "el": "button.pc-btn",
+     "w": 340,
+     "h": 36,
+     "aa": true,
+     "label": "Mutar para mim"
+    }
+   ]
+  },
+  {
+   "tela": "config-perfil-cel",
+   "abaixo44": 22,
+   "abaixo24": 0,
+   "itens": [
+    {
+     "el": "#btn-channels",
+     "w": 32,
+     "h": 32,
+     "aa": true,
+     "label": "Abrir canais"
+    },
+    {
+     "el": "#btn-members",
+     "w": 32,
+     "h": 32,
+     "aa": true,
+     "label": "Lista de membros"
+    },
+    {
+     "el": "button.reaction.mine",
+     "w": 47,
+     "h": 26,
+     "aa": true,
+     "label": "👍1"
+    },
+    {
+     "el": "button.reaction.add",
+     "w": 32,
+     "h": 26,
+     "aa": true,
+     "label": "Adicionar reação"
+    },
+    {
+     "el": "a.",
+     "w": 248,
+     "h": 42,
+     "aa": true,
+     "label": "https://www.youtube.com/watch?"
+    },
+    {
+     "el": "a.embed-title",
+     "w": 249,
+     "h": 39,
+     "aa": true,
+     "label": "Rick Astley - Never Gonna Give"
+    },
+    {
+     "el": "#btn-attach",
+     "w": 38,
+     "h": 44,
+     "aa": true,
+     "label": "Enviar arquivo"
+    },
+    {
+     "el": "#btn-emoji",
+     "w": 38,
+     "h": 44,
+     "aa": true,
+     "label": "Emoji"
+    },
+    {
+     "el": "#btn-voice-msg",
+     "w": 38,
+     "h": 44,
+     "aa": true,
+     "label": "Gravar mensagem de áudio"
+    },
+    {
+     "el": "#tab-profile",
+     "w": 74,
+     "h": 37,
+     "aa": true,
+     "label": "Meu perfil"
+    },
+    {
+     "el": "#tab-account",
+     "w": 86,
+     "h": 37,
+     "aa": true,
+     "label": "Minha conta"
+    },
+    {
+     "el": "#tab-voice",
+     "w": 83,
+     "h": 37,
+     "aa": true,
+     "label": "Voz e vídeo"
+    },
+    {
+     "el": "#tab-stream",
+     "w": 86,
+     "h": 37,
+     "aa": true,
+     "label": "Transmissão"
+    },
+    {
+     "el": "#tab-appearance",
+     "w": 74,
+     "h": 37,
+     "aa": true,
+     "label": "Aparência"
+    },
+    {
+     "el": "#settings-feedback",
+     "w": 133,
+     "h": 33,
+     "aa": true,
+     "label": "Propor Melhorias"
+    },
+    {
+     "el": "#settings-server-link",
+     "w": 150,
+     "h": 33,
+     "aa": true,
+     "label": "Administrar servidor"
+    },
+    {
+     "el": "#btn-logout",
+     "w": 112,
+     "h": 33,
+     "aa": true,
+     "label": "Sair da conta"
+    },
+    {
+     "el": "#settings-version",
+     "w": 162,
+     "h": 33,
+     "aa": true,
+     "label": "Resenhex v2.2.0 · Novidades"
+    },
+    {
+     "el": "#settings-close",
+     "w": 44,
+     "h": 34,
+     "aa": true,
+     "label": "Fechar configurações"
+    },
+    {
+     "el": "button.profile-preview-spot.profile-preview-spot-banner",
+     "w": 75,
+     "h": 26,
+     "aa": true,
+     "label": "Banner"
+    },
+    {
+     "el": "button.profile-preview-spot.profile-preview-spot-background",
+     "w": 71,
+     "h": 26,
+     "aa": true,
+     "label": "Fundo"
+    },
+    {
+     "el": "button.profile-preview-edit-photo",
+     "w": 28,
+     "h": 28,
+     "aa": true,
+     "label": "Mudar foto"
+    }
+   ]
+  },
+  {
+   "tela": "config-voz-cel",
+   "abaixo44": 28,
+   "abaixo24": 1,
+   "itens": [
+    {
+     "el": "#btn-channels",
+     "w": 32,
+     "h": 32,
+     "aa": true,
+     "label": "Abrir canais"
+    },
+    {
+     "el": "#btn-members",
+     "w": 32,
+     "h": 32,
+     "aa": true,
+     "label": "Lista de membros"
+    },
+    {
+     "el": "button.reaction.mine",
+     "w": 49,
+     "h": 26,
+     "aa": true,
+     "label": "❤️2"
+    },
+    {
+     "el": "button.reaction",
+     "w": 47,
+     "h": 26,
+     "aa": true,
+     "label": "😂1"
+    },
+    {
+     "el": "button.reaction.add",
+     "w": 32,
+     "h": 26,
+     "aa": true,
+     "label": "Adicionar reação"
+    },
+    {
+     "el": "button.reaction.mine",
+     "w": 47,
+     "h": 26,
+     "aa": true,
+     "label": "👍1"
+    },
+    {
+     "el": "button.reaction.add",
+     "w": 32,
+     "h": 26,
+     "aa": true,
+     "label": "Adicionar reação"
+    },
+    {
+     "el": "a.",
+     "w": 248,
+     "h": 42,
+     "aa": true,
+     "label": "https://www.youtube.com/watch?"
+    },
+    {
+     "el": "a.embed-title",
+     "w": 249,
+     "h": 39,
+     "aa": true,
+     "label": "Rick Astley - Never Gonna Give"
+    },
+    {
+     "el": "#btn-attach",
+     "w": 38,
+     "h": 44,
+     "aa": true,
+     "label": "Enviar arquivo"
+    },
+    {
+     "el": "#btn-emoji",
+     "w": 38,
+     "h": 44,
+     "aa": true,
+     "label": "Emoji"
+    },
+    {
+     "el": "#btn-voice-msg",
+     "w": 38,
+     "h": 44,
+     "aa": true,
+     "label": "Gravar mensagem de áudio"
+    },
+    {
+     "el": "#tab-profile",
+     "w": 74,
+     "h": 37,
+     "aa": true,
+     "label": "Meu perfil"
+    },
+    {
+     "el": "#tab-account",
+     "w": 86,
+     "h": 37,
+     "aa": true,
+     "label": "Minha conta"
+    },
+    {
+     "el": "#tab-voice",
+     "w": 83,
+     "h": 37,
+     "aa": true,
+     "label": "Voz e vídeo"
+    },
+    {
+     "el": "#tab-stream",
+     "w": 86,
+     "h": 37,
+     "aa": true,
+     "label": "Transmissão"
+    },
+    {
+     "el": "#tab-appearance",
+     "w": 74,
+     "h": 37,
+     "aa": true,
+     "label": "Aparência"
+    },
+    {
+     "el": "#settings-feedback",
+     "w": 133,
+     "h": 33,
+     "aa": true,
+     "label": "Propor Melhorias"
+    },
+    {
+     "el": "#settings-server-link",
+     "w": 150,
+     "h": 33,
+     "aa": true,
+     "label": "Administrar servidor"
+    },
+    {
+     "el": "#btn-logout",
+     "w": 112,
+     "h": 33,
+     "aa": true,
+     "label": "Sair da conta"
+    },
+    {
+     "el": "#settings-version",
+     "w": 162,
+     "h": 33,
+     "aa": true,
+     "label": "Resenhex v2.2.0 · Novidades"
+    },
+    {
+     "el": "#settings-close",
+     "w": 44,
+     "h": 34,
+     "aa": true,
+     "label": "Fechar configurações"
+    },
+    {
+     "el": "#mic-select",
+     "w": 324,
+     "h": 42,
+     "aa": true,
+     "label": "Padrão do sistema"
+    },
+    {
+     "el": "#speaker-select",
+     "w": 324,
+     "h": 42,
+     "aa": true,
+     "label": "Padrão do sistema"
+    },
+    {
+     "el": "#noise-mode",
+     "w": 324,
+     "h": 42,
+     "aa": true,
+     "label": "IA avançada (recomendado)IA le"
+    },
+    {
+     "el": "#echo-toggle",
+     "w": 40,
+     "h": 24,
+     "aa": true,
+     "label": ""
+    },
+    {
+     "el": "#mic-test",
+     "w": 140,
+     "h": 38,
+     "aa": true,
+     "label": "Testar microfone"
+    },
+    {
+     "el": "#sens-range",
+     "w": 324,
+     "h": 20,
+     "aa": false,
+     "label": ""
+    }
+   ]
+  },
+  {
+   "tela": "menu-servidor-cel",
+   "abaixo44": 48,
+   "abaixo24": 0,
+   "itens": [
+    {
+     "el": "#btn-switch-server",
+     "w": 300,
+     "h": 40,
+     "aa": true,
+     "label": "Trocar ou adicionar servidor"
+    },
+    {
+     "el": "#nav-to-home",
+     "w": 193,
+     "h": 32,
+     "aa": true,
+     "label": "Mensagens diretas1"
+    },
+    {
+     "el": "button.cat-toggle",
+     "w": 242,
+     "h": 28,
+     "aa": true,
+     "label": "Recolher Canais de texto"
+    },
+    {
+     "el": "button.group-action",
+     "w": 36,
+     "h": 36,
+     "aa": true,
+     "label": "Criar canal em Canais de texto"
+    },
+    {
+     "el": "div.channel.grouped-channel",
+     "w": 284,
+     "h": 40,
+     "aa": true,
+     "label": "geral⋯"
+    },
+    {
+     "el": "button.channel-entry",
+     "w": 242,
+     "h": 40,
+     "aa": true,
+     "label": "Canal de texto geral"
+    },
+    {
+     "el": "button.group-action",
+     "w": 36,
+     "h": 36,
+     "aa": true,
+     "label": "Ações do canal geral"
+    },
+    {
+     "el": "div.channel.grouped-channel",
+     "w": 284,
+     "h": 40,
+     "aa": true,
+     "label": "jogos⋯"
+    },
+    {
+     "el": "button.channel-entry",
+     "w": 242,
+     "h": 40,
+     "aa": true,
+     "label": "Canal de texto jogos"
+    },
+    {
+     "el": "div.channel.grouped-channel",
+     "w": 284,
+     "h": 40,
+     "aa": true,
+     "label": "links⋯"
+    },
+    {
+     "el": "button.channel-entry",
+     "w": 242,
+     "h": 40,
+     "aa": true,
+     "label": "Canal de texto links"
+    },
+    {
+     "el": "div.channel.grouped-channel",
+     "w": 284,
+     "h": 40,
+     "aa": true,
+     "label": "memes⋯"
+    },
+    {
+     "el": "button.channel-entry",
+     "w": 242,
+     "h": 40,
+     "aa": true,
+     "label": "Canal de texto memes"
+    },
+    {
+     "el": "div.channel.grouped-channel",
+     "w": 284,
+     "h": 40,
+     "aa": true,
+     "label": "salão-mudae⋯"
+    },
+    {
+     "el": "button.channel-entry",
+     "w": 242,
+     "h": 40,
+     "aa": true,
+     "label": "Salão do Mudae salão-mudae"
+    },
+    {
+     "el": "button.cat-toggle",
+     "w": 242,
+     "h": 28,
+     "aa": true,
+     "label": "Recolher Canais de voz"
+    },
+    {
+     "el": "button.group-action",
+     "w": 36,
+     "h": 36,
+     "aa": true,
+     "label": "Criar canal em Canais de voz"
+    },
+    {
+     "el": "div.channel.grouped-channel",
+     "w": 284,
+     "h": 40,
+     "aa": true,
+     "label": "Sala da resenha⋯"
+    },
+    {
+     "el": "button.channel-entry",
+     "w": 204,
+     "h": 40,
+     "aa": true,
+     "label": "Canal de voz Sala da resenha"
+    },
+    {
+     "el": "div.channel.grouped-channel",
+     "w": 284,
+     "h": 40,
+     "aa": true,
+     "label": "Sala 2⋯"
+    },
+    {
+     "el": "button.channel-entry",
+     "w": 204,
+     "h": 40,
+     "aa": true,
+     "label": "Canal de voz Sala 2"
+    },
+    {
+     "el": "div.channel.grouped-channel",
+     "w": 284,
+     "h": 40,
+     "aa": true,
+     "label": "AFK⋯"
+    },
+    {
+     "el": "button.channel-entry",
+     "w": 204,
+     "h": 40,
+     "aa": true,
+     "label": "Canal de voz AFK"
+    },
+    {
+     "el": "button.cat-toggle",
+     "w": 242,
+     "h": 28,
+     "aa": true,
+     "label": "Recolher Sem grupo"
+    },
+    {
+     "el": "button.group-action",
+     "w": 36,
+     "h": 36,
+     "aa": true,
+     "label": "Criar canal em Sem grupo"
+    },
+    {
+     "el": "button.channel-list-add",
+     "w": 284,
+     "h": 31,
+     "aa": true,
+     "label": "Criar grupo de canais"
+    },
+    {
+     "el": "#me-card",
+     "w": 166,
+     "h": 42,
+     "aa": true,
+     "label": "A\n  \n  \n  \n            \n      "
+    },
+    {
+     "el": "#btn-mute",
+     "w": 32,
+     "h": 32,
+     "aa": true,
+     "label": "Microfone"
+    },
+    {
+     "el": "#btn-deafen",
+     "w": 32,
+     "h": 32,
+     "aa": true,
+     "label": "Fone de ouvido"
+    },
+    {
+     "el": "#btn-settings",
+     "w": 32,
+     "h": 32,
+     "aa": true,
+     "label": "Configurações de usuário"
+    },
+    {
+     "el": "#btn-channels",
+     "w": 32,
+     "h": 32,
+     "aa": true,
+     "label": "Abrir canais"
+    },
+    {
+     "el": "#btn-members",
+     "w": 32,
+     "h": 32,
+     "aa": true,
+     "label": "Lista de membros"
+    },
+    {
+     "el": "button.reaction.mine",
+     "w": 47,
+     "h": 26,
+     "aa": true,
+     "label": "👍1"
+    },
+    {
+     "el": "button.reaction.add",
+     "w": 32,
+     "h": 26,
+     "aa": true,
+     "label": "Adicionar reação"
+    },
+    {
+     "el": "a.",
+     "w": 248,
+     "h": 42,
+     "aa": true,
+     "label": "https://www.youtube.com/watch?"
+    },
+    {
+     "el": "a.embed-title",
+     "w": 249,
+     "h": 39,
+     "aa": true,
+     "label": "Rick Astley - Never Gonna Give"
+    },
+    {
+     "el": "#btn-attach",
+     "w": 38,
+     "h": 44,
+     "aa": true,
+     "label": "Enviar arquivo"
+    },
+    {
+     "el": "#btn-emoji",
+     "w": 38,
+     "h": 44,
+     "aa": true,
+     "label": "Emoji"
+    },
+    {
+     "el": "#btn-voice-msg",
+     "w": 38,
+     "h": 44,
+     "aa": true,
+     "label": "Gravar mensagem de áudio"
+    },
+    {
+     "el": "button.menu-item.accent",
+     "w": 270,
+     "h": 40,
+     "aa": true,
+     "label": "Convidar amigos"
+    },
+    {
+     "el": "button.menu-item",
+     "w": 270,
+     "h": 40,
+     "aa": true,
+     "label": "Editar nome no servidor"
+    },
+    {
+     "el": "button.menu-item",
+     "w": 270,
+     "h": 40,
+     "aa": true,
+     "label": "Configurações do servidor"
+    },
+    {
+     "el": "button.menu-item",
+     "w": 270,
+     "h": 40,
+     "aa": true,
+     "label": "Criar canal"
+    },
+    {
+     "el": "button.menu-item",
+     "w": 270,
+     "h": 40,
+     "aa": true,
+     "label": "Criar grupo de canais"
+    },
+    {
+     "el": "button.menu-item",
+     "w": 270,
+     "h": 40,
+     "aa": true,
+     "label": "Criar ou entrar em servidor"
+    },
+    {
+     "el": "button.menu-item",
+     "w": 270,
+     "h": 40,
+     "aa": true,
+     "label": "Novidades · v2.2.0"
+    },
+    {
+     "el": "button.menu-item",
+     "w": 270,
+     "h": 40,
+     "aa": true,
+     "label": "Configurações de usuário"
+    },
+    {
+     "el": "button.menu-item.danger",
+     "w": 270,
+     "h": 40,
+     "aa": true,
+     "label": "Excluir servidor"
+    }
+   ]
+  },
+  {
+   "tela": "chamada-cel",
+   "abaixo44": 17,
+   "abaixo24": 0,
+   "itens": [
+    {
+     "el": "#btn-channels",
+     "w": 32,
+     "h": 32,
+     "aa": true,
+     "label": "Abrir canais"
+    },
+    {
+     "el": "#btn-voice-chat",
+     "w": 32,
+     "h": 32,
+     "aa": true,
+     "label": "Abrir o chat da sala"
+    },
+    {
+     "el": "#btn-members",
+     "w": 32,
+     "h": 32,
+     "aa": true,
+     "label": "Lista de membros"
+    },
+    {
+     "el": "button.tc-btn.tc-pin",
+     "w": 30,
+     "h": 30,
+     "aa": true,
+     "label": "Fixar"
+    },
+    {
+     "el": "button.sa-btn.primary",
+     "w": 260,
+     "h": 42,
+     "aa": true,
+     "label": "Convidar pessoas"
+    },
+    {
+     "el": "button.sa-btn",
+     "w": 260,
+     "h": 42,
+     "aa": true,
+     "label": "Compartilhar tela"
+    },
+    {
+     "el": "button.sa-btn.chat",
+     "w": 260,
+     "h": 42,
+     "aa": true,
+     "label": "Abrir o chat da sala"
+    },
+    {
+     "el": "#sc-mic",
+     "w": 41,
+     "h": 41,
+     "aa": true,
+     "label": "Microfone"
+    },
+    {
+     "el": "#sc-mic-devices",
+     "w": 24,
+     "h": 24,
+     "aa": true,
+     "label": "Escolher microfone e saída de "
+    },
+    {
+     "el": "#sc-deaf",
+     "w": 42,
+     "h": 42,
+     "aa": true,
+     "label": "Ensurdecer"
+    },
+    {
+     "el": "#sc-cam",
+     "w": 41,
+     "h": 41,
+     "aa": true,
+     "label": "Câmera"
+    },
+    {
+     "el": "#sc-cam-devices",
+     "w": 24,
+     "h": 24,
+     "aa": true,
+     "label": "Escolher câmera"
+    },
+    {
+     "el": "#sc-screen",
+     "w": 42,
+     "h": 42,
+     "aa": true,
+     "label": "Compartilhar tela"
+    },
+    {
+     "el": "#sc-clip",
+     "w": 42,
+     "h": 42,
+     "aa": true,
+     "label": "Clipar últimos 30 s (Alt+C)"
+    },
+    {
+     "el": "#sc-sounds",
+     "w": 42,
+     "h": 42,
+     "aa": true,
+     "label": "Efeitos sonoros"
+    },
+    {
+     "el": "#sc-music",
+     "w": 42,
+     "h": 42,
+     "aa": true,
+     "label": "DJ: músicas do YouTube"
+    },
+    {
+     "el": "#sc-leave",
+     "w": 42,
+     "h": 42,
+     "aa": true,
+     "label": "Desconectar"
+    }
+   ]
+  }
+ ],
+ "foco": [
+  {
+   "tela": "chat-desk",
+   "focados": 45,
+   "sem_indicador": 0,
+   "itens": [],
+   "todos": [
+    "#rail-home [contorno 2px color(srgb 0.778431 0.592157 0.923529)]",
+    "#rail-server [contorno 2px color(srgb 0.778431 0.592157 0.923529)]",
+    "button.rail-item.server-entry [contorno 2px color(srgb 0.778431 0.592157 0.923529)]",
+    "button.rail-item.server-entry [contorno 2px color(srgb 0.778431 0.592157 0.923529)]",
+    "#btn-add-server [contorno 2px color(srgb 0.778431 0.592157 0.923529)]",
+    "#server-header [contorno 2px color(srgb 0.778431 0.592157 0.923529)]",
+    "button.cat-toggle [contorno 2px color(srgb 0.778431 0.592157 0.923529)]",
+    "button.group-action [contorno 2px color(srgb 0.778431 0.592157 0.923529)]",
+    "button.group-action [contorno 2px color(srgb 0.778431 0.592157 0.923529)]",
+    "button.channel-entry [contorno 2px color(srgb 0.778431 0.592157 0.923529)]",
+    "button.group-action [contorno 2px color(srgb 0.778431 0.592157 0.923529)]",
+    "button.channel-entry [contorno 2px color(srgb 0.778431 0.592157 0.923529)]",
+    "button.group-action [contorno 2px color(srgb 0.778431 0.592157 0.923529)]",
+    "button.channel-entry [contorno 2px color(srgb 0.778431 0.592157 0.923529)]",
+    "button.group-action [contorno 2px color(srgb 0.778431 0.592157 0.923529)]",
+    "button.channel-entry [contorno 2px color(srgb 0.778431 0.592157 0.923529)]",
+    "button.group-action [contorno 2px color(srgb 0.778431 0.592157 0.923529)]",
+    "button.channel-entry [contorno 2px color(srgb 0.778431 0.592157 0.923529)]",
+    "button.group-action [contorno 2px color(srgb 0.778431 0.592157 0.923529)]",
+    "button.cat-toggle [contorno 2px color(srgb 0.778431 0.592157 0.923529)]",
+    "button.group-action [contorno 2px color(srgb 0.778431 0.592157 0.923529)]",
+    "button.group-action [contorno 2px color(srgb 0.778431 0.592157 0.923529)]",
+    "button.channel-entry [contorno 2px color(srgb 0.778431 0.592157 0.923529)]",
+    "button.group-action.voice-chat-open [contorno 2px color(srgb 0.778431 0.592157 0.923529)]",
+    "button.group-action [contorno 2px color(srgb 0.778431 0.592157 0.923529)]",
+    "button.channel-entry [contorno 2px color(srgb 0.778431 0.592157 0.923529)]",
+    "button.group-action.voice-chat-open [contorno 2px color(srgb 0.778431 0.592157 0.923529)]",
+    "button.group-action [contorno 2px color(srgb 0.778431 0.592157 0.923529)]",
+    "button.channel-entry [contorno 2px color(srgb 0.778431 0.592157 0.923529)]",
+    "button.group-action.voice-chat-open [contorno 2px color(srgb 0.778431 0.592157 0.923529)]",
+    "button.group-action [contorno 2px color(srgb 0.778431 0.592157 0.923529)]",
+    "button.cat-toggle [contorno 2px color(srgb 0.778431 0.592157 0.923529)]",
+    "button.group-action [contorno 2px color(srgb 0.778431 0.592157 0.923529)]",
+    "button.group-action [contorno 2px color(srgb 0.778431 0.592157 0.923529)]",
+    "button.channel-list-add [contorno 2px color(srgb 0.778431 0.592157 0.923529)]",
+    "#me-card [sombra]",
+    "#btn-mute [contorno 2px color(srgb 0.778431 0.592157 0.923529)]",
+    "#btn-deafen [contorno 2px color(srgb 0.778431 0.592157 0.923529)]",
+    "#btn-settings [contorno 2px color(srgb 0.778431 0.592157 0.923529)]",
+    "#btn-members [contorno 2px color(srgb 0.778431 0.592157 0.923529)]",
+    "a. [contorno 2px color(srgb 0.778431 0.592157 0.923529)]",
+    "button.reaction.mine [contorno 2px color(srgb 0.778431 0.592157 0.923529)]",
+    "button.reaction.add [contorno 2px color(srgb 0.778431 0.592157 0.923529)]",
+    "button.reaction.mine [contorno 2px color(srgb 0.778431 0.592157 0.923529)]",
+    "button.reaction [contorno 2px color(srgb 0.778431 0.592157 0.923529)]"
+   ]
+  },
+  {
+   "tela": "config-perfil-desk",
+   "focados": 45,
+   "sem_indicador": 0,
+   "itens": [],
+   "todos": [
+    "#settings-search [contorno 2px color(srgb 0.778431 0.592157 0.923529)]",
+    "#tab-profile [contorno 2px color(srgb 0.778431 0.592157 0.923529)]",
+    "#settings-feedback [contorno 2px color(srgb 0.778431 0.592157 0.923529)]",
+    "#settings-server-link [contorno 2px color(srgb 0.778431 0.592157 0.923529)]",
+    "#btn-logout [contorno 2px color(srgb 0.778431 0.592157 0.923529)]",
+    "#settings-version [contorno 2px color(srgb 0.778431 0.592157 0.923529)]",
+    "#settings-close [contorno 2px color(srgb 0.778431 0.592157 0.923529)]",
+    "#profile-photo-choose [contorno 2px color(srgb 0.778431 0.592157 0.923529)]",
+    "#profile-banner-choose [contorno 2px color(srgb 0.778431 0.592157 0.923529)]",
+    "#profile-background-choose [contorno 2px color(srgb 0.778431 0.592157 0.923529)]",
+    "button.profile-swatch [contorno 2px rgb(243, 243, 245)]",
+    "button.profile-swatch [contorno 2px rgb(243, 243, 245)]",
+    "button.profile-swatch [contorno 2px rgb(243, 243, 245)]",
+    "button.profile-swatch [contorno 2px rgb(243, 243, 245)]",
+    "button.profile-swatch [contorno 2px rgb(243, 243, 245)]",
+    "button.profile-swatch [contorno 2px rgb(243, 243, 245)]",
+    "button.profile-swatch [contorno 2px rgb(243, 243, 245)]",
+    "button.profile-swatch [contorno 2px rgb(243, 243, 245)]",
+    "button.profile-swatch [contorno 2px rgb(243, 243, 245)]",
+    "#profile-color [sombra]",
+    "#profile-bio [sombra]",
+    "#profile-name-edit [contorno 2px color(srgb 0.778431 0.592157 0.923529)]",
+    "button.profile-preview-spot.profile-preview-spot-banner [contorno 2px color(srgb 0.778431 0.592157 0.923529)]",
+    "button.profile-preview-spot.profile-preview-spot-background [contorno 2px color(srgb 0.778431 0.592157 0.923529)]",
+    "button.profile-preview-edit-photo [contorno 2px color(srgb 0.778431 0.592157 0.923529)]",
+    "#settings-search [contorno 2px color(srgb 0.778431 0.592157 0.923529)]",
+    "#tab-profile [contorno 2px color(srgb 0.778431 0.592157 0.923529)]",
+    "#settings-feedback [contorno 2px color(srgb 0.778431 0.592157 0.923529)]",
+    "#settings-server-link [contorno 2px color(srgb 0.778431 0.592157 0.923529)]",
+    "#btn-logout [contorno 2px color(srgb 0.778431 0.592157 0.923529)]",
+    "#settings-version [contorno 2px color(srgb 0.778431 0.592157 0.923529)]",
+    "#settings-close [contorno 2px color(srgb 0.778431 0.592157 0.923529)]",
+    "#profile-photo-choose [contorno 2px color(srgb 0.778431 0.592157 0.923529)]",
+    "#profile-banner-choose [contorno 2px color(srgb 0.778431 0.592157 0.923529)]",
+    "#profile-background-choose [contorno 2px color(srgb 0.778431 0.592157 0.923529)]",
+    "button.profile-swatch [contorno 2px rgb(243, 243, 245)]",
+    "button.profile-swatch [contorno 2px rgb(243, 243, 245)]",
+    "button.profile-swatch [contorno 2px rgb(243, 243, 245)]",
+    "button.profile-swatch [contorno 2px rgb(243, 243, 245)]",
+    "button.profile-swatch [contorno 2px rgb(243, 243, 245)]",
+    "button.profile-swatch [contorno 2px rgb(243, 243, 245)]",
+    "button.profile-swatch [contorno 2px rgb(243, 243, 245)]",
+    "button.profile-swatch [contorno 2px rgb(243, 243, 245)]",
+    "button.profile-swatch [contorno 2px rgb(243, 243, 245)]",
+    "#profile-color [sombra]"
+   ]
+  },
+  {
+   "tela": "entrar-desk",
+   "focados": 9,
+   "sem_indicador": 0,
+   "itens": [],
+   "todos": [
+    "#login-name [contorno 2px color(srgb 0.778431 0.592157 0.923529)]",
+    "#login-password [contorno 2px color(srgb 0.778431 0.592157 0.923529)]",
+    "#login-submit [contorno 2px color(srgb 0.778431 0.592157 0.923529)]",
+    "#login-switch [contorno 2px color(srgb 0.778431 0.592157 0.923529)]",
+    "#login-back [contorno 2px color(srgb 0.778431 0.592157 0.923529)]",
+    "#login-name [contorno 2px color(srgb 0.778431 0.592157 0.923529)]",
+    "#login-password [contorno 2px color(srgb 0.778431 0.592157 0.923529)]",
+    "#login-submit [contorno 2px color(srgb 0.778431 0.592157 0.923529)]",
+    "#login-switch [contorno 2px color(srgb 0.778431 0.592157 0.923529)]"
+   ]
+  }
+ ]
+}

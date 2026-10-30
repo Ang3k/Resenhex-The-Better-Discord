@@ -53,9 +53,9 @@ Registro de trabalho para retomar de onde parou depois de uma interrupção. Lei
 - [x] Onda 3 — Ícones (peso ótico abaixo de 18 px, ~25 gestos de hover, sinal que sobe ao conectar). Trocas animadas além das que o app já faz ficaram de fora (os botões são recriados a cada renderização).
 - [x] Onda 4 — Momentos (chegada, voz, pouso, voo, cutucão, acendeu, digitando, conectou, reconectou; conferidos com `ferramentas/moments.js`)
 - [x] Onda 5 — Estados (abertura com logo, começo do canal, foco único, reconectado). Achado no caminho: a classe `boot-slow` no `<html>` escondia a página inteira depois de 10 s; corrigido antes do commit (`boot-late`).
-- [ ] Onda 6 — Cor (contraste, tokens, elevação)
+- [x] Onda 6 — Cor (7 commits: tokens, contraste AA, verde forte, setinhas de 24 px, restos do Discord em tokens, elevação, textos de 10 px). Conferido com `ferramentas/a11y.js`: 0 falhas de contraste e 0 de alvo nas 15 telas (antes 26 e 6). Achado fora da tela medida: no Meia-noite e no Alto contraste o branco sobre a cor da marca fica em 2,6:1 e 2,5:1 (botões principais); registrado no relatório, não corrigido (muda o visual desses temas).
 - [ ] Capturas "depois", medição final, antes × depois no relatório, resumo final
 
 ## Próximo passo
 
-Onda 6 (contraste AA, restos do Discord em tokens, setinhas de 24 px, textos minúsculos, elevação).
+Medição final (4× e sem lentidão, respostas por ação, acessibilidade), capturas "depois", antes × depois no relatório e resumo final.

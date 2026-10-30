@@ -8,7 +8,13 @@ import json, re, subprocess, sys, tempfile, os
 
 repo, plan_path = sys.argv[1], sys.argv[2]
 plan = json.load(open(plan_path))
-diff = subprocess.run(['git', '-C', repo, 'diff', '-U3', '--no-color'], capture_output=True, text=True, check=True).stdout
+# SPLIT_U1: regex dos arquivos com mudanças muito próximas; o diff deles sai com 1 linha de contexto para os pedaços não grudarem.
+u1 = os.environ.get('SPLIT_U1')
+names = subprocess.run(['git', '-C', repo, 'diff', '--name-only'], capture_output=True, text=True, check=True).stdout.split()
+diff = ''
+for name in names:
+    ctx = '-U1' if u1 and re.search(u1, name) else '-U3'
+    diff += subprocess.run(['git', '-C', repo, 'diff', ctx, '--no-color', '--', name], capture_output=True, text=True, check=True).stdout
 
 files = re.split(r'(?=^diff --git )', diff, flags=re.M)
 groups = [[] for _ in plan]
