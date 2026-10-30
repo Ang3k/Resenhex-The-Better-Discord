@@ -157,8 +157,6 @@
   :is(button, a, [role="button"], .menu-item):hover:not(:disabled) .ico-dice { animation: g-roll .6s var(--spring-snappy); }
   :is(button, a, [role="button"], .menu-item):hover:not(:disabled) :is(.ico-maximize, .ico-zoomIn) { animation: g-grow .45s var(--spring); }
   :is(button, a, [role="button"], .menu-item):hover:not(:disabled) :is(.ico-minimize, .ico-zoomOut, .ico-shrink) { animation: g-shrink .45s var(--spring); }
-  :is(button, a, [role="button"], .menu-item):hover:not(:disabled) .ico-volume .wave { animation: g-wave .55s ease-out both; }
-  :is(button, a, [role="button"], .menu-item):hover:not(:disabled) .ico-volume .wave + .wave { animation-delay: 90ms; }
   :is(button, a, [role="button"], .menu-item):hover:not(:disabled) .ico-gamepad { animation: g-shake .45s ease-in-out; }
 }
 @keyframes g-reply { 40% { transform: translateX(-3px) rotate(-10deg); } 70% { transform: translateX(1px); } }
@@ -176,7 +174,6 @@
 @keyframes g-roll { 50% { transform: rotate(180deg) scale(1.12); } to { transform: rotate(360deg); } }
 @keyframes g-grow { 40% { transform: scale(1.16); } }
 @keyframes g-shrink { 40% { transform: scale(.84); } }
-@keyframes g-wave { from { opacity: .15; } }
 @keyframes g-shake { 20%, 60% { transform: translateX(-1.5px) rotate(-4deg); } 40%, 80% { transform: translateX(1.5px) rotate(4deg); } }
 
 /* Conectou: o painel de voz sobe no dock e as barras do sinal sobem uma a uma. */
