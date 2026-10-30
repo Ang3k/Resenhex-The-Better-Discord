@@ -663,8 +663,7 @@
         // Descarta o histórico em cache: as mensagens perdidas vêm na próxima leitura.
         state.messages = {};
         $('#messages').dataset.channel = '';
-        setConnBanner(null);
-        toast('Reconectado!', 'info');
+        setConnBanner(null, true); // "Conectado de novo" no lugar do aviso de queda (antes: um aviso embaixo)
         resumeCall();
       }
       call('chat:unread').then((r) => {
@@ -680,11 +679,12 @@
 
   $('#update-reload').onclick = () => location.reload();
 
-  function setConnBanner(text) {
+  // back: a conexão voltou de verdade (a faixa fica verde no mesmo lugar em que avisou a queda).
+  function setConnBanner(text, back = false) {
     const banner = $('#conn-banner');
     clearTimeout(setConnBanner.timer);
     const wasDown = !banner.classList.contains('hidden') && !banner.classList.contains('ok');
-    if (!text && wasDown) {
+    if (!text && back && wasDown) {
       // A conexão voltou: a faixa fica verde por um instante antes de sumir.
       banner.replaceChildren(Icon('check', 16), el('span', { textContent: 'Conectado de novo' }));
       banner.classList.add('ok');
