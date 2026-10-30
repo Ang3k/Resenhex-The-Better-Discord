@@ -16,12 +16,6 @@ window.CHANGELOG = [
       { kind: 'improved', items: [
         'A aba Overlay em jogos das Configurações virou Jogos, com o Jogando agora e o overlay no mesmo lugar.',
       ] },
-    ],
-  },
-  {
-    version: '2.1.0', date: '2026-10-27', name: 'Atalhos de microfone e áudio dentro de jogos abertos como administrador',
-    summary: 'Mutar e ensurdecer pelo atalho agora funcionam com o jogo na frente, também nos jogos que rodam como administrador. Precisa do app do Windows 1.4.5, que se atualiza sozinho.',
-    sections: [
       { kind: 'fixed', items: [
         'App do Windows: com um jogo aberto como administrador na frente (vários jogos rodam assim), Ctrl+Shift+M e Ctrl+Shift+D não faziam nada, porque o Windows esconde do Resenhex as teclas desse jogo. Agora o app percebe esse jogo e, enquanto ele estiver na frente, pede os atalhos direto ao Windows. Segurar a tecla muta uma vez só.',
       ] },
