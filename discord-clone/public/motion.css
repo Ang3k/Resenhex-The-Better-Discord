@@ -5,18 +5,35 @@
    "Reduzir animações" e a preferência do sistema desligam tudo isto (regras no experience.css). */
 
 /* ---------- Tokens ---------- */
+/* Personalidade: "elástico curto". Rápido, com um pouquinho de sobra nas coisas que você toca (molas) e suave
+   nas que aparecem; a saída é sempre mais curta que a entrada. */
 :root {
-  --motion-fast: 150ms;   /* hover, clique e dicas */
+  --motion-fast: 140ms;   /* hover, clique e dicas */
   --motion-base: 200ms;   /* menus, cartões e seletores */
-  --motion-slow: 300ms;   /* janelas, folhas, gavetas e troca de tela */
-  --motion-large: 400ms;  /* telas cheias (configurações, novidades) */
-  --motion-exit: 150ms;   /* qualquer saída */
+  --motion-slow: 280ms;   /* janelas, folhas, gavetas e troca de tela */
+  --motion-large: 380ms;  /* telas cheias (configurações, novidades) */
+  --motion-exit: 120ms;   /* qualquer saída */
   --ease-enter: cubic-bezier(.22, 1, .36, 1);
-  --ease-exit: ease-in;
+  --ease-exit: cubic-bezier(.4, 0, 1, 1);   /* acelera e sai seco */
   --ease-out: var(--ease-enter);             /* nome antigo, ainda usado por outros arquivos */
-  --spring: cubic-bezier(.34, 1.56, .64, 1); /* só nos ícones animados */
+  --spring: cubic-bezier(.34, 1.56, .64, 1); /* gestos dos ícones */
+  /* Molas de verdade (CSS linear(), geradas de uma mola amortecida: tools em docs/relatorios/auditoria-visual-2026-10-30).
+     Plano B para WebView sem linear() (Chromium < 113): curvas cubic-bezier parecidas. */
+  --spring-pop: cubic-bezier(.34, 1.56, .64, 1);   /* sobra ~16 %: chips, selos, ícones que pulam */
+  --spring-snappy: cubic-bezier(.3, 1.35, .5, 1);  /* sobra ~8 %: botão soltando, controles */
+  --spring-soft: cubic-bezier(.25, 1.1, .5, 1);    /* sobra ~2 %: menus, mensagens, blocos chegando */
+  --spring-pop-dur: 410ms;
+  --spring-snappy-dur: 330ms;
+  --spring-soft-dur: 355ms;
   --press: .97;        /* botão com texto, ao clicar */
   --press-icon: .92;   /* botão só de ícone, ao clicar */
+}
+@supports (transition-timing-function: linear(0, 1)) {
+  :root {
+    --spring-pop: linear(0, .066, .199, .349, .529, .702, .853, .975, 1.064, 1.117, 1.15, 1.159, 1.151, 1.131, 1.108, 1.079, 1.051, 1.027, 1.007, .992, .982, .977, .975, .976, .979, .983, .987, .991, 1);
+    --spring-snappy: linear(0, .087, .25, .44, .624, .781, .915, .997, 1.048, 1.073, 1.079, 1.073, 1.061, 1.046, 1.031, 1.018, 1.008, 1.001, .997, .994, .994, .994, 1);
+    --spring-soft: linear(0, .081, .234, .391, .555, .694, .804, .886, .942, .976, .999, 1.012, 1.017, 1.017, 1.016, 1.013, 1.01, 1.007, 1);
+  }
 }
 
 /* ---------- Vocabulário de entradas e saídas (os outros arquivos usam os mesmos nomes) ---------- */
@@ -105,20 +122,23 @@
 @keyframes emoji-wink { 40% { transform: scale(1.18) rotate(-12deg); } }
 #btn-logout .ico-logout .arrow { transition: transform var(--motion-base) var(--ease-enter); }
 #btn-logout:hover .ico-logout .arrow { transform: translateX(2px); }
-.menu-item .ico { transition: transform var(--motion-base) var(--ease-enter); }
+.menu-item .ico { transition: transform var(--spring-pop-dur) var(--spring-pop); }
 .menu-item:hover .ico { transform: scale(1.1); }
-.msg-actions button .ico { transition: transform var(--motion-base) var(--ease-enter); }
+.msg-actions button .ico { transition: transform var(--spring-pop-dur) var(--spring-pop); }
 .msg-actions button:hover .ico { transform: scale(1.15); }
-#emoji-picker .ep-emoji { transition: transform var(--motion-fast) var(--ease-enter); }
+#emoji-picker .ep-emoji { transition: transform var(--spring-pop-dur) var(--spring-pop); }
 #emoji-picker .ep-emoji:hover { transform: scale(1.18); }
 
 /* ---------- Resposta ao clique ---------- */
 .icon-btn, .vp-btn, .friend-btn, .pc-btn, .pc-icon-btn, .ft-tab, .msg-actions button, #chat-form button, .tc-btn, .cat-add, .group-action {
-  transition-property: transform, opacity; transition-duration: var(--motion-fast); transition-timing-function: var(--ease-enter);
+  transition-property: transform, opacity; transition-duration: var(--spring-snappy-dur); transition-timing-function: var(--spring-snappy);
 }
-:is(.icon-btn, .vp-btn, .friend-btn, .pc-icon-btn, .msg-actions button, #chat-form button, .tc-btn, .cat-add, .group-action):active:not(:disabled) { transform: scale(var(--press-icon)); }
-:is(.pc-btn, .ft-tab, .friends-add-submit, .friend-text-btn, .watch-btn):active:not(:disabled) { transform: scale(var(--press)); }
-.sc-btn { position: relative; transition: transform var(--motion-base) var(--ease-enter); }
+/* Afunda rápido (70 ms) e, ao soltar, volta com a mola (a transição de cima). */
+:is(.icon-btn, .vp-btn, .friend-btn, .pc-icon-btn, .msg-actions button, #chat-form button, .tc-btn, .cat-add, .group-action):active:not(:disabled) {
+  transform: scale(var(--press-icon)); transition-duration: 70ms; transition-timing-function: ease-out;
+}
+:is(.pc-btn, .ft-tab, .friends-add-submit, .friend-text-btn, .watch-btn):active:not(:disabled) { transform: scale(var(--press)); transition-duration: 70ms; transition-timing-function: ease-out; }
+.sc-btn { position: relative; transition: transform var(--spring-snappy-dur) var(--spring-snappy); }
 /* A sombra do botão que sobe é uma camada pronta que só esmaece: animar box-shadow repintaria a cada quadro. */
 .sc-btn::after {
   content: ''; position: absolute; inset: 0; border-radius: inherit; pointer-events: none;
@@ -126,12 +146,15 @@
 }
 .sc-btn:hover:not(:disabled) { transform: translateY(-2px); }
 .sc-btn:hover:not(:disabled)::after { opacity: 1; }
-.sc-btn:active:not(:disabled) { transform: translateY(0) scale(var(--press-icon)); }
+.sc-btn:active:not(:disabled) { transform: translateY(0) scale(var(--press-icon)); transition-duration: 70ms; transition-timing-function: ease-out; }
 .sc-btn.hangup::after { box-shadow: 0 8px 22px rgba(217, 67, 75, .45); }
 
 /* Faixa de servidores: o ícone afunda um pouco ao clicar. A pílula tem 40 px e cresce com scaleY (8 → 20 → 40 px). */
-.rail-icon { transition: transform var(--motion-fast); }
-.rail-item:active .rail-icon { transform: translateY(1px) scale(.96); }
+.rail-icon { transition: transform var(--spring-snappy-dur) var(--spring-snappy); }
+.rail-item:active .rail-icon { transform: translateY(1px) scale(.94); transition-duration: 70ms; transition-timing-function: ease-out; }
+/* Ao passar o mouse o círculo vira "squircle" na hora (animar o raio repintaria) e o ícone dá um pulinho de acordar. */
+@media (hover: hover) { .rail-item:not(.active):hover .rail-icon { animation: rail-wake var(--spring-snappy-dur) var(--spring-snappy); } }
+@keyframes rail-wake { from { transform: scale(.9); } }
 .rail-pill { transition: transform var(--motion-base) var(--ease-enter); }
 
 /* ---------- Quem está falando ---------- */
@@ -144,7 +167,7 @@
 
 /* ---------- Entradas ---------- */
 /* Menus e cartões saem do ponto em que foram abertos; os que abrem para cima (emoji, GIF, sugestões) sobem. */
-:is(#context-menu, #context-submenu, #profile-card, #emoji-picker, #gif-picker, #autocomplete) { animation: menu-in var(--motion-base) var(--ease-enter); }
+:is(#context-menu, #context-submenu, #profile-card, #emoji-picker, #gif-picker, #autocomplete) { animation: menu-in var(--spring-soft-dur) var(--spring-soft); }
 :is(#emoji-picker, #gif-picker, #autocomplete) { --pop-y: 4px; }
 #context-menu, #context-submenu { transform-origin: top left; }
 #context-menu.sheet-menu { animation: sheet-up var(--motion-slow) var(--ease-enter); }
@@ -158,7 +181,7 @@
 
 /* Janelas: o fundo escurece e o cartão sobe de leve; as telas cheias levam um pouco mais. */
 :is(.confirm-overlay, #server-dialog, #create-channel, #changelog, #feedback, #lightbox, #sidebar-backdrop, .settings-overlay, #msg-sheet) { animation: fade-in var(--motion-base) var(--ease-enter); }
-:is(.confirm-card, .channel-dialog, #create-channel .card, #feedback .feedback-card, #server-dialog .server-dialog) { animation: dialog-in var(--motion-slow) var(--ease-enter); }
+:is(.confirm-card, .channel-dialog, #create-channel .card, #feedback .feedback-card, #server-dialog .server-dialog) { animation: dialog-in var(--spring-soft-dur) var(--spring-soft); }
 :is(#changelog .cl-card, .settings-overlay .settings-shell) { animation: dialog-in var(--motion-large) var(--ease-enter); }
 .channel-dialog[open]::backdrop { animation: fade-in var(--motion-base) var(--ease-enter); }
 
@@ -222,7 +245,7 @@
 #toast {
   display: flex; align-items: center; gap: 10px; padding: 11px 16px 11px 12px; border-radius: 12px;
   background: var(--bg-floating); color: var(--text-strong); border: 1px solid var(--divider);
-  box-shadow: 0 16px 40px rgba(0, 0, 0, .5); animation: toast-in var(--motion-slow) var(--ease-enter);
+  box-shadow: 0 16px 40px rgba(0, 0, 0, .5), inset 0 1px 0 rgba(255, 255, 255, .04); animation: toast-in var(--spring-snappy-dur) var(--spring-snappy);
 }
 #toast.hidden { display: none; transform: translate(-50%, 8px); }
 #toast .ico { flex-shrink: 0; padding: 5px; width: 28px; height: 28px; border-radius: 8px; }
