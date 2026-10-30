@@ -9,8 +9,8 @@
 /* Barra de zoom: em cima, no meio (embaixo ficam o nome e os botões do bloco); aparece com o mouse e some parada. */
 .sz-hud {
   position: absolute; left: 50%; top: 10px; z-index: 2; display: none; align-items: center; gap: 2px; padding: 4px;
-  border-radius: 12px; background: rgba(17, 18, 20, .78); border: 1px solid rgba(255, 255, 255, .08);
-  box-shadow: 0 8px 24px rgba(0, 0, 0, .45); backdrop-filter: blur(12px); color: #fff;
+  border-radius: 12px; background: rgba(17, 18, 20, .9); border: 1px solid rgba(255, 255, 255, .08);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, .45), inset 0 1px 0 rgba(255, 255, 255, .05); color: #fff; /* sem blur: fica por cima do vídeo */
   opacity: 0; transform: translate(-50%, -6px); pointer-events: none; transition: opacity .18s ease, transform .18s ease;
 }
 .tile.sz-on .sz-hud { display: flex; }

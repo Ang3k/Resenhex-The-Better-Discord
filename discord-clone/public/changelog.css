@@ -1,5 +1,5 @@
 /* Janela "Novidades" (changelog) */
-#changelog { position: fixed; inset: 0; z-index: 44; display: grid; place-items: center; padding: 20px; background: rgba(10, 10, 12, .8); backdrop-filter: blur(6px); }
+#changelog { position: fixed; inset: 0; z-index: 44; display: grid; place-items: center; padding: 20px; background: rgba(10, 10, 12, .84); } /* sem desfoque: tela cheia, e com vídeo atrás ele seria refeito a cada quadro */
 #changelog.hidden { display: none; }
 .cl-card {
   position: relative; width: min(880px, 100%); height: min(640px, 100%); display: grid; grid-template-columns: 220px minmax(0, 1fr);

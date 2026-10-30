@@ -506,7 +506,11 @@ blockquote { margin: 2px 0; padding: 0 8px 0 12px; border-left: 4px solid color-
 
 #stage-controls {
   position: absolute; left: 50%; bottom: 20px; transform: translateX(-50%); display: flex; gap: clamp(4px, 1.5cqw, 12px);
-  max-width: calc(100% - 24px); padding: 8px; border: 1px solid var(--divider); border-radius: 32px; background: color-mix(in srgb, var(--bg-floating) 85%, transparent); backdrop-filter: blur(12px);
+  max-width: calc(100% - 24px); padding: 8px; border: 1px solid var(--divider); border-radius: 32px;
+  /* Sem desfoque: a barra fica por cima do vídeo, e o blur seria refeito a cada quadro dele. Fundo quase opaco e
+     um brilho de 1 px no topo dão a mesma lâmina de vidro. */
+  background: color-mix(in srgb, var(--bg-floating) 94%, transparent);
+  box-shadow: 0 12px 32px rgba(0, 0, 0, .42), inset 0 1px 0 rgba(255, 255, 255, .05);
 }
 .sc-btn {
   border-radius: 50%; border: 0; display: grid; place-items: center;

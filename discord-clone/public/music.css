@@ -98,7 +98,7 @@
 
 .dj-stage-next {
   grid-area: next; min-height: 0; display: flex; flex-direction: column; padding: 6px; border-radius: 12px;
-  background: rgba(0, 0, 0, .38); border: 1px solid rgba(255, 255, 255, .08); backdrop-filter: blur(14px);
+  background: rgba(0, 0, 0, .5); border: 1px solid rgba(255, 255, 255, .08);
 }
 .dj-next-list { list-style: none; margin: 0; padding: 0; flex: 1; min-height: 0; overflow-y: auto; }
 .dj-next-list li { display: flex; align-items: center; gap: 8px; padding: 6px 8px; border-radius: 8px; transition: background .12s; }
@@ -119,7 +119,7 @@
 
 .dj-stage-bar {
   grid-area: bar; min-width: 0; padding: 10px 14px 12px; border-radius: 14px;
-  background: rgba(0, 0, 0, .42); border: 1px solid rgba(255, 255, 255, .08); backdrop-filter: blur(16px);
+  background: rgba(0, 0, 0, .55); border: 1px solid rgba(255, 255, 255, .08); /* sem blur: o progresso muda a cada quadro */
 }
 .dj-stage-bar .dj-progress { padding: 0 0 8px; }
 .dj-stage-bar.paused .dj-bar i { background: var(--text-muted); }

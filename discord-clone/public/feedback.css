@@ -27,7 +27,7 @@
 body.stream-immersive .feedback-link { display: none !important; }
 .feedback-overlay {
   position: fixed; inset: 0; z-index: 45; display: grid; place-items: center;
-  padding: 20px; background: #0009; backdrop-filter: blur(4px);
+  padding: 20px; background: rgba(6, 6, 8, .8);
 }
 .feedback-card {
   position: relative; width: min(480px, 100%); max-height: calc(100dvh - 40px); overflow-y: auto;
