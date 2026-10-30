@@ -57,7 +57,7 @@ fs.mkdirSync(CLIP_DIR, { recursive: true });
 const INLINE_TYPES = {
   png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg', gif: 'image/gif', webp: 'image/webp',
   mp4: 'video/mp4', webm: 'video/webm',
-  mp3: 'audio/mpeg', ogg: 'audio/ogg', wav: 'audio/wav', m4a: 'audio/mp4',
+  mp3: 'audio/mpeg', ogg: 'audio/ogg', wav: 'audio/wav', m4a: 'audio/mp4', weba: 'audio/webm', // .weba: mensagem de áudio gravada no Chrome
 };
 
 const PERMS = {
@@ -1188,6 +1188,11 @@ function voiceSocketsOf(accountId) {
 
 // Status que a própria pessoa escolhe. "offline" é só o que os outros veem.
 const PRESENCES = ['online', 'idle', 'dnd', 'invisible'];
+const BIO_MAX = 190;
+// "Jogando agora": o jogo que o app do Windows reconheceu, por conta. Fica só na memória e vale enquanto a
+// conexão que avisou estiver aberta: fechou o app, sumiu. accountId -> { name, since, sid }
+const activities = new Map();
+const activityOf = (a) => { const game = activities.get(a.id); return game ? { name: game.name, since: game.since } : null; };
 
 function publicMember(a, onlineIds) {
   return {
@@ -1202,12 +1207,14 @@ function publicMember(a, onlineIds) {
     bannerCrop: a.banner && a.bannerCrop || null,
     backgroundUrl: a.background ? '/avatars/' + a.background : null,
     backgroundCrop: a.background && a.backgroundCrop || null,
+    bio: a.bio || null,
     since: a.createdAt || null,
     roles: a.roles,
     // Quem está invisível aparece offline para todo mundo (inclusive a frase de status).
     online: onlineIds.has(a.id) && a.presence !== 'invisible',
     status: !onlineIds.has(a.id) || a.presence === 'invisible' ? 'offline' : PRESENCES.includes(a.presence) ? a.presence : 'online',
     statusText: onlineIds.has(a.id) && a.presence !== 'invisible' ? a.statusText || null : null,
+    activity: onlineIds.has(a.id) && a.presence !== 'invisible' ? activityOf(a) : null,
     serverMuted: !!a.serverMuted,
     serverDeafened: !!a.serverDeafened,
     timeoutUntil: a.timeoutUntil || 0,
@@ -1907,7 +1914,16 @@ io.on('connection', (socket) => {
     return { ok: true, ...(await recovery.resend(acc)) };
   });
 
-  on('profile', async (acc, { color, avatar }) => {
+  on('profile', async (acc, { color, avatar, bio }) => {
+    if (bio !== undefined) {
+      // "Sobre mim": até 190 caracteres, com quebras de linha (no máximo uma linha em branco seguida).
+      if (bio !== null && typeof bio !== 'string') fail('Texto do Sobre mim inválido.');
+      const text = (bio || '').normalize('NFC').replace(/\r\n?/g, '\n').replace(/[^\P{Cc}\n]/gu, ' ')
+        .split('\n').map((line) => line.trimEnd()).join('\n').replace(/\n{3,}/g, '\n\n').trim();
+      if ([...text].length > BIO_MAX) fail(`O Sobre mim deve ter até ${BIO_MAX} caracteres.`);
+      if (!allow('bio:' + acc.id, 20, 60 * 1000)) fail('Muitas trocas no Sobre mim. Aguarde um minuto.');
+      acc.bio = text || undefined;
+    }
     let nextAvatar = acc.avatar;
     if (avatar !== undefined) {
       if (!allow('avatar:' + acc.id, 10, 60 * 1000)) fail('Muitas trocas de foto. Aguarde um minuto.');
@@ -1917,10 +1933,10 @@ io.on('connection', (socket) => {
     const previousAvatar = acc.avatar; // lido depois da foto: outra troca pode ter terminado nesse meio tempo
     acc.avatar = nextAvatar || null;
     acc.color = cleanColor(color, acc.color);
-    save();
+    save(chunk.account(acc.id));
     notifyAccount(acc.id);
     if (previousAvatar !== nextAvatar) removeImageIfUnused(previousAvatar);
-    return { ok: true, avatarUrl: acc.avatar ? '/avatars/' + acc.avatar : null };
+    return { ok: true, avatarUrl: acc.avatar ? '/avatars/' + acc.avatar : null, bio: acc.bio || '' };
   });
 
   on('presence', (acc, { presence, statusText }) => {
@@ -1937,6 +1953,20 @@ io.on('connection', (socket) => {
     if (!allow('presence:' + acc.id, 20, 60000)) fail('Muitas trocas de status. Aguarde um minuto.');
     save(); notifyAccount(acc.id);
     return { ok: true, presence: acc.presence || 'online', statusText: acc.statusText || '' };
+  });
+
+  // O app do Windows avisa o jogo que abriu ({ name, since }) e quando ele fecha (null).
+  on('activity', (acc, game) => {
+    if (!allow('activity:' + acc.id, 30, 60_000)) fail('Muitas trocas de jogo. Aguarde um minuto.');
+    const name = typeof game?.name === 'string' ? game.name.normalize('NFC').replace(/\p{Cc}/gu, ' ').trim().replace(/\s+/g, ' ').slice(0, 64) : '';
+    const before = JSON.stringify(activityOf(acc));
+    if (!name) { if (activities.get(acc.id)?.sid === socket.id) activities.delete(acc.id); }
+    else {
+      const now = Date.now(), since = Number(game.since);
+      activities.set(acc.id, { name, since: since > now - 24 * 3600_000 && since <= now ? since : now, sid: socket.id });
+    }
+    if (JSON.stringify(activityOf(acc)) !== before) notifyAccount(acc.id);
+    return { ok: true };
   });
 
   on('member:nickname', (acc, { nickname, serverId }) => {
@@ -2120,7 +2150,7 @@ io.on('connection', (socket) => {
     return { c, list, i, msg: list[i] };
   };
 
-  on('chat:send', (acc, { channel, text, attachments, replyTo, gif }) => {
+  on('chat:send', (acc, { channel, text, attachments, replyTo, gif, voice }) => {
     const c = chatTarget(acc, channel);
     text = String(text || '').trim().slice(0, 4000);
     const peer = c.dm ? dmPeer(acc, c.dm) : null;
@@ -2136,6 +2166,14 @@ io.on('connection', (socket) => {
       || (up.serverId !== undefined && up.serverId !== (c.dm ? null : communities.currentId()))
       || (up.channelId && up.channelId !== c.id))) fail('Anexo inválido, envie o arquivo de novo.');
     if (gif !== undefined) gif = cleanGif(gif);
+    // Mensagem de áudio: um anexo de áudio só, sem texto, com a duração e a onda que o player desenha.
+    if (voice !== undefined) {
+      const duration = Number(voice?.duration);
+      const wave = voice?.waveform;
+      if (text || gif || ups.length !== 1 || !ups[0].type.startsWith('audio/') || !(duration >= 0.5 && duration <= 330)
+        || !Array.isArray(wave) || !wave.length || wave.length > 64 || !wave.every((v) => Number.isInteger(v) && v >= 0 && v <= 100)) fail('Mensagem de áudio inválida.');
+      voice = { duration: Math.round(duration * 10) / 10, waveform: wave };
+    }
     if (!text && !ups.length && !gif) return;
     const list = (db.messages[c.id] ||= []);
     const replied = replyTo ? list.find((m) => m.id === replyTo) : null;
@@ -2145,6 +2183,7 @@ io.on('connection', (socket) => {
       ups.forEach((up) => { up.messageId = msg.id; save(chunk.upload(up.id)); });
     }
     if (gif) msg.gif = gif;
+    if (voice) msg.voice = voice;
     if (replied) msg.replyTo = replied.id;
     msg.mentions = mentionsFor(acc, c, text, replied?.authorId);
     pushMessage(c.id, list, msg);
@@ -2163,6 +2202,7 @@ io.on('connection', (socket) => {
     text = String(text || '').trim().slice(0, 4000);
     if (msg.authorId !== acc.id) fail('Só dá para editar suas mensagens.');
     if (msg.call) fail('Não dá para editar o aviso de uma chamada.');
+    if (msg.voice) fail('Não dá para editar uma mensagem de áudio.');
     if (c.dm) dmPeer(acc, c.dm);
     else if (timedOut(acc)) fail('Você está de castigo.');
     if (!text && !msg.attachments?.length && !msg.gif) return;
@@ -2856,6 +2896,7 @@ io.on('connection', (socket) => {
     leaveSalon(s);
     leaveVoice(socket);
     online.delete(socket.id);
+    if (s && activities.get(s.accountId)?.sid === socket.id) activities.delete(s.accountId);
     if (s) notifyAccount(s.accountId); // conexão que nunca entrou numa conta não muda nada para ninguém
   });
 });

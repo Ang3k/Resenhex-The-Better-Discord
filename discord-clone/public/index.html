@@ -53,6 +53,7 @@
   <link rel="stylesheet" href="clips.css">
   <link rel="stylesheet" href="site-calls.css">
   <link rel="stylesheet" href="site-health.css">
+  <link rel="stylesheet" href="voice-message.css">
   <script>
     // Mouse de verdade = hover + ponteiro fino. O emulador Android responde "pointer: fine" sem hover,
     // então "pointer: fine" sozinho não serve para saber se é toque. A classe "touch" troca textos e opções.
@@ -523,7 +524,19 @@
 </button>
             <button type="button" id="btn-emoji" data-icon="smile" data-size="22" data-tip="Emoji" aria-label="Emoji">
 </button>
+            <button type="button" id="btn-voice-msg" class="hidden" data-icon="mic" data-size="22" data-tip="Gravar áudio" aria-label="Gravar mensagem de áudio">
+</button>
           </form>
+          <div id="voice-rec" class="hidden" role="group" aria-label="Gravando mensagem de áudio">
+            <button type="button" id="voice-rec-cancel" data-icon="trash" data-size="20" data-tip="Descartar" aria-label="Descartar áudio">
+</button>
+            <span class="voice-rec-dot" aria-hidden="true"></span>
+            <span id="voice-rec-time" class="voice-rec-time">0:00</span>
+            <div id="voice-rec-meter" class="voice-rec-meter" aria-hidden="true"></div>
+            <span id="voice-rec-status" class="voice-rec-status" role="status"></span>
+            <button type="button" id="voice-rec-send" data-icon="send" data-size="20" data-tip="Enviar (Enter)" aria-label="Enviar áudio">
+</button>
+          </div>
           <div id="typing" class="muted-text">
 </div>
         </div>
@@ -614,9 +627,9 @@
 <button id="tab-stream" data-section="stream" data-keywords="tela qualidade upload fps" role="tab" aria-controls="page-stream">
 <span data-icon="screen">
 </span>Transmissão</button>
-<button id="tab-overlay" data-section="overlay" data-keywords="jogo game overlay tela cheia quem fala" role="tab" aria-controls="page-overlay">
+<button id="tab-overlay" data-section="overlay" data-keywords="jogo game overlay tela cheia quem fala jogando agora atividade" role="tab" aria-controls="page-overlay">
 <span data-icon="gamepad">
-</span>Overlay em jogos</button>
+</span>Jogos</button>
 <button id="tab-appearance" data-section="appearance" data-keywords="tema fonte compacto contraste" role="tab" aria-controls="page-appearance">
 <span data-icon="eye">
 </span>Aparência</button>
@@ -724,6 +737,13 @@
 <label class="swatch profile-swatch profile-swatch-custom" data-tip="Outra cor"><span data-icon="pencil" data-size="14"></span><input id="profile-color" type="color" aria-label="Escolher outra cor"></label>
 </div>
 </div>
+<div class="profile-group profile-bio-group" role="group" aria-labelledby="profile-group-bio">
+<div class="profile-group-head"><h2 id="profile-group-bio">Sobre mim</h2><p>Aparece no seu cartão de perfil, para todo mundo. Dá para usar **negrito**, *itálico* e links.</p></div>
+<div class="profile-bio-field">
+<textarea id="profile-bio" data-setting="bio" maxlength="190" rows="4" placeholder="Conte um pouco sobre você: o que você joga, de onde é, o que curte…" aria-describedby="profile-bio-count"></textarea>
+<span id="profile-bio-count" class="profile-bio-count" aria-live="polite">0/190</span>
+</div>
+</div>
 <div id="profile-server-identity" class="profile-group profile-server-identity hidden" role="group" aria-labelledby="profile-group-name">
 <div class="profile-group-head"><h2 id="profile-group-name">Nome no servidor</h2><p>Visível só em <span id="profile-server-label"></span>.</p></div>
 <div class="profile-name-row"><strong id="profile-server-display"></strong>
@@ -749,6 +769,7 @@
 </strong>
 <span class="pc-tag profile-preview-tag"><span class="pc-dot online"></span>Online</span>
 </div>
+<div id="profile-preview-bio" class="profile-preview-bio hidden"><span class="profile-chat-label">Sobre mim</span><p></p></div>
 <div class="profile-chat-preview">
 <span class="profile-chat-label">No chat</span>
 <div class="profile-chat-message">
@@ -942,8 +963,15 @@
 </section>
 <section id="page-overlay" data-settings-page="overlay" role="tabpanel" aria-labelledby="tab-overlay">
 <div class="eyebrow">SEM SAIR DO JOGO</div>
-<h1>Overlay em jogos</h1>
-<p class="section-description">Quem está na chamada e quem está falando, por cima do jogo.</p>
+<h1>Jogos</h1>
+<p class="section-description">O jogo que você está jogando e quem está na chamada, por cima dele.</p>
+<div id="activity-group" class="setting-group">
+<label class="setting-switch">
+<span>Mostrar o jogo que estou jogando<small>A galera vê "Jogando" no seu perfil e na lista de membros. Some quando você fecha o jogo ou fica invisível.</small>
+</span>
+<input id="activity-toggle" type="checkbox">
+</label>
+</div>
 <div class="setting-group">
 <label class="setting-switch">
 <span>Mostrar o overlay nos jogos<small>Aparece sozinho quando você está numa chamada e abre um jogo.</small>
@@ -1352,6 +1380,7 @@
   <script src="clip-ui.js"></script>
   <script src="sound-trimmer.js"></script>
   <script src="state-patch.js"></script>
+  <script src="voice-message.js"></script>
   <script src="app.js">
 </script>
   <script src="landing.js"></script>

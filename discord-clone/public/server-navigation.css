@@ -112,6 +112,24 @@
 .choice-icon { display: grid; place-items: center; width: 44px; height: 44px; flex: 0 0 44px; border-radius: 14px; color: #fff; }
 .choice-icon.brand { background: var(--brand-gradient); box-shadow: 0 6px 16px color-mix(in srgb, var(--brand) 30%, transparent); }
 .choice-icon.green { background: linear-gradient(135deg, #4bd8a0, #1f9f68); box-shadow: 0 6px 16px rgba(63, 191, 133, .26); }
+.choice-icon.pink { background: linear-gradient(135deg, #f77fc0, #c93f8b); box-shadow: 0 6px 16px rgba(235, 69, 158, .26); }
+
+/* Boas-vindas da conta nova: um passo por linha, com a ação à direita. */
+.welcome-steps { display: grid; gap: 10px; margin-bottom: 20px; }
+.welcome-step { display: flex; align-items: center; gap: 14px; padding: 14px; border: 1px solid var(--divider); border-radius: 14px; background: color-mix(in srgb, var(--bg-rail) 55%, var(--bg-main)); animation: welcome-in var(--motion-large) var(--ease-enter) both; }
+.welcome-step:nth-child(2) { animation-delay: 60ms; }
+.welcome-step:nth-child(3) { animation-delay: 120ms; }
+@keyframes welcome-in { from { opacity: 0; transform: translateY(6px); } }
+.welcome-step .choice-icon { width: 40px; height: 40px; flex-basis: 40px; border-radius: 12px; }
+.welcome-text { flex: 1; min-width: 0; }
+.welcome-text strong { display: block; color: var(--text-strong); font-size: 14.5px; font-weight: 650; line-height: 1.3; overflow-wrap: anywhere; }
+.welcome-text p { margin: 3px 0 0; color: var(--text-muted); font-size: 13px; line-height: 1.45; }
+.server-dialog .welcome-action { flex-shrink: 0; height: 34px; padding: 0 14px; border: 0; border-radius: 10px; background: var(--hover-strong); color: var(--text-strong); font: inherit; font-size: 13px; font-weight: 600; cursor: pointer; transition: background .15s; }
+.server-dialog .welcome-action:hover { background: color-mix(in srgb, var(--brand) 22%, var(--hover-strong)); }
+@media (max-width: 420px) {
+  .welcome-step { flex-wrap: wrap; }
+  .server-dialog .welcome-action { width: 100%; }
+}
 .server-choice:hover .choice-icon .ico { animation: choice-pop var(--motion-large) var(--ease-enter); }
 @keyframes choice-pop { 45% { transform: scale(1.2) rotate(-8deg); } }
 

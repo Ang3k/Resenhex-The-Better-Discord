@@ -1,0 +1,73 @@
+/* ---------- Mensagem de áudio ---------- */
+
+/* Gravando: o painel toma o lugar do campo de mensagem, com o mesmo tamanho. */
+#composer.recording #chat-form { display: none; }
+#voice-rec {
+  display: flex; align-items: center; gap: 10px; min-height: 46px; padding: 0 6px 0 4px;
+  border: 1px solid color-mix(in srgb, var(--red) 45%, var(--divider)); border-radius: 12px;
+  background: color-mix(in srgb, var(--red) 7%, var(--bg-input));
+  animation: voice-rec-in var(--motion-base) var(--ease-enter);
+}
+#voice-rec.hidden { display: none; }
+#composer:has(#reply-bar:not(.hidden)) #voice-rec { border-top-left-radius: 0; border-top-right-radius: 0; }
+@keyframes voice-rec-in { from { opacity: 0; transform: translateY(4px); } }
+#voice-rec button {
+  display: grid; place-items: center; flex-shrink: 0; width: 38px; height: 38px; padding: 0; border: 0; border-radius: 10px;
+  background: transparent; color: var(--interactive); transition: color .12s, background .12s, transform .12s;
+}
+#voice-rec button:hover { color: var(--text-strong); background: var(--hover-strong); }
+#voice-rec button:active { transform: scale(.92); }
+#voice-rec-cancel:hover { color: var(--red) !important; background: color-mix(in srgb, var(--red) 14%, transparent) !important; }
+#voice-rec-send { margin-left: auto; color: #fff !important; background: var(--brand) !important; border-radius: 50% !important; }
+#voice-rec-send:hover { background: var(--brand-hover) !important; }
+.voice-rec-dot { width: 10px; height: 10px; flex-shrink: 0; border-radius: 50%; background: var(--red); animation: voice-rec-blink 1.2s ease-in-out infinite; }
+@keyframes voice-rec-blink { 50% { opacity: .25; } }
+.voice-rec-time { flex-shrink: 0; min-width: 34px; color: var(--text-strong); font-size: 14px; font-weight: 600; font-variant-numeric: tabular-nums; }
+.voice-rec-meter { flex: 1; display: flex; align-items: center; justify-content: flex-end; gap: 2px; height: 28px; min-width: 0; overflow: hidden; }
+.voice-rec-meter span { flex: 0 0 3px; height: 8%; min-height: 3px; border-radius: 2px; background: color-mix(in srgb, var(--red) 75%, var(--text)); transition: height 50ms linear; }
+.voice-rec-status { flex-shrink: 0; color: var(--text-muted); font-size: 13px; }
+.voice-rec-status:empty { display: none; }
+#voice-rec.sending .voice-rec-meter, #voice-rec.sending .voice-rec-dot { opacity: .35; animation: none; }
+#voice-rec.sending button { pointer-events: none; opacity: .6; }
+#chat-form #btn-voice-msg:hover:not(:disabled) { color: var(--red); }
+
+/* No chat: tocar, onda que acende conforme toca, tempo e velocidade. */
+.voice-message {
+  --vm-accent: var(--brand);
+  display: flex; align-items: center; gap: 12px; width: min(100%, 360px); margin-top: 4px; padding: 8px 12px 8px 8px;
+  border: 1px solid var(--divider); border-radius: 999px; background: var(--bg-panel);
+}
+.vm-play {
+  display: grid; place-items: center; flex-shrink: 0; width: 36px; height: 36px; padding: 0; border: 0; border-radius: 50%;
+  background: var(--vm-accent); color: #fff; transition: background .12s, transform .12s;
+}
+.vm-play:hover { background: var(--brand-hover); }
+.vm-play:active { transform: scale(.92); }
+.vm-play .ico { transform: translateX(1px); }
+.voice-message.playing .vm-play .ico { transform: none; }
+.vm-track { flex: 1; display: flex; align-items: center; gap: 10px; min-width: 0; }
+.vm-wave { flex: 1; display: flex; align-items: center; gap: 2px; height: 30px; min-width: 0; overflow: hidden; cursor: pointer; border-radius: 4px; }
+.vm-wave span { flex: 1 1 0; min-width: 2px; max-width: 4px; border-radius: 2px; background: color-mix(in srgb, var(--text) 28%, transparent); transition: background .12s; }
+.vm-wave span.on { background: var(--vm-accent); }
+.vm-wave:hover span:not(.on) { background: color-mix(in srgb, var(--text) 40%, transparent); }
+.vm-time { flex-shrink: 0; min-width: 32px; color: var(--text-muted); font-size: 12px; font-variant-numeric: tabular-nums; text-align: right; }
+.voice-message.playing .vm-time { color: var(--text-strong); }
+.vm-speed {
+  flex-shrink: 0; min-width: 38px; height: 24px; padding: 0 8px; border: 0; border-radius: 999px;
+  background: var(--hover-strong); color: var(--interactive); font-size: 12px; font-weight: 700; font-variant-numeric: tabular-nums;
+  transition: background .12s, color .12s;
+}
+.vm-speed:hover { color: var(--text-strong); }
+.voice-message.fast .vm-speed { background: color-mix(in srgb, var(--brand) 25%, transparent); color: var(--text-strong); }
+.voice-message.failed .vm-wave { opacity: .4; pointer-events: none; }
+.voice-message.failed .vm-time { color: var(--red); }
+
+:root[data-reduce-motion=true] :is(#voice-rec, .voice-rec-dot) { animation: none; }
+@media (prefers-reduced-motion: reduce) { :is(#voice-rec, .voice-rec-dot) { animation: none; } }
+@media (max-width: 640px) {
+  .voice-message { gap: 8px; }
+  .vm-track { gap: 8px; }
+  .vm-wave { gap: 1px; }
+  .vm-wave span { min-width: 1px; }
+  .vm-speed { min-width: 34px; padding: 0 6px; }
+}

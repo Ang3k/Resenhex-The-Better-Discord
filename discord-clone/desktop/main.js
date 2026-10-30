@@ -21,6 +21,7 @@ const { AppAudioPlans, selectedAudioApps, MAX_AUDIO_APPS } = require('./lib/app-
 const { createOverlay } = require('./lib/overlay');
 const { createGameList } = require('./lib/game-list');
 const { createShareFollow } = require('./lib/share-follow');
+const { createNowPlaying } = require('./lib/now-playing');
 const { tuneCapture, captureStats } = require('./lib/capture-tuning');
 if (!app.isPackaged && process.env.RESENHEX_USER_DATA_DIR) app.setPath('userData', path.resolve(process.env.RESENHEX_USER_DATA_DIR));
 
@@ -340,6 +341,7 @@ const pendingPicks = new Map();
 const progressivePickers = new WeakSet();
 const appAudioPlans = new AppAudioPlans();
 let shareFollow = null; // transmissão que segue a partida (lib/share-follow.js); criada quando o app fica pronto
+let nowPlaying = null; // "Jogando agora" (lib/now-playing.js); criado quando o app fica pronto
 const sourcePreviews = new Map();
 const PREVIEW_MAX_AGE = 10000;
 const PREVIEW_DISPLAY_MAX_AGE = 60000;
@@ -708,6 +710,31 @@ function installUpdate() {
   });
 }
 
+// Jogo reconhecido só pela pasta: a janela precisa ser grande, como no overlay.
+function largeGameWindow(games, rect) {
+  const area = screen.screenToDipRect(null, rect);
+  const { width, height } = screen.getDisplayMatching(area).bounds;
+  return area.width * area.height >= width * height * (games.matcher()?.minScreenShare ?? 1 / 3);
+}
+
+// ---------------- jogando agora ----------------
+// O jogo vai para o site, que mostra para a galera (se a pessoa deixar). A página pede o atual ao carregar.
+function setupNowPlaying(games) {
+  let windows = null;
+  try { windows = require('./lib/foreground').createForeground(); }
+  catch (error) { log.warn('Jogando agora indisponível:', error.message); }
+  if (!windows) return;
+  nowPlaying = createNowPlaying({
+    foreground: windows, games, large: (rect) => largeGameWindow(games, rect),
+    onChange: (game) => {
+      log.info(game ? 'Jogando agora: ' + game.name : 'Jogando agora: o jogo fechou');
+      if (site && !site.webContents.isDestroyed()) site.webContents.send('desktop:game', game);
+    },
+  });
+  nowPlaying.start();
+}
+ipcMain.on('desktop:game:ready', (event) => { if (fromVoiceSite(event)) event.sender.send('desktop:game', nowPlaying?.current() || null); });
+
 // ---------------- transmissão que segue a partida ----------------
 function setupShareFollow(games) {
   let windows = null;
@@ -717,12 +744,7 @@ function setupShareFollow(games) {
   shareFollow = createShareFollow({
     windows, games, log,
     sources: async () => (await desktopCapturer.getSources({ types: ['window'], thumbnailSize: { width: 0, height: 0 } })).map((source) => ({ id: source.id, name: source.name })),
-    // Jogo reconhecido só pela pasta: a janela precisa ser grande, como no overlay.
-    large: (rect) => {
-      const area = screen.screenToDipRect(null, rect);
-      const { width, height } = screen.getDisplayMatching(area).bounds;
-      return area.width * area.height >= width * height * (games.matcher()?.minScreenShare ?? 1 / 3);
-    },
+    large: (rect) => largeGameWindow(games, rect),
     send: (contents, message) => { if (!contents.isDestroyed()) contents.send('desktop:share-follow', message); },
   });
 }
@@ -731,6 +753,7 @@ function setupShareFollow(games) {
 app.on('second-instance', () => { if (!quitting) showWindow(); });
 app.on('before-quit', () => { quitting = true; saveBounds(); });
 app.on('will-quit', () => {
+  nowPlaying?.stop();
   overlay?.destroy();
   const capture = captureStats();
   if (capture?.sessions) log.info('Capturas de tela:', capture);
@@ -746,6 +769,7 @@ app.whenReady().then(() => {
   const games = createGameList({ cacheFile: path.join(app.getPath('userData'), 'jogos.json'), origin: ORIGIN, fetch: (url) => net.fetch(url, { cache: 'no-store' }), log });
   overlay = createOverlay({ BrowserWindow, screen, origin: ORIGIN, preload: path.join(__dirname, 'overlay-preload.js'), games, log });
   setupShareFollow(games);
+  setupNowPlaying(games);
   setupElevatedHotkeys();
   createTray();
   createWindow(process.argv.includes('--startup'));

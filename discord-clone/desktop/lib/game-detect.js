@@ -51,7 +51,9 @@ function createGameMatcher(data) {
         if (at < 0) continue;
         const rest = full.slice(at + 1 + folder.length);
         const slash = rest.indexOf('/');
-        if (slash > 0) return { name: rest.slice(0, slash), exact: false }; // o exe fica dentro da pasta do jogo
+        // O exe fica dentro da pasta do jogo. O nome sai do caminho original, com as maiúsculas da pasta
+        // ("Forza Horizon 5"), porque aparece para a galera no "Jogando agora".
+        if (slash > 0) return { name: String(file).split('\\').join('/').substr(at + 1 + folder.length, slash), exact: false };
       }
       return null;
     },

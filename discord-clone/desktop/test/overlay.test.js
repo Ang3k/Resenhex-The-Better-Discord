@@ -46,10 +46,10 @@ test('reconhece pela pasta da loja qualquer jogo que não está na lista', () =>
   const { match, minScreenShare, folders } = createGameMatcher(RULES);
   assert.equal(folders, 3);
   assert.equal(minScreenShare, 0.4);
-  assert.deepEqual(match('C:\\Program Files (x86)\\Steam\\steamapps\\common\\AION2\\Aion2\\Binaries\\Win64\\AION2.exe'), { name: 'aion2', exact: false });
-  assert.deepEqual(match('E:\\SteamLibrary\\steamapps\\common\\Jogo Novo\\JogoNovo.exe'), { name: 'jogo novo', exact: false });
-  assert.deepEqual(match('C:\\Program Files\\Epic Games\\Fortnite\\FortniteGame\\Binaries\\Win64\\FortniteClient-Win64-Shipping.exe'), { name: 'fortnite', exact: false });
-  assert.deepEqual(match('C:\\XboxGames\\Forza Horizon 5\\Content\\ForzaHorizon5.exe'), { name: 'forza horizon 5', exact: false });
+  assert.deepEqual(match('C:\\Program Files (x86)\\Steam\\steamapps\\common\\AION2\\Aion2\\Binaries\\Win64\\AION2.exe'), { name: 'AION2', exact: false });
+  assert.deepEqual(match('E:\\SteamLibrary\\steamapps\\common\\Jogo Novo\\JogoNovo.exe'), { name: 'Jogo Novo', exact: false });
+  assert.deepEqual(match('C:\\Program Files\\Epic Games\\Fortnite\\FortniteGame\\Binaries\\Win64\\FortniteClient-Win64-Shipping.exe'), { name: 'Fortnite', exact: false });
+  assert.deepEqual(match('C:\\XboxGames\\Forza Horizon 5\\Content\\ForzaHorizon5.exe'), { name: 'Forza Horizon 5', exact: false });
   assert.deepEqual(match('D:\\Steam\\steamapps\\common\\Among Us\\Among Us.exe'), { name: 'Among Us', exact: true }, 'a lista vale antes da pasta');
 });
 

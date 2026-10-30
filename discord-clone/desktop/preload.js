@@ -15,6 +15,7 @@ if (location.protocol === 'file:') {
   let pttListener = null;
   let keybindListener = null;
   let followListener = null;
+  let gameListener = null;
 
   ipcRenderer.on('desktop:pick-source', async (_event, id, sources, options) => {
     activePick = id;
@@ -31,6 +32,7 @@ if (location.protocol === 'file:') {
   ipcRenderer.on('desktop:app-audio:plan', (_event, plan) => { audioPlan = plan; });
   ipcRenderer.on('desktop:ptt', (_event, pressed) => pttListener?.(!!pressed));
   ipcRenderer.on('desktop:keybind', (_event, id) => keybindListener?.(String(id)));
+  ipcRenderer.on('desktop:game', (_event, game) => gameListener?.(game ? { name: String(game.name || '').slice(0, 128), since: Number(game.since) || Date.now() } : null));
   ipcRenderer.on('desktop:share-follow', (_event, message) => followListener?.({ action: String(message?.action || ''), to: String(message?.to || ''), name: String(message?.name || '') }));
 
   contextBridge.exposeInMainWorld('resenhexDesktop', {
@@ -65,6 +67,11 @@ if (location.protocol === 'file:') {
     onKeybind: (listener) => { keybindListener = typeof listener === 'function' ? listener : null; },
     setTheme: (colors) => ipcRenderer.send('desktop:set-theme', { background: String(colors?.background || ''), foreground: String(colors?.foreground || '') }),
     focus: () => ipcRenderer.send('desktop:focus'),
+    // "Jogando agora" (desde o app 1.4.6): listener({ name, since }) quando um jogo abre e listener(null) quando ele
+    // fecha. Ao registrar, o app manda o jogo atual (a página pode ter recarregado no meio da partida).
+    nowPlaying: {
+      onChange: (listener) => { gameListener = typeof listener === 'function' ? listener : null; if (gameListener) ipcRenderer.send('desktop:game:ready'); },
+    },
     // Overlay de voz em jogos. state: { channel, users: [...] } ou null fora da chamada.
     overlay: {
       available: () => ipcRenderer.invoke('desktop:overlay:available'),

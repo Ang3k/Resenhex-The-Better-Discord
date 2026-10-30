@@ -54,6 +54,9 @@
 .pc-status-text.editable { cursor: pointer; transition: background .15s; }
 .pc-status-text.editable:hover { background: color-mix(in srgb, var(--text) 12%, transparent); }
 .member .sub, .friend-sub { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* "Jogando agora" na lista de membros. */
+.member .sub.playing svg { display: inline-block; vertical-align: -2px; margin-right: 4px; color: var(--green); }
+.member .sub.playing strong { color: var(--text); font-weight: 600; }
 
 .status-card .nickname-preview .avatar-wrap { position: relative; flex-shrink: 0; --ring: var(--bg-panel); }
 .status-card .nickname-preview .status { width: 14px; height: 14px; right: -1px; bottom: -1px; }

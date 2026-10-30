@@ -87,7 +87,7 @@ async function ui(t, invited = false, options = {}) {
   let copied = '';
   Object.defineProperty(w.navigator, 'clipboard', { value: { writeText: async (text) => { copied = text; } } });
   options.setup?.(w);
-  for (const file of ['motion.js', 'icons.js', 'format.js', 'sounds.js', 'media-policy.js', 'keybinds.js', 'settings.js', 'site-calls.js', 'site-health.js', 'photo-editor.js', 'media-session.js', 'media-sfu.js', 'stream-preview.js', 'mobile-stream.js', 'stream-zoom.js', 'changelog.js', 'confetti.js', 'channel-navigation.js', 'music.js', 'mudae.js', 'mudae-salao.js', 'dm-call.js', 'state-patch.js', 'gif-picker.js', 'emoji-picker.js', 'lightbox.js', 'voice-fx.js', 'feedback.js', 'clip-model.js', 'clip-buffer.js', 'clip-render.js', 'clip-ui.js', 'sound-trimmer.js', 'app.js', 'landing.js']) w.eval(fs.readFileSync(path.join(publicDir, file), 'utf8'));
+  for (const file of ['motion.js', 'icons.js', 'format.js', 'sounds.js', 'media-policy.js', 'keybinds.js', 'settings.js', 'site-calls.js', 'site-health.js', 'photo-editor.js', 'media-session.js', 'media-sfu.js', 'stream-preview.js', 'mobile-stream.js', 'stream-zoom.js', 'changelog.js', 'confetti.js', 'channel-navigation.js', 'music.js', 'mudae.js', 'mudae-salao.js', 'dm-call.js', 'state-patch.js', 'voice-message.js', 'gif-picker.js', 'emoji-picker.js', 'lightbox.js', 'voice-fx.js', 'feedback.js', 'clip-model.js', 'clip-buffer.js', 'clip-render.js', 'clip-ui.js', 'sound-trimmer.js', 'app.js', 'landing.js']) w.eval(fs.readFileSync(path.join(publicDir, file), 'utf8'));
   w.localStorage.setItem('seenVersion', w.APP_VERSION);
   t.after(() => { dom.window.close(); assert.deepEqual(errors.map((e) => e.message), []); });
   await settle();
@@ -1577,4 +1577,21 @@ test('Minha conta: trocar a senha não pede a senha atual', async (t) => {
   form.dispatchEvent(new app.w.Event('submit', { bubbles: true, cancelable: true })); await settle();
   assert.deepEqual(JSON.parse(JSON.stringify(app.events.find((e) => e.event === 'account:password').payload)), { next: 'nova1', confirm: 'nova1' });
   assert.match(app.d.querySelector('#account-password-status').textContent, /Senha trocada/);
+});
+
+test('conta nova ganha a boas-vindas, que não aparece por cima de quem já começou a mexer', async (t) => {
+  const app = await ui(t); await app.register();
+  await new Promise((resolve) => setTimeout(resolve, 700));
+  const dialog = app.d.querySelector('#server-dialog');
+  assert.match(dialog.textContent, /Bem-vindo\(a\) ao Resenhex, Ana!/);
+  assert.match(dialog.textContent, /Deixe o perfil com a sua cara/);
+  await app.clickText('Bora!');
+  await new Promise((resolve) => setTimeout(resolve, 300));
+  assert.equal(app.d.querySelector('#server-dialog'), null);
+
+  const busy = await ui(t); await busy.register();
+  busy.d.querySelector('#btn-add-server').click();
+  busy.d.querySelector('#server-dialog .dialog-close').click();
+  await new Promise((resolve) => setTimeout(resolve, 700));
+  assert.equal(busy.d.querySelector('#server-dialog'), null);
 });

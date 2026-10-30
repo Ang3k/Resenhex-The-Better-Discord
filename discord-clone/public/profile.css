@@ -68,6 +68,15 @@
 .pc-section { display: flex; flex-direction: column; gap: 8px; }
 .pc-label { font-size: 11px; font-weight: 700; letter-spacing: .04em; color: var(--text-muted); }
 .pc-since { display: flex; align-items: center; gap: 8px; font-size: 14px; color: var(--text); }
+.pc-bio { font-size: 14px; line-height: 1.45; color: var(--text); white-space: pre-wrap; overflow-wrap: anywhere; }
+.pc-bio a { color: var(--link, var(--brand-text)); }
+.pc-bio-add { display: inline-flex; align-items: center; gap: 8px; align-self: flex-start; padding: 7px 12px; border: 1px dashed color-mix(in srgb, var(--text) 22%, transparent); border-radius: 8px; background: transparent; color: var(--text-muted); font-size: 13px; font-weight: 600; transition: color .12s, border-color .12s, background .12s; }
+.pc-bio-add:hover { color: var(--text-strong); border-color: color-mix(in srgb, var(--brand) 60%, transparent); background: color-mix(in srgb, var(--brand) 10%, transparent); }
+.pc-playing { display: flex; align-items: center; gap: 12px; }
+.pc-playing-icon { display: grid; place-items: center; flex-shrink: 0; width: 44px; height: 44px; border-radius: 10px; background: color-mix(in srgb, var(--green) 16%, transparent); color: var(--green); }
+.pc-playing-text { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.pc-playing-text strong { overflow: hidden; color: var(--text-strong); font-size: 14px; text-overflow: ellipsis; white-space: nowrap; }
+.pc-playing-text span { color: var(--text-muted); font-size: 12px; font-variant-numeric: tabular-nums; }
 .pc-server-mini { display: grid; place-items: center; width: 20px; height: 20px; border-radius: 6px; background: var(--brand); color: #fff; font-size: 9px; font-weight: 700; }
 .pc-roles { display: flex; flex-wrap: wrap; gap: 5px; }
 .pc-role { display: inline-flex; align-items: center; gap: 6px; height: 24px; padding: 0 8px; border-radius: 6px; background: rgba(255, 255, 255, .06); font-size: 12.5px; font-weight: 500; color: var(--text); }
@@ -114,6 +123,9 @@ button.pc-role.add:hover { background: rgba(255, 255, 255, .12); color: var(--te
 #profile-card.has-bg .pc-timeout { background: rgb(44 32 8 / .75); backdrop-filter: blur(10px); }
 #profile-card.has-bg .pc-panel { text-shadow: 0 1px 3px rgb(0 0 0 / .9); }
 #profile-card.has-bg .pc-panel :is(.pc-label, .pc-since, .muted-text) { color: var(--text-strong); }
+#profile-card.has-bg .pc-bio { color: var(--text-strong); }
+#profile-card.has-bg .pc-playing-text span { color: var(--text); }
+#profile-card.has-bg .pc-bio-add { background: rgb(0 0 0 / .45); backdrop-filter: blur(10px); color: var(--text); }
 #profile-card.has-bg .pc-role { background: rgb(255 255 255 / .08); }
 
 /* ---------- Ícone do servidor ---------- */

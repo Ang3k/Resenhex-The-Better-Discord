@@ -3,6 +3,23 @@
 Histórico de versões. A mesma lista aparece dentro do app em **Novidades** (menu do servidor ou rodapé das Configurações).
 O Resenhex chegou à versão 1.0 em 4 de outubro de 2026.
 
+## v2.2.0 — Jogando agora, mensagem de áudio e Sobre mim no perfil
+
+30 de outubro de 2026.
+
+O Resenhex mostra o jogo que a galera está jogando, o chat ganhou mensagem de áudio e o perfil ganhou um Sobre mim. O Jogando agora precisa do app do Windows 1.4.6, que se atualiza sozinho.
+
+### Novidades
+
+- Jogando agora: com o app do Windows aberto, o Resenhex reconhece o jogo na sua tela e mostra "Jogando" no seu perfil, na lista de membros, nos amigos e nas conversas privadas. Some quando você fecha o jogo ou fica invisível, e dá para desligar em Configurações > Jogos.
+- Mensagem de áudio: toque no microfone ao lado do campo de mensagem, fale e mande. São até 5 minutos, com a onda do áudio no chat, velocidade de 1,5x ou 2x e clique em qualquer ponto da onda para pular até ali.
+- Sobre mim: conte um pouco sobre você no perfil, com até 190 caracteres, links e emojis. Aparece no cartão do seu perfil para todo mundo.
+- Quem cria a conta agora ganha uma boas-vindas com os primeiros passos: montar a turma, deixar o perfil com a sua cara e baixar o app.
+
+### Melhorias
+
+- A aba Overlay em jogos das Configurações virou Jogos, com o Jogando agora e o overlay no mesmo lugar.
+
 ## v2.1.0 — Atalhos de microfone e áudio dentro de jogos abertos como administrador
 
 27 de outubro de 2026.

@@ -12,12 +12,15 @@ Plataforma própria de chat e voz para você e seus amigos, inspirada no Discord
 - **Reconexão automática**: se a internet ou o servidor cair, o app volta sozinho, sem recarregar a página, busca as mensagens perdidas e te coloca de volta na chamada
 - **Chat de texto** em canais, com histórico salvo, "fulano está digitando…", **editar** (✏️ ou seta ↑) e **apagar** mensagens
 - **Imagens e arquivos**: botão ＋, **Ctrl+V** para colar um print, ou arrastar para o chat. Imagens e vídeos aparecem no chat.
+- **Mensagem de áudio**: o microfone ao lado do campo de mensagem grava até 5 minutos; **Enter** manda e **Esc** descarta. No chat, o áudio aparece com a onda, tocar e pausar, pular para qualquer ponto e velocidade de 1x, 1,5x ou 2x
 - **Menções** `@nome`, `@cargo` e `@everyone`, com autocompletar ao digitar `@`
 - **Não lidas**: canal em negrito, bolinha vermelha com o número de menções, contador no título da aba e **notificação na área de trabalho**
 - **Responder** mensagens (↩️) e **reagir** com emoji (😀)
 - **Formatação**: `**negrito**`, `*itálico*`, `__sublinhado__`, `~~riscado~~`, `` `código` ``, blocos ```` ``` ````, `> citação` e `||spoiler||`
 - **Amigos e mensagens diretas**: botão Início na faixa da esquerda. Adicione amigos pelo nome de usuário (ou pelo cartão de perfil), aceite pedidos na aba Pendentes e converse em particular com o mesmo chat dos canais: formatação, arquivos, responder, reagir, editar e apagar. Também dá **bloquear** alguém. Mensagens diretas só existem entre amigos e, pelo app, ninguém mais as lê ou apaga, nem a administração (elas ficam no arquivo de dados de quem hospeda o servidor, sem criptografia)
 - **Banner do perfil**: em ⚙️ Configurações → Meu perfil você troca a faixa colorida do cartão de perfil por uma imagem (PNG, JPG ou WebP, recortada no centro) ou por um **GIF animado** de até 5 MB
+- **Sobre mim**: em **Meu perfil**, até 190 caracteres com formatação, links e emojis, mostrados no cartão de perfil
+- **Jogando agora**: com o app do Windows, o jogo que está na sua tela (da mesma lista do overlay) aparece como "Jogando" no cartão de perfil, na lista de membros, nos amigos e nas conversas privadas, até você fechar o jogo. Quem está invisível não mostra o jogo, e dá para desligar em **Configurações → Jogos**
 - **Fundo do perfil**: em **Meu perfil → Mudar fundo**, escolha uma imagem (PNG, JPG ou WebP de até 8 MB) ou um GIF animado de até 5 MB. Ajuste o enquadramento e salve para preencher a parte abaixo do banner. As informações aparecem direto sobre o fundo, com escurecimento e sombra no texto para manter a leitura; **Remover fundo** restaura o fundo padrão.
 - **Chamadas de voz** em salas, com indicador verde de quem está falando e **sons** de entrar e sair
 - **Câmera** e **compartilhamento de tela** com perfis de qualidade (720p 30 fps, 1080p 30 fps e 1080p 60 fps), áudio do sistema e estatísticas ao vivo; dá para usar câmera e tela ao mesmo tempo; clique na tela para abrir em tela cheia

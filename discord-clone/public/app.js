@@ -101,6 +101,7 @@
     pttHeld: false,
     keybinds: Keybinds.load(), // ação -> combinação (keybinds.js)
     notify: localStorage.getItem('notify') !== 'false',
+    showActivity: localStorage.getItem('showActivity') !== 'false', // "Jogando agora" (app de desktop)
     localVolume: savedJson('localVolume', {}), // accountId -> 0..1
     localMuted: new Set(savedJson('localMuted', [])),
     speaking: new Set(), // sids
@@ -206,6 +207,15 @@
   };
   const presenceLabel = (m) => PRESENCE[presenceOf(m)].label;
   const statusTextOf = (m) => (m?.id === state.me?.accountId ? state.statusText : m?.statusText) || '';
+  // "Jogando agora": o jogo que o app do Windows reconheceu ({ name, since }), igual para todo mundo.
+  const playingText = (m) => (m?.activity ? 'Jogando ' + m.activity.name : '');
+  function playingSince(since) {
+    const minutes = Math.floor((Date.now() - since) / 60000);
+    if (minutes < 1) return 'Começou agora';
+    if (minutes < 60) return 'Há ' + minutes + ' min';
+    const hours = Math.floor(minutes / 60), rest = minutes % 60;
+    return 'Há ' + hours + ' h' + (rest ? ' ' + rest + ' min' : '');
+  }
   const statusDot = (m, cls = 'status') => el('span', { class: cls + ' ' + presenceOf(m), role: 'img', tip: presenceLabel(m), ariaLabel: presenceLabel(m) });
 
   function setAvatarContents(node, url, name, crop) {
@@ -636,7 +646,15 @@
       document.documentElement.classList.remove('show-landing');
       delete document.documentElement.dataset.landing;
       if (/^#(entrar|criar-conta|esqueci|nova-senha)$/.test(location.hash)) history.replaceState(null, '', location.pathname + location.search);
+      // Conta nova não vê as Novidades da versão atual: a boas-vindas toma o lugar delas.
+      if (payload.mode === 'register') {
+        welcomePending = true;
+        try { localStorage.setItem('seenVersion', window.APP_VERSION); } catch {}
+        // Quem já começou a mexer no app antes de ela aparecer não é interrompido. Com convite, ela vem depois dele.
+        if (!pendingInviteCode) for (const type of ['click', 'keydown']) document.addEventListener(type, () => { welcomePending = false; }, { capture: true, once: true });
+      }
       if (!opts.reconnect) setTimeout(showChangelogIfNew, 600);
+      if (nowPlaying) syncNowPlaying();
       if (opts.reconnect) {
         // Descarta o histórico em cache: as mensagens perdidas vêm na próxima leitura.
         state.messages = {};
@@ -1276,7 +1294,12 @@
     }
     if (!dialog.overlay.isConnected) return;
     dialog.overlay.querySelector('.dialog-head > p')?.remove();
-    const dismiss = () => { if (code === pendingInviteCode) clearPendingInvite(); dialog.close(); };
+    const dismiss = () => {
+      const first = code === pendingInviteCode;
+      if (first) clearPendingInvite();
+      dialog.close();
+      if (first && welcomePending) setTimeout(showWelcome, 400);
+    };
     if (preview.error) {
       dialog.body.append(el('p', { class: 'invite-error', role: 'alert', textContent: preview.error }),
         el('div', { class: 'dialog-actions' }, el('button', { type: 'button', class: 'btn-primary', textContent: 'Fechar', onclick: dismiss })));
@@ -1518,7 +1541,9 @@
         const v = state.server.voice.find((x) => x.accountId === m.id);
         let sub = '';
         if (timedOut(m)) sub = 'De castigo até ' + formatUntil(m.timeoutUntil);
-        else if (v) sub = (v.sharing ? 'Transmitindo em ' : 'Em ') + (channelById(v.channel)?.name || 'um canal de voz');
+        else if (v?.sharing) sub = 'Transmitindo em ' + (channelById(v.channel)?.name || 'um canal de voz');
+        else if (m.activity) sub = el('div', { class: 'sub playing' }, Icon('gamepad', 13), el('span', {}, 'Jogando ', el('strong', { textContent: m.activity.name })));
+        else if (v) sub = 'Em ' + (channelById(v.channel)?.name || 'um canal de voz');
         else sub = statusTextOf(m);
         list.append(el('div', {
           class: 'member' + (m.online ? '' : ' offline'),
@@ -1528,7 +1553,7 @@
         el('div', { class: 'member-info' },
           el('div', { class: 'member-name', style: { color: nameColor(m) } }, el('span', { textContent: m.name }),
             isOwner(m.id) ? el('span', { class: 'owner-crown', tip: 'Dono do servidor' }, Icon('crown', 14)) : null),
-          sub ? el('div', { class: 'sub', textContent: sub }) : null)));
+          typeof sub !== 'string' ? sub : sub ? el('div', { class: 'sub', textContent: sub }) : null)));
       }
     }
   }
@@ -1602,7 +1627,7 @@
       $('#header-title').replaceChildren(
         el('div', { class: 'avatar-wrap' }, avatar(c.peer, 'small'), statusDot(c.peer)),
         el('span', { class: 'title-text', textContent: c.peer.name }),
-        el('span', { class: 'title-sub', textContent: statusTextOf(c.peer) || presenceLabel(c.peer) }));
+        el('span', { class: 'title-sub', textContent: playingText(c.peer) || statusTextOf(c.peer) || presenceLabel(c.peer) }));
     } else setHeader(c.mudae ? 'dice' : c.type === 'voice' ? 'volume' : 'hash', c.name,
       c.topic || (c.mudae ? 'Salão do Mudae' : c.type === 'voice' ? 'Chat da sala de voz' : c.private ? 'Canal privado' : ''));
     if (!state.messages[c.id]) {
@@ -1741,7 +1766,7 @@
         el('span', { class: 'reply-curve' }),
         replied
           ? [el('span', { class: 'reply-author', style: { color: nameColor(ra) }, textContent: '@' + (ra?.name || replied.authorName || '?') }),
-            el('span', { class: 'reply-snippet', textContent: Format.plain(replied.text, fmtCtx) || 'Clique para ver o anexo' })]
+            el('span', { class: 'reply-snippet', textContent: Format.plain(replied.text, fmtCtx) || (replied.voice ? '🎤 Mensagem de áudio' : 'Clique para ver o anexo') })]
           : el('span', { class: 'reply-snippet', textContent: 'Mensagem original apagada' })));
     }
 
@@ -1782,7 +1807,7 @@
     }
 
     if (msg.gif) body.append(gifNode(msg.gif));
-    if (msg.attachments?.length) body.append(attachmentsNode(msg.attachments));
+    if (msg.attachments?.length) body.append(msg.voice ? voiceMessageNode(msg) : attachmentsNode(msg.attachments));
     if (msg.embeds?.length) body.append(el('div', { class: 'embeds' }, msg.embeds.map((e) => embedNode(e, msg))));
 
     const reactions = Object.entries(msg.reactions || {});
@@ -1804,12 +1829,13 @@
       actions.append(action('Adicionar reação', 'smilePlus', (e) => openEmojiPicker(e.currentTarget, (em) => react(msg.id, em))));
       actions.append(action('Responder', 'reply', () => startReply(msg)));
     }
-    if (mine && canWrite()) actions.append(action('Editar', 'pencil', () => { state.editing = msg.id; renderMessages(); }));
+    const canEdit = mine && canWrite() && !msg.voice;
+    if (canEdit) actions.append(action('Editar', 'pencil', () => { state.editing = msg.id; renderMessages(); }));
     const canDelete = mine || (!inDm() && hasPerm('MANAGE_MESSAGES'));
     if (canDelete) actions.append(action('Apagar (Shift+clique apaga sem perguntar)', 'trash', (e) => deleteMessage(msg, e.shiftKey), 'danger'));
     if (actions.childElementCount) row.append(actions);
     // No toque, o toque longo abre a folha de ações com o mesmo que a barra oferece.
-    row.sheet = { msg, canWrite: canWrite(), canEdit: mine && canWrite(), canDelete };
+    row.sheet = { msg, canWrite: canWrite(), canEdit, canDelete };
     return row;
   }
 
@@ -2001,6 +2027,7 @@
       if (hasMouse()) $('#chat-input').focus();
     },
   });
+  let voiceRec = null; // mensagem de áudio sendo gravada: { channel, replyTo, session, sending }
   function renderComposer() {
     const c = channelById(state.textChannel);
     const input = $('#chat-input');
@@ -2021,7 +2048,9 @@
     $('#btn-attach').disabled = input.disabled;
     $('#btn-emoji').disabled = input.disabled;
     $('#btn-gif').disabled = input.disabled;
+    $('#btn-voice-msg').disabled = input.disabled;
     if (input.disabled) gifPicker.close();
+    if (voiceRec && (voiceRec.channel !== state.textChannel || input.disabled)) cancelVoiceRecording();
 
     const reply = state.replyTo;
     $('#reply-bar').classList.toggle('hidden', !reply);
@@ -2138,6 +2167,89 @@
     e.target.value = '';
   };
   $('#btn-emoji').onclick = (e) => openEmojiPicker(e.currentTarget, (emoji, item) => insertAtCursor(item?.custom ? ':' + item.name + ': ' : emoji));
+
+  // ---------------- mensagem de áudio ----------------
+  // O microfone grava enquanto o painel vermelho está aberto no lugar do campo; Enter (ou a seta) envia e Esc descarta.
+  // Trocar de conversa descarta a gravação, para o áudio nunca cair no lugar errado.
+  const voiceMessages = VoiceMessage({ el, Icon, setSinkId });
+  $('#btn-voice-msg').classList.toggle('hidden', !voiceMessages.supported());
+  function showVoiceBar(on) {
+    $('#composer').classList.toggle('recording', on);
+    $('#voice-rec').classList.toggle('hidden', !on);
+    $('#voice-rec').classList.remove('sending');
+    $('#voice-rec-status').textContent = '';
+    if (!on) return;
+    $('#voice-rec-time').textContent = '0:00';
+    $('#voice-rec-meter').replaceChildren(...Array.from({ length: 40 }, () => el('span')));
+  }
+  async function startVoiceRecording() {
+    if (voiceRec || !canWrite()) return;
+    const rec = voiceRec = { channel: state.textChannel, replyTo: state.replyTo?.id, session: null, sending: false };
+    showVoiceBar(true);
+    $('#voice-rec-status').textContent = 'Abrindo o microfone…';
+    $('#voice-rec-send').focus();
+    const meter = $('#voice-rec-meter');
+    try {
+      const session = await voiceMessages.record({
+        deviceId: state.micDeviceId,
+        onTick: (seconds, level) => {
+          $('#voice-rec-time').textContent = voiceMessages.clock(seconds);
+          const bar = meter.firstElementChild;
+          if (!bar) return;
+          bar.style.height = Math.max(8, level * 100) + '%';
+          meter.append(bar); // a onda anda da direita para a esquerda
+        },
+        onLimit: () => { toast('O áudio chegou a 5 minutos e foi enviado.', 'info'); sendVoiceRecording(); },
+      });
+      if (voiceRec !== rec) return session.cancel(); // descartado enquanto o microfone abria
+      rec.session = session;
+      $('#voice-rec-status').textContent = '';
+    } catch {
+      if (voiceRec === rec) { voiceRec = null; showVoiceBar(false); }
+      toast('Não deu para usar o microfone. Confira a permissão do microfone para o Resenhex.');
+    }
+  }
+  function cancelVoiceRecording() {
+    if (!voiceRec || voiceRec.sending) return;
+    voiceRec.session?.cancel();
+    voiceRec = null;
+    showVoiceBar(false);
+    $('#chat-input').focus();
+  }
+  async function sendVoiceRecording() {
+    const rec = voiceRec;
+    if (!rec?.session || rec.sending) return;
+    rec.sending = true;
+    $('#voice-rec').classList.add('sending');
+    $('#voice-rec-status').textContent = 'Enviando…';
+    const audio = await rec.session.stop();
+    try {
+      if (audio.duration < 0.7) throw new Error('Áudio muito curto. Fale um pouco mais antes de enviar.');
+      const up = await fetch('/upload', {
+        method: 'POST',
+        headers: { 'x-token': localStorage.getItem('token'), 'x-filename': encodeURIComponent(audio.name), 'content-type': 'application/octet-stream', 'x-server-id': state.server.serverId || '', 'x-channel-id': rec.channel || '' },
+        body: audio.blob,
+      }).then((r) => r.json()).catch(() => ({ error: 'Não deu para enviar o áudio. Confira a conexão.' }));
+      if (up.error) throw new Error(up.error);
+      const sent = await call('chat:send', { channel: rec.channel, text: '', attachments: [up.id], replyTo: rec.replyTo, voice: { duration: Math.round(audio.duration * 10) / 10, waveform: audio.waveform } });
+      if (sent && state.replyTo?.id === rec.replyTo) { state.replyTo = null; renderComposer(); }
+    } catch (error) {
+      toast(error.message);
+    } finally {
+      if (voiceRec === rec) voiceRec = null;
+      showVoiceBar(false);
+      if (state.textChannel === rec.channel) $('#chat-input').focus();
+    }
+  }
+  $('#btn-voice-msg').onclick = startVoiceRecording;
+  $('#voice-rec-cancel').onclick = cancelVoiceRecording;
+  $('#voice-rec-send').onclick = sendVoiceRecording;
+  $('#voice-rec').addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); cancelVoiceRecording(); }
+    if (e.key === 'Enter') { e.preventDefault(); sendVoiceRecording(); }
+  });
+  // O player da mensagem: o primeiro anexo é o áudio.
+  const voiceMessageNode = (msg) => voiceMessages.player({ url: msg.attachments[0].url, duration: msg.voice.duration, waveform: msg.voice.waveform });
 
   $('#btn-gif').onclick = (e) => gifPicker.toggle(e.currentTarget);
   $('#reply-cancel').onclick = () => { state.replyTo = null; renderComposer(); renderMessages(); };
@@ -2336,7 +2448,7 @@
     if (document.visibilityState === 'visible' && document.hasFocus()) return;
     const author = (isDm(channel) ? person(msg.authorId) : serverMember(msg.authorId) || person(msg.authorId))?.name || 'Alguém';
     const n = new Notification(isDm(channel) ? `${author} (mensagem direta)` : `${author} em ${channelById(channel)?.type === 'voice' ? '' : '#'}${channelById(channel)?.name || ''}`, {
-      body: Format.plain(msg.text, fmtCtx).slice(0, 200) || (msg.gif ? 'GIF' : '📎 Anexo'),
+      body: Format.plain(msg.text, fmtCtx).slice(0, 200) || (msg.gif ? 'GIF' : msg.voice ? '🎤 Mensagem de áudio' : '📎 Anexo'),
       tag: channel,
       silent: true,
     });
@@ -2979,7 +3091,7 @@
     const v = voiceOf(m);
     if (!m.online) return 'Offline';
     if (v) return 'Em ' + (channelById(v.channel)?.name || 'um canal de voz');
-    return statusTextOf(m) || presenceLabel(m);
+    return playingText(m) || statusTextOf(m) || presenceLabel(m);
   };
 
   function friendButton(icon, label, onclick, cls = '') {
@@ -3223,8 +3335,39 @@
     if (release.celebrate) confettiTimer = setTimeout(() => body.isConnected && window.Confetti?.burst(box, body.querySelector('.cl-hero').getBoundingClientRect()), 200);
   }
   function closeChangelog() { $('#changelog').classList.add('hidden'); }
+
+  // Conta recém-criada: em vez das Novidades de uma versão que a pessoa nunca viu, uma boas-vindas curta com o
+  // que fazer primeiro. Quem chegou por convite vê depois de responder ao convite.
+  let welcomePending = false;
+  function showWelcome() {
+    welcomePending = false;
+    const firstName = (meMember()?.name || state.me.name || '').split(/\s/)[0];
+    const step = (icon, tone, title, text, action) => el('div', { class: 'welcome-step' },
+      el('span', { class: 'choice-icon ' + tone }, Icon(icon, 20)),
+      el('div', { class: 'welcome-text' }, el('strong', { textContent: title }), el('p', { textContent: text })),
+      action ? el('button', { type: 'button', class: 'secondary welcome-action', textContent: action[0], onclick: () => { dialog.close(); action[1](); } }) : null);
+    const server = state.server.serverId && !state.home ? serverName() : (state.server.servers || [])[0]?.name;
+    const windows = /Windows/i.test(navigator.userAgent);
+    const android = !!window.ResenhexAndroid || /Android/i.test(navigator.userAgent);
+    const app = window.resenhexDesktop
+      ? step('gamepad', 'green', 'Jogando agora', 'Quando você abrir um jogo, a galera vê o que você está jogando. Dá para desligar nas Configurações.')
+      : window.ResenhexAndroid ? step('phone', 'green', 'Call com a tela bloqueada', 'No app, a chamada continua com o celular no bolso. Silenciar e sair ficam na notificação.')
+        : windows ? step('download', 'green', 'Baixe o app do Windows', 'Mute dentro do jogo, veja quem fala por cima dele e mostre para a galera o que você está jogando.', ['Baixar', () => window.open('/baixar', '_blank', 'noopener')])
+          : android ? step('download', 'green', 'Baixe o app do Android', 'Fique na call com a tela bloqueada e receba os avisos no celular.', ['Baixar', () => window.open('/baixar', '_blank', 'noopener')])
+            : null;
+    // O passo do app fica de fora no Mac e no Linux, que não têm app.
+    const dialog = serverDialog(`Bem-vindo(a) ao Resenhex, ${firstName}!`, `Seu canto para conversar, jogar e fazer call com a galera. ${app ? 'Três' : 'Duas'} coisas para começar:`, { icon: 'sparkles' });
+    dialog.body.append(el('div', { class: 'welcome-steps' },
+      server
+        ? step('volume', 'brand', `Você já está em ${server}`, 'Entre numa sala de voz para falar com a turma, ou mande um oi no chat.')
+        : step('users', 'brand', 'Monte a sua turma', 'Crie um servidor e mande o convite no grupo, ou entre pelo link que te mandaram.'),
+      step('pencil', 'pink', 'Deixe o perfil com a sua cara', 'Foto, banner, fundo e um Sobre mim para a galera te conhecer.', ['Editar perfil', () => { closePanels(); preferences.open('profile'); }]),
+      app),
+    el('div', { class: 'dialog-actions' }, el('button', { type: 'button', class: 'btn-primary', textContent: 'Bora!', onclick: () => dialog.close() })));
+  }
   function showChangelogIfNew() {
     if (pendingInviteCode || document.getElementById('server-dialog')) return;
+    if (welcomePending) return showWelcome();
     let seen = null;
     try { seen = localStorage.getItem('seenVersion'); } catch {}
     if (seen !== window.APP_VERSION && $('#settings').classList.contains('hidden') && !adminOpen()) openChangelog();
@@ -3787,6 +3930,11 @@
           m.serverDeafened ? el('span', { class: 'pc-tag warn' }, Icon('headphonesOff', 12), 'Ensurdecido') : null),
         timedOut(m) ? el('div', { class: 'pc-timeout' }, Icon('pause', 14), el('span', { textContent: 'De castigo até ' + formatUntil(m.timeoutUntil) })) : null,
         el('div', { class: 'pc-panel' },
+          m.activity ? el('div', { class: 'pc-section' }, el('div', { class: 'pc-label', textContent: 'JOGANDO AGORA' }),
+            el('div', { class: 'pc-playing' }, el('span', { class: 'pc-playing-icon' }, Icon('gamepad', 22)),
+              el('div', { class: 'pc-playing-text' }, el('strong', { textContent: m.activity.name }), el('span', { textContent: playingSince(m.activity.since) })))) : null,
+          m.bio ? el('div', { class: 'pc-section' }, el('div', { class: 'pc-label', textContent: 'SOBRE MIM' }), el('div', { class: 'pc-bio' }, Format.render(m.bio, fmtCtx)))
+            : self ? el('button', { type: 'button', class: 'pc-bio-add', onclick: () => { closeProfile(); closePanels(); preferences.open('profile').then(() => $('#profile-bio').focus()); } }, Icon('pencil', 14), 'Escrever o seu Sobre mim') : null,
           m.since ? el('div', { class: 'pc-section' }, el('div', { class: 'pc-label', textContent: 'MEMBRO DESDE' }),
             el('div', { class: 'pc-since' }, el('span', { class: 'pc-server-mini', textContent: initials(serverName()) }), new Date(m.since).toLocaleDateString('pt-BR', { day: 'numeric', month: 'short', year: 'numeric' }))) : null,
           el('div', { class: 'pc-section' }, el('div', { class: 'pc-label', textContent: roles.length ? `CARGOS — ${roles.length}` : 'CARGOS' }),
@@ -6285,6 +6433,11 @@
     applyAudio();
   });
   syncDesktopPtt();
+  // "Jogando agora": o app avisa o jogo na frente e quando ele fecha; o servidor guarda por conexão, então vai de novo
+  // a cada login (inclusive ao reconectar).
+  let nowPlaying = null;
+  const syncNowPlaying = () => { if (state.me && socket.connected) socket.emit('activity', state.showActivity && nowPlaying ? nowPlaying : null); };
+  desktopApp?.nowPlaying?.onChange((game) => { nowPlaying = game; syncNowPlaying(); });
   // Microfone e áudio também valem com o app em segundo plano (versões do app que já têm o gancho).
   const syncDesktopKeybinds = () => desktopApp?.setKeybinds?.(Keybinds.ACTIONS
     .filter((action) => action.global && state.keybinds[action.id])
@@ -6415,6 +6568,7 @@
     'output-volume': 'outputVolume', 'theme-select': 'theme', 'density-select': 'density',
     'font-size': 'fontSize', 'reduce-motion': 'reduceMotion', 'overlay-toggle': 'overlayEnabled', 'overlay-x': 'overlayX', 'overlay-y': 'overlayY',
     'overlay-show': 'overlayShow', 'overlay-names': 'overlayNames', 'overlay-animated': 'overlayAnimated', 'overlay-opacity': 'overlayOpacity',
+    'activity-toggle': 'showActivity',
   };
   for (const [id, key] of Object.entries(settingFields)) {
     const field = document.getElementById(id);
@@ -6425,6 +6579,7 @@
   let placeOverlayPuck = () => {};
   let stopOverlayTest = () => {};
   if (!desktopOverlay) { $('#tab-overlay').remove(); $('#page-overlay').remove(); }
+  else if (!desktopApp.nowPlaying) $('#activity-group').remove(); // app sem o "Jogando agora"
   else {
     desktopOverlay.available().then((ok) => {
       if (ok) return;
@@ -6585,7 +6740,7 @@
   for (const id of ['mic-select', 'speaker-select', 'camera-select']) document.getElementById(id).replaceChildren(new Option('Padrão do sistema', ''));
 
   function readPreferences() {
-    return { ...state, color: meMember()?.color || '#5865f2', avatar: meMember()?.avatarUrl || '', avatarCrop: meMember()?.avatarCrop ? JSON.stringify(meMember().avatarCrop) : '', ...Object.assign({}, ...profileImages.map((draft) => draft.read())), sounds: Sounds.enabled,
+    return { ...state, color: meMember()?.color || '#5865f2', bio: meMember()?.bio || '', avatar: meMember()?.avatarUrl || '', avatarCrop: meMember()?.avatarCrop ? JSON.stringify(meMember().avatarCrop) : '', ...Object.assign({}, ...profileImages.map((draft) => draft.read())), sounds: Sounds.enabled,
       soundboard: !state.sbMuted, sbVolume: Math.round(state.sbVolume * 100),
       inputMode: state.ptt.enabled ? 'ptt' : 'voice', pttCode: state.ptt.code, pttLabel: state.ptt.label,
       keybinds: JSON.stringify(state.keybinds) };
@@ -6618,6 +6773,13 @@
       $('#page-profile').style.setProperty('--pc-color', color);
     }
     for (const draft of profileImages) draft.preview(values);
+    if (values.bio !== undefined) {
+      const bio = values.bio.trim();
+      $('#profile-bio-count').textContent = `${values.bio.length}/190`;
+      $('#profile-bio-count').classList.toggle('near', values.bio.length >= 170);
+      $('#profile-preview-bio').classList.toggle('hidden', !bio);
+      $('#profile-preview-bio p').replaceChildren(Format.render(bio, fmtCtx));
+    }
     if (values.overlayX !== undefined) placeOverlayPuck(values.overlayX, values.overlayY, overlayStyle(values));
     if (values.overlayShow !== undefined) {
       document.querySelectorAll('[data-overlay-show]').forEach((button, index) => {
@@ -6703,12 +6865,15 @@
       try { await saveAvatar(values.avatar, values.avatarCrop); }
       catch (error) { if (micChanged) await restartMic(state).catch(() => {}); throw error; }
     }
-    if (values.color !== meMember().color) {
-      const result = await call('profile', { color: values.color });
+    const bioChanged = values.bio.trim() !== (meMember().bio || '');
+    if (values.color !== meMember().color || bioChanged) {
+      const result = await call('profile', { color: values.color, ...(bioChanged ? { bio: values.bio } : {}) });
       if (!result) {
         if (micChanged) await restartMic(state).catch(() => mediaNotice('Confira o microfone antes de continuar.'));
         throw new Error('O perfil não foi salvo. Verifique a conexão e tente novamente.');
       }
+      // O servidor limpa espaços e linhas em branco a mais: o campo mostra o que ficou salvo.
+      $('#profile-bio').value = result.bio;
     }
     for (const draft of profileImages) {
       if (!draft.changed(values)) continue;
@@ -6734,6 +6899,10 @@
       localStorage.setItem('overlay', JSON.stringify({ enabled: state.overlayEnabled, x: state.overlayX, y: state.overlayY, ...overlayStyle(state) }));
       syncOverlayConfig();
       syncOverlay(); // a aparência vai junto com a chamada
+      if (values.showActivity !== state.showActivity) {
+        localStorage.setItem('showActivity', state.showActivity = values.showActivity);
+        syncNowPlaying();
+      }
     }
     state.sbMuted = !values.soundboard; state.sbVolume = values.sbVolume / 100;
     localStorage.setItem('sbMuted', state.sbMuted); localStorage.setItem('sbVolume', state.sbVolume);
