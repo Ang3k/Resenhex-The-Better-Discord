@@ -1,5 +1,5 @@
 // Onde vai o tempo de uma ação: trace do CDP (CPU 4×) somando a duração por tipo de evento durante N repetições.
-// Uso: node probe-acao.js <seed.json> <acao: emoji|memes|servidor|menus> [repeticoes]
+// Uso: node probe-acao.js <seed.json> <acao: emoji|memes|servidor|menus|membro> [repeticoes]
 const { chromium } = require('playwright');
 const fs = require('fs');
 const SEED = JSON.parse(fs.readFileSync(process.argv[2]));
@@ -24,6 +24,9 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   for (let i = 0; i < N; i++) {
     if (ACAO === 'emoji') { await mark('abrir emoji'); await page.click('#btn-emoji'); await sleep(900); await mark('fechar'); await page.keyboard.press('Escape'); await sleep(500); }
     if (ACAO === 'memes') { await mark('#memes'); await page.locator('#channel-groups .channel', { hasText: 'memes' }).first().click(); await sleep(900); await mark('#geral'); await page.locator('#channel-groups .channel', { hasText: 'geral' }).first().click(); await sleep(1500); }
+    if (ACAO === 'membro') {
+      await mark('menu do membro'); await page.locator('#member-list .member', { hasText: 'Bruno' }).first().click({ button: 'right' }); await sleep(600); await mark('fechar'); await page.keyboard.press('Escape'); await sleep(500);
+    }
     if (ACAO === 'menus') {
       // 4 cliques por volta: menu do membro, menu do servidor, cartão de perfil, configurações (cada um fecha com Esc).
       await mark('menu do membro'); await page.locator('#member-list .member', { hasText: 'Bruno' }).first().click({ button: 'right' }); await sleep(600); await mark('fechar'); await page.keyboard.press('Escape'); await sleep(400);

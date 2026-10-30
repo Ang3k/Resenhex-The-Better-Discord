@@ -136,6 +136,8 @@ Severidade: **Alta** (custa desempenho na call ou quebra acessibilidade AA), **M
 | 23 | Consistência | O botão "Reiniciar para atualizar" da barra de título do app de Windows usa `#8277fa`, o roxo antigo; o app usa `#8e2fd8`. | Baixa | `barra-titulo-atualizar-desk` |
 | 24 | Consistência | As mesmas peças definidas em mais de um arquivo (`.confirm-card` em `admin.css` e `controls.css`; `.menu-item` em `style.css` e `profile.css`): a última vence, e mudar uma não muda a outra. | Baixa | inventário |
 | 25 | Não visual | Com o app parado, ~44 timers por segundo acordam a página (medidor do microfone a cada 50 ms e verificação de quem fala a cada 100 ms, mesmo fora de chamada). Custa pouco CPU (7 ms/s), mas impede o processador de descansar. Fora do escopo visual; registrado. | Baixa | trace "parado" |
+| 26 | Contraste | (Achado na Fase 4, fora das telas medidas, que usam o tema padrão.) Nos temas Meia-noite e Alto contraste, os botões principais têm texto branco sobre a cor da marca do tema: 2,6:1 (`#829bf9`) e 2,5:1 (`#a39afa`). | Alta | cálculo de contraste (WCAG 2.x) |
+| 27 | Carregamento | (Achado na Fase 4; não visual.) Com rede lenta simulada (1,5 s de latência, 200 KB/s), a página leva ~25 s para aparecer: as 32 folhas de estilo no `<head>` bloqueiam o script de abertura e o resto da página, nas duas versões. | Média | `ferramentas/probe-bootcel.js`, `carregando-conectando-*` |
 
 ### O que já está bom (e fica)
 

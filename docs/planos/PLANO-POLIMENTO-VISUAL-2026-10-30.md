@@ -206,6 +206,8 @@ Todas: "Reduzir animações" e `prefers-reduced-motion` desligam (regra global).
 | Contraste e tokens | 4 falhas AA, restos do Discord | AA nas telas medidas, tokens por tema | leitura e temas coerentes | nenhum |
 | Peso ótico dos ícones | traço 1,17–1,83 px | ≥ 1,5 px | ícones pequenos nítidos | nenhum |
 
+Medido no fim (relatório, "Antes × depois"): no palco da call, 60,6 → 6,2 quadros/s e 49,9 → 1,6 pinturas/s com a CPU 4×; sem lentidão, GPU 43,3 → 4,3 ms/s e thread principal 218 → 25 ms/s; sem foco e escondida iguais ao palco; parado continua em zero; respostas a clique iguais ao `main` no A/B (16 a 24 cliques por ação); contraste 27 → 0 e alvos 6 → 0 nas 15 telas medidas.
+
 ## Ideias ousadas (fora do escopo)
 
 Não entram neste ramo porque mudam a essência ou o orçamento. Ficam para o dono decidir.

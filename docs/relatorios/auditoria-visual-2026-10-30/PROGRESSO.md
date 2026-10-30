@@ -54,8 +54,11 @@ Registro de trabalho para retomar de onde parou depois de uma interrupção. Lei
 - [x] Onda 4 — Momentos (chegada, voz, pouso, voo, cutucão, acendeu, digitando, conectou, reconectou; conferidos com `ferramentas/moments.js`)
 - [x] Onda 5 — Estados (abertura com logo, começo do canal, foco único, reconectado). Achado no caminho: a classe `boot-slow` no `<html>` escondia a página inteira depois de 10 s; corrigido antes do commit (`boot-late`).
 - [x] Onda 6 — Cor (7 commits: tokens, contraste AA, verde forte, setinhas de 24 px, restos do Discord em tokens, elevação, textos de 10 px). Conferido com `ferramentas/a11y.js`: 0 falhas de contraste e 0 de alvo nas 15 telas (antes 27 e 6). Achado fora da tela medida: no Meia-noite e no Alto contraste o branco sobre a cor da marca fica em 2,6:1 e 2,5:1 (botões principais); registrado no relatório, não corrigido (muda o visual desses temas).
-- [ ] Capturas "depois", medição final, antes × depois no relatório, resumo final
+- [x] Medição final: CPU 4× (3 rodadas, 7 cenários) e sem lentidão (2 rodadas, 4 cenários); acessibilidade (0 falhas de contraste e de alvo).
+- [x] A/B de respostas por ação `main` × `visual-polish` (16 a 24 cliques por ação, alternando as versões): sem diferença. A primeira medida por ação do `perf.js` (máximo de 2 cliques por rodada) sugeria piora no emoji; era ruído do método.
+- [x] Capturas "depois" (120, as mesmas do "antes"), abertura comparada com o app ainda conectando (`carregando-conectando-*`, as duas versões) e 11 fotos dos momentos.
+- [ ] Antes × depois no relatório, testes completos nas duas versões, resumo final
 
 ## Próximo passo
 
-Medição final (4× e sem lentidão, respostas por ação, acessibilidade), capturas "depois", antes × depois no relatório e resumo final.
+Antes × depois no relatório (rascunho pronto), testes completos nas duas versões, remover a cópia de trabalho do `main` e resumo final.

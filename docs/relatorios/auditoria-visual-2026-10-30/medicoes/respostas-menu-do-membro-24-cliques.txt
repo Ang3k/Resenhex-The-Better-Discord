@@ -1,0 +1,12 @@
+== main
+{"acao":"membro","respostas":{"menu do membro":[128,80,64,56,56,56,48,72,56,64,56,80],"fechar":[56,48,64,56,72,64,64,56,56,64,64,48]}}
+FunctionCall 770 | EventDispatch 687 | UpdateLayoutTree 613 | Paint 572 | Layerize 228 | RasterTask 218 | HitTest 194 | PrePaint 178 | TimerFire 177 | Layout 120 | FireAnimationFrame 55 | ParseHTML 14 | MinorGC 14 | V8.GC_SCAVENGER 14 | UpdateLayer 4
+== polish
+{"acao":"membro","respostas":{"menu do membro":[96,48,56,80,72,48,48,48,72,32,40,56],"fechar":[64,88,64,72,64,56,88,56,64,56,56,64]}}
+FunctionCall 704 | EventDispatch 638 | UpdateLayoutTree 556 | Layerize 340 | Paint 300 | HitTest 172 | TimerFire 165 | PrePaint 138 | Layout 103 | RasterTask 88 | FireAnimationFrame 52 | UpdateLayer 37 | MinorGC 28 | V8.GC_SCAVENGER 27 | ParseHTML 18
+== main
+{"acao":"membro","respostas":{"menu do membro":[88,64,48,72,64,64,72,56,48,48,88,72],"fechar":[80,56,80,80,56,64,32,48,48,56,64,64]}}
+FunctionCall 785 | EventDispatch 720 | UpdateLayoutTree 606 | Paint 530 | Layerize 218 | RasterTask 216 | TimerFire 187 | HitTest 184 | PrePaint 177 | Layout 120 | FireAnimationFrame 54 | MinorGC 18 | ParseHTML 15 | V8.GC_SCAVENGER 15 | UpdateLayer 9
+== polish
+{"acao":"membro","respostas":{"menu do membro":[104,56,56,80,80,72,48,80,64,80,64,56],"fechar":[80,72,64,56,80,88,88,80,96,56,56,64]}}
+FunctionCall 822 | EventDispatch 752 | UpdateLayoutTree 608 | Layerize 373 | Paint 351 | HitTest 185 | TimerFire 184 | PrePaint 161 | Layout 111 | RasterTask 89 | FireAnimationFrame 57 | UpdateLayer 28 | MinorGC 25 | V8.GC_SCAVENGER 24 | ParseHTML 16
