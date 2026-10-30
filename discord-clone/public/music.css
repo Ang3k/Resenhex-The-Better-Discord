@@ -159,7 +159,7 @@
 /* ---------- Botão na barra da chamada ---------- */
 .sc-btn#sc-music.active { background: var(--brand); color: #fff; }
 .sc-btn#sc-music.active .ico-disc { animation: dj-spin 2.4s linear infinite; }
-.sc-btn#sc-music:hover:not(:disabled) .ico-disc { animation: dj-spin .9s linear infinite; }
+.sc-btn#sc-music:hover:not(:disabled) .ico-disc { animation: dj-spin .9s var(--ease-enter) 1; } /* uma volta no hover */
 @keyframes dj-spin { to { transform: rotate(360deg); } }
 
 /* ---------- Capinha no painel da chamada ---------- */

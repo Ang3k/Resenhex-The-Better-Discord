@@ -281,9 +281,13 @@ html.moving body { visibility: hidden; } /* mudando para o endereço oficial do 
 /* Tempo de chamada: selo no cabeçalho do palco e no botão "Em chamada" */
 .call-time { font-variant-numeric: tabular-nums; font-weight: 600; letter-spacing: .02em; }
 #header-title .call-clock { display: inline-flex; flex-shrink: 0; align-items: center; gap: 6px; height: 24px; padding: 0 9px 0 8px; border-radius: 999px; background: color-mix(in srgb, var(--green) 14%, transparent); color: var(--green); font-size: 12px; line-height: 1; }
-.call-clock-dot { width: 6px; height: 6px; border-radius: 50%; background: currentColor; box-shadow: 0 0 0 0 currentColor; animation: call-clock-pulse 2s ease-out infinite; }
-@keyframes call-clock-pulse { 0% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--green) 60%, transparent); } 70%, 100% { box-shadow: 0 0 0 5px transparent; } }
-@media (prefers-reduced-motion: reduce) { .call-clock-dot { animation: none; } }
+/* O ponto fica aceso; ao conectar ele dá dois "pings" e para (antes pulsava com box-shadow a chamada inteira). */
+.call-clock-dot { position: relative; width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+.call-clock-dot.ping::after {
+  content: ''; position: absolute; inset: -3px; border-radius: 50%; border: 1.5px solid currentColor; opacity: 0;
+  animation: call-clock-ping .9s ease-out .15s 2;
+}
+@keyframes call-clock-ping { from { opacity: .8; transform: scale(.55); } to { opacity: 0; transform: scale(2.1); } }
 .call-return .call-time { padding-left: 7px; margin-left: 1px; border-left: 1px solid color-mix(in srgb, var(--green) 35%, transparent); }
 @media (max-width: 640px) { .call-return-label { display: none; } .call-return .call-time { padding-left: 0; border-left: 0; } }
 .header-tools { display: flex; gap: 4px; }
@@ -313,8 +317,9 @@ html.moving body { visibility: hidden; } /* mudando para o endereço oficial do 
 .msg.mentioned { background: rgba(240, 178, 50, .08); }
 .msg.mentioned::before { content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 2px; background: var(--yellow); }
 .msg.mentioned:hover { background: rgba(240, 178, 50, .1); }
-.msg.flash { animation: flash 1.6s ease-out; }
-@keyframes flash { from { background: color-mix(in srgb, var(--brand) 30%, transparent); } to { background: transparent; } }
+/* Mensagem para onde a pessoa pulou: uma camada roxa que esmaece (animar o fundo repintaria a linha toda). */
+.msg.flash::after { content: ''; position: absolute; inset: 0; pointer-events: none; background: color-mix(in srgb, var(--brand) 30%, transparent); animation: flash-fade 1.6s ease-out forwards; }
+@keyframes flash-fade { to { opacity: 0; } }
 .msg.replying { background: color-mix(in srgb, var(--brand) 10%, transparent); }
 .msg.replying::before { content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 2px; background: var(--brand); }
 .msg-author { font-weight: 500; color: var(--text-strong); cursor: pointer; }

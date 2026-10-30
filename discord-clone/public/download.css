@@ -63,7 +63,7 @@ body.dl-page::before {
 }
 .dl-button:hover { background: var(--brand-hover); transform: translateY(-2px); box-shadow: 0 8px 24px rgba(0, 0, 0, .25); }
 .dl-button:active { transform: translateY(0) scale(.98); }
-.dl-button:hover .dl-button-icon .ico { animation: dl-nudge .7s ease-in-out infinite; }
+.dl-button:hover .dl-button-icon .ico { animation: dl-nudge .7s ease-in-out 2; }
 .dl-button.disabled { pointer-events: none; background: var(--bg-input); color: var(--text-muted); box-shadow: none; }
 .dl-button-icon { display: grid; }
 .dl-meta { margin: 0; color: var(--text-muted); font-size: 13px; }
@@ -106,7 +106,7 @@ body.dl-page::before {
 .dl-ss-button { justify-self: end; margin-top: 4px; padding: 4px 12px; border: 1px solid rgba(255, 255, 255, .8); font-weight: 600; }
 .dl-ss-link, .dl-ss-button { position: relative; }
 .dl-ss-link::after, .dl-ss-button::after {
-  content: ''; position: absolute; inset: -4px -6px; border: 2px solid #ffd54a; border-radius: 6px; animation: dl-pulse 1.8s ease-in-out infinite;
+  content: ''; position: absolute; inset: -4px -6px; border: 2px solid #ffd54a; border-radius: 6px; animation: dl-pulse 1.8s ease-in-out 3; /* aponta três vezes e para (WCAG 2.2.2) */
 }
 .dl-ss-button::after { animation-delay: .9s; }
 
@@ -124,7 +124,7 @@ body.dl-page::before {
 .dl-ad-switch::before { content: ''; position: absolute; top: 3px; right: 3px; width: 14px; height: 14px; border-radius: 50%; background: #381e72; }
 .dl-ad-settings, .dl-ad-switch { position: relative; }
 .dl-ad-settings::after, .dl-ad-switch::after {
-  content: ''; position: absolute; inset: -5px -7px; border: 2px solid #ffd54a; border-radius: 999px; animation: dl-pulse 1.8s ease-in-out infinite;
+  content: ''; position: absolute; inset: -5px -7px; border: 2px solid #ffd54a; border-radius: 999px; animation: dl-pulse 1.8s ease-in-out 3; /* aponta três vezes e para (WCAG 2.2.2) */
 }
 .dl-ad-switch::after { animation-delay: .9s; }
 

@@ -5156,7 +5156,8 @@
   function callClock() {
     const { text, iso } = callElapsed();
     return el('span', { class: 'call-clock', title: 'Há quanto tempo você está nesta chamada' },
-      el('span', { class: 'call-clock-dot', 'aria-hidden': 'true' }),
+      // Recém-conectado: o ponto dá dois "pings" (motion), e não a cada nova renderização do cabeçalho.
+      el('span', { class: 'call-clock-dot' + (state.callStartedAt && Date.now() - state.callStartedAt < 1500 ? ' ping' : ''), 'aria-hidden': 'true' }),
       el('time', { class: 'call-time', textContent: text, dateTime: iso, data: { callTime: '' }, 'aria-label': 'Tempo de chamada' }));
   }
 

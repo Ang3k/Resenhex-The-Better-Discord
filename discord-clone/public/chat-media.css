@@ -102,9 +102,10 @@ a.embed-media:hover .embed-play { transform: translate(-50%, -50%) scale(1.1); b
 .lb-frame.loading .lb-img { opacity: .25; }
 .lb-spinner {
   position: absolute; width: 36px; height: 36px; border-radius: 50%; border: 3px solid rgba(255, 255, 255, .2); border-top-color: #fff;
-  opacity: 0; pointer-events: none; animation: lb-spin .8s linear infinite;
+  opacity: 0; pointer-events: none;
 }
-.lb-frame.loading .lb-spinner { opacity: 1; }
+/* Só gira enquanto carrega: invisível, ele girava o tempo todo com a imagem aberta. */
+.lb-frame.loading .lb-spinner { opacity: 1; animation: lb-spin .8s linear infinite; }
 @keyframes lb-spin { to { transform: rotate(360deg); } }
 .lb-nav { position: absolute; top: 50%; transform: translateY(-50%); width: 48px; height: 48px; border-radius: 50%; z-index: 2; background: rgba(255, 255, 255, .08); }
 .lb-nav:active:not(:disabled) { transform: translateY(-50%) scale(.94); }

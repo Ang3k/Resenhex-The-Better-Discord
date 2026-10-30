@@ -4,7 +4,7 @@
 /* ---------- Botão da barra de servidores (só no navegador, em Windows) ---------- */
 a.download-app { text-decoration: none; }
 .download-app .rail-icon .ico { transition: transform .2s; }
-.download-app:hover .rail-icon .ico { animation: download-nudge .7s ease-in-out infinite; }
+.download-app:hover .rail-icon .ico { animation: download-nudge .7s ease-in-out 2; }
 @keyframes download-nudge { 50% { transform: translateY(2px); } }
 
 /* ---------- Escolha da tela ---------- */

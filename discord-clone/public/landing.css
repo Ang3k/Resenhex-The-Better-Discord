@@ -87,7 +87,7 @@
 .ld-btn:active { transform: translateY(0) scale(.98) !important; }
 .ld-btn-light { background: #fff; color: #1e1f22 !important; }
 .ld-btn-light:hover { color: var(--ld-purple) !important; box-shadow: 0 10px 28px rgba(10, 10, 12, .4); transform: translateY(-2px); }
-.ld-btn-light:hover .ico { animation: ld-nudge .7s ease-in-out infinite; }
+.ld-btn-light:hover .ico { animation: ld-nudge .7s ease-in-out 2; }
 .ld-btn-dark { background: var(--ld-ink); color: #fff !important; }
 .ld-btn-dark:hover { background: var(--ld-ink-raised); box-shadow: 0 10px 28px rgba(10, 10, 12, .4); transform: translateY(-2px); }
 /* No topo escuro, o botão principal fica no roxo do logo e o outro em carvão com contorno (no fecho roxo continuam branco e preto). */
@@ -136,12 +136,14 @@
 }
 .ld-av.big { width: 36px; height: 36px; font-size: 15px; }
 .ld-av.huge { width: 52px; height: 52px; font-size: 22px; box-shadow: 0 6px 16px rgba(0, 0, 0, .3); }
-.ld-av.speaking, .ld-tile.speaking { animation: ld-speak 2.4s ease-in-out infinite; }
-.ld-av.speaking.later, .ld-tile.speaking.later { animation-delay: 1.2s; }
-@keyframes ld-speak {
-  0%, 45%, 100% { box-shadow: 0 0 0 2px var(--bg-sidebar), 0 0 0 4px var(--green); }
-  55%, 90% { box-shadow: 0 0 0 2px var(--bg-sidebar), 0 0 0 4px transparent; }
+/* Quem "fala" na prévia: o anel é uma camada pronta que acende e apaga (opacidade, sem repintar) por alguns ciclos. */
+.ld-av.speaking, .ld-tile.speaking { position: relative; }
+.ld-av.speaking::after {
+  content: ''; position: absolute; inset: -4px; border-radius: 50%; border: 2px solid var(--green); pointer-events: none;
+  animation: ld-speak 2.4s ease-in-out 5;
 }
+.ld-av.speaking.later::after, .ld-tile.speaking.later::after { animation-delay: 1.2s; }
+@keyframes ld-speak { 0%, 45%, 100% { opacity: 1; } 55%, 90% { opacity: 0; } }
 
 .ld-w-chat { display: flex; flex-direction: column; min-width: 0; min-height: 0; }
 .ld-w-head { display: flex; align-items: center; gap: 6px; height: 44px; flex-shrink: 0; padding: 0 16px; color: var(--text-strong); font-weight: 700; font-size: 14.5px; box-shadow: var(--shadow-header); }
@@ -158,7 +160,7 @@
 @keyframes ld-react-pop { from { opacity: 0; scale: .4; } }
 @keyframes ld-msg-in { from { opacity: 0; transform: translateY(12px); } }
 .ld-w-typing { display: flex; align-items: center; gap: 3px; height: 22px; padding: 0 16px; color: var(--interactive); font-size: 11.5px; font-weight: 600; }
-.ld-w-typing i { width: 5px; height: 5px; border-radius: 50%; background: var(--interactive); animation: ld-dot 1.2s ease-in-out infinite; }
+.ld-w-typing i { width: 5px; height: 5px; border-radius: 50%; background: var(--interactive); animation: ld-dot 1.2s ease-in-out 8; }
 .ld-w-typing i:nth-child(2) { animation-delay: .15s; }
 .ld-w-typing i:nth-child(3) { margin-right: 5px; animation-delay: .3s; }
 @keyframes ld-dot { 0%, 60%, 100% { opacity: .35; transform: none; } 30% { opacity: 1; transform: translateY(-2px); } }
@@ -225,10 +227,9 @@
   position: relative; display: grid; place-items: center; aspect-ratio: 16 / 10; border-radius: 10px;
   background: color-mix(in srgb, var(--c) 34%, var(--bg-rail)); --bg-sidebar: var(--bg-floating);
 }
-.ld-tile.speaking { animation-name: ld-speak-tile; }
-@keyframes ld-speak-tile {
-  0%, 45%, 100% { box-shadow: inset 0 0 0 2px var(--green); }
-  55%, 90% { box-shadow: inset 0 0 0 2px transparent; }
+.ld-tile.speaking::after {
+  content: ''; position: absolute; inset: 0; border-radius: inherit; box-shadow: inset 0 0 0 2px var(--green); pointer-events: none;
+  animation: ld-speak 2.4s ease-in-out 5;
 }
 .ld-tile .ld-av { background: var(--c); }
 .ld-tile em { position: absolute; left: 8px; bottom: 8px; display: inline-flex; align-items: center; gap: 4px; padding: 2px 8px; border-radius: 6px; background: rgba(0, 0, 0, .55); color: #fff; font-size: 12px; font-style: normal; font-weight: 600; }
@@ -246,7 +247,7 @@
 }
 .ld-screen-img > span { position: absolute; }
 .ld-game-sun { right: 13%; top: 16%; width: 30px; height: 30px; background: #ffd84a; box-shadow: 0 0 0 5px #ffe78a; }
-.ld-game-cloud { height: 12px; background: #fff; animation: ld-cloud 14s ease-in-out infinite alternate; }
+.ld-game-cloud { height: 12px; background: #fff; animation: ld-cloud 14s ease-in-out 2 alternate; }
 .ld-game-cloud::before { content: ''; position: absolute; left: 22%; right: 22%; bottom: 100%; height: 10px; background: inherit; }
 .ld-game-cloud.a { left: 12%; top: 26%; width: 60px; }
 .ld-game-cloud.b { left: 50%; top: 40%; width: 40px; animation-duration: 18s; animation-delay: -6s; }
@@ -257,10 +258,10 @@
   content: ''; position: absolute; left: 8%; top: 8px; width: 6px; height: 6px; background: #6d4527;
   box-shadow: 44px 12px #6d4527, 96px 2px #6d4527, 150px 16px #6d4527, 214px 6px #6d4527, 268px 14px #6d4527, 330px 4px #6d4527, 384px 12px #6d4527;
 }
-.ld-game-player { left: 30%; bottom: 22%; width: 18px; height: 18px; background: #ff5a4e; box-shadow: inset 0 -4px #d63c32; animation: ld-hop 2.6s ease-in-out infinite; }
+.ld-game-player { left: 30%; bottom: 22%; width: 18px; height: 18px; background: #ff5a4e; box-shadow: inset 0 -4px #d63c32; animation: ld-hop 2.6s ease-in-out 4; }
 .ld-game-player::after { content: ''; position: absolute; right: 3px; top: 4px; width: 4px; height: 5px; background: #1e1f22; }
 @keyframes ld-hop { 0%, 55%, 100% { transform: none; } 70% { transform: translateY(-30px); } 85% { transform: none; } }
-.ld-game-coin { left: 56%; bottom: 40%; width: 12px; height: 16px; border-radius: 50%; background: #ffcc33; box-shadow: inset -3px 0 #e0a100; animation: ld-coin 1.4s ease-in-out infinite; }
+.ld-game-coin { left: 56%; bottom: 40%; width: 12px; height: 16px; border-radius: 50%; background: #ffcc33; box-shadow: inset -3px 0 #e0a100; animation: ld-coin 1.4s ease-in-out 6; }
 @keyframes ld-coin { 50% { transform: scaleX(.3); } }
 .ld-badge-live { position: absolute; left: 18px; top: 18px; padding: 3px 7px; border-radius: 5px; background: var(--red); color: #fff; font-size: 11px; font-weight: 800; letter-spacing: .04em; }
 .ld-screen-viewers { position: absolute; right: 18px; top: 18px; display: inline-flex; align-items: center; gap: 4px; padding: 3px 8px; border-radius: 6px; background: rgba(0, 0, 0, .55); color: #fff; font-size: 12px; font-weight: 700; }

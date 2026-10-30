@@ -57,7 +57,7 @@
 .mudae-heart { display: inline-flex; color: var(--red); transition: color .15s ease; }
 .mudae-heart svg { fill: currentColor; }
 .mudae-claim:hover:not(:disabled) .mudae-heart { color: #fff; }
-.mudae-claim:hover:not(:disabled) .mudae-heart svg { animation: mudae-beat .9s ease-in-out infinite; }
+.mudae-claim:hover:not(:disabled) .mudae-heart svg { animation: mudae-beat .9s ease-in-out 2; }
 .mudae-timer { min-width: 26px; font-size: 12px; font-weight: 500; color: var(--text-muted); font-variant-numeric: tabular-nums; }
 .mudae-claim:hover:not(:disabled) .mudae-timer { color: rgba(255, 255, 255, .8); }
 .mudae-drain {

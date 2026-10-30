@@ -87,7 +87,7 @@
 
 /* Supressão de ruído: as barras viram um equalizador. */
 .ico-waves .bar { transform-box: fill-box; transform-origin: center; }
-:is(.icon-btn, .sc-btn):hover .ico-waves .bar { animation: eq .5s ease-in-out infinite alternate; }
+:is(.icon-btn, .sc-btn):hover .ico-waves .bar { animation: eq .5s ease-in-out 4 alternate; } /* dois ciclos e para */
 :is(.icon-btn, .sc-btn):hover .ico-waves .bar:nth-of-type(3) { animation-delay: -.15s; }
 :is(.icon-btn, .sc-btn):hover .ico-waves .bar:nth-of-type(4) { animation-delay: -.3s; }
 :is(.icon-btn, .sc-btn):hover .ico-waves .bar:nth-of-type(5) { animation-delay: -.45s; }
@@ -118,10 +118,16 @@
 }
 :is(.icon-btn, .vp-btn, .friend-btn, .pc-icon-btn, .msg-actions button, #chat-form button, .tc-btn, .cat-add, .group-action):active:not(:disabled) { transform: scale(var(--press-icon)); }
 :is(.pc-btn, .ft-tab, .friends-add-submit, .friend-text-btn, .watch-btn):active:not(:disabled) { transform: scale(var(--press)); }
-.sc-btn { transition: background var(--motion-fast), color var(--motion-fast), transform var(--motion-base) var(--ease-enter), box-shadow var(--motion-base); }
-.sc-btn:hover:not(:disabled) { transform: translateY(-2px); box-shadow: 0 8px 20px rgba(0, 0, 0, .35); }
+.sc-btn { position: relative; transition: transform var(--motion-base) var(--ease-enter); }
+/* A sombra do botão que sobe é uma camada pronta que só esmaece: animar box-shadow repintaria a cada quadro. */
+.sc-btn::after {
+  content: ''; position: absolute; inset: 0; border-radius: inherit; pointer-events: none;
+  box-shadow: 0 8px 20px rgba(0, 0, 0, .35); opacity: 0; transition: opacity var(--motion-base) var(--ease-enter);
+}
+.sc-btn:hover:not(:disabled) { transform: translateY(-2px); }
+.sc-btn:hover:not(:disabled)::after { opacity: 1; }
 .sc-btn:active:not(:disabled) { transform: translateY(0) scale(var(--press-icon)); }
-.sc-btn.hangup:hover { box-shadow: 0 8px 22px rgba(217, 67, 75, .45); }
+.sc-btn.hangup::after { box-shadow: 0 8px 22px rgba(217, 67, 75, .45); }
 
 /* Faixa de servidores: o ícone afunda um pouco ao clicar. A pílula tem 40 px e cresce com scaleY (8 → 20 → 40 px). */
 .rail-icon { transition: border-radius var(--motion-base) var(--ease-enter), background var(--motion-base), color var(--motion-base), transform var(--motion-fast); }
@@ -129,12 +135,12 @@
 .rail-pill { transition: transform var(--motion-base) var(--ease-enter); }
 
 /* ---------- Quem está falando ---------- */
-.avatar.speaking { animation: speak-glow 1.6s ease-in-out infinite; }
-@keyframes speak-glow { 50% { box-shadow: 0 0 0 2px var(--bg-sidebar), 0 0 0 4px var(--green), 0 0 14px 3px color-mix(in srgb, var(--green) 45%, transparent); } }
-.tile { transition: box-shadow var(--motion-base) ease; }
+/* O anel acende e apaga junto com a fala, na hora (como no Discord). Antes ele "respirava" com box-shadow animado,
+   o que repintava a chamada a cada quadro enquanto alguém falava; agora a luz é fixa e quem dá o ritmo é a voz. */
+.avatar.speaking { box-shadow: 0 0 0 2px var(--bg-sidebar), 0 0 0 4px var(--green), 0 0 12px 2px color-mix(in srgb, var(--green) 38%, transparent); }
 .tile.speaking { box-shadow: inset 0 0 0 3px var(--green), 0 0 26px color-mix(in srgb, var(--green) 28%, transparent); }
 .tile:not(.screen) { background-image: radial-gradient(circle at 50% 38%, rgba(255, 255, 255, .07), transparent 62%); }
-.tile.speaking .avatar { animation: speak-glow 1.6s ease-in-out infinite; }
+.tile.speaking .avatar { box-shadow: 0 0 0 3px color-mix(in srgb, var(--tile, var(--brand)) 22%, var(--bg-rail)), 0 0 0 5px var(--green), 0 0 18px 3px color-mix(in srgb, var(--green) 40%, transparent); }
 
 /* ---------- Entradas ---------- */
 /* Menus e cartões saem do ponto em que foram abertos; os que abrem para cima (emoji, GIF, sugestões) sobem. */

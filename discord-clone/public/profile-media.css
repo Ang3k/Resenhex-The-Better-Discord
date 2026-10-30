@@ -232,10 +232,12 @@ html.touch .sound-trim-wave { height: 88px; }
 
 /* Prévia ao vivo */
 #page-profile .profile-preview-label { display: flex; align-items: center; gap: 8px; margin: 0 0 10px; color: var(--text-muted); font-size: 11px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; }
-#page-profile .profile-live-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--green); box-shadow: 0 0 0 0 color-mix(in srgb, var(--green) 60%, transparent); animation: profile-live 2s ease-out infinite; }
-@keyframes profile-live { 70% { box-shadow: 0 0 0 7px transparent; } 100% { box-shadow: 0 0 0 0 transparent; } }
-:root[data-reduce-motion="true"] #page-profile .profile-live-dot { animation: none; }
-@media (prefers-reduced-motion: reduce) { #page-profile .profile-live-dot { animation: none; } }
+/* "Prévia ao vivo": o ponto pisca duas vezes quando a página abre e fica aceso (antes pulsava com box-shadow sem parar). */
+#page-profile .profile-live-dot { position: relative; width: 8px; height: 8px; border-radius: 50%; background: var(--green); }
+#page-profile .profile-live-dot::after { content: ''; position: absolute; inset: -4px; border-radius: 50%; border: 1.5px solid color-mix(in srgb, var(--green) 70%, transparent); opacity: 0; animation: profile-live 1s ease-out .3s 2; }
+@keyframes profile-live { from { opacity: 1; transform: scale(.5); } to { opacity: 0; transform: scale(1.6); } }
+:root[data-reduce-motion="true"] #page-profile .profile-live-dot::after { animation: none; }
+@media (prefers-reduced-motion: reduce) { #page-profile .profile-live-dot::after { animation: none; } }
 #page-profile .profile-preview { width: 100%; max-width: none; overflow: hidden; border-radius: 16px; background: var(--bg-sidebar); box-shadow: 0 18px 44px rgb(0 0 0 / .32); }
 #page-profile .profile-cover { height: 96px; }
 #page-profile .profile-preview-body { display: grid; gap: 12px; align-items: start; padding: 0 16px 16px; }
@@ -251,7 +253,7 @@ html.touch .sound-trim-wave { height: 88px; }
    sobre a parte ou sobre a linha correspondente do editor, que também ganha contorno. */
 #settings .settings-content .profile-preview-spot { position: absolute; z-index: 2; top: 10px; right: 10px; display: inline-flex; align-items: center; gap: 5px; min-height: 0; height: 26px; padding: 0 10px 0 8px; border: 0; border-radius: 999px; background: rgb(0 0 0 / .6); backdrop-filter: blur(8px); color: #fff; font-size: 12px; font-weight: 600; box-shadow: none; opacity: 0; transition: opacity .15s; }
 #settings .settings-content .profile-preview-spot:hover:not(:disabled) { background: rgb(0 0 0 / .8); }
-#page-profile .profile-cover::after, #page-profile .profile-preview-body::after { content: ''; position: absolute; inset: 0; z-index: 0; border-radius: inherit; box-shadow: inset 0 0 0 2px transparent; pointer-events: none; transition: box-shadow .15s; }
+#page-profile .profile-cover::after, #page-profile .profile-preview-body::after { content: ''; position: absolute; inset: 0; z-index: 0; border-radius: inherit; box-shadow: inset 0 0 0 2px transparent; pointer-events: none; transition: none; }
 #page-profile .profile-preview-body { border-radius: 0 0 16px 16px; }
 #page-profile .profile-cover { border-radius: 16px 16px 0 0; }
 #page-profile .profile-cover:hover .profile-preview-spot-banner,
