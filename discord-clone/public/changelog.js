@@ -4,6 +4,16 @@
 // O título deve destacar as principais funcionalidades ou correções, com termos objetivos.
 window.CHANGELOG = [
   {
+    version: '2.3.1', date: '2026-10-31', name: 'Mudae só com personagens: a roleta não sorteia mais lugares, itens e figurantes',
+    summary: 'A roleta do Mudae deixou de sortear o que não é personagem. Saíram cerca de 100 mil lugares, itens, tipos de inimigo e figurantes, e continuam mais de 130 mil personagens de anime, jogos, quadrinhos, desenhos e séries. Quem já casou com algum dos que saíram continua com ele.',
+    sections: [
+      { kind: 'improved', items: [
+        'Mudae: de cada 100 rolls, uns 43 caíam em algo que não é personagem: lugares (como os santuários de Zelda), itens, músicas, revistas, tipos de inimigo, figurantes de série que aparecem em um episódio só ("Thug", "Cop 2") e páginas com a foto de "imagem indisponível". Agora a roleta não sorteia mais esses. Ficam 132.769 personagens.',
+        'Ninguém perde nada: quem já casou com um dos que saíram continua com ele no harém, no álbum e no ranking, com o mesmo valor. Como sobraram menos comuns, cada roll tem um pouco mais de chance de vir raro, épico ou lendário (o lendário passa de 1 a cada 150 rolls para 1 a cada 86).',
+      ] },
+    ],
+  },
+  {
     version: '2.3.0', date: '2026-10-30', name: 'Transmissão mais fluida com jogo pesado e um visual mais leve e vivo',
     summary: 'Com um jogo pesando a placa de vídeo, a transmissão pelo app do Windows fica com cerca do dobro de quadros por segundo. E o Resenhex ganhou movimento nos momentos certos, gasta bem menos durante a chamada e ficou mais fácil de ler. A transmissão mais fluida precisa do app do Windows 1.4.7, que se atualiza sozinho.',
     sections: [
