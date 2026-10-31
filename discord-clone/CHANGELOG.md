@@ -3,16 +3,20 @@
 Histórico de versões. A mesma lista aparece dentro do app em **Novidades** (menu do servidor ou rodapé das Configurações).
 O Resenhex chegou à versão 1.0 em 4 de outubro de 2026.
 
-## v2.3.1 — Mudae só com personagens: a roleta não sorteia mais lugares, itens e figurantes
+## v2.3.5 — Mudae 2.0 e o círculo verde de quem fala mostrando o que os outros ouvem
 
 31 de outubro de 2026.
 
-A roleta do Mudae deixou de sortear o que não é personagem. Saíram cerca de 100 mil lugares, itens, tipos de inimigo e figurantes, e continuam mais de 130 mil personagens de anime, jogos, quadrinhos, desenhos e séries. Quem já casou com algum dos que saíram continua com ele.
+O Mudae ficou só com personagens: a roleta deixou de sortear cerca de 100 mil lugares, itens, tipos de inimigo e figurantes, e continuam mais de 130 mil personagens de anime, jogos, quadrinhos, desenhos e séries. E o círculo verde da chamada agora acende sempre que os outros estão ouvindo você, até com um som baixinho.
 
 ### Melhorias
 
-- Mudae: de cada 100 rolls, uns 43 caíam em algo que não é personagem: lugares (como os santuários de Zelda), itens, músicas, revistas, tipos de inimigo, figurantes de série que aparecem em um episódio só ("Thug", "Cop 2") e páginas com a foto de "imagem indisponível". Agora a roleta não sorteia mais esses. Ficam 132.769 personagens.
+- Mudae 2.0: de cada 100 rolls, uns 43 caíam em algo que não é personagem: lugares (como os santuários de Zelda), itens, músicas, revistas, tipos de inimigo, figurantes de série que aparecem em um episódio só ("Thug", "Cop 2") e páginas com a foto de "imagem indisponível". Agora a roleta não sorteia mais esses. Ficam 132.769 personagens.
 - Ninguém perde nada: quem já casou com um dos que saíram continua com ele no harém, no álbum e no ranking, com o mesmo valor. Como sobraram menos comuns, cada roll tem um pouco mais de chance de vir raro, épico ou lendário (o lendário passa de 1 a cada 150 rolls para 1 a cada 86).
+
+### Correções
+
+- O círculo verde de quem fala só acendia com voz em volume normal. Sons mais baixos, como um barbeador ligado, a fala baixa ou a respiração perto do microfone, chegavam aos outros sem o verde acender. Agora ele acende sempre que chega um som que dá para ouvir, e todo mundo vê o mesmo verde: na sua tela, na dos amigos e no overlay dos jogos. Se o seu acender sem você falar, é porque os outros estão ouvindo algum barulho seu.
 
 ## v2.3.0 — Transmissão mais fluida com jogo pesado e um visual mais leve e vivo
 

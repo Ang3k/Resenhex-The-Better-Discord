@@ -5012,15 +5012,16 @@
     if (state.speakerDeviceId && node.setSinkId) node.setSinkId(state.speakerDeviceId).catch(() => {});
   }
 
-  // Indicador de quem está falando (círculo verde).
+  // Indicador de quem está falando (círculo verde). Mede o som que sai (o meu, depois da IA e do corte) ou o que
+  // chega (o dos outros) com a mesma régua, então todo mundo vê o mesmo verde: aceso é porque estão ouvindo.
   function watchSpeaking(sid, stream) {
     if (!stream.getAudioTracks().length) return;
     const ctx = getAudioCtx();
     const source = ctx.createMediaStreamSource(stream);
     const analyser = ctx.createAnalyser();
-    analyser.fftSize = 512;
+    analyser.fftSize = 4096; // ~85 ms por leitura de 100 ms: um som curto não passa entre duas leituras
     source.connect(analyser);
-    analysers.set(sid, { analyser, source, data: new Uint8Array(analyser.fftSize) });
+    analysers.set(sid, { analyser, source, data: new Float32Array(analyser.fftSize) });
     clipStreams.set(sid, { stream, accountId: null });
     clipSync();
   }
@@ -5037,6 +5038,9 @@
 
   // Mantém o círculo verde por um instante depois da última sílaba, para não piscar entre palavras.
   const lastLoud = new Map(); // sid -> hora do último som
+  // A partir daqui já dá para ouvir (quarto quieto fica perto de -70 dB). Antes o verde só acendia acima de -30 dB,
+  // e o microfone abre a partir de -58 dB: um barbeador ou a fala baixa chegavam aos outros sem o verde acender.
+  const SPEAKING_DB = -55;
   let speakingDirty = false; // anel de quem fala por aplicar (a página estava escondida)
 
   // ---------------- CLIPAR: os últimos 30 s da chamada ----------------
@@ -5118,15 +5122,15 @@
     let changed = false;
     const now = performance.now();
     for (const [sid, { analyser, data }] of analysers) {
-      analyser.getByteTimeDomainData(data);
+      analyser.getFloatTimeDomainData(data);
       let sum = 0;
-      for (const x of data) sum += (x - 128) ** 2;
-      const rms = Math.sqrt(sum / data.length);
+      for (const x of data) sum += x * x;
+      const db = 20 * Math.log10(Math.sqrt(sum / data.length) + 1e-9);
       const v = voiceEntry(sid);
       const muted = sid === state.me?.sid
         ? selfSilent()
         : !v || v.muted || v.silenced || state.localMuted.has(v.accountId);
-      if (rms > 4 && !muted) lastLoud.set(sid, now);
+      if (db > SPEAKING_DB && !muted) lastLoud.set(sid, now);
       const speaking = !muted && now - (lastLoud.get(sid) || 0) < 300;
       if (speaking !== state.speaking.has(sid)) {
         speaking ? state.speaking.add(sid) : state.speaking.delete(sid);

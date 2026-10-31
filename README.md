@@ -8,7 +8,7 @@ Plataforma própria de chat, voz, vídeo e compartilhamento de tela em tempo rea
 Roda no navegador, como app para Windows (publicado na Microsoft Store) e como app para Android, baixado do próprio site.
 
 [![Microsoft Store](https://img.shields.io/badge/Microsoft%20Store-Baixar-0078D4?style=for-the-badge&logo=microsoft&logoColor=white)](https://apps.microsoft.com/detail/9NG3QRZSB1LX)
-![Versão](https://img.shields.io/badge/versão-2.3.1-7C3AED?style=for-the-badge)
+![Versão](https://img.shields.io/badge/versão-2.3.5-7C3AED?style=for-the-badge)
 ![Node.js](https://img.shields.io/badge/Node.js-22.13%2B-339933?style=for-the-badge&logo=nodedotjs&logoColor=white)
 [![Licença](https://img.shields.io/badge/licença-AGPL--3.0-A42E2B?style=for-the-badge)](LICENSE)
 
