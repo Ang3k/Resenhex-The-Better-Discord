@@ -1,0 +1,623 @@
+{
+ "porFonte": {
+  "a": {
+   "total": 43340,
+   "sai": 1351,
+   "revisar": 74
+  },
+  "g": {
+   "total": 36967,
+   "sai": 12138,
+   "revisar": 2843
+  },
+  "c": {
+   "total": 7270,
+   "sai": 0,
+   "revisar": 70
+  },
+  "d": {
+   "total": 40628,
+   "sai": 9627,
+   "revisar": 4391
+  },
+  "s": {
+   "total": 105542,
+   "sai": 77862,
+   "revisar": 13834
+  }
+ },
+ "motivos": {
+  "?nome_generico": {
+   "a": 49,
+   "g": 114,
+   "c": 58,
+   "d": 395,
+   "s": 259
+  },
+  "?nome_vazio": {
+   "a": 11,
+   "g": 7,
+   "c": 3,
+   "d": 17,
+   "s": 2
+  },
+  "?nome_por_relacao": {
+   "a": 14,
+   "g": 33,
+   "c": 1,
+   "d": 108,
+   "s": 89
+  },
+  "nome_generico": {
+   "a": 694,
+   "g": 210,
+   "c": 0,
+   "d": 670,
+   "s": 4852
+  },
+  "nome_por_relacao": {
+   "a": 644,
+   "g": 71,
+   "c": 0,
+   "d": 356,
+   "s": 593
+  },
+  "nome_vazio": {
+   "a": 13,
+   "g": 14,
+   "c": 0,
+   "d": 13,
+   "s": 12
+  },
+  "?nome_com_sufixo": {
+   "a": 0,
+   "g": 1,
+   "c": 0,
+   "d": 0,
+   "s": 0
+  },
+  "?foto_repetida": {
+   "a": 0,
+   "g": 290,
+   "c": 8,
+   "d": 130,
+   "s": 0
+  },
+  "?inimigo_generico": {
+   "a": 0,
+   "g": 582,
+   "c": 0,
+   "d": 21,
+   "s": 0
+  },
+  "?grupo_ou_especie": {
+   "a": 0,
+   "g": 394,
+   "c": 0,
+   "d": 780,
+   "s": 0
+  },
+  "?nao_personagem_conceito": {
+   "a": 0,
+   "g": 256,
+   "c": 0,
+   "d": 96,
+   "s": 0
+  },
+  "nao_personagem_item": {
+   "a": 0,
+   "g": 1256,
+   "c": 0,
+   "d": 142,
+   "s": 0
+  },
+  "?nao_personagem_evento": {
+   "a": 0,
+   "g": 27,
+   "c": 0,
+   "d": 3,
+   "s": 0
+  },
+  "nao_personagem_lugar": {
+   "a": 0,
+   "g": 533,
+   "c": 0,
+   "d": 468,
+   "s": 0
+  },
+  "?nao_personagem_ficha": {
+   "a": 0,
+   "g": 799,
+   "c": 0,
+   "d": 1061,
+   "s": 0
+  },
+  "?tipo_no_plural": {
+   "a": 0,
+   "g": 381,
+   "c": 0,
+   "d": 248,
+   "s": 0
+  },
+  "?nao_personagem_item": {
+   "a": 0,
+   "g": 87,
+   "c": 0,
+   "d": 177,
+   "s": 0
+  },
+  "nao_personagem_evento": {
+   "a": 0,
+   "g": 187,
+   "c": 0,
+   "d": 10,
+   "s": 0
+  },
+  "relacao_ou_lista": {
+   "a": 0,
+   "g": 111,
+   "c": 0,
+   "d": 155,
+   "s": 0
+  },
+  "nao_personagem_conceito": {
+   "a": 0,
+   "g": 506,
+   "c": 0,
+   "d": 41,
+   "s": 0
+  },
+  "?nao_personagem_midia": {
+   "a": 0,
+   "g": 61,
+   "c": 0,
+   "d": 139,
+   "s": 0
+  },
+  "?sem_nome": {
+   "a": 0,
+   "g": 7,
+   "c": 0,
+   "d": 467,
+   "s": 0
+  },
+  "?pessoa_real": {
+   "a": 0,
+   "g": 47,
+   "c": 0,
+   "d": 1063,
+   "s": 0
+  },
+  "foto_padrao": {
+   "a": 0,
+   "g": 1044,
+   "c": 0,
+   "d": 108,
+   "s": 0
+  },
+  "?nao_personagem_lugar": {
+   "a": 0,
+   "g": 34,
+   "c": 0,
+   "d": 46,
+   "s": 0
+  },
+  "?serie_1_episodio": {
+   "a": 0,
+   "g": 0,
+   "c": 0,
+   "d": 0,
+   "s": 1003
+  },
+  "?serie_2a3_episodios": {
+   "a": 0,
+   "g": 0,
+   "c": 0,
+   "d": 0,
+   "s": 12119
+  },
+  "duplicado": {
+   "a": 0,
+   "g": 0,
+   "c": 0,
+   "d": 0,
+   "s": 14
+  },
+  "serie_1_episodio": {
+   "a": 0,
+   "g": 0,
+   "c": 0,
+   "d": 0,
+   "s": 77430
+  },
+  "nao_personagem_categoria": {
+   "a": 0,
+   "g": 4292,
+   "c": 0,
+   "d": 864,
+   "s": 0
+  },
+  "grupo_ou_especie": {
+   "a": 0,
+   "g": 575,
+   "c": 0,
+   "d": 1334,
+   "s": 0
+  },
+  "nao_personagem_midia": {
+   "a": 0,
+   "g": 221,
+   "c": 0,
+   "d": 2458,
+   "s": 0
+  },
+  "nao_personagem_texto": {
+   "a": 0,
+   "g": 334,
+   "c": 0,
+   "d": 131,
+   "s": 0
+  },
+  "nao_personagem_imagem": {
+   "a": 0,
+   "g": 9,
+   "c": 0,
+   "d": 6,
+   "s": 0
+  },
+  "tipo_no_plural": {
+   "a": 0,
+   "g": 194,
+   "c": 0,
+   "d": 299,
+   "s": 0
+  },
+  "nao_personagem_ficha": {
+   "a": 0,
+   "g": 866,
+   "c": 0,
+   "d": 632,
+   "s": 0
+  },
+  "?duplicado_igdb_wiki": {
+   "a": 0,
+   "g": 21,
+   "c": 0,
+   "d": 0,
+   "s": 0
+  },
+  "?nao_personagem_imagem": {
+   "a": 0,
+   "g": 10,
+   "c": 0,
+   "d": 2,
+   "s": 0
+  },
+  "?foto_padrao_tem_outra": {
+   "a": 0,
+   "g": 18,
+   "c": 0,
+   "d": 3,
+   "s": 0
+  },
+  "?nao_personagem_categoria": {
+   "a": 0,
+   "g": 65,
+   "c": 0,
+   "d": 159,
+   "s": 0
+  },
+  "desambiguacao": {
+   "a": 0,
+   "g": 180,
+   "c": 0,
+   "d": 288,
+   "s": 0
+  },
+  "inimigo_generico": {
+   "a": 0,
+   "g": 1649,
+   "c": 0,
+   "d": 43,
+   "s": 0
+  },
+  "?nao_personagem_texto": {
+   "a": 0,
+   "g": 0,
+   "c": 0,
+   "d": 8,
+   "s": 0
+  },
+  "sem_nome": {
+   "a": 0,
+   "g": 0,
+   "c": 0,
+   "d": 2363,
+   "s": 0
+  },
+  "?mesmo_ator_outro_papel": {
+   "a": 0,
+   "g": 0,
+   "c": 0,
+   "d": 0,
+   "s": 1118
+  }
+ },
+ "porWiki": {
+  "a:anilist": {
+   "total": 43340,
+   "sai": 1351,
+   "revisar": 74
+  },
+  "g:igdb": {
+   "total": 369,
+   "sai": 0,
+   "revisar": 7
+  },
+  "g:mario": {
+   "total": 2577,
+   "sai": 454,
+   "revisar": 405
+  },
+  "g:finalfantasy": {
+   "total": 3113,
+   "sai": 68,
+   "revisar": 101
+  },
+  "g:sonic": {
+   "total": 6039,
+   "sai": 2747,
+   "revisar": 538
+  },
+  "g:zelda": {
+   "total": 7320,
+   "sai": 5494,
+   "revisar": 331
+  },
+  "g:genshin-impact": {
+   "total": 5040,
+   "sai": 371,
+   "revisar": 39
+  },
+  "g:honkai-star-rail": {
+   "total": 2072,
+   "sai": 852,
+   "revisar": 35
+  },
+  "g:wutheringwaves": {
+   "total": 665,
+   "sai": 125,
+   "revisar": 19
+  },
+  "g:leagueoflegends": {
+   "total": 1218,
+   "sai": 879,
+   "revisar": 74
+  },
+  "g:overwatch": {
+   "total": 272,
+   "sai": 6,
+   "revisar": 40
+  },
+  "g:apexlegends": {
+   "total": 71,
+   "sai": 3,
+   "revisar": 3
+  },
+  "g:freefire": {
+   "total": 46,
+   "sai": 0,
+   "revisar": 1
+  },
+  "g:streetfighter": {
+   "total": 457,
+   "sai": 0,
+   "revisar": 46
+  },
+  "g:mortalkombat": {
+   "total": 345,
+   "sai": 10,
+   "revisar": 22
+  },
+  "g:tekken": {
+   "total": 173,
+   "sai": 0,
+   "revisar": 22
+  },
+  "g:kingdomhearts": {
+   "total": 296,
+   "sai": 0,
+   "revisar": 9
+  },
+  "g:megamitensei": {
+   "total": 2400,
+   "sai": 98,
+   "revisar": 405
+  },
+  "g:residentevil": {
+   "total": 1784,
+   "sai": 768,
+   "revisar": 104
+  },
+  "g:masseffect": {
+   "total": 563,
+   "sai": 0,
+   "revisar": 18
+  },
+  "g:eldenring": {
+   "total": 694,
+   "sai": 82,
+   "revisar": 320
+  },
+  "g:darksouls": {
+   "total": 252,
+   "sai": 0,
+   "revisar": 54
+  },
+  "g:halo": {
+   "total": 500,
+   "sai": 3,
+   "revisar": 73
+  },
+  "g:thelastofus": {
+   "total": 378,
+   "sai": 178,
+   "revisar": 24
+  },
+  "g:deltarune": {
+   "total": 61,
+   "sai": 0,
+   "revisar": 31
+  },
+  "g:undertale": {
+   "total": 42,
+   "sai": 0,
+   "revisar": 27
+  },
+  "g:cuphead": {
+   "total": 220,
+   "sai": 0,
+   "revisar": 95
+  },
+  "c:comicvine": {
+   "total": 7270,
+   "sai": 0,
+   "revisar": 70
+  },
+  "d:simpsons": {
+   "total": 5935,
+   "sai": 2229,
+   "revisar": 468
+  },
+  "d:futurama": {
+   "total": 1106,
+   "sai": 197,
+   "revisar": 146
+  },
+  "d:familyguy": {
+   "total": 1995,
+   "sai": 67,
+   "revisar": 406
+  },
+  "d:southpark": {
+   "total": 2439,
+   "sai": 500,
+   "revisar": 347
+  },
+  "d:rickandmorty": {
+   "total": 1648,
+   "sai": 85,
+   "revisar": 217
+  },
+  "d:avatar": {
+   "total": 796,
+   "sai": 111,
+   "revisar": 55
+  },
+  "d:adventuretime": {
+   "total": 1528,
+   "sai": 197,
+   "revisar": 279
+  },
+  "d:gravityfalls": {
+   "total": 479,
+   "sai": 60,
+   "revisar": 117
+  },
+  "d:steven-universe": {
+   "total": 327,
+   "sai": 87,
+   "revisar": 116
+  },
+  "d:phineasandferb": {
+   "total": 713,
+   "sai": 51,
+   "revisar": 142
+  },
+  "d:spongebob": {
+   "total": 2704,
+   "sai": 1046,
+   "revisar": 459
+  },
+  "d:ben10": {
+   "total": 1558,
+   "sai": 303,
+   "revisar": 192
+  },
+  "d:teentitans": {
+   "total": 265,
+   "sai": 17,
+   "revisar": 60
+  },
+  "d:looneytunes": {
+   "total": 533,
+   "sai": 7,
+   "revisar": 18
+  },
+  "d:hazbinhotel": {
+   "total": 133,
+   "sai": 3,
+   "revisar": 33
+  },
+  "d:theamazingworldofgumball": {
+   "total": 315,
+   "sai": 24,
+   "revisar": 49
+  },
+  "d:regularshow": {
+   "total": 362,
+   "sai": 0,
+   "revisar": 36
+  },
+  "d:kimpossible": {
+   "total": 168,
+   "sai": 4,
+   "revisar": 10
+  },
+  "d:dannyphantom": {
+   "total": 199,
+   "sai": 2,
+   "revisar": 33
+  },
+  "d:theowlhouse": {
+   "total": 143,
+   "sai": 2,
+   "revisar": 41
+  },
+  "d:totaldrama": {
+   "total": 305,
+   "sai": 140,
+   "revisar": 12
+  },
+  "d:mlp": {
+   "total": 598,
+   "sai": 66,
+   "revisar": 31
+  },
+  "d:powerpuffgirls": {
+   "total": 642,
+   "sai": 82,
+   "revisar": 56
+  },
+  "d:disney": {
+   "total": 13034,
+   "sai": 4245,
+   "revisar": 700
+  },
+  "d:pixar": {
+   "total": 1545,
+   "sai": 55,
+   "revisar": 187
+  },
+  "d:dreamworks": {
+   "total": 1158,
+   "sai": 47,
+   "revisar": 181
+  },
+  "s:tmdb": {
+   "total": 105542,
+   "sai": 77862,
+   "revisar": 13834
+  }
+ }
+}

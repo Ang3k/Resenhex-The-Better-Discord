@@ -1,4 +1,5 @@
-// Atualiza todas as fontes por padrão; --juntar apenas monta; --retomar reutiliza consultas salvas.
+// Atualiza todas as fontes por padrão; --juntar apenas monta; --retomar reutiliza consultas salvas;
+// --limpar só refaz a marca de "fora da roleta" (8ª coluna) no catálogo publicado, sem consultar as fontes.
 const fs = require('fs');
 const path = require('path');
 const { anilist } = require('./mudae-fontes/anilist');
@@ -9,9 +10,10 @@ const { tmdb } = require('./mudae-fontes/tmdb');
 const { createCollection, preserveRows, mergeByRank, validateRows, writeJson } = require('./mudae-fontes/coleta');
 const { correctCatalog, isAuxiliaryRow } = require('./mudae-fontes/qualidade');
 const { realPeopleExclusions, isRealPersonRow } = require('./mudae-fontes/pessoas-reais');
+const { marcarForaDaRoleta } = require('./mudae-fontes/limpeza');
 
 const OUT = path.join(__dirname, '..', 'server', 'mudae-catalogo.json');
-const CACHE = path.join(__dirname, 'mudae-cache');
+const CACHE = process.env.MUDAE_CACHE || path.join(__dirname, 'mudae-cache');
 const KEYS = path.join(__dirname, 'mudae-chaves.json');
 const SOURCES = { anime: 'a', jogos: 'g', quadrinhos: 'c', desenhos: 'd', series: 's' };
 const readRows = (file) => fs.existsSync(file) ? JSON.parse(fs.readFileSync(file, 'utf8')) : [];
@@ -81,12 +83,21 @@ async function main(args = process.argv.slice(2)) {
   };
   const options = { animePages: option('anime-paginas', 8), comicPages: option('quadrinhos-paginas', 50), showCount: option('series-populares', 340) };
   const resume = args.includes('--retomar');
-  const previous = readRows(OUT);
+  const published = readRows(OUT);
+  // A marca de fora da roleta é refeita a cada montagem; as fontes trabalham com as 7 colunas.
+  const previous = published.map((r) => r.slice(0, 7));
   fs.mkdirSync(CACHE, { recursive: true });
   // Também salva antes de --juntar, pois a revisão pode retirar páginas que não são personagens.
   {
     const backup = path.join(CACHE, 'backups', new Date().toISOString().replace(/[:.]/g, '-') + '.json');
-    writeJson(backup, previous, true);
+    writeJson(backup, published, true);
+  }
+  if (args.includes('--limpar')) {
+    const limpeza = marcarForaDaRoleta(previous, { cacheDir: CACHE });
+    writeJson(path.join(CACHE, 'relatorios', 'limpeza.json'), { finishedAt: new Date().toISOString(), ...limpeza.report });
+    writeJson(OUT, limpeza.rows, true);
+    console.log('Pronto: ' + limpeza.report.naRoleta + ' na roleta, ' + limpeza.report.foraDaRoleta + ' fora (de ' + limpeza.report.total + ')');
+    return limpeza.report;
   }
   for (const [name, letter] of Object.entries(SOURCES)) {
     if (!fs.existsSync(path.join(CACHE, name + '.json'))) writeJson(path.join(CACHE, name + '.json'), previous.filter((r) => (r[6] || 'a') === letter), true);
@@ -115,11 +126,13 @@ async function main(args = process.argv.slice(2)) {
     writeJson(path.join(CACHE, name + '.json'), rows, true);
   }
   writeJson(path.join(CACHE, 'relatorios', 'qualidade.json'), { finishedAt: new Date().toISOString(), ...quality.report });
-  writeJson(OUT, all, true);
+  const limpeza = marcarForaDaRoleta(all, { cacheDir: CACHE });
+  writeJson(path.join(CACHE, 'relatorios', 'limpeza.json'), { finishedAt: new Date().toISOString(), ...limpeza.report });
+  writeJson(OUT, limpeza.rows, true);
   const latestReports = Object.keys(SOURCES).map((name) => path.join(CACHE, 'relatorios', name + '.json'))
     .filter((file) => fs.existsSync(file)).map((file) => JSON.parse(fs.readFileSync(file, 'utf8')));
   const summary = { finishedAt: new Date().toISOString(), scope: 'elencos completos das obras atuais + obras/personagens conhecidos', previous: previous.length,
-    total: all.length, added: all.length - previous.length, quality: { removedAuxiliary: quality.report.removed.length, removedRealPeople: quality.report.removedRealPeople.length, priorityEvidence: quality.report.priorityEvidence }, status: latestReports.some((r) => r.status !== 'complete') ? 'partial' : 'complete',
+    total: all.length, added: all.length - previous.length, quality: { removedAuxiliary: quality.report.removed.length, removedRealPeople: quality.report.removedRealPeople.length, priorityEvidence: quality.report.priorityEvidence }, foraDaRoleta: limpeza.report.foraDaRoleta, status: latestReports.some((r) => r.status !== 'complete') ? 'partial' : 'complete',
     sources: Object.fromEntries(Object.entries(SOURCES).map(([name, letter]) => [name, all.filter((r) => r[6] === letter).length])), reports: latestReports };
   writeJson(path.join(CACHE, 'relatorio.json'), summary);
   console.log('Pronto: ' + all.length + ' personagens, ' + (summary.added >= 0 ? '+' : '') + summary.added + ' (' + summary.status + ')');

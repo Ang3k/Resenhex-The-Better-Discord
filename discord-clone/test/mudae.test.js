@@ -207,3 +207,22 @@ test('Salão: a cápsula demora mais para abrir quanto mais rara', () => {
   assert.equal(revealDelay('???'), 1950, 'raridade desconhecida conta como comum');
   assert.equal(revealDelay(undefined), 1950);
 });
+
+test('fora da roleta (8ª coluna): nunca sai no roll, mas segue no harém, no álbum e no ranking com o mesmo valor', () => {
+  const catalog = CATALOG.map((r) => (r[0] === 3 ? [...r, 'a', 1] : r));
+  const normal = createMudae({ catalog: CATALOG, refSize: CATALOG.length });
+  for (let p = 0; p < 1; p += 0.05) {
+    const m = createMudae({ catalog, random: () => p, refSize: CATALOG.length });
+    for (const kind of ['m', 'w', 'ma', 'wa']) assert.notEqual(m.roll({ claims: {}, usage: {} }, 'x', kind).card.id, 3, kind);
+    assert.ok(!m.warmup(4).a.some((img) => img.endsWith('b3-c.jpg')));
+  }
+  const m = createMudae({ catalog, refSize: CATALOG.length });
+  assert.equal(m.size, 4);
+  assert.deepEqual(m.sources, { a: 4 });
+  assert.deepEqual(m.card(3), normal.card(3), 'posição, valor e raridade contam com todos');
+  const store = { claims: { 3: { ownerId: 'a', at: 0 } }, usage: {} };
+  assert.deepEqual(m.harem(store, 'a'), normal.harem(store, 'a'));
+  assert.deepEqual(m.album(store, 'a'), normal.album(store, 'a'));
+  assert.deepEqual(m.ranking(store), normal.ranking(store));
+  assert.equal(m.info(store, 'zero two').card.id, 3, '$im ainda acha quem já casou');
+});

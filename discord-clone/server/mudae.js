@@ -58,12 +58,12 @@ function createMudae({ catalog, now = Date.now, random = Math.random, refSize = 
   const bySource = new Map();
   // O nome da obra se repete em milhares de linhas: guardar uma cópia só de cada um economiza memória.
   const seriesNames = new Map();
-  for (const [id, name, series, img, gender, score = 0, source = 'a'] of catalog) {
+  for (const [id, name, series, img, gender, score = 0, source = 'a', fora = 0] of catalog) {
     if (!SOURCES[source]) continue;
     if (!bySource.has(source)) bySource.set(source, []);
     if (!seriesNames.has(series)) seriesNames.set(series, series);
     // pos e eq já nascem no objeto (preenchidos logo abaixo): todos ficam com o mesmo formato, mais enxuto.
-    bySource.get(source).push({ id, name, series: seriesNames.get(series), img, gender, score, source, key: normalize(name), pos: 0, eq: 0 });
+    bySource.get(source).push({ id, name, series: seriesNames.get(series), img, gender, score, source, key: normalize(name), pos: 0, eq: 0, fora: fora === 1 });
   }
   for (const list of bySource.values()) {
     list.sort((a, b) => b.score - a.score);
@@ -76,11 +76,14 @@ function createMudae({ catalog, now = Date.now, random = Math.random, refSize = 
   const chars = [...bySource.values()].flat().sort((a, b) => a.eq - b.eq);
   const byId = new Map(chars.map((c) => [String(c.id), c]));
   const lookup = (id) => byId.get(String(id));
+  // Quem tem 1 na 8ª coluna (não é personagem: lugar, item, figurante de um episódio) saiu da roleta,
+  // mas continua no harém, no álbum e no ranking de quem já casou. Posição e valor contam com todos.
+  const ativos = chars.filter((c) => !c.fora);
   // Listas de sorteio ($w, $h, $m e por fonte), montadas numa passada só e na mesma ordem de chars.
-  // "m" é a própria chars: nenhuma lista é alterada depois de pronta.
-  const pools = { m: chars, w: [], h: [] };
+  // "m" é a própria ativos: nenhuma lista é alterada depois de pronta.
+  const pools = { m: ativos, w: [], h: [] };
   const poolsOf = new Map([...bySource.keys()].map((s) => [s, [pools['m' + s] = [], pools['w' + s] = [], pools['h' + s] = []]]));
-  for (const c of chars) {
+  for (const c of ativos) {
     const [all, women, men] = poolsOf.get(c.source);
     all.push(c);
     if (c.gender === 'F') { pools.w.push(c); women.push(c); }
@@ -133,7 +136,7 @@ function createMudae({ catalog, now = Date.now, random = Math.random, refSize = 
   // mesmo quando as fotos sorteadas no roll (wikis, Comic Vine) demoram a chegar.
   // Separadas por fonte, para um roll de jogos girar fotos de jogos.
   function warmup(perSource = 8) {
-    return Object.fromEntries([...bySource.keys()].map((s) => [s, Array.from({ length: perSource }, () => thumbOf(pick(pools['m' + s])))]));
+    return Object.fromEntries(Object.keys(sources).map((s) => [s, Array.from({ length: perSource }, () => thumbOf(pick(pools['m' + s])))]));
   }
 
   // Casar com o personagem de um roll. Quem chamar primeiro leva (o servidor processa um de cada vez).
@@ -228,7 +231,7 @@ function createMudae({ catalog, now = Date.now, random = Math.random, refSize = 
   }
 
   function info(store, query) {
-    const c = find(query);
+    const c = find(query, ativos) || find(query);
     return c ? { card: card(c), ownerId: store.claims[c.id]?.ownerId || null } : null;
   }
 
@@ -249,10 +252,10 @@ function createMudae({ catalog, now = Date.now, random = Math.random, refSize = 
     return release(store, accountId, c);
   }
 
-  // Quantos personagens há em cada fonte (a tela mostra só os filtros que existem).
-  const sources = Object.fromEntries([...bySource].map(([s, list]) => [s, list.length]));
+  // Quantos personagens há em cada fonte na roleta (a tela mostra só os filtros que existem).
+  const sources = Object.fromEntries([...bySource.keys()].map((s) => [s, pools['m' + s].length]).filter(([, n]) => n));
 
-  return { size: chars.length, sources, parse, status, roll, warmup, claim, harem, album, summary, setFavorite, ranking, info, divorce, divorceId,
+  return { size: ativos.length, sources, parse, status, roll, warmup, claim, harem, album, summary, setFavorite, ranking, info, divorce, divorceId,
     card: (id) => (lookup(id) ? card(lookup(id)) : null) };
 }
 

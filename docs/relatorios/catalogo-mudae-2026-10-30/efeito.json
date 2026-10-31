@@ -1,0 +1,64 @@
+{
+ "antes": {
+  "a": 43340,
+  "g": 36967,
+  "c": 7270,
+  "d": 40628,
+  "s": 105542
+ },
+ "depois": {
+  "a": 41989,
+  "g": 24829,
+  "c": 7270,
+  "d": 31001,
+  "s": 27680
+ },
+ "total": [
+  233747,
+  132769
+ ],
+ "ruim": 100978,
+ "duvida": 21212,
+ "mudanca": {
+  "a": {
+   "sobe": 0,
+   "desce": 549,
+   "igual": 41440,
+   "valorAntes": 5451866,
+   "valorDepois": 5358094,
+   "n": 41989
+  },
+  "g": {
+   "sobe": 0,
+   "desce": 2719,
+   "igual": 22110,
+   "valorAntes": 3671670,
+   "valorDepois": 3168139,
+   "n": 24829
+  },
+  "c": {
+   "sobe": 0,
+   "desce": 0,
+   "igual": 7270,
+   "valorAntes": 927215,
+   "valorDepois": 927215,
+   "n": 7270
+  },
+  "d": {
+   "sobe": 0,
+   "desce": 2924,
+   "igual": 28077,
+   "valorAntes": 4451741,
+   "valorDepois": 3955808,
+   "n": 31001
+  },
+  "s": {
+   "sobe": 0,
+   "desce": 10169,
+   "igual": 17511,
+   "valorAntes": 5932287,
+   "valorDepois": 3531964,
+   "n": 27680
+  }
+ }
+}
