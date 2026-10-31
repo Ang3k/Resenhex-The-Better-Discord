@@ -26,9 +26,9 @@ Deixar o Resenhex aguentar **5 mil pessoas online ao mesmo tempo**, espalhadas e
 
 ## O que está no ar
 
-- **Site:** versão **2.0.0** em https://resenhex.com.br, publicada em 25/10 às 01:49 (Brasília) a partir da branch `claude/chamada-atual` (`68639d1`). O `main` local foi avançado para `68639d1`. Antes estava a 1.9.0 (`484c2f8`).
+- **Site:** versão **2.3.5** em https://resenhex.com.br, publicada em 31/10 às 02:50 (Brasília) a partir da branch `claude/catalogo-mudae` (`74d90a2`): limpeza do Mudae e o círculo verde de quem fala. O `main` local foi avançado para `74d90a2`. Antes estava a 2.3.0 (`cb81106`, 30/10). A 2.0.0, do plano de 5 mil, saiu em 25/10 de `claude/chamada-atual` (`68639d1`); as versões seguintes estão no `CHANGELOG.md`.
 - **Painel "Chamadas agora":** só o dono vê, em Configurações. Mostra quem está online e em qual call.
-- **GitHub:** o `main` de lá parou na 1.8.8. Ninguém enviou a 1.9.0 nem a 2.0.0.
+- **GitHub:** o `main` de lá está em `02694ef` (a 2.3.0 mais documentação). A 2.3.5 não foi enviada.
 - **Servidor:** Oracle ARM grátis (2 núcleos, 12 GB), IP `146.235.41.73`, usuário `ubuntu`, chave `~/.ssh/resenhex-oracle-ed25519`.
   - App em `/opt/resenhex`; dados em `/var/lib/resenhex/data.db` (SQLite; o `data.json` da 1.9.0 ficou como `data.json.antes-do-sqlite`) e `/var/lib/resenhex/uploads`.
   - Backups em `/var/backups/resenhex`.
