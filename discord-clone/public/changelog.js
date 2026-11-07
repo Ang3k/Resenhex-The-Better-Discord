@@ -4,6 +4,25 @@
 // O título deve destacar as principais funcionalidades ou correções, com termos objetivos.
 window.CHANGELOG = [
   {
+    version: '2.5.0', date: '2026-11-07', name: 'Mudae com troca de cartas, ranking de personagens e lista de desejos',
+    summary: 'O Mudae ganhou os comandos que faltavam: trocar cartas e kakera com outra pessoa (só acontece quando os dois confirmam), o ranking dos personagens com filtro por obra, waifus e husbandos, a lista de desejos com aviso quando o personagem sair e o kakera de verdade, com $dk, $daily e o cristal dos personagens que já têm dono.',
+    sections: [
+      { kind: 'new', items: [
+        'Troca de cartas: $trade @pessoa, ou o botão "Propor troca" no harem de alguém, abre uma janela com as ofertas dos dois. Cada um escolhe personagens do seu harem e, se quiser, kakera. A troca só acontece quando os dois confirmam, e se alguém muda a oferta as confirmações são desfeitas. Ninguém consegue oferecer uma carta que não é sua, e a troca fica aberta por 5 minutos.',
+        'Aba Personagens no Salão e $top: o ranking dos personagens mais valiosos do catálogo, com o dono de cada um. Dá para filtrar por obra ($top Naruto), por waifus, husbandos, anime, jogos, quadrinhos, desenhos e séries, e ver quantos daquela obra você já tem. $obra Nome mostra todos os personagens de uma obra e $topserv mostra quem tem o harem mais valioso do servidor.',
+        'Lista de desejos: $wish Nome, ou a estrela nas cartas, guarda até 10 personagens. Quando um deles sai no roll de outra pessoa, você recebe um aviso na hora. $wl mostra a lista e $wr Nome tira um. No seu harem aparece quem deseja cada carta, com um atalho para propor troca.',
+        'Presentes: $give @pessoa Nome dá um personagem e $givek @pessoa 100 manda kakera. Os dois pedem confirmação antes.',
+        'Kakera: $dk dá 250 kakera a cada 20 horas, $daily enche os rolls de novo uma vez por dia e $rolls compra os rolls de volta por 500 kakera (até 3 vezes por dia). Quando sai um personagem que já tem dono, aparece um cristal de kakera para pegar, com a vez primeiro de quem rodou. $k mostra o seu saldo.',
+      ] },
+      { kind: 'improved', items: [
+        '$im Nome mostra a história do personagem: de quem ele é, desde quando e como chegou (casamento, troca ou presente), e quem deseja ele.',
+        '$mma, $mms e $mmr mostram o harem de A a Z, separado por obra ou pelos casamentos mais recentes. $fm Nome escolhe o favorito, que vira a foto de capa do harem.',
+        '$tu mostra tudo de uma vez: rolls, casamento, $daily, $dk, kakera e as compras de rolls que sobram.',
+        'Divorciar um personagem devolve o valor dele em kakera.',
+      ] },
+    ],
+  },
+  {
     version: '2.4.0', date: '2026-11-07', name: 'Clipar com a tela de quem está transmitindo e a call flutuante no celular',
     summary: 'Agora o clipe mostra a transmissão: se você está assistindo à tela de alguém (ou transmitindo a sua), os últimos 30 segundos dela entram no clipe junto com o som da chamada. No celular, a call fica num cartão flutuante e, no app do Android, vira uma janelinha por cima dos outros apps. E o Propor Melhorias voltou a entregar as sugestões.',
     sections: [

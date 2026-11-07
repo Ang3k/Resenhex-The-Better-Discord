@@ -645,3 +645,49 @@
   .salon-card.back .salon-card-back, .salon-float, #salon-view.flash::after { animation: none !important; transition: none !important; }
   .salon-float { opacity: 0; }
 }
+
+/* ---------- comandos novos no Salão: cristal, aba Personagens, desejos e trocas ---------- */
+.salon-crystal {
+  display: inline-flex; align-items: center; gap: 8px; height: 38px; margin-top: 8px; padding: 0 16px; border: 0; border-radius: 10px;
+  background: var(--brand); color: #fff; font: inherit; font-size: 14px; font-weight: 700; cursor: pointer; transition: none;
+}
+.salon-crystal:hover:not(:disabled) { background: var(--brand-hover); }
+.salon-crystal:disabled { opacity: .55; cursor: not-allowed; }
+.salon-crystal:focus-visible { outline: 2px solid var(--link); outline-offset: 2px; }
+.salon-crystal.taken { background: color-mix(in srgb, var(--brand) 16%, transparent); color: var(--text); cursor: default; }
+.salon-crystal.taken svg { color: var(--brand); }
+.salon-album-links { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; margin-top: 6px; }
+.salon-album-links .salon-link { margin-top: 0; }
+.salon-trade-btn {
+  display: inline-flex; align-items: center; gap: 6px; height: 32px; padding: 0 12px; border: 0; border-radius: 8px;
+  background: var(--brand); color: #fff; font: inherit; font-size: 13px; font-weight: 600; cursor: pointer; transition: none;
+}
+.salon-trade-btn:hover { background: var(--brand-hover); }
+.salon-wanted {
+  display: flex; align-items: center; gap: 4px; min-width: 0; min-height: 28px; padding: 0 8px; border: 0; border-radius: 8px;
+  background: color-mix(in srgb, var(--yellow) 14%, transparent); color: var(--text-strong); font: inherit; font-size: 12px; font-weight: 600; cursor: pointer; transition: none;
+}
+.salon-wanted span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.salon-wanted:hover { background: color-mix(in srgb, var(--yellow) 26%, transparent); }
+.salon-card-actions button.icon { flex: none; width: 32px; padding: 0; }
+.salon-card-actions button:disabled { cursor: default; opacity: .7; }
+.salon-pos {
+  position: absolute; top: 6px; left: 6px; z-index: 1; padding: 2px 8px; border-radius: 999px; background: rgba(0, 0, 0, .72);
+  color: #fff; font-size: 11px; font-weight: 800; font-variant-numeric: tabular-nums;
+}
+.salon-chars .salon-album-head h2 { margin: 0; color: var(--text-strong); font-size: 24px; }
+.salon-chars .salon-muted { margin: 4px 0 0; max-width: 520px; }
+.salon-chars-progress { display: flex; flex-direction: column; gap: 2px; min-width: min(320px, 100%); margin-top: 4px; color: var(--text); font-size: 14px; }
+.salon-chars-progress strong { color: var(--text-strong); }
+.salon-char-pager { display: flex; align-items: center; justify-content: center; gap: 12px; color: var(--text-muted); font-size: 13px; }
+.salon-char-pager .salon-filter:disabled { opacity: .45; cursor: default; }
+.salon-chars .salon-ribbon { bottom: 70px; }
+/* Faixa de cima apertada (4 abas, status com kakera): status curto e "Modo simplificado" só com o ícone. */
+.salon-top { container: salon-top / inline-size; }
+.salon-status-short { display: none; }
+.salon-status-pill > span { overflow: hidden; text-overflow: ellipsis; }
+@container salon-top (max-width: 900px) {
+  .salon-status-full { display: none; }
+  .salon-status-short { display: inline; }
+  .salon-simple span { display: none; }
+}

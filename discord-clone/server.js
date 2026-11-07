@@ -17,7 +17,7 @@ const { communityStore } = require('./server/communities');
 const { downloadRoutes } = require('./server/downloads');
 const { feedbackRoutes } = require('./server/feedback');
 const { createDj } = require('./server/dj');
-const { createMudae, CLAIM_WINDOW_MS, revealDelay, PRIORITY_MS } = require('./server/mudae');
+const { createMudae, CLAIM_WINDOW_MS, revealDelay, PRIORITY_MS, isRoll } = require('./server/mudae');
 const { youtubeSearch } = require('./server/youtube');
 const { createDmCalls } = require('./server/dm-calls');
 const { cleanGif } = require('./server/gifs');
@@ -916,6 +916,38 @@ function leaveSalon(s) {
   s.salon = null;
   s.salonServerId = null;
   pushSalon(salonServerId, salon);
+}
+// Trocas do Mudae: a troca aberta mora no módulo do Mudae (só na memória). Aqui ficam o aviso para os
+// dois, a mensagem no Salão (atualizada quando a troca acaba) e um relógio por troca, para avisar na hora.
+const tradeTimers = new Map();
+const mudaeData = () => (db.mudae ||= { claims: {}, usage: {} });
+function pushTrade(t) {
+  const view = mudae.tradeView(mudaeData(), t);
+  for (const id of [t.a, t.b]) for (const s of socketsOf(id, true)) s.emit('mudae:trade', view);
+}
+function armTrade(t) {
+  clearTimeout(tradeTimers.get(t.id));
+  if (t.state !== 'open') { tradeTimers.delete(t.id); return; }
+  const timer = setTimeout(() => communities.run(t.serverId, () => {
+    const ended = mudae.tradeExpire(t.id);
+    if (ended) endTrade(ended);
+    else if (t.state === 'open') armTrade(t);
+  }), Math.max(0, t.expires - Date.now()) + 50);
+  timer.unref?.();
+  tradeTimers.set(t.id, timer);
+}
+function endTrade(t) {
+  armTrade(t);
+  const c = db.channels.find((ch) => ch.id === t.channel);
+  const msg = c && (db.messages[c.id] || []).find((m) => m.id === t.msgId);
+  if (msg) {
+    const view = mudae.tradeView(mudaeData(), t);
+    msg.mudae = { kind: 'trade', tradeId: t.id, a: t.a, b: t.b, state: t.state, reason: t.reason, sides: t.state === 'done' ? view.sides : null };
+    save(chunk.message(c.id, msg.id));
+    emitToViewers(c, 'chat:update', { channel: c.id, msg });
+  }
+  if (t.state === 'done') save(chunk.server());
+  pushTrade(t);
 }
 const youtube = youtubeSearch(process.env.YOUTUBE_ORIGIN ? { origin: process.env.YOUTUBE_ORIGIN } : {});
 const djKey = (serverId, channelId) => serverId + ':' + channelId;
@@ -2053,42 +2085,179 @@ io.on('connection', (socket) => {
   // Ids do catálogo: números (anime) ou texto com a fonte na frente ("g1942", "c4000-1699").
   const charKey = (id) => (typeof id === 'number' || typeof id === 'string' ? String(id).slice(0, 64) : fail('Personagem inválido.'));
 
+  const mudaeMember = (id) => communities.joined(id);
+  const HAREM_SORT = { mma: 'name', mms: 'series', mmr: 'recent' };
+
   function mudaeCommand(acc, c, { cmd, arg }, command) {
     mudaeAllowed(acc);
     if (!allow('mudae:' + acc.id, 8, 5000)) fail('Calma! Comandos do Mudae rápidos demais.');
     const only = (data) => ({ ephemeral: { command, ...data } });
+    const error = (text) => only({ kind: 'error', text });
     // Fora do Salão, o bot só aponta o caminho.
     if (!c.mudae) {
       const salon = db.channels.find((ch) => ch.mudae && canView(acc, ch));
       return only({ kind: 'redirect', channel: salon?.id || null, name: salon?.name || null });
     }
-    if (!mudae.size) return only({ kind: 'error', text: 'O Mudae ainda não tem personagens neste servidor.' });
+    if (!mudae.size) return error('O Mudae ainda não tem personagens neste servidor.');
     const store = mudaeStore();
-    if (/^[whm][a-z]?$/.test(cmd) && cmd !== 'mm') {
+    // A menção vira <@id> no envio; o resto do texto é o nome do personagem ou a quantidade.
+    const target = memberId(/<@(\w+)>/.exec(arg)?.[1]);
+    const rest = arg.replace(/<@\w+>/g, '').trim();
+    const short = (text) => text.slice(0, 80);
+    if (isRoll(cmd)) {
       const r = mudae.roll(store, acc.id, cmd);
-      if (r.error) return only({ kind: 'error', text: r.error });
+      if (r.error) return error(r.error);
       const revealAt = Date.now() + revealDelay(r.card.rarity);
-      postMudae(c, acc, command, { kind: 'roll', card: r.card, ownerId: r.ownerId, revealAt, priorityUntil: revealAt + PRIORITY_MS,
-        expires: revealAt + CLAIM_WINDOW_MS, rollsLeft: r.rollsLeft }, { decoys: r.decoys });
+      // Quem tem o personagem na lista de desejos aparece no card e recebe um aviso (menos quem rodou).
+      const wishedBy = mudae.wishersOf(store, r.card.id, mudaeMember);
+      const msg = postMudae(c, acc, command, { kind: 'roll', card: r.card, ownerId: r.ownerId, revealAt, priorityUntil: revealAt + PRIORITY_MS,
+        expires: revealAt + CLAIM_WINDOW_MS, rollsLeft: r.rollsLeft, ...(r.crystal ? { crystal: r.crystal } : {}), ...(wishedBy.length ? { wishedBy } : {}) }, { decoys: r.decoys });
       pushSalon(communities.currentId(), c.id);
-    } else if (cmd === 'mm') {
-      const ownerId = memberId(/<@(\w+)>/.exec(arg)?.[1]) || acc.id;
-      postMudae(c, acc, command, { kind: 'harem', ownerId, ...mudae.harem(store, ownerId) });
+      for (const id of wishedBy) {
+        if (id !== acc.id) for (const s of socketsOf(id, true)) s.emit('mudae:wish', { channel: c.id, id: msg.id, card: r.card, by: acc.id, revealAt, ownerId: r.ownerId });
+      }
+    } else if (cmd === 'mm' || HAREM_SORT[cmd]) {
+      const ownerId = target || acc.id;
+      postMudae(c, acc, command, { kind: 'harem', ownerId, ...mudae.harem(store, ownerId, HAREM_SORT[cmd]) });
     } else if (cmd === 'im') {
-      if (!arg) return only({ kind: 'error', text: 'Diga o nome do personagem: **$im Gojo**' });
-      const r = mudae.info(store, arg);
-      if (!r) return only({ kind: 'error', text: `Nenhum personagem encontrado para **${arg.slice(0, 80)}**.` });
-      postMudae(c, acc, command, { kind: 'info', card: r.card, ownerId: r.ownerId });
+      if (!arg) return error('Diga o nome do personagem: **$im Gojo**');
+      const r = mudae.info(store, arg, mudaeMember);
+      if (!r) return error(`Nenhum personagem encontrado para **${short(arg)}**.`);
+      postMudae(c, acc, command, { kind: 'info', ...r });
     } else if (cmd === 'divorce') {
-      if (!arg) return only({ kind: 'error', text: 'Diga o nome do personagem: **$divorce Gojo**' });
+      if (!arg) return error('Diga o nome do personagem: **$divorce Gojo**');
       const card = mudae.divorce(store, acc.id, arg);
-      if (!card) return only({ kind: 'error', text: `Você não tem ninguém chamado **${arg.slice(0, 80)}** no seu harem.` });
-      postMudae(c, acc, command, { kind: 'divorce', card, ownerId: acc.id });
+      if (!card) return error(`Você não tem ninguém chamado **${short(arg)}** no seu harem.`);
+      postMudae(c, acc, command, { kind: 'divorce', card, ownerId: acc.id, refund: card.value });
     } else if (cmd === 'tu') {
       return only({ kind: 'status', ...mudae.status(store, acc.id) });
+    } else if (cmd === 'k') {
+      return only({ kind: 'kakera', kakera: mudae.kakeraOf(store, acc.id) });
+    } else if (cmd === 'dk') {
+      const r = mudae.dailyKakera(store, acc.id);
+      if (r.error) return error(r.error);
+      postMudae(c, acc, command, { kind: 'dk', ownerId: acc.id, amount: r.amount, kakera: r.kakera });
+    } else if (cmd === 'daily' || cmd === 'rolls') {
+      const r = cmd === 'daily' ? mudae.daily(store, acc.id) : mudae.buyRolls(store, acc.id);
+      if (r.error) return error(r.error);
+      postMudae(c, acc, command, { kind: cmd, ownerId: acc.id, ...(r.price ? { price: r.price, buysLeft: r.buysLeft } : {}) });
+      pushSalon(communities.currentId(), c.id);
+    } else if (cmd === 'givek') {
+      if (!target) return error('Diga para quem e quanto: **$givek @pessoa 100**');
+      const r = mudae.giveKakera(store, acc.id, target, rest);
+      if (r.error) return error(r.error);
+      postMudae(c, acc, command, { kind: 'givek', ownerId: acc.id, to: target, amount: r.amount });
+    } else if (cmd === 'give') {
+      if (!target || !rest) return error('Diga para quem e qual personagem: **$give @pessoa Gojo**');
+      const r = mudae.give(store, acc.id, target, rest);
+      if (r.error) return error(r.error);
+      postMudae(c, acc, command, { kind: 'give', card: r.card, ownerId: acc.id, to: target });
+    } else if (cmd === 'wish' || cmd === 'wr') {
+      if (!arg) return error(cmd === 'wish' ? 'Diga o nome do personagem: **$wish Gojo**' : 'Diga quem sai da lista: **$wr Gojo**');
+      const r = cmd === 'wish' ? mudae.wish(store, acc.id, arg) : mudae.unwish(store, acc.id, arg);
+      if (r.error) return error(r.error);
+      save(chunk.server());
+      return only({ kind: cmd === 'wish' ? 'wish' : 'unwish', ...r });
+    } else if (cmd === 'wl') {
+      postMudae(c, acc, command, { kind: 'wishlist', ...mudae.wishlist(store, target || acc.id) });
+    } else if (cmd === 'fm') {
+      if (!arg) return error('Diga o nome do personagem: **$fm Gojo**');
+      const r = mudae.firstMarry(store, acc.id, arg);
+      if (r.error) return error(r.error);
+      save(chunk.server());
+      return only({ kind: 'fm', card: r.card });
+    } else if (cmd === 'top' || cmd === 'obra') {
+      if (cmd === 'obra' && !arg) return error('Diga a obra: **$obra Naruto**');
+      const f = mudae.topFilter(arg, cmd === 'obra');
+      if (!f) return error(`Nenhuma obra encontrada para **${short(arg)}**.`);
+      if (f.error) return error(f.error);
+      postMudae(c, acc, command, { kind: cmd, key: f.key, label: f.label, series: f.series });
+    } else if (cmd === 'topserv') {
+      const rows = mudae.ranking(store, mudaeMember).rows.slice(0, 10)
+        .map(({ ownerId, total, value, favorite }) => ({ ownerId, total, value, favorite: favorite ? { name: favorite.name, image: favorite.image, rarity: favorite.rarity } : null }));
+      postMudae(c, acc, command, { kind: 'topserv', rows });
+    } else if (cmd === 'trade') {
+      if (!target) return error('Diga com quem: **$trade @pessoa**');
+      openTrade(acc, c, target, command);
     }
     return { ok: true };
   }
+
+  // ---------- trocas ----------
+  function openTrade(acc, c, otherId, command = null) {
+    if (!otherId || otherId === acc.id) fail(otherId ? 'Você não pode trocar com você mesmo.' : 'Escolha com quem trocar.');
+    for (const old of mudae.sweepTrades()) communities.run(old.serverId, () => endTrade(old));
+    const t = mudae.tradeOpen(mudaeStore(), { serverId: communities.currentId(), a: acc.id, b: otherId });
+    t.channel = c.id;
+    t.msgId = postMudae(c, acc, command, { kind: 'trade', tradeId: t.id, a: t.a, b: t.b, state: 'open' }).id;
+    pushTrade(t);
+    armTrade(t);
+    return mudae.tradeView(mudaeStore(), t);
+  }
+  // Depois de cada mudança: avisa os dois, reagenda o fim e, se acabou, atualiza a mensagem.
+  function afterTrade(t) {
+    if (t.state !== 'open') endTrade(t);
+    else { pushTrade(t); armTrade(t); }
+    return mudae.tradeView(mudaeStore(), t);
+  }
+  const tradeId = (id) => (typeof id === 'string' ? id.slice(0, 64) : fail('Troca inválida.'));
+
+  on('mudae:trade:open', (acc, { channel, with: otherId }) => {
+    mudaeAllowed(acc);
+    if (!allow('mudae-trade:' + acc.id, 6, 10_000)) fail('Calma! Pedidos de troca rápidos demais.');
+    return openTrade(acc, salonOf(acc, channel), memberId(otherId));
+  });
+  on('mudae:trade:get', (acc) => {
+    const t = mudae.tradeOf(communities.currentId(), acc.id);
+    return { trade: t ? mudae.tradeView(mudaeStore(), t) : null };
+  });
+  on('mudae:trade:offer', (acc, { id, chars, kakera }) => {
+    mudaeAllowed(acc);
+    if (!allow('mudae-trade-edit:' + acc.id, 20, 5000)) fail('Calma! Mudanças rápidas demais.');
+    return afterTrade(mudae.tradeOffer(mudaeStore(), tradeId(id), acc.id, { chars, kakera }));
+  });
+  on('mudae:trade:confirm', (acc, { id, rev, ok = true }) => {
+    mudaeAllowed(acc);
+    return afterTrade(mudae.tradeConfirm(mudaeStore(), tradeId(id), acc.id, { rev, ok: ok !== false, isMember: mudaeMember }));
+  });
+  on('mudae:trade:cancel', (acc, { id }) => afterTrade(mudae.tradeCancel(tradeId(id), acc.id, acc.name)));
+
+  // Ranking de personagens ($top, $obra e a aba Personagens), página a página.
+  on('mudae:list', (acc, { key, page }) => {
+    if (!allow('mudae-list:' + acc.id, 30, 5000)) fail('Calma! Páginas rápidas demais.');
+    if (typeof key !== 'string' && key !== undefined) fail('Lista inválida.');
+    return mudae.list(mudaeStore(), (key ?? '').slice(0, 300), page, acc.id) || fail('Lista inválida.');
+  });
+  // Filtro digitado na aba Personagens ("waifus jogos", "Naruto") vira a chave da lista.
+  on('mudae:filter', (acc, { text }) => {
+    const f = mudae.topFilter(String(text || '').slice(0, 120));
+    if (!f) fail('Nenhuma obra encontrada com esse nome.');
+    if (f.error) fail(f.error.replaceAll('**', ''));
+    return f;
+  });
+  on('mudae:wishlist', (acc, { ownerId }) => mudae.wishlist(mudaeStore(), memberId(ownerId) || acc.id));
+  on('mudae:wish', (acc, { charId, on: wished }) => {
+    mudaeAllowed(acc);
+    const r = mudae.wishToggle(mudaeStore(), acc.id, charKey(charId), wished !== false);
+    save(chunk.server());
+    return r;
+  });
+  on('mudae:status', (acc) => mudae.status(mudaeStore(), acc.id));
+
+  // Cristal de kakera de um roll de quem já tem dono.
+  on('mudae:kakera', (acc, { channel, id }) => {
+    const { c, msg } = findMessage(acc, channel, id);
+    if (c.dm || msg.bot !== 'mudae' || msg.mudae?.kind !== 'roll') fail('Isso não é um roll do Mudae.');
+    mudaeAllowed(acc);
+    if (!allow('mudae-claim:' + acc.id, 6, 5000)) fail('Calma! Cliques rápidos demais.');
+    const d = msg.mudae;
+    const r = mudae.crystal(mudaeStore(), acc.id, { amount: d.crystal, takenBy: d.crystalBy, revealAt: d.revealAt ?? msg.ts, rollerId: msg.by, priority: d.priorityUntil ? PRIORITY_MS : 0 });
+    d.crystalBy = acc.id;
+    save(chunk.message(c.id, msg.id), chunk.server());
+    emitToChat(c, 'chat:update', { channel: c.id, msg });
+    if (c.mudae) pushSalon(communities.currentId(), c.id);
+    return { ok: true, ...r };
+  });
 
   on('mudae:claim', (acc, { channel, id }) => {
     const { c, msg } = findMessage(acc, channel, id);
@@ -2127,7 +2296,7 @@ io.on('connection', (socket) => {
     deliver(salonSockets(communities.currentId(), c.id).map(([sid]) => sid), 'mudae:reaction', { channel: c.id, id: String(id || '').slice(0, 32), emoji, by: acc.id });
   });
 
-  on('mudae:harem', (acc, { ownerId }) => mudae.album(mudaeStore(), memberId(ownerId) || acc.id));
+  on('mudae:harem', (acc, { ownerId }) => mudae.album(mudaeStore(), memberId(ownerId) || acc.id, mudaeMember));
   on('mudae:ranking', () => mudae.ranking(mudaeStore(), (id) => communities.joined(id)));
   on('mudae:profile', (acc, { accountId }) => ({ summary: memberId(accountId) ? mudae.summary(mudaeStore(), accountId) : null }));
 
@@ -2142,7 +2311,7 @@ io.on('connection', (socket) => {
     mudaeAllowed(acc);
     const c = salonOf(acc, channel);
     const card = mudae.divorceId(mudaeStore(), acc.id, charKey(charId));
-    postMudae(c, acc, null, { kind: 'divorce', card, ownerId: acc.id });
+    postMudae(c, acc, null, { kind: 'divorce', card, ownerId: acc.id, refund: card.value });
   });
 
   const findMessage = (acc, channel, id) => {

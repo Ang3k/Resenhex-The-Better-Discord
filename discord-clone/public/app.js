@@ -495,7 +495,10 @@
   const fmtCtx = { member: (id) => member(id), role: (id) => roleById(id), onUser: (id, e) => (e.type === 'contextmenu' ? openMemberMenu(id, e) : (e.stopPropagation(), openProfile(id, e.currentTarget || e.target))) };
   // Mudae (mudae.js): cards de personagem, harem e o botão de casar nas respostas do bot.
   const mudae = MudaeUI({ state, el, Icon, call, member, avatar, nameColor, Format, fmtCtx, openProfile: (id, anchor) => openProfile(id, anchor),
-    openImage: (url) => openLightbox({ url }), openChannel: (id) => openTextChannel(id), renderMessages: (end) => renderMessages(end), keepBottom: () => keepBottom() });
+    openImage: (url) => openLightbox({ url }), openChannel: (id) => openTextChannel(id), renderMessages: (end) => renderMessages(end), keepBottom: () => keepBottom(),
+    openTrade: (id) => mudaeTrade.open(id) });
+  // Trocas do Mudae (mudae-troca.js): o painel que as duas pessoas veem e os avisos com botão.
+  const mudaeTrade = MudaeTrade({ state, el, Icon, call, onSocket: (event, handler) => socket.on(event, handler), member, avatar, nameColor, toast, ui: mudae, Sounds });
   // Salão do Mudae (mudae-salao.js): a tela própria dos canais com mudae: true. Quem prefere o Mudae
   // original liga o modo simplificado: o canal vira um chat comum, com os cards completos no chat.
   const mudaeSimple = () => { try { return localStorage.getItem('mudaeSimples') === '1'; } catch { return false; } };
@@ -508,7 +511,7 @@
   const salonMode = () => !(simpleFallback ?? mudaeSimple());
   const salon = MudaeSalon({ state, el, Icon, call, onSocket: (event, handler) => socket.on(event, handler), member, avatar, nameColor, toast,
     confirmDialog: (opts) => confirmDialog(opts), openProfile: (id, anchor) => openProfile(id, anchor), openImage: (url) => openLightbox({ url }),
-    openChannel: (id) => openTextChannel(id), closeProfile: () => closeProfile(), setSimple: (on) => setMudaeSimple(on), ui: mudae, Sounds });
+    openChannel: (id) => openTextChannel(id), closeProfile: () => closeProfile(), setSimple: (on) => setMudaeSimple(on), ui: mudae, Sounds, trade: mudaeTrade });
 
   function mentionsMe(msg) {
     const m = msg.mentions;
@@ -2154,16 +2157,27 @@
       return;
     }
     const mudaeCmd = !inDm() && !state.pending.length && mudae.isCommand(text);
-    if (mudaeCmd && salon.channel === state.textChannel && /^\$(mm|harem)(\s|$)/i.test(text)) {
-      const raw = Format.toRaw(text, state.server.members, state.server.roles);
-      salon.openHarem(/<@(\w+)>/.exec(raw)?.[1] || state.me.accountId);
-      input.value = '';
-      autoresize();
-      closeAutocomplete();
-      return;
+    // No Salão, o harem ($mm, $mma…), os rankings ($top, $obra, $topserv) abrem a aba deles em vez de virar mensagem.
+    const salonTab = mudaeCmd && salon.channel === state.textChannel && /^\$(mm|mma|mms|mmr|harem|top|obra|topserv)(?:\s+([\s\S]*))?$/i.exec(text.trim());
+    if (salonTab) {
+      const cmd = salonTab[1].toLowerCase();
+      const arg = (salonTab[2] || '').trim();
+      if (cmd === 'top' || (cmd === 'obra' && arg)) salon.openChars(arg);
+      else if (cmd === 'topserv') salon.openRanking();
+      else if (cmd !== 'obra') {
+        const raw = Format.toRaw(text, state.server.members, state.server.roles);
+        salon.openHarem(/<@(\w+)>/.exec(raw)?.[1] || state.me.accountId, { mma: 'name', mms: 'series', mmr: 'recent' }[cmd] || null);
+      }
+      if (cmd !== 'obra' || arg) {
+        input.value = '';
+        autoresize();
+        closeAutocomplete();
+        return;
+      }
     }
-    const divorce = mudaeCmd && mudae.divorceTarget(text);
-    if (divorce && !await confirmDialog({ title: 'Divorciar?', text: `"${divorce}" sai do seu harem e qualquer pessoa vai poder casar com esse personagem de novo.`, confirm: 'Divorciar' })) return;
+    // Divórcio, presente e kakera não têm volta: confirma antes de enviar.
+    const ask = mudaeCmd && mudae.confirmFor(text);
+    if (ask && !await confirmDialog(ask)) return;
     const draft = { value: input.value, pending: state.pending, replyTo: state.replyTo };
     const payload = {
       channel: state.textChannel,
