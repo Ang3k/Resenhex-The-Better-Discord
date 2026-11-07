@@ -3055,7 +3055,17 @@
       open, el('div', { class: 'cf-actions' }, mic, deaf, leave));
     document.body.append(node);
     dragCallFloat(node);
+    // Nos cantos de baixo, o cartão acompanha a altura da caixa de mensagem (texto longo, resposta, anexo).
+    const follow = () => placeCallFloat(node);
+    if (typeof ResizeObserver !== 'undefined') new ResizeObserver(follow).observe($('#composer'));
+    addEventListener('resize', follow);
     return node;
+  }
+
+  function placeCallFloat(node) {
+    const composer = $('#composer');
+    const rect = composer?.getClientRects().length ? composer.getBoundingClientRect() : null;
+    node.style.setProperty('--cf-bottom', rect && rect.height ? Math.max(0, Math.round(innerHeight - rect.top)) + 'px' : '0px');
   }
 
   // Arrastar: o cartão segue o dedo e, ao soltar, desliza até o canto mais perto. Um arrasto não vira toque.
@@ -3103,6 +3113,7 @@
     if (!show) { callFloat?.classList.add('hidden'); return; }
     callFloat ||= buildCallFloat();
     callFloat.classList.remove('hidden');
+    placeCallFloat(callFloat);
     const room = callInfo()?.dm ? 'Chamada' : callChannelName() || 'Chamada';
     callFloat.querySelector('.cf-name').textContent = room;
     callFloat.querySelector('.cf-open').setAttribute('aria-label', 'Voltar à chamada: ' + room);

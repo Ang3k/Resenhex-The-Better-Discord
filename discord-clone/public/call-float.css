@@ -17,9 +17,11 @@
   body:has(#app.members-open) #call-float,
   body:has(.confirm-overlay) #call-float { display: none; }
   #call-float[data-corner^="top"] { top: calc(68px + env(safe-area-inset-top)); }
-  #call-float[data-corner^="bottom"] { bottom: calc(88px + env(safe-area-inset-bottom)); }
-  #call-float[data-corner$="left"] { left: 12px; }
-  #call-float[data-corner$="right"] { right: 12px; }
+  /* Embaixo, fica 12 px acima da caixa de mensagem (--cf-bottom, medido no app.js), que cresce com o texto. */
+  #call-float[data-corner^="bottom"] { bottom: max(calc(var(--cf-bottom, 0px) + 12px), calc(16px + env(safe-area-inset-bottom))); }
+  /* Mesma margem lateral da caixa de mensagem. */
+  #call-float[data-corner$="left"] { left: 16px; }
+  #call-float[data-corner$="right"] { right: 16px; }
   #call-float.dragging { box-shadow: var(--shadow-float), 0 18px 40px rgb(0 0 0 / .35); scale: 1.03; }
 
   .cf-open {
