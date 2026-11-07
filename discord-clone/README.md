@@ -160,21 +160,31 @@ Na chamada, o botão do disco abre o DJ: busque no YouTube ou cole um link (víd
 
 ## Mudae
 
-O Mudae mora no **Salão do Mudae**, um canal de texto com `mudae: true` (crie em **Criar canal → Salão do Mudae**). Ele abre uma tela própria: **Mesa** (palco com fundo preto em gradiente, roleta de fotos e botões de roll e a Mesa ao vivo com os rolls de todo mundo), **Meu harem** (álbum) e **Ranking**. À direita ficam o chat do canal e a aba **No salão**.
+O Mudae mora no **Salão do Mudae**, um canal de texto com `mudae: true` (crie em **Criar canal → Salão do Mudae**). Ele abre uma tela própria: **Mesa** (palco com fundo preto em gradiente, roleta de fotos e botões de roll e a Mesa ao vivo com os rolls de todo mundo), **Meu harem** (álbum), **Personagens** (ranking do catálogo com o dono de cada um, filtros e lista de desejos) e **Ranking** (dos haréns). À direita ficam o chat do canal e a aba **No salão**.
 
 | Comando | O que faz |
 |---|---|
 | `$w` / `$h` / `$m` | roda uma waifu, um husbando ou qualquer personagem (também pelos botões) |
 | `$wa` `$wg` `$wc` `$wd` `$ws` (e o mesmo com `$h` e `$m`) | só de uma fonte: **a**nime, **g**ames (jogos), **c**omics (quadrinhos), **d**esenhos ou **s**éries. No Salão, os botões de fonte fazem o mesmo |
-| `$mm` / `$mm @pessoa` | abre o seu álbum ou o de outra pessoa |
-| `$im nome` | mostra um personagem, a posição no ranking e quem casou com ele |
-| `$divorce nome` | solta um personagem do seu harem (pede confirmação; também pelo álbum) |
-| `$tu` | rolls restantes e quando dá para casar de novo (só você vê) |
+| `$mm` / `$mm @pessoa` | abre o seu álbum ou o de outra pessoa; `$mma` (A a Z), `$mms` (por obra) e `$mmr` (mais recentes) mudam a ordem |
+| `$im nome` | mostra um personagem, a posição no ranking, o dono, desde quando e como chegou (casamento, troca ou presente) e quem deseja |
+| `$top` / `$top filtro` | ranking dos personagens mais valiosos do catálogo, com o dono; filtro por obra (`$top Naruto`), `waifus`, `husbandos`, `anime`, `jogos`, `quadrinhos`, `desenhos`, `series` ou `outros` (sem gênero definido). No Salão abre a aba **Personagens** |
+| `$obra nome` | todos os personagens de uma obra e quantos você tem |
+| `$topserv` | quem tem o harem mais valioso do servidor |
+| `$wish nome` / `$wl` / `$wr nome` | lista de desejos (até 10): quem deseja recebe um aviso quando o personagem sai no roll de outra pessoa |
+| `$trade @pessoa` | abre uma troca de personagens e kakera (veja **Trocas** abaixo) |
+| `$give @pessoa nome` / `$givek @pessoa 100` | dá um personagem ou kakera de presente (pedem confirmação) |
+| `$fm nome` | escolhe o favorito, a foto de capa do seu harem |
+| `$divorce nome` | solta um personagem do seu harem e devolve o valor dele em kakera (pede confirmação; também pelo álbum) |
+| `$dk` / `$daily` / `$rolls` | 250 kakera a cada 20 h; os rolls de volta uma vez a cada 20 h; os rolls de volta por 500 kakera (até 3 vezes em 24 h) |
+| `$k` / `$tu` | o seu kakera; rolls, casamento, `$daily`, `$dk`, kakera e compras que sobram (só você vê) |
 
 - **Só no Salão:** em outro canal, os comandos respondem (só para quem pediu) com o caminho até o Salão.
 - **Modo simplificado** (botão no topo do Salão, guardado no navegador de cada pessoa): o canal aparece como chat comum, com os cards completos e o botão Casar no chat, como no Mudae original. Os rolls, casamentos e limites são os mesmos de quem está na roleta; o botão do card espera o giro e a vez de quem rodou. **Abrir o Salão**, no topo, volta para a tela da roleta.
 - **Roleta de fotos:** o servidor sorteia na hora e manda o resultado com o `revealAt` (de 1,95 s no comum a 3,85 s no lendário, `REVEAL_MS` em `server/mudae.js`). O palco usa a roleta com 8 fotos-isca sobre um fundo preto em gradiente; ninguém casa antes da revelação. A cena 3D foi retirada do Salão e não carrega Three.js nem cria um contexto WebGL. O código anterior permanece separado em `public/gacha/` para referência.
 - **Regras:** 10 rolls e 1 casamento a cada 30 minutos por pessoa, contados pelo relógio (ambos renovam na hora cheia e aos 30 minutos). Depois que o card aparece, quem rodou tem 3 s de prioridade; depois, qualquer um casa (e o chat conta o roubo). A janela total é de 45 s. Cada personagem tem um só dono por servidor.
+- **Kakera:** além do `$dk`, quando sai um personagem que já tem dono aparece um cristal (50, 100, 200 ou 400 kakera, pela raridade), um por pessoa a cada 30 minutos, com a mesma prioridade de quem rodou. Fica em `db.mudae.kakera`.
+- **Trocas** (`server/mudae.js`, `tradeOpen`/`tradeOffer`/`tradeConfirm`; tela em `public/mudae-troca.js`): ficam só na memória do servidor, uma por pessoa, abertas por 5 minutos depois da última mudança. Cada lado oferece até 20 personagens do próprio harem e kakera que tem. Qualquer mudança na oferta desfaz as duas confirmações, e a confirmação manda a versão (`rev`) que a pessoa viu. Com as duas confirmações, o servidor confere tudo de novo (os dois ainda no servidor, cada carta ainda de quem ofereceu, kakera suficiente) e só então troca; se algo falhar, a troca é cancelada e nada muda. O chat mostra a troca aberta, feita ou cancelada.
 - **Raridade** pela posição dentro da própria fonte, em proporção: os 0,67% mais populares são lendários, até 6,7% épicos, até 33% raros, o resto comum (numa fonte de 15 mil: 1–100, até 1.000, até 5.000). Assim a chance de lendário não muda com o tamanho da fonte. Lendário toma o palco de todos, com banner, flash e fanfarra.
 - **Palco:** o seu roll sempre vai para o palco; o de um amigo só se o palco estiver livre (senão entra na Mesa ao vivo); lendário de qualquer um sempre.
 - **Personagens:** `server/mudae-catalogo.json`, gerado no seu computador por `node tools/mudae-catalogo.js` (um módulo por fonte em `tools/mudae-fontes/`, cada uma com cache em `tools/mudae-cache/`). O servidor lê o arquivo uma vez e nunca chama essas APIs: um roll é só um sorteio na memória. As fotos vão direto do site de cada fonte para o navegador.
@@ -415,6 +425,7 @@ discord-clone/
 │   ├── changelog.js     # lista da janela Novidades (a mesma do CHANGELOG.md)
 │   ├── music.js         # DJ na chamada: player do YouTube sincronizado, painel de busca e fila, comandos /play
 │   ├── mudae.js         # respostas do Mudae no chat: cards, linhas compactas do Salão, $im e $tu
+│   ├── mudae-troca.js   # janela de troca de cartas do Mudae e os avisos (desejo, troca)
 │   └── mudae-salao.js   # tela do Salão do Mudae: roleta, Mesa ao vivo, álbum, ranking e presença
 ├── desktop/             # app para Windows (Electron, package.json próprio): janela, bandeja, push-to-talk global, atualização
 ├── android/             # app para Android (WebView em Java)

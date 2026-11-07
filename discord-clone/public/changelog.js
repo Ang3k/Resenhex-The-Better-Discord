@@ -4,10 +4,15 @@
 // O título deve destacar as principais funcionalidades ou correções, com termos objetivos.
 window.CHANGELOG = [
   {
-    version: '2.6.0', date: '2026-11-07', name: 'Janelinha e cartão da call com quem fala em destaque, tela no formato certo e aviso de reconexão',
-    summary: 'A janelinha da call no Android e o cartão flutuante no celular ficaram mais parecidos com os do Discord: quem está falando aparece grande, a transmissão ocupa a janelinha no formato certo e, quando a conexão cai, os dois avisam que estão reconectando em vez de ficar vazios. O formato da tela e a opção de desligar a janelinha precisam do app do Android 1.3.4.',
+    version: '2.4.5', date: '2026-11-07', name: 'Mudae com troca de cartas e lista de desejos, e a janelinha da call com quem fala em destaque',
+    summary: 'O Mudae ganhou os comandos que faltavam: trocar cartas e kakera com outra pessoa (só acontece quando os dois confirmam), o ranking dos personagens com filtro por obra, waifus e husbandos, a lista de desejos com aviso quando o personagem sair e o kakera de verdade, com $dk, $daily e o cristal dos personagens que já têm dono. A janelinha da call no Android e o cartão flutuante no celular ficaram mais parecidos com os do Discord: quem está falando aparece grande, a transmissão ocupa a janelinha no formato certo e, quando a conexão cai, os dois avisam que estão reconectando em vez de ficar vazios. O formato da tela e a opção de desligar a janelinha precisam do app do Android 1.3.4.',
     sections: [
       { kind: 'new', items: [
+        'Troca de cartas: $trade @pessoa, ou o botão "Propor troca" no harem de alguém, abre uma janela com as ofertas dos dois. Cada um escolhe personagens do seu harem e, se quiser, kakera. A troca só acontece quando os dois confirmam, e se alguém muda a oferta as confirmações são desfeitas. Ninguém consegue oferecer uma carta que não é sua, e a troca fica aberta por 5 minutos.',
+        'Aba Personagens no Salão e $top: o ranking dos personagens mais valiosos do catálogo, com o dono de cada um. Dá para filtrar por obra ($top Naruto), por waifus, husbandos, anime, jogos, quadrinhos, desenhos e séries, e ver quantos daquela obra você já tem. $obra Nome mostra todos os personagens de uma obra e $topserv mostra quem tem o harem mais valioso do servidor.',
+        'Lista de desejos: $wish Nome, ou a estrela nas cartas, guarda até 10 personagens. Quando um deles sai no roll de outra pessoa, você recebe um aviso na hora. $wl mostra a lista e $wr Nome tira um. No seu harem aparece quem deseja cada carta, com um atalho para propor troca.',
+        'Presentes: $give @pessoa Nome dá um personagem e $givek @pessoa 100 manda kakera. Os dois pedem confirmação antes.',
+        'Kakera: $dk dá 250 kakera a cada 20 horas, $daily enche os rolls de novo uma vez por dia e $rolls compra os rolls de volta por 500 kakera (até 3 vezes por dia). Quando sai um personagem que já tem dono, aparece um cristal de kakera para pegar, com a vez primeiro de quem rodou. $k mostra o seu saldo.',
         'Na janelinha do Android, quem está falando aparece grande no meio, com o círculo verde e o nome, e os outros ficam pequenos embaixo. Numa call privada que ainda está tocando, aparece o seu amigo com "Chamando…".',
         'Um selo vermelho no canto da janelinha avisa quando o seu microfone ou o seu fone está desligado.',
         'App do Android 1.3.4: a janelinha segue o formato da transmissão que você está assistindo (larga, quadrada ou em pé, de celular), sem faixas pretas.',
@@ -16,6 +21,10 @@ window.CHANGELOG = [
         'O cartão pode ser arremessado: solte com um movimento rápido e ele vai para o canto para onde você jogou.',
       ] },
       { kind: 'improved', items: [
+        '$im Nome mostra a história do personagem: de quem ele é, desde quando e como chegou (casamento, troca ou presente), e quem deseja ele.',
+        '$mma, $mms e $mmr mostram o harem de A a Z, separado por obra ou pelos casamentos mais recentes. $fm Nome escolhe o favorito, que vira a foto de capa do harem.',
+        '$tu mostra tudo de uma vez: rolls, casamento, $daily, $dk, kakera e as compras de rolls que sobram.',
+        'Divorciar um personagem devolve o valor dele em kakera.',
         'O cartão mostra embaixo das fotos quem está falando ("Angel está falando") ou quantas pessoas estão na call.',
         'Fotos de quem está com o microfone ou o fone desligado ganham um ícone no canto, no cartão e na janelinha. Se foi o servidor que desligou, o ícone fica vermelho.',
         'Com uma transmissão no cartão ou na janelinha, a foto de quem está falando aparece no canto da imagem.',
