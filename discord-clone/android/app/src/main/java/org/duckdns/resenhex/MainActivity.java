@@ -7,6 +7,8 @@ import android.app.Notification;
 import android.app.NotificationChannel;
 import android.app.NotificationManager;
 import android.app.PendingIntent;
+import android.app.PictureInPictureParams;
+import android.app.RemoteAction;
 import android.content.ActivityNotFoundException;
 import android.content.ComponentName;
 import android.content.Context;
@@ -15,6 +17,8 @@ import android.content.ServiceConnection;
 import android.content.SharedPreferences;
 import android.content.pm.ApplicationInfo;
 import android.content.pm.PackageManager;
+import android.content.res.Configuration;
+import android.graphics.drawable.Icon;
 import android.graphics.Color;
 import android.media.AudioManager;
 import android.media.AudioRecordingConfiguration;
@@ -29,6 +33,7 @@ import android.os.Messenger;
 import android.os.PowerManager;
 import android.os.RemoteException;
 import android.provider.Settings;
+import android.util.Rational;
 import android.view.View;
 import android.view.ViewGroup;
 import android.view.WindowInsets;
@@ -98,6 +103,13 @@ public class MainActivity extends Activity {
     private final Runnable stopCall = this::endCall;
     private Updater updater;
 
+    // Janelinha (picture-in-picture) da call: o site diz o que mostrar e o estado dos botões (pipState).
+    // Sem esse aviso (site antigo), Home e Voltar só mandam o app para trás, como antes.
+    private boolean pipReady;
+    private boolean pipStream;
+    private boolean pipMuted;
+    private boolean pipDeafened;
+
     // Som do DJ no processo :dj (DjService). djLast é o último estado: vai de novo se o processo reiniciar.
     private Messenger djService;
     private boolean djBound;
@@ -160,8 +172,15 @@ public class MainActivity extends Activity {
     @Override
     protected void onPause() {
         // CallWebView mantém a página "visível" na call; o site recebe o estado real por aqui.
-        setAppVisible(false);
+        // Na janelinha o app continua na tela: só deixa de estar quando ela é fechada (onStop).
+        if (!inPip()) setAppVisible(false);
         super.onPause();
+    }
+
+    @Override
+    protected void onStop() {
+        if (appVisible) setAppVisible(false);
+        super.onStop();
     }
 
     private void setAppVisible(boolean visible) {
@@ -422,6 +441,7 @@ public class MainActivity extends Activity {
         callTitle = title;
         callMuted = muted;
         if (starting) {
+            updatePip();
             web.setKeepVisible(true); // a call não desacelera com a tela bloqueada
             // Os botões de volume controlam o volume da call enquanto ela durar.
             setVolumeControlStream(AudioManager.STREAM_VOICE_CALL);
@@ -447,12 +467,103 @@ public class MainActivity extends Activity {
         }
     }
 
+    // ---------------- janelinha da call (picture-in-picture) ----------------
+
+    /** O aparelho e a versão do Android deixam abrir a janelinha. */
+    private boolean pipSupported() {
+        return Build.VERSION.SDK_INT >= Build.VERSION_CODES.O
+                && getPackageManager().hasSystemFeature(PackageManager.FEATURE_PICTURE_IN_PICTURE);
+    }
+
+    private boolean inPip() {
+        return Build.VERSION.SDK_INT >= Build.VERSION_CODES.N && isInPictureInPictureMode();
+    }
+
+    /** Numa call, com o site novo: Home, Voltar e o gesto de sair viram a janelinha. */
+    private boolean pipWanted() {
+        return inCall && pipReady && pipSupported();
+    }
+
+    /** Formato e botões da janelinha: 16:9 com a transmissão, 4:3 com as fotos; microfone, fone e desligar. */
+    @android.annotation.TargetApi(Build.VERSION_CODES.O)
+    private PictureInPictureParams pipParams() {
+        ArrayList<RemoteAction> actions = new ArrayList<>();
+        actions.add(pipAction(pipMuted ? R.drawable.ic_pip_mic_off : R.drawable.ic_pip_mic,
+                pipMuted ? "Ativar microfone" : "Silenciar", "mute"));
+        actions.add(pipAction(pipDeafened ? R.drawable.ic_pip_headset_off : R.drawable.ic_pip_headset,
+                pipDeafened ? "Desativar surdez" : "Ensurdecer", "deafen"));
+        actions.add(pipAction(R.drawable.ic_pip_call_end, "Desconectar", "leave"));
+        int max = maxPipActions();
+        while (actions.size() > max && actions.size() > 1) actions.remove(1); // sem espaço, o fone sai primeiro
+        PictureInPictureParams.Builder builder = new PictureInPictureParams.Builder()
+                .setAspectRatio(pipStream ? new Rational(16, 9) : new Rational(4, 3))
+                .setActions(actions);
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            builder.setAutoEnterEnabled(pipWanted()); // o gesto de ir para a tela inicial abre a janelinha direto
+            builder.setSeamlessResizeEnabled(false);
+        }
+        return builder.build();
+    }
+
+    @android.annotation.TargetApi(Build.VERSION_CODES.O)
+    private int maxPipActions() {
+        try {
+            return Math.max(1, getMaxNumPictureInPictureActions());
+        } catch (RuntimeException e) {
+            return 3;
+        }
+    }
+
+    @android.annotation.TargetApi(Build.VERSION_CODES.O)
+    private RemoteAction pipAction(int icon, String title, String which) {
+        return new RemoteAction(Icon.createWithResource(this, icon), title, title, CallService.actionIntent(this, which));
+    }
+
+    /** Atualiza a janelinha aberta (ou a próxima): formato, botões e se ela abre sozinha. */
+    @android.annotation.TargetApi(Build.VERSION_CODES.O)
+    private void updatePip() {
+        if (!pipSupported()) return;
+        try {
+            setPictureInPictureParams(pipParams());
+        } catch (RuntimeException ignored) {
+            // Aparelho que recusa a janelinha: o app segue como antes.
+        }
+    }
+
+    /** Abre a janelinha agora; false se não deu (o app então vai para trás, como antes). */
+    @android.annotation.TargetApi(Build.VERSION_CODES.O)
+    private boolean enterPip() {
+        if (!pipWanted() || inPip()) return false;
+        try {
+            return enterPictureInPictureMode(pipParams());
+        } catch (RuntimeException e) {
+            return false;
+        }
+    }
+
+    @Override
+    protected void onUserLeaveHint() {
+        super.onUserLeaveHint();
+        // Android 12+ entra sozinho (setAutoEnterEnabled); antes disso, o botão Home abre a janelinha aqui.
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.S) enterPip();
+    }
+
+    @Override
+    public void onPictureInPictureModeChanged(boolean inPictureInPicture, Configuration newConfig) {
+        super.onPictureInPictureModeChanged(inPictureInPicture, newConfig);
+        if (fullscreenView != null && inPictureInPicture) chrome.onHideCustomView();
+        callJs("_pipChanged", inPictureInPicture ? "true" : "false");
+    }
+
     /** A pessoa saiu da call: desliga o serviço e devolve o volume e as atualizações do app. */
     private void endCall() {
         handler.removeCallbacks(stopCall);
         leavingFromNotification = false;
         if (!inCall) return;
         inCall = false;
+        updatePip(); // a próxima ida à tela inicial não abre mais a janelinha
+        // Desligou pela janelinha: ela fecha, como no Discord (o app fica nos recentes).
+        if (inPip()) moveTaskToBack(true);
         callServiceError = "";
         web.setKeepVisible(false);
         setVolumeControlStream(AudioManager.USE_DEFAULT_STREAM_TYPE);
@@ -707,6 +818,24 @@ public class MainActivity extends Activity {
         }
 
         /** O som do DJ toca fora do processo da call, como mídia (Android 9+). */
+        /** O site sabe desenhar a janelinha: diz se há transmissão na tela e o estado do microfone e do fone. */
+        @JavascriptInterface
+        public void pipState(boolean stream, boolean muted, boolean deafened) {
+            runOnUiThread(() -> {
+                boolean changed = !pipReady || stream != pipStream || muted != pipMuted || deafened != pipDeafened;
+                pipReady = true;
+                pipStream = stream;
+                pipMuted = muted;
+                pipDeafened = deafened;
+                if (changed) updatePip();
+            });
+        }
+
+        @JavascriptInterface
+        public boolean pipAvailable() {
+            return pipSupported();
+        }
+
         @JavascriptInterface
         public boolean djSoundAvailable() {
             return MainActivity.djSoundAvailable();
@@ -775,7 +904,9 @@ public class MainActivity extends Activity {
     public void onBackPressed() {
         if (fullscreenView != null) { chrome.onHideCustomView(); return; }
         if (web.canGoBack()) { web.goBack(); return; }
-        // Voltar no fim do histórico só manda o app para trás: fechar a tela derrubaria a call.
+        // Voltar no fim do histórico: na call vira a janelinha; fora dela, só manda o app para trás
+        // (fechar a tela derrubaria a call).
+        if (enterPip()) return;
         moveTaskToBack(true);
     }
 

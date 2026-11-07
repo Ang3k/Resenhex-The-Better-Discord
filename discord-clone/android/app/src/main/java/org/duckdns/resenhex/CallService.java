@@ -5,6 +5,7 @@ import android.app.Notification;
 import android.app.NotificationManager;
 import android.app.PendingIntent;
 import android.app.Service;
+import android.content.Context;
 import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.content.pm.ServiceInfo;
@@ -40,6 +41,7 @@ public class CallService extends Service {
     static final String EXTRA_VISIBLE = "visible";
     private static final String ACTION_MUTE = "org.duckdns.resenhex.MUTE";
     private static final String ACTION_LEAVE = "org.duckdns.resenhex.LEAVE";
+    private static final String ACTION_DEAFEN = "org.duckdns.resenhex.DEAFEN";
     private static final int NOTIFICATION_ID = 1;
     private static final String ALERT_TAG = "microfone-pausado";
 
@@ -78,6 +80,7 @@ public class CallService extends Service {
         String action = intent == null ? null : intent.getAction();
         if (ACTION_MUTE.equals(action)) { MainActivity.callAction("mute"); return START_NOT_STICKY; }
         if (ACTION_LEAVE.equals(action)) { MainActivity.callAction("leave"); return START_NOT_STICKY; }
+        if (ACTION_DEAFEN.equals(action)) { MainActivity.callAction("deafen"); return START_NOT_STICKY; }
         MainActivity activity = MainActivity.current();
         if (activity == null || !activity.isInCall()) { stopSelf(); return START_NOT_STICKY; }
 
@@ -148,6 +151,13 @@ public class CallService extends Service {
 
     private void refreshNotification() {
         getSystemService(NotificationManager.class).notify(NOTIFICATION_ID, buildNotification());
+    }
+
+    /** Botões da janelinha (MainActivity.pipParams): os mesmos caminhos dos botões da notificação. */
+    static PendingIntent actionIntent(Context context, String which) {
+        String action = "leave".equals(which) ? ACTION_LEAVE : "deafen".equals(which) ? ACTION_DEAFEN : ACTION_MUTE;
+        int code = "leave".equals(which) ? 12 : "deafen".equals(which) ? 11 : 10;
+        return PendingIntent.getService(context, code, new Intent(context, CallService.class).setAction(action), PendingIntent.FLAG_IMMUTABLE);
     }
 
     private Notification buildNotification() {

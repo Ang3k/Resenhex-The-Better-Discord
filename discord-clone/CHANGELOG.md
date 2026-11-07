@@ -3,6 +3,21 @@
 Histórico de versões. A mesma lista aparece dentro do app em **Novidades** (menu do servidor ou rodapé das Configurações).
 O Resenhex chegou à versão 1.0 em 4 de outubro de 2026.
 
+## v2.4.1 — Janelinha da call no Android, por cima dos outros apps
+
+7 de novembro de 2026.
+
+No app do Android, a call agora vira uma janelinha quando você sai do Resenhex: aperte Home ou Voltar durante a call e ela fica por cima de qualquer outro app, com a transmissão que você assiste ou as fotos de quem está na sala.
+
+### Novidades
+
+- App do Android 1.3.3: durante a call, Home, Voltar ou o gesto de ir para a tela inicial transformam o Resenhex numa janelinha por cima dos outros apps, como no Discord. Ela mostra ao vivo a transmissão que você está assistindo ou, sem transmissão, a sala, o tempo e as fotos de quem está nela.
+- Toque na janelinha para ver os botões de microfone, fone e desligar. O botão do meio abre o Resenhex de novo na call, e dá para arrastar a janelinha para qualquer canto ou fechar no X (a call continua).
+
+### Correções
+
+- O cartão flutuante da call no celular não troca mais de formato quando a imagem da transmissão para por um instante, e o vídeo não mostra mais um botão de play cinza enquanto muda de tamanho.
+
 ## v2.4.0 — Clipar com a tela de quem está transmitindo e a call flutuante no celular
 
 7 de novembro de 2026.

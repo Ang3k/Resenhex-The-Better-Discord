@@ -5,7 +5,7 @@
 // Durante uma chamada, o app liga um serviço que mantém a call viva com a tela bloqueada.
 window.AndroidApp = (() => {
   const bridge = window.ResenhexAndroid;
-  if (!bridge) return { available: false, backgrounded: false, djSound: null, callState() {}, onCallAction() {}, onAppVisibility() {}, onCallService() {}, onDjReport() {} };
+  if (!bridge) return { available: false, backgrounded: false, pip: false, djSound: null, callState() {}, pipState() {}, onPip() {}, onCallAction() {}, onAppVisibility() {}, onCallService() {}, onDjReport() {} };
 
   document.documentElement.classList.add('android-app');
 
@@ -44,6 +44,8 @@ window.AndroidApp = (() => {
   let visibilityHandler = null;
   let serviceHandler = null;
   let djHandler = null;
+  let pipHandler = null;
+  let pipKey = '';
   // Durante a call o app mantém a página "visível" (o site não desacelera), então document.hidden
   // não diz se a tela bloqueou. O APK 1.3.1+ conta o estado real; nos anteriores, a perda de foco
   // do WebView é o sinal mais próximo.
@@ -81,6 +83,17 @@ window.AndroidApp = (() => {
     // o WebView toca vai para a faixa da ligação; lá a música sai como mídia. null: toca aqui mesmo.
     djSound: typeof bridge.djSound === 'function' && bridge.djSoundAvailable?.() ? (state) => bridge.djSound(JSON.stringify(state)) : null,
     onDjReport(handler) { djHandler = handler; },
+    // Janelinha da call (APK 1.3.3+): Home ou Voltar durante a call viram uma janela por cima dos outros
+    // apps. O site conta se há transmissão na tela (formato 16:9) e o estado do microfone e do fone.
+    pip: typeof bridge.pipState === 'function',
+    pipState({ stream = false, muted = false, deafened = false } = {}) {
+      if (typeof bridge.pipState !== 'function') return;
+      const key = [stream, muted, deafened].map(Number).join('');
+      if (key === pipKey) return;
+      pipKey = key;
+      bridge.pipState(!!stream, !!muted, !!deafened);
+    },
+    onPip(handler) { pipHandler = handler; },
 
     // ---- chamados pelo app (Java) ----
     _notificationClicked(id) {
@@ -103,5 +116,9 @@ window.AndroidApp = (() => {
       if (status) serviceHandler?.(status);
     },
     _djReport(report) { if (report && typeof report === 'object') djHandler?.(report); },
+    _pipChanged(on) {
+      document.documentElement.classList.toggle('android-pip', !!on);
+      pipHandler?.(!!on);
+    },
   };
 })();

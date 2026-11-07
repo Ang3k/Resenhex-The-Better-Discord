@@ -4,6 +4,19 @@
 // O título deve destacar as principais funcionalidades ou correções, com termos objetivos.
 window.CHANGELOG = [
   {
+    version: '2.4.1', date: '2026-11-07', name: 'Janelinha da call no Android, por cima dos outros apps',
+    summary: 'No app do Android, a call agora vira uma janelinha quando você sai do Resenhex: aperte Home ou Voltar durante a call e ela fica por cima de qualquer outro app, com a transmissão que você assiste ou as fotos de quem está na sala.',
+    sections: [
+      { kind: 'new', items: [
+        'App do Android 1.3.3: durante a call, Home, Voltar ou o gesto de ir para a tela inicial transformam o Resenhex numa janelinha por cima dos outros apps, como no Discord. Ela mostra ao vivo a transmissão que você está assistindo ou, sem transmissão, a sala, o tempo e as fotos de quem está nela.',
+        'Toque na janelinha para ver os botões de microfone, fone e desligar. O botão do meio abre o Resenhex de novo na call, e dá para arrastar a janelinha para qualquer canto ou fechar no X (a call continua).',
+      ] },
+      { kind: 'fixed', items: [
+        'O cartão flutuante da call no celular não troca mais de formato quando a imagem da transmissão para por um instante, e o vídeo não mostra mais um botão de play cinza enquanto muda de tamanho.',
+      ] },
+    ],
+  },
+  {
     version: '2.4.0', date: '2026-11-07', name: 'Clipar com a tela de quem está transmitindo e a call flutuante no celular',
     summary: 'Agora o clipe mostra a transmissão: se você está assistindo à tela de alguém (ou transmitindo a sua), os últimos 30 segundos dela entram no clipe junto com o som da chamada. E o Propor Melhorias voltou a entregar as sugestões.',
     sections: [

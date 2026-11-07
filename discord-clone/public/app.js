@@ -3043,7 +3043,10 @@
   }
 
   function buildCallFloat() {
-    const video = el('video', { autoplay: true, playsInline: true, muted: true, disablePictureInPicture: true });
+    // O poster transparente evita o botão de play cinza que o WebView do Android desenha enquanto o vídeo
+    // muda de tamanho (a janelinha mudando de formato, por exemplo).
+    const video = el('video', { autoplay: true, playsInline: true, muted: true, disablePictureInPicture: true,
+      poster: 'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7' });
     video.muted = true; // o som da transmissão já toca pelo bloco dela na chamada
     const open = el('button', { type: 'button', class: 'cf-open', onclick: () => { closePanels(); returnToCall(); } },
       el('span', { class: 'cf-screen hidden' }, video,
@@ -3113,9 +3116,14 @@
 
   function renderCallFloat() {
     if (!state.me) return;
+    const live = state.voiceChannel ? callFloatStream() : null;
+    // Na janelinha do Android (APK 1.3.3+), o cartão ocupa a janela inteira, em qualquer tela do app.
+    const { micOff: pipMuted, deaf: pipDeaf } = callFloatControls;
+    window.AndroidApp?.pipState({ stream: !!live, muted: pipMuted, deafened: pipDeaf });
+    const pip = document.documentElement.classList.contains('android-pip');
     const inVoiceView = state.view === 'voice' && state.voiceChannel;
     const dmSplit = !inVoiceView && isDm(state.voiceChannel) && state.home && state.textChannel === state.voiceChannel;
-    const show = !!state.voiceChannel && !inVoiceView && !dmSplit;
+    const show = !!state.voiceChannel && (pip || (!inVoiceView && !dmSplit));
     if (!show) {
       if (callFloat) { callFloat.classList.add('hidden'); renderCallFloatScreen(null); }
       return;
@@ -3138,7 +3146,7 @@
     deafen.classList.toggle('off', deaf && !serverDeaf);
     deafen.classList.toggle('locked', serverDeaf);
     deafen.setAttribute('aria-label', serverDeaf ? 'Ensurdecido pelo servidor' : deaf ? 'Desativar surdez' : 'Ensurdecer');
-    renderCallFloatScreen(callFloatStream());
+    renderCallFloatScreen(live);
     // Quem está na sala: até 4 fotos (o anel verde de quem fala vem do mesmo laço da chamada) e "+N".
     const entries = voiceEntries(state.voiceChannel).filter((v) => callMember(v.accountId));
     const shown = entries.slice(0, 4);
@@ -3162,7 +3170,10 @@
     for (const v of [...watched.filter((w) => w.sid === pinned), ...watched]) {
       const stream = state.peers.get(v.sid)?.remote?.screen;
       const track = stream?.getVideoTracks()[0];
-      if (track?.readyState === 'live' && !track.muted) return { entry: v, stream };
+      // Sem imagem ainda (muted), espera chegar; depois que apareceu, pausas curtas da imagem não trocam o
+      // cartão (nem o formato da janelinha do Android) de um lado para o outro.
+      const showing = callFloat?.querySelector('.cf-screen video')?.srcObject === stream;
+      if (track?.readyState === 'live' && (!track.muted || showing)) return { entry: v, stream };
     }
     return null;
   }
@@ -5589,6 +5600,12 @@
   window.AndroidApp?.onCallAction((action) => {
     if (action === 'leave') leaveCall();
     else if (action === 'mute' && callTarget) $('#btn-mute').click();
+    else if (action === 'deafen' && callTarget) $('#btn-deafen').click();
+  });
+  // Abrir a janelinha fecha menus e folhas abertos (eles ficariam por cima dela ao voltar) e desenha o cartão.
+  window.AndroidApp?.onPip((on) => {
+    if (on) { closeMenu(); hideTip(); }
+    renderCallFloat();
   });
   // "Sair da call" da notificação vale também entrando ou esperando a conexão voltar.
   function leaveCall() {

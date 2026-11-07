@@ -14,9 +14,9 @@
     animation: cf-in var(--motion-slow, .28s) var(--ease-enter, cubic-bezier(.2, .9, .3, 1));
   }
   #call-float.hidden,
-  body:has(#app.channels-open) #call-float,
-  body:has(#app.members-open) #call-float,
-  body:has(.confirm-overlay) #call-float { display: none; }
+  html:not(.android-pip) body:has(#app.channels-open) #call-float,
+  html:not(.android-pip) body:has(#app.members-open) #call-float,
+  html:not(.android-pip) body:has(.confirm-overlay) #call-float { display: none; }
   #call-float[data-corner^="top"] { top: calc(68px + env(safe-area-inset-top)); }
   /* Embaixo, fica 12 px acima da caixa de mensagem (--cf-bottom, medido no app.js), que cresce com o texto. */
   #call-float[data-corner^="bottom"] { bottom: max(calc(var(--cf-bottom, 0px) + 12px), calc(16px + env(safe-area-inset-bottom))); }
@@ -32,7 +32,9 @@
   }
   .cf-open:focus-visible { outline: 2px solid var(--brand); outline-offset: 3px; }
   .cf-head { display: flex; align-items: center; gap: 6px; min-width: 0; font-size: 12px; line-height: 16px; }
-  .cf-dot { flex-shrink: 0; width: 8px; height: 8px; border-radius: 50%; background: var(--green); box-shadow: 0 0 0 3px color-mix(in srgb, var(--green) 22%, transparent); }
+  /* O halo é um ::before translúcido, não color-mix: o WebView de Androids mais antigos (Chrome 113) o pinta de cinza. */
+  .cf-dot { position: relative; flex-shrink: 0; width: 8px; height: 8px; border-radius: 50%; background: var(--green); }
+  .cf-dot::before { content: ''; position: absolute; inset: -3px; border-radius: 50%; background: var(--green); opacity: .22; }
   .cf-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 700; color: var(--text-strong); }
   .cf-head .call-time { flex-shrink: 0; color: var(--green); }
 
@@ -71,6 +73,25 @@
   .cf-leave { background: var(--red-dark); color: var(--text-strong); }
   .cf-leave svg { rotate: 135deg; }
 }
+
+/* Janelinha do Android (APK 1.3.3+, android.js): a janela é pequena e só o cartão aparece, ocupando tudo.
+   Os botões ficam por conta do Android (microfone, fone e desligar aparecem ao tocar na janelinha). */
+html.android-pip body > :not(#call-float) { visibility: hidden !important; }
+html.android-pip #call-float {
+  display: flex; position: fixed; inset: 0; z-index: 2147483647;
+  width: auto; padding: 10px; gap: 8px; justify-content: center;
+  border: 0; border-radius: 0; box-shadow: none; animation: none; transform: none; scale: none;
+}
+html.android-pip #call-float.hidden { display: none; }
+html.android-pip #call-float .cf-actions { display: none; }
+html.android-pip #call-float .cf-open { flex: 1; justify-content: center; gap: 10px; }
+html.android-pip #call-float .cf-head { font-size: 13px; }
+html.android-pip #call-float .cf-people { justify-content: center; flex-wrap: wrap; gap: 8px; }
+html.android-pip #call-float .cf-people .avatar { width: 44px; height: 44px; font-size: 16px; }
+/* Com a transmissão: só o vídeo, de ponta a ponta, com AO VIVO e o nome por cima. */
+html.android-pip #call-float.with-screen { padding: 0; background: #000; }
+html.android-pip #call-float.with-screen .cf-head { display: none; }
+html.android-pip #call-float.with-screen .cf-screen { flex: 1; aspect-ratio: auto; border-radius: 0; }
 
 @keyframes cf-in { from { opacity: 0; scale: .92; } to { opacity: 1; scale: 1; } }
 @media (prefers-reduced-motion: reduce) { #call-float { animation: none; } }
