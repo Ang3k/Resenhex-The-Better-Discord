@@ -109,6 +109,10 @@ public class MainActivity extends Activity {
     private boolean pipStream;
     private boolean pipMuted;
     private boolean pipDeafened;
+    // APK 1.3.4+: o formato da tela transmitida (a janelinha fica igual) e a opção de desligá-la (Voz e vídeo).
+    private int pipWidth = 16;
+    private int pipHeight = 9;
+    private boolean pipEnabled = true;
 
     // Som do DJ no processo :dj (DjService). djLast é o último estado: vai de novo se o processo reiniciar.
     private Messenger djService;
@@ -479,12 +483,20 @@ public class MainActivity extends Activity {
         return Build.VERSION.SDK_INT >= Build.VERSION_CODES.N && isInPictureInPictureMode();
     }
 
-    /** Numa call, com o site novo: Home, Voltar e o gesto de sair viram a janelinha. */
+    /** Numa call, com o site novo e a janelinha ligada: Home, Voltar e o gesto de sair viram a janelinha. */
     private boolean pipWanted() {
-        return inCall && pipReady && pipSupported();
+        return inCall && pipReady && pipEnabled && pipSupported();
     }
 
-    /** Formato e botões da janelinha: 16:9 com a transmissão, 4:3 com as fotos; microfone, fone e desligar. */
+    /** Formato da janelinha: o da tela transmitida (dentro do que o Android aceita); sem transmissão, 4:3. */
+    private Rational pipRatio() {
+        if (!pipStream || pipWidth <= 0 || pipHeight <= 0) return pipStream ? new Rational(16, 9) : new Rational(4, 3);
+        // O Android recusa formatos mais compridos que 2,39:1 (deitado ou em pé); fora disso, encosta no limite.
+        double ratio = Math.max(1 / 2.35, Math.min(2.35, (double) pipWidth / pipHeight));
+        return new Rational((int) Math.round(ratio * 1000), 1000);
+    }
+
+    /** Formato e botões da janelinha: o da transmissão ou 4:3 com as fotos; microfone, fone e desligar. */
     @android.annotation.TargetApi(Build.VERSION_CODES.O)
     private PictureInPictureParams pipParams() {
         ArrayList<RemoteAction> actions = new ArrayList<>();
@@ -496,7 +508,7 @@ public class MainActivity extends Activity {
         int max = maxPipActions();
         while (actions.size() > max && actions.size() > 1) actions.remove(1); // sem espaço, o fone sai primeiro
         PictureInPictureParams.Builder builder = new PictureInPictureParams.Builder()
-                .setAspectRatio(pipStream ? new Rational(16, 9) : new Rational(4, 3))
+                .setAspectRatio(pipRatio())
                 .setActions(actions);
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
             builder.setAutoEnterEnabled(pipWanted()); // o gesto de ir para a tela inicial abre a janelinha direto
@@ -827,6 +839,32 @@ public class MainActivity extends Activity {
                 pipStream = stream;
                 pipMuted = muted;
                 pipDeafened = deafened;
+                if (changed) updatePip();
+            });
+        }
+
+        /** APK 1.3.4+: o mesmo do pipState, mais o formato da tela transmitida e se a janelinha está ligada. */
+        @JavascriptInterface
+        public void pipSetup(String json) {
+            final JSONObject setup;
+            try {
+                setup = new JSONObject(json);
+            } catch (Exception e) {
+                return;
+            }
+            runOnUiThread(() -> {
+                boolean stream = setup.optBoolean("stream"), muted = setup.optBoolean("muted"), deafened = setup.optBoolean("deafened");
+                boolean enabled = setup.optBoolean("enabled", true);
+                int width = Math.max(1, setup.optInt("width", 16)), height = Math.max(1, setup.optInt("height", 9));
+                boolean changed = !pipReady || stream != pipStream || muted != pipMuted || deafened != pipDeafened
+                        || enabled != pipEnabled || width != pipWidth || height != pipHeight;
+                pipReady = true;
+                pipStream = stream;
+                pipMuted = muted;
+                pipDeafened = deafened;
+                pipEnabled = enabled;
+                pipWidth = width;
+                pipHeight = height;
                 if (changed) updatePip();
             });
         }

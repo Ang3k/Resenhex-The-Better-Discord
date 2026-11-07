@@ -5,7 +5,7 @@
 // Durante uma chamada, o app liga um serviço que mantém a call viva com a tela bloqueada.
 window.AndroidApp = (() => {
   const bridge = window.ResenhexAndroid;
-  if (!bridge) return { available: false, backgrounded: false, pip: false, djSound: null, callState() {}, pipState() {}, onPip() {}, onCallAction() {}, onAppVisibility() {}, onCallService() {}, onDjReport() {} };
+  if (!bridge) return { available: false, backgrounded: false, pip: false, pipOptional: false, djSound: null, callState() {}, pipState() {}, onPip() {}, onCallAction() {}, onAppVisibility() {}, onCallService() {}, onDjReport() {} };
 
   document.documentElement.classList.add('android-app');
 
@@ -84,9 +84,20 @@ window.AndroidApp = (() => {
     djSound: typeof bridge.djSound === 'function' && bridge.djSoundAvailable?.() ? (state) => bridge.djSound(JSON.stringify(state)) : null,
     onDjReport(handler) { djHandler = handler; },
     // Janelinha da call (APK 1.3.3+): Home ou Voltar durante a call viram uma janela por cima dos outros
-    // apps. O site conta se há transmissão na tela (formato 16:9) e o estado do microfone e do fone.
-    pip: typeof bridge.pipState === 'function',
-    pipState({ stream = false, muted = false, deafened = false } = {}) {
+    // apps. O site conta se há transmissão na tela e o estado do microfone e do fone. No APK 1.3.4+ vão também
+    // o formato da tela transmitida (a janelinha fica do mesmo formato) e se a pessoa quer a janelinha.
+    pip: typeof bridge.pipState === 'function' || typeof bridge.pipSetup === 'function',
+    pipOptional: typeof bridge.pipSetup === 'function',
+    pipState({ stream = false, muted = false, deafened = false, width = 16, height = 9, enabled = true } = {}) {
+      if (typeof bridge.pipSetup === 'function') {
+        const w = Math.max(1, Math.round(width) || 16), h = Math.max(1, Math.round(height) || 9);
+        // Mudanças de formato abaixo de 2% não mexem na janelinha (o Android anima cada troca).
+        const key = [stream, muted, deafened, enabled].map(Number).join('') + (stream ? ':' + Math.round((w / h) * 50) : '');
+        if (key === pipKey) return;
+        pipKey = key;
+        bridge.pipSetup(JSON.stringify({ stream: !!stream, muted: !!muted, deafened: !!deafened, width: w, height: h, enabled: !!enabled }));
+        return;
+      }
       if (typeof bridge.pipState !== 'function') return;
       const key = [stream, muted, deafened].map(Number).join('');
       if (key === pipKey) return;

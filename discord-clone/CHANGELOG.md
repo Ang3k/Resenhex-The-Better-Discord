@@ -3,6 +3,33 @@
 Histórico de versões. A mesma lista aparece dentro do app em **Novidades** (menu do servidor ou rodapé das Configurações).
 O Resenhex chegou à versão 1.0 em 4 de outubro de 2026.
 
+## v2.6.0 — Janelinha e cartão da call com quem fala em destaque, tela no formato certo e aviso de reconexão
+
+7 de novembro de 2026.
+
+A janelinha da call no Android e o cartão flutuante no celular ficaram mais parecidos com os do Discord: quem está falando aparece grande, a transmissão ocupa a janelinha no formato certo e, quando a conexão cai, os dois avisam que estão reconectando em vez de ficar vazios. O formato da tela e a opção de desligar a janelinha precisam do app do Android 1.3.4.
+
+### Novidades
+
+- Na janelinha do Android, quem está falando aparece grande no meio, com o círculo verde e o nome, e os outros ficam pequenos embaixo. Numa call privada que ainda está tocando, aparece o seu amigo com "Chamando…".
+- Um selo vermelho no canto da janelinha avisa quando o seu microfone ou o seu fone está desligado.
+- App do Android 1.3.4: a janelinha segue o formato da transmissão que você está assistindo (larga, quadrada ou em pé, de celular), sem faixas pretas.
+- App do Android 1.3.4: nova opção em Configurações > Voz e vídeo > Janelinha da call para não abrir a janelinha ao sair do app. A call continua do mesmo jeito, com o aviso na barra do Android.
+- Para esconder o cartão flutuante sem sair da call, arraste-o até o X que aparece embaixo. Ele volta na próxima vez que você abrir a tela da chamada.
+- O cartão pode ser arremessado: solte com um movimento rápido e ele vai para o canto para onde você jogou.
+
+### Melhorias
+
+- O cartão mostra embaixo das fotos quem está falando ("Angel está falando") ou quantas pessoas estão na call.
+- Fotos de quem está com o microfone ou o fone desligado ganham um ícone no canto, no cartão e na janelinha. Se foi o servidor que desligou, o ícone fica vermelho.
+- Com uma transmissão no cartão ou na janelinha, a foto de quem está falando aparece no canto da imagem.
+- Tocar no cartão abre a tela da chamada com uma animação: o cartão cresce até ocupar a tela.
+- Numa call privada tocando, o cartão mostra a foto do amigo apagada ao lado da sua até ele atender.
+
+### Correções
+
+- Quando a conexão caía durante a call, o cartão sumia e a janelinha do Android ficava vazia. Agora os dois mostram "Reconectando…" e voltam ao normal sozinhos quando a conexão volta.
+
 ## v2.4.0 — Clipar com a tela de quem está transmitindo e a call flutuante no celular
 
 7 de novembro de 2026.

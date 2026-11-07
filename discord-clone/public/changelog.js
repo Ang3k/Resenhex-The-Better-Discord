@@ -4,6 +4,30 @@
 // O título deve destacar as principais funcionalidades ou correções, com termos objetivos.
 window.CHANGELOG = [
   {
+    version: '2.6.0', date: '2026-11-07', name: 'Janelinha e cartão da call com quem fala em destaque, tela no formato certo e aviso de reconexão',
+    summary: 'A janelinha da call no Android e o cartão flutuante no celular ficaram mais parecidos com os do Discord: quem está falando aparece grande, a transmissão ocupa a janelinha no formato certo e, quando a conexão cai, os dois avisam que estão reconectando em vez de ficar vazios. O formato da tela e a opção de desligar a janelinha precisam do app do Android 1.3.4.',
+    sections: [
+      { kind: 'new', items: [
+        'Na janelinha do Android, quem está falando aparece grande no meio, com o círculo verde e o nome, e os outros ficam pequenos embaixo. Numa call privada que ainda está tocando, aparece o seu amigo com "Chamando…".',
+        'Um selo vermelho no canto da janelinha avisa quando o seu microfone ou o seu fone está desligado.',
+        'App do Android 1.3.4: a janelinha segue o formato da transmissão que você está assistindo (larga, quadrada ou em pé, de celular), sem faixas pretas.',
+        'App do Android 1.3.4: nova opção em Configurações > Voz e vídeo > Janelinha da call para não abrir a janelinha ao sair do app. A call continua do mesmo jeito, com o aviso na barra do Android.',
+        'Para esconder o cartão flutuante sem sair da call, arraste-o até o X que aparece embaixo. Ele volta na próxima vez que você abrir a tela da chamada.',
+        'O cartão pode ser arremessado: solte com um movimento rápido e ele vai para o canto para onde você jogou.',
+      ] },
+      { kind: 'improved', items: [
+        'O cartão mostra embaixo das fotos quem está falando ("Angel está falando") ou quantas pessoas estão na call.',
+        'Fotos de quem está com o microfone ou o fone desligado ganham um ícone no canto, no cartão e na janelinha. Se foi o servidor que desligou, o ícone fica vermelho.',
+        'Com uma transmissão no cartão ou na janelinha, a foto de quem está falando aparece no canto da imagem.',
+        'Tocar no cartão abre a tela da chamada com uma animação: o cartão cresce até ocupar a tela.',
+        'Numa call privada tocando, o cartão mostra a foto do amigo apagada ao lado da sua até ele atender.',
+      ] },
+      { kind: 'fixed', items: [
+        'Quando a conexão caía durante a call, o cartão sumia e a janelinha do Android ficava vazia. Agora os dois mostram "Reconectando…" e voltam ao normal sozinhos quando a conexão volta.',
+      ] },
+    ],
+  },
+  {
     version: '2.4.0', date: '2026-11-07', name: 'Clipar com a tela de quem está transmitindo e a call flutuante no celular',
     summary: 'Agora o clipe mostra a transmissão: se você está assistindo à tela de alguém (ou transmitindo a sua), os últimos 30 segundos dela entram no clipe junto com o som da chamada. No celular, a call fica num cartão flutuante e, no app do Android, vira uma janelinha por cima dos outros apps. E o Propor Melhorias voltou a entregar as sugestões.',
     sections: [

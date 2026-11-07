@@ -68,6 +68,7 @@
     sharePreset: SHARE_PRESETS[localStorage.getItem('sharePreset')] ? localStorage.getItem('sharePreset') : 'p1080_60',
     sharePaused: false,
     allowClips: localStorage.getItem('allowClips') !== '0', // CLIPAR: "Pode clipar meu áudio e minha tela"
+    callPip: localStorage.getItem('callPip') !== '0', // app do Android: janelinha da call ao sair do app
     clips: [], // clipes da chamada atual (24 h, só para quem estava nela)
     uploadMbps: Math.min(100, Math.max(3, Number(localStorage.getItem('uploadMbps')) || 50)),
     cameraDeviceId: localStorage.getItem('cameraDeviceId') || '',
@@ -3031,11 +3032,19 @@
 
   // ---------------- Cartão flutuante da chamada (celular) ----------------
   // Como no Discord do celular: fora da tela da chamada aparece um cartão com a sala, quem está nela e os
-  // botões de microfone, fone e desligar. Dá para arrastar até qualquer canto (fica lembrado); um toque
-  // no cartão volta à chamada. Só aparece no layout de celular (call-float.css).
+  // botões de microfone, fone e desligar. Dá para arrastar ou arremessar até qualquer canto (fica lembrado)
+  // e, arrastando até o X que aparece embaixo, escondê-lo sem sair da chamada. Um toque no cartão abre a
+  // chamada, crescendo até ela. Só aparece no layout de celular (call-float.css). No app do Android, o mesmo
+  // cartão vira a janelinha por cima dos outros apps (html.android-pip), com quem fala em destaque.
   const CALL_FLOAT_CORNERS = ['top-left', 'top-right', 'bottom-left', 'bottom-right'];
   let callFloat = null;
+  let callFloatBin = null;
   let callFloatControls = { micOff: false, forcedMute: false, deaf: false, serverDeaf: false };
+  let callFloatHiddenIn = null; // chamada em que a pessoa escondeu o cartão; ele volta depois de abrir a chamada
+  let heldCallName = ''; // sala da chamada guardada durante uma queda da conexão: o cartão mostra "Reconectando…"
+  const callFloatSpoke = new Map(); // sid -> última vez que falou: quem fica em destaque
+  let callFloatFeature = { sid: '', at: 0 };
+  const inAndroidPip = () => document.documentElement.classList.contains('android-pip');
 
   function callFloatCorner() {
     try { const saved = localStorage.getItem('callFloatCorner'); if (CALL_FLOAT_CORNERS.includes(saved)) return saved; } catch {}
@@ -3048,18 +3057,24 @@
     const video = el('video', { autoplay: true, playsInline: true, muted: true, disablePictureInPicture: true,
       poster: 'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7' });
     video.muted = true; // o som da transmissão já toca pelo bloco dela na chamada
-    const open = el('button', { type: 'button', class: 'cf-open', onclick: () => { closePanels(); returnToCall(); } },
+    video.addEventListener('resize', () => syncAndroidPip()); // a janelinha acompanha o formato da tela
+    const open = el('button', { type: 'button', class: 'cf-open', onclick: () => openCallFromFloat() },
       el('span', { class: 'cf-screen hidden' }, video,
         el('span', { class: 'cf-live live-pill' }, 'AO VIVO'),
-        el('span', { class: 'cf-screen-name' })),
+        el('span', { class: 'cf-screen-name' }),
+        el('span', { class: 'cf-talker', ariaHidden: 'true' })),
       el('span', { class: 'cf-head' },
         el('span', { class: 'cf-dot', ariaHidden: 'true' }),
         el('span', { class: 'cf-name' }),
-        el('time', { class: 'call-time', data: { callTime: '' } })),
-      el('span', { class: 'cf-people' }));
+        el('time', { class: 'call-time', data: { callTime: '' } }),
+        el('span', { class: 'cf-held-label', textContent: 'Reconectando…' })),
+      el('span', { class: 'cf-feature' }, el('span', { class: 'cf-feature-face' }), el('span', { class: 'cf-feature-name' })),
+      el('span', { class: 'cf-people' }),
+      el('span', { class: 'cf-status' }),
+      el('span', { class: 'cf-self hidden', ariaHidden: 'true' }));
     const mic = el('button', { type: 'button', class: 'cf-btn cf-mic', onclick: () => $('#btn-mute').click() });
     const deaf = el('button', { type: 'button', class: 'cf-btn cf-deaf', onclick: () => $('#btn-deafen').click() });
-    const leave = el('button', { type: 'button', class: 'cf-btn cf-leave', ariaLabel: 'Desconectar', onclick: () => leaveVoice() }, Icon('phone', 18));
+    const leave = el('button', { type: 'button', class: 'cf-btn cf-leave', ariaLabel: 'Desconectar', onclick: () => leaveCall() }, Icon('phone', 18));
     const node = el('div', { id: 'call-float', class: 'hidden', role: 'group', ariaLabel: 'Chamada em andamento', data: { corner: callFloatCorner() } },
       open, el('div', { class: 'cf-actions' }, mic, deaf, leave));
     document.body.append(node);
@@ -3077,36 +3092,106 @@
     node.style.setProperty('--cf-bottom', rect && rect.height ? Math.max(0, Math.round(innerHeight - rect.top)) + 'px' : '0px');
   }
 
-  // Arrastar: o cartão segue o dedo e, ao soltar, desliza até o canto mais perto. Um arrasto não vira toque.
+  const reducedMotion = () => document.documentElement.dataset.reduceMotion === 'true' || matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  // Tocar no cartão abre a chamada, e o cartão cresce até virar a tela dela (como no Discord). Sem a API de
+  // transição do navegador, ou com menos movimento pedido, a troca é direta.
+  function openCallFromFloat() {
+    closePanels();
+    const voiceView = $('#voice-view');
+    if (!document.startViewTransition || reducedMotion() || !callFloat || inAndroidPip()) { returnToCall(); return; }
+    callFloat.style.viewTransitionName = 'call-float';
+    document.documentElement.classList.add('cf-expanding');
+    const transition = document.startViewTransition(async () => {
+      callFloat.style.viewTransitionName = '';
+      await returnToCall();
+      if (!voiceView.classList.contains('hidden')) voiceView.style.viewTransitionName = 'call-float';
+    });
+    transition.finished.finally(() => {
+      voiceView.style.viewTransitionName = '';
+      document.documentElement.classList.remove('cf-expanding');
+    });
+  }
+
+  // O X que aparece embaixo enquanto o cartão é arrastado: soltar em cima dele esconde o cartão.
+  function callFloatTarget() {
+    callFloatBin ||= document.body.appendChild(el('div', { id: 'call-float-bin', ariaHidden: 'true' },
+      el('span', { class: 'cfb-ring' }, Icon('x', 22))));
+    return callFloatBin;
+  }
+  function dropCallFloatTarget() {
+    const bin = callFloatBin;
+    callFloatBin = null;
+    if (bin) Motion.leave(bin);
+  }
+
+  // Arrastar: o cartão segue o dedo e, ao soltar, desliza até o canto para onde foi jogado (a velocidade do
+  // gesto conta, não só o ponto onde o dedo saiu). Solto em cima do X, some. Um arrasto não vira toque.
   function dragCallFloat(node) {
-    let start = null, moved = false;
+    let start = null, moved = false, over = false, samples = [];
+    const binCenter = () => {
+      const r = callFloatTarget().querySelector('.cfb-ring').getBoundingClientRect();
+      return { x: r.left + r.width / 2, y: r.top + r.height / 2 };
+    };
     node.addEventListener('pointerdown', (e) => {
-      if (e.button > 0) return;
+      if (e.button > 0 || inAndroidPip()) return;
       start = { x: e.clientX, y: e.clientY, id: e.pointerId };
       moved = false;
+      over = false;
+      samples = [{ x: e.clientX, y: e.clientY, t: e.timeStamp }];
     });
     node.addEventListener('pointermove', (e) => {
       if (!start || e.pointerId !== start.id) return;
       const dx = e.clientX - start.x, dy = e.clientY - start.y;
       if (!moved && Math.hypot(dx, dy) < 8) return;
-      if (!moved) { moved = true; node.setPointerCapture?.(e.pointerId); node.classList.add('dragging'); }
-      node.style.transform = `translate(${dx}px, ${dy}px)`;
+      if (!moved) {
+        moved = true;
+        node.setPointerCapture?.(e.pointerId);
+        node.classList.add('dragging');
+        callFloatTarget();
+      }
+      samples.push({ x: e.clientX, y: e.clientY, t: e.timeStamp });
+      while (samples.length > 2 && e.timeStamp - samples[0].t > 100) samples.shift();
+      // Perto do X (pelo dedo, com folga para não piscar na borda): ele cresce e fica vermelho, e o cartão encolhe
+      // e gruda logo acima dele, sem cobri-lo (com um toque de vibração). Longe, o cartão segue o dedo.
+      const bin = binCenter();
+      const dist = Math.hypot(e.clientX - bin.x, e.clientY - bin.y);
+      const near = over ? dist < 132 : dist < 104;
+      if (near !== over) {
+        over = near;
+        callFloatBin.classList.toggle('active', near);
+        node.classList.toggle('over-bin', near);
+        if (near) navigator.vibrate?.(12);
+      }
+      // O deslocamento vai em translate (e não em transform): assim o encolher do scale não tira o cartão do lugar.
+      if (near) {
+        const cx = node.offsetLeft + node.offsetWidth / 2, cy = node.offsetTop + node.offsetHeight / 2;
+        node.style.translate = `${bin.x - cx}px ${bin.y - 44 - node.offsetHeight * .3 - cy}px`;
+      } else node.style.translate = `${dx}px ${dy}px`;
     });
     const end = (e) => {
       if (!start || e.pointerId !== start.id) return;
       start = null;
       if (!moved) return;
+      const bin = callFloatBin ? binCenter() : null;
+      dropCallFloatTarget();
+      node.classList.remove('dragging');
+      if (over && bin) { dismissCallFloat(node, bin); return; }
+      node.classList.remove('over-bin');
       const before = node.getBoundingClientRect();
-      const cx = before.left + before.width / 2, cy = before.top + before.height / 2;
+      // Para onde o gesto apontava: o centro do cartão mais um quarto de segundo na velocidade do dedo.
+      const first = samples[0], last = samples.at(-1);
+      const dt = Math.max(16, last.t - first.t);
+      const vx = e.type === 'pointercancel' ? 0 : (last.x - first.x) / dt, vy = e.type === 'pointercancel' ? 0 : (last.y - first.y) / dt;
+      const cx = before.left + before.width / 2 + vx * 250, cy = before.top + before.height / 2 + vy * 250;
       const corner = `${cy < innerHeight / 2 ? 'top' : 'bottom'}-${cx < innerWidth / 2 ? 'left' : 'right'}`;
       try { localStorage.setItem('callFloatCorner', corner); } catch {}
-      node.classList.remove('dragging');
-      node.style.transform = '';
+      node.style.translate = '';
       node.dataset.corner = corner;
-      // Sai de onde o dedo soltou e desliza até o canto.
+      // Sai de onde o dedo soltou e desliza até o canto, com um leve passo além se foi arremessado.
       const after = node.getBoundingClientRect();
-      node.animate?.([{ transform: `translate(${before.left - after.left}px, ${before.top - after.top}px)` }, { transform: 'none' }],
-        { duration: matchMedia('(prefers-reduced-motion: reduce)').matches ? 0 : 260, easing: 'cubic-bezier(.2, .9, .3, 1.15)' });
+      node.animate?.([{ translate: `${before.left - after.left}px ${before.top - after.top}px` }, { translate: '0px 0px' }],
+        { duration: reducedMotion() ? 0 : 320, easing: 'cubic-bezier(.2, .9, .3, 1.15)' });
     };
     node.addEventListener('pointerup', end);
     node.addEventListener('pointercancel', end);
@@ -3114,26 +3199,83 @@
     node.addEventListener('click', (e) => { if (moved) { e.stopPropagation(); e.preventDefault(); moved = false; } }, true);
   }
 
+  // Esconde o cartão até a pessoa abrir a chamada de novo: ele afunda no X. A chamada continua.
+  function dismissCallFloat(node, bin) {
+    callFloatHiddenIn = state.voiceChannel || callTarget;
+    const done = () => {
+      node.classList.remove('over-bin');
+      node.style.translate = '';
+      renderCallFloat();
+    };
+    // Do lugar em que está (arrastado e encolhido) até o centro do X, sem as transformações do arrasto.
+    const tx = bin.x - (node.offsetLeft + node.offsetWidth / 2), ty = bin.y - (node.offsetTop + node.offsetHeight / 2);
+    const fly = reducedMotion() ? null : node.animate?.([
+      { translate: node.style.translate || '0px 0px', scale: getComputedStyle(node).scale, opacity: 1 },
+      { translate: `${tx}px ${ty}px`, scale: '.2', opacity: 0 },
+    ], { duration: 200, easing: 'cubic-bezier(.4, 0, 1, 1)', fill: 'forwards' });
+    if (fly) fly.finished.then(() => { done(); fly.cancel(); }, done);
+    else done();
+    let told = false;
+    try { told = localStorage.getItem('callFloatHideTip') === '1'; localStorage.setItem('callFloatHideTip', '1'); } catch {}
+    if (!told) toast('A chamada continua. Para voltar a ela, toque no botão verde lá em cima.', 'info');
+  }
+
+  // Quem aparece em destaque na janelinha: quem falou por último entre os outros. Fica pelo menos 1,5 s, para
+  // não pular de um para outro numa conversa rápida; sem ninguém falando ainda, o primeiro da sala; sozinho, você.
+  function callFloatFeatured(entries) {
+    const others = entries.filter((v) => v.sid !== state.me.sid);
+    if (!others.length) return entries[0] || null;
+    const now = performance.now();
+    for (const v of others) if (state.speaking.has(v.sid)) callFloatSpoke.set(v.sid, now);
+    const latest = others.filter((v) => callFloatSpoke.has(v.sid)).sort((a, b) => callFloatSpoke.get(b.sid) - callFloatSpoke.get(a.sid))[0];
+    let pick = others.find((v) => v.sid === callFloatFeature.sid);
+    if (!pick || (latest && latest !== pick && !state.speaking.has(pick.sid) && now - callFloatFeature.at >= 1500)) pick = latest || pick || others[0];
+    if (pick.sid !== callFloatFeature.sid) callFloatFeature = { sid: pick.sid, at: now };
+    return pick;
+  }
+
+  // Microfone ou fone desligado de alguém da chamada: o do servidor (vermelho) vale mais que o da pessoa.
+  function callFloatFlag(v, m) {
+    if (m.serverDeafened) return { icon: 'headphonesOff', server: true, label: 'ensurdecido pelo servidor' };
+    if (v.deafened) return { icon: 'headphonesOff', server: false, label: 'ensurdecido' };
+    if (m.serverMuted || timedOut(m)) return { icon: 'micOff', server: true, label: 'silenciado pelo servidor' };
+    if (v.muted) return { icon: 'micOff', server: false, label: 'silenciado' };
+    return null;
+  }
+
+  function callFloatFace(v, m, cls = '') {
+    const flag = callFloatFlag(v, m);
+    const node = avatar(m, cls, v.sid);
+    node.classList.toggle('speaking', state.speaking.has(v.sid));
+    return el('span', { class: 'cf-face' }, node,
+      ...(flag ? [el('span', { class: 'cf-flag' + (flag.server ? ' server' : '') }, Icon(flag.icon, 10))] : []));
+  }
+
   function renderCallFloat() {
     if (!state.me) return;
+    if (state.voiceChannel) heldCallName = ''; // voltou à chamada (ou entrou em outra)
+    const held = !state.voiceChannel && !!callTarget && !!heldCallName;
+    if (!state.voiceChannel && !held) { callFloatHiddenIn = null; callFloatSpoke.clear(); }
     const live = state.voiceChannel ? callFloatStream() : null;
-    // Na janelinha do Android (APK 1.3.3+), o cartão ocupa a janela inteira, em qualquer tela do app.
-    const { micOff: pipMuted, deaf: pipDeaf } = callFloatControls;
-    window.AndroidApp?.pipState({ stream: !!live, muted: pipMuted, deafened: pipDeaf });
-    const pip = document.documentElement.classList.contains('android-pip');
+    const pip = inAndroidPip();
     const inVoiceView = state.view === 'voice' && state.voiceChannel;
+    if (inVoiceView) callFloatHiddenIn = null; // abriu a chamada: o cartão escondido volta na próxima saída
     const dmSplit = !inVoiceView && isDm(state.voiceChannel) && state.home && state.textChannel === state.voiceChannel;
-    const show = !!state.voiceChannel && (pip || (!inVoiceView && !dmSplit));
+    const dismissed = !!callFloatHiddenIn && callFloatHiddenIn === (state.voiceChannel || callTarget);
+    const show = (!!state.voiceChannel || held) && (pip || (!inVoiceView && !dmSplit && !dismissed));
     if (!show) {
       if (callFloat) { callFloat.classList.add('hidden'); renderCallFloatScreen(null); }
+      syncAndroidPip(live);
       return;
     }
     callFloat ||= buildCallFloat();
     callFloat.classList.remove('hidden');
+    callFloat.classList.toggle('held', held);
     placeCallFloat(callFloat);
-    const room = callInfo()?.dm ? 'Chamada' : callChannelName() || 'Chamada';
+    // Chamada privada: o nome do amigo no lugar do nome da sala (o servidor já manda a conversa com o nome dele).
+    const room = held ? heldCallName : callChannelName() || 'Chamada';
     callFloat.querySelector('.cf-name').textContent = room;
-    callFloat.querySelector('.cf-open').setAttribute('aria-label', 'Voltar à chamada: ' + room);
+    callFloat.querySelector('.cf-open').setAttribute('aria-label', (held ? 'Reconectando à chamada: ' : 'Voltar à chamada: ') + room);
     updateCallTime();
     const { micOff, forcedMute, deaf, serverDeaf } = callFloatControls;
     const mic = callFloat.querySelector('.cf-mic');
@@ -3146,20 +3288,119 @@
     deafen.classList.toggle('off', deaf && !serverDeaf);
     deafen.classList.toggle('locked', serverDeaf);
     deafen.setAttribute('aria-label', serverDeaf ? 'Ensurdecido pelo servidor' : deaf ? 'Desativar surdez' : 'Ensurdecer');
+    // Na janelinha não há botões à vista: um selo vermelho avisa que o seu microfone ou o seu fone está desligado.
+    const self = callFloat.querySelector('.cf-self');
+    const selfIcon = deaf ? 'headphonesOff' : micOff ? 'micOff' : '';
+    self.classList.toggle('hidden', !selfIcon);
+    callFloat.classList.toggle('self-off', !!selfIcon);
+    if (selfIcon && self.dataset.icon !== selfIcon) { self.dataset.icon = selfIcon; self.replaceChildren(Icon(selfIcon, 13)); }
     renderCallFloatScreen(live);
-    // Quem está na sala: até 4 fotos (o anel verde de quem fala vem do mesmo laço da chamada) e "+N".
-    const entries = voiceEntries(state.voiceChannel).filter((v) => callMember(v.accountId));
-    const shown = entries.slice(0, 4);
-    const key = JSON.stringify([shown.map((v) => { const m = callMember(v.accountId); return [v.sid, m.name, m.avatarUrl, m.color]; }), entries.length]);
+    renderCallFloatPeople(held);
+    syncAndroidPip(live);
+  }
+
+  // Quem está na sala: até 4 fotos (quem fala sempre entre elas, com o anel verde), "+N", o microfone cortado
+  // de quem está mudo e, embaixo, quem está falando. Na janelinha, quem fala aparece grande no meio.
+  function renderCallFloatPeople(held) {
     const people = callFloat.querySelector('.cf-people');
+    const status = callFloat.querySelector('.cf-status');
+    const face = callFloat.querySelector('.cf-feature-face');
+    const featureName = callFloat.querySelector('.cf-feature-name');
+    if (held) {
+      if (people.dataset.key !== 'held') {
+        people.dataset.key = 'held';
+        people.replaceChildren(el('span', { class: 'cf-spinner', ariaHidden: 'true' }));
+        face.dataset.key = 'held';
+        face.replaceChildren(el('span', { class: 'cf-spinner big', ariaHidden: 'true' }));
+        featureName.replaceChildren('Reconectando…');
+      }
+      status.textContent = 'A conexão caiu. Voltando…';
+      status.classList.remove('talking');
+      renderCallFloatTalker(null);
+      return;
+    }
+    const entries = voiceEntries(state.voiceChannel).filter((v) => callMember(v.accountId));
+    const feature = callFloatFeatured(entries);
+    const pip = inAndroidPip();
+    // Na janelinha, a fileira de baixo mostra só os outros; no cartão, todo mundo.
+    const row = pip ? entries.filter((v) => v !== feature) : entries;
+    let shown = row.slice(0, 4);
+    const talker = row.find((v) => state.speaking.has(v.sid) && v.sid !== state.me.sid);
+    if (talker && !shown.includes(talker)) shown = [...shown.slice(0, 3), talker];
+    // Numa chamada privada tocando, o amigo: em destaque na janelinha e, no cartão, apagado ao lado da sua foto.
+    const ringing = !!callInfo()?.ringing && entries.length < 2;
+    const friend = ringing ? callMember(callInfo().peerId) : null;
+    const flagKey = (v) => { const f = callFloatFlag(v, callMember(v.accountId)); return f ? f.icon + f.server : ''; };
+    const waiting = friend && !pip ? friend : null;
+    const key = JSON.stringify([pip, shown.map((v) => { const m = callMember(v.accountId); return [v.sid, m.name, m.avatarUrl, m.color, flagKey(v)]; }), row.length,
+      waiting ? [waiting.name, waiting.avatarUrl, waiting.color] : '']);
     if (people.dataset.key !== key) {
       people.dataset.key = key;
-      people.replaceChildren(...shown.map((v) => {
-        const node = avatar(callMember(v.accountId), '', v.sid);
-        node.classList.toggle('speaking', state.speaking.has(v.sid));
-        return node;
-      }), ...(entries.length > shown.length ? [el('span', { class: 'cf-more', textContent: '+' + (entries.length - shown.length) })] : []));
+      people.replaceChildren(...shown.map((v) => callFloatFace(v, callMember(v.accountId))),
+        ...(row.length > shown.length ? [el('span', { class: 'cf-more', textContent: '+' + (row.length - shown.length) })] : []),
+        ...(waiting ? [el('span', { class: 'cf-face cf-waiting', title: `Chamando ${waiting.name}` }, avatar(waiting))] : []));
     }
+    // Em destaque (janelinha): a foto grande de quem fala e o nome; tocando, o amigo.
+    const m = friend || (feature && callMember(feature.accountId));
+    const featureKey = m ? JSON.stringify([feature?.sid || '', m.name, m.avatarUrl, m.color, feature ? flagKey(feature) : '', ringing]) : '';
+    if (face.dataset.key !== featureKey) {
+      face.dataset.key = featureKey;
+      if (!m) { face.replaceChildren(); featureName.replaceChildren(); }
+      else if (friend) { // o nome do amigo já está no alto da janelinha
+        face.replaceChildren(el('span', { class: 'cf-face' }, avatar(friend)));
+        featureName.replaceChildren(el('span', { class: 'cf-feature-text cf-calling', textContent: 'Chamando…' }));
+      }
+      else {
+        face.replaceChildren(callFloatFace(feature, m));
+        const flag = callFloatFlag(feature, m);
+        featureName.replaceChildren(el('span', { class: 'cf-feature-text', textContent: m.name }),
+          ...(flag ? [el('span', { class: 'cf-feature-flag' + (flag.server ? ' server' : ''), ariaLabel: flag.label }, Icon(flag.icon, 12))] : []));
+      }
+    }
+    // Embaixo das fotos (cartão): quem está falando agora; sem ninguém falando, quantos estão na chamada.
+    const talking = entries.filter((v) => v.sid !== state.me.sid && state.speaking.has(v.sid)).map((v) => callMember(v.accountId).name);
+    const text = ringing ? 'Chamando…'
+      : talking.length === 1 ? `${talking[0]} está falando`
+      : talking.length === 2 ? `${talking[0]} e ${talking[1]} estão falando`
+      : talking.length ? `${talking.length} pessoas falando`
+      : entries.length < 2 ? 'Só você na chamada' : `${entries.length} pessoas na chamada`;
+    if (status.textContent !== text) status.textContent = text;
+    status.classList.toggle('talking', !!talking.length);
+    renderCallFloatTalker(talker || entries.find((v) => v.sid !== state.me.sid && state.speaking.has(v.sid)));
+  }
+
+  // Assistindo a uma transmissão: a foto de quem fala aparece no canto da tela, com o anel verde.
+  function renderCallFloatTalker(talker) {
+    const slot = callFloat.querySelector('.cf-talker');
+    const m = talker && callMember(talker.accountId);
+    const key = m ? talker.sid + m.avatarUrl + m.color : '';
+    slot.classList.toggle('on', !!m);
+    if (slot.dataset.key === key) return;
+    slot.dataset.key = key;
+    if (m) { const node = avatar(m, 'speaking', talker.sid); slot.replaceChildren(node); }
+  }
+
+  // Laço de quem fala (100 ms): o cartão acompanha sem redesenhar o resto. Também roda enquanto alguém fala
+  // fora do destaque, para a troca acontecer quando o tempo mínimo do destaque passar.
+  function callFloatSpeakingTick(changed) {
+    if (!callFloat || callFloat.classList.contains('hidden') || !state.voiceChannel) return;
+    const waiting = [...state.speaking].some((sid) => sid !== state.me.sid && sid !== callFloatFeature.sid);
+    if (changed || waiting) renderCallFloatPeople(false);
+  }
+
+  // A janelinha do Android precisa saber o que mostrar: com uma transmissão, o formato da tela (largura e altura
+  // do vídeo); o microfone e o fone para os botões; e se a pessoa quer a janelinha (Voz e vídeo).
+  function syncAndroidPip(live = state.voiceChannel ? callFloatStream() : null) {
+    const app = window.AndroidApp;
+    if (!app?.pip) return;
+    const { micOff: muted, deaf: deafened } = callFloatControls;
+    let width = 16, height = 9;
+    if (live) {
+      // O vídeo do cartão ou o do palco da chamada, o que já souber o tamanho.
+      const video = [...document.querySelectorAll('video')].find((v) => v.srcObject === live.stream && v.videoWidth && v.videoHeight);
+      if (video) { width = video.videoWidth; height = video.videoHeight; }
+    }
+    app.pipState({ stream: !!live, muted, deafened, width, height, enabled: state.callPip });
   }
 
   // A transmissão que você assiste, em miniatura no cartão (como no Discord do celular): a fixada ou a
@@ -5337,6 +5578,7 @@
     // Página escondida (aba em segundo plano, app de Android fora da tela): ninguém vê o anel, então a página não se
     // redesenha; ao voltar, atualiza de uma vez. Só perder o foco não conta: numa segunda tela o anel continua informando.
     if (changed) speakingDirty = true;
+    if (!micInBackground()) callFloatSpeakingTick(changed);
     if (speakingDirty && !micInBackground()) {
       speakingDirty = false;
       document.querySelectorAll('.avatar[data-sid]').forEach((node) => node.classList.toggle('speaking', state.speaking.has(node.dataset.sid)));
@@ -5457,6 +5699,7 @@
   // A conexão caiu no meio da chamada: guarda a chamada para voltar a ela com a conexão.
   function holdCall() {
     if (!state.voiceChannel) return; // entrando: joinVoice percebe a queda e guarda a chamada
+    heldCallName = callChannelName() || 'Chamada'; // o cartão e a janelinha mostram "Reconectando…"
     awaitRejoin({ channel: state.voiceChannel, serverId: callInfo()?.serverId, view: state.view, startedAt: state.callStartedAt });
     leaveVoice(false, false, { rejoin: true });
   }
@@ -5481,6 +5724,7 @@
   function endCall() {
     if (clipChannel && !state.voiceChannel) clipEnd(); // a volta da chamada desistiu
     callTarget = null;
+    heldCallName = '';
     rejoinVoice = null;
     clearTimeout(rejoinGiveUp);
     dropHeldMic();
@@ -6234,6 +6478,7 @@
     if (mediaLosses.length >= 3) { leaveVoice(); toast('A conexão com a chamada caiu várias vezes. Entre de novo quando a internet estabilizar.', 'error'); return; }
     mediaLosses.push(now);
     mediaNotice('A conexão com a chamada caiu. Reconectando…');
+    heldCallName = callChannelName() || 'Chamada';
     joinVoice(state.voiceChannel, { keepView: state.view !== 'voice', serverId: callInfo()?.serverId, startedAt: state.callStartedAt, silent: true });
   }
   const sfu = MediaSfu({ state, renderStage, applyAudio, watchSpeaking, unwatchSpeaking, closePeer, notice: (message) => mediaNotice(message), onLost: recoverMedia, tuneReceiver: (receiver) => mobileStream.tuneReceiver(receiver) });
@@ -6824,7 +7069,7 @@
     'camera-select': 'cameraDeviceId', 'noise-mode': 'noiseMode', 'echo-toggle': 'echoCancellation', 'voice-fx': 'voiceFx',
     'sens-auto': 'sensAuto', 'sens-range': 'sensThreshold', 'input-mode': 'inputMode',
     'ptt-code': 'pttCode', 'ptt-label': 'pttLabel', 'keybinds-data': 'keybinds', 'upload-select': 'uploadMbps',
-    'share-preset': 'sharePreset', 'share-audio': 'shareAudio', 'allow-clips': 'allowClips', 'stream-stats': 'showStreamStats', 'camera-preview-toggle': 'cameraPreview',
+    'share-preset': 'sharePreset', 'share-audio': 'shareAudio', 'allow-clips': 'allowClips', 'call-pip-toggle': 'callPip', 'stream-stats': 'showStreamStats', 'camera-preview-toggle': 'cameraPreview',
     'sounds-toggle': 'sounds', 'notify-toggle': 'notify', 'sb-toggle': 'soundboard', 'sb-volume': 'sbVolume',
     'output-volume': 'outputVolume', 'theme-select': 'theme', 'density-select': 'density',
     'font-size': 'fontSize', 'reduce-motion': 'reduceMotion', 'overlay-toggle': 'overlayEnabled', 'overlay-x': 'overlayX', 'overlay-y': 'overlayY',
@@ -6836,6 +7081,8 @@
     field.dataset.setting = key;
     if (field.type === 'range' || ['uploadMbps', 'overlayX', 'overlayY'].includes(key)) field.dataset.number = '';
   }
+  // A opção da janelinha da call só existe no app do Android que deixa desligá-la (APK 1.3.4+).
+  if (!window.AndroidApp?.pipOptional) $('#call-pip-group').remove();
   // A seção do overlay só existe no app de desktop (versões com o overlay).
   let placeOverlayPuck = () => {};
   let stopOverlayTest = () => {};
@@ -7177,6 +7424,10 @@
       state.allowClips = values.allowClips;
       localStorage.setItem('allowClips', state.allowClips ? '1' : '0');
       if (state.voiceChannel) sendVoiceState();
+    }
+    if ('callPip' in values && values.callPip !== state.callPip) { // a opção só existe no app do Android
+      state.callPip = values.callPip;
+      localStorage.setItem('callPip', state.callPip ? '1' : '0');
     }
     syncSpeaker();
     if (micChanged && state.voiceChannel) sendVoiceState();
