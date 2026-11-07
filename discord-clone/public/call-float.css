@@ -1,5 +1,6 @@
 /* Cartão flutuante da chamada no celular (app.js, renderCallFloat): fora da tela da chamada, com a sala,
-   quem está nela e microfone, fone e desligar. Arrastável até um dos quatro cantos. */
+   quem está nela (ou a transmissão que você assiste, em miniatura) e microfone, fone e desligar.
+   Arrastável até um dos quatro cantos. */
 #call-float { display: none; }
 
 @media (max-width: 640px) {
@@ -34,6 +35,24 @@
   .cf-dot { flex-shrink: 0; width: 8px; height: 8px; border-radius: 50%; background: var(--green); box-shadow: 0 0 0 3px color-mix(in srgb, var(--green) 22%, transparent); }
   .cf-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 700; color: var(--text-strong); }
   .cf-head .call-time { flex-shrink: 0; color: var(--green); }
+
+  /* Com uma transmissão assistida, o cartão fica mais largo e mostra a tela em miniatura no lugar das fotos. */
+  #call-float.with-screen { width: min(240px, calc(100vw - 32px)); }
+  #call-float.with-screen .cf-people { display: none; }
+  .cf-screen {
+    position: relative; display: block; overflow: hidden;
+    aspect-ratio: 16 / 9; border-radius: 10px; background: #000;
+  }
+  .cf-screen.hidden { display: none; }
+  .cf-screen video { display: block; width: 100%; height: 100%; object-fit: contain; pointer-events: none; }
+  .cf-screen.paused video { opacity: .45; }
+  .cf-live { position: absolute; top: 6px; left: 6px; }
+  .cf-screen-name {
+    position: absolute; left: 6px; right: 6px; bottom: 6px; width: fit-content; max-width: calc(100% - 12px);
+    padding: 1px 8px; border-radius: 999px; background: rgb(0 0 0 / .6); color: #fff;
+    font-size: 11px; font-weight: 600; line-height: 18px;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
 
   .cf-people { display: flex; align-items: center; gap: 6px; min-height: 32px; }
   .cf-people .avatar { width: 32px; height: 32px; font-size: 12px; flex-shrink: 0; }

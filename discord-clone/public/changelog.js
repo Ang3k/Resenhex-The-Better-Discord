@@ -10,7 +10,7 @@ window.CHANGELOG = [
       { kind: 'new', items: [
         'Clipar com a tela: o clipe mostra a tela que você está assistindo, grande, com as fotos de quem está na chamada embaixo e o círculo verde em quem fala. Se você mesmo está transmitindo, entra a sua tela. Com duas transmissões, entra a que estiver fixada. Sem transmissão, o clipe fica como antes.',
         'A prévia da janela Clipar já mostra a tela, e a linha "No clipe" avisa de quem é a tela que vai junto.',
-        'No celular, a call ganhou um cartão flutuante, como no Discord: fora da tela da chamada (num canal de texto, nas mensagens diretas), ele mostra a sala, o tempo e quem está nela, com os botões de microfone, fone e desligar. Dá para arrastar o cartão até qualquer canto, e um toque nele volta para a chamada.',
+        'No celular, a call ganhou um cartão flutuante, como no Discord: fora da tela da chamada (num canal de texto, nas mensagens diretas), ele mostra a sala, o tempo e quem está nela, com os botões de microfone, fone e desligar. Se você está assistindo a uma transmissão, ela aparece ao vivo no cartão, em miniatura. Dá para arrastar o cartão até qualquer canto, e um toque nele volta para a chamada.',
       ] },
       { kind: 'improved', items: [
         'A opção "Pode clipar meu áudio" virou "Pode clipar meu áudio e minha tela". Desligada, nem a sua voz nem a sua transmissão entram nos clipes dos outros.',

@@ -2844,6 +2844,7 @@
     applyAudio();
     syncViewerQuality();
     mobileStream.sync();
+    renderCallFloat();
   }
 
   function stageAloneCard() {
@@ -3042,7 +3043,12 @@
   }
 
   function buildCallFloat() {
+    const video = el('video', { autoplay: true, playsInline: true, muted: true, disablePictureInPicture: true });
+    video.muted = true; // o som da transmissão já toca pelo bloco dela na chamada
     const open = el('button', { type: 'button', class: 'cf-open', onclick: () => { closePanels(); returnToCall(); } },
+      el('span', { class: 'cf-screen hidden' }, video,
+        el('span', { class: 'cf-live live-pill' }, 'AO VIVO'),
+        el('span', { class: 'cf-screen-name' })),
       el('span', { class: 'cf-head' },
         el('span', { class: 'cf-dot', ariaHidden: 'true' }),
         el('span', { class: 'cf-name' }),
@@ -3110,7 +3116,10 @@
     const inVoiceView = state.view === 'voice' && state.voiceChannel;
     const dmSplit = !inVoiceView && isDm(state.voiceChannel) && state.home && state.textChannel === state.voiceChannel;
     const show = !!state.voiceChannel && !inVoiceView && !dmSplit;
-    if (!show) { callFloat?.classList.add('hidden'); return; }
+    if (!show) {
+      if (callFloat) { callFloat.classList.add('hidden'); renderCallFloatScreen(null); }
+      return;
+    }
     callFloat ||= buildCallFloat();
     callFloat.classList.remove('hidden');
     placeCallFloat(callFloat);
@@ -3129,6 +3138,7 @@
     deafen.classList.toggle('off', deaf && !serverDeaf);
     deafen.classList.toggle('locked', serverDeaf);
     deafen.setAttribute('aria-label', serverDeaf ? 'Ensurdecido pelo servidor' : deaf ? 'Desativar surdez' : 'Ensurdecer');
+    renderCallFloatScreen(callFloatStream());
     // Quem está na sala: até 4 fotos (o anel verde de quem fala vem do mesmo laço da chamada) e "+N".
     const entries = voiceEntries(state.voiceChannel).filter((v) => callMember(v.accountId));
     const shown = entries.slice(0, 4);
@@ -3142,6 +3152,39 @@
         return node;
       }), ...(entries.length > shown.length ? [el('span', { class: 'cf-more', textContent: '+' + (entries.length - shown.length) })] : []));
     }
+  }
+
+  // A transmissão que você assiste, em miniatura no cartão (como no Discord do celular): a fixada ou a
+  // primeira que você está assistindo. A sua própria não aparece. Sem imagem ainda, o cartão mostra as fotos.
+  function callFloatStream() {
+    const pinned = state.pinned?.startsWith('screen-') ? state.pinned.slice('screen-'.length) : null;
+    const watched = voiceEntries(state.voiceChannel).filter((v) => v.sharing && v.sid !== state.me.sid && isWatching(v.sid) && callMember(v.accountId));
+    for (const v of [...watched.filter((w) => w.sid === pinned), ...watched]) {
+      const stream = state.peers.get(v.sid)?.remote?.screen;
+      const track = stream?.getVideoTracks()[0];
+      if (track?.readyState === 'live' && !track.muted) return { entry: v, stream };
+    }
+    return null;
+  }
+
+  function renderCallFloatScreen(live) {
+    if (!callFloat) return;
+    const screen = callFloat.querySelector('.cf-screen');
+    const video = screen.querySelector('video');
+    const src = live?.stream || null;
+    if (video.srcObject !== src) {
+      video.srcObject = src;
+      if (src) video.play().catch(() => {});
+    }
+    callFloat.classList.toggle('with-screen', !!src);
+    screen.classList.toggle('hidden', !src);
+    if (!live) return;
+    const paused = !!live.entry.paused;
+    screen.classList.toggle('paused', paused);
+    const pill = screen.querySelector('.cf-live');
+    pill.classList.toggle('paused', paused);
+    pill.textContent = paused ? 'PAUSADA' : 'AO VIVO';
+    screen.querySelector('.cf-screen-name').textContent = 'Tela de ' + callMember(live.entry.accountId).name;
   }
 
   function renderControls() {
