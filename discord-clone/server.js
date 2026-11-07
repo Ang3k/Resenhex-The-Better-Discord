@@ -1078,7 +1078,10 @@ app.post('/clips', uploadGate(MAX_CLIP_BYTES + MAX_THUMB_BYTES + 4), express.raw
   if (mp4.length < 16 || mp4.length > MAX_CLIP_BYTES || mp4.toString('latin1', 4, 8) !== 'ftyp') return clipError(res, 400, 'Clipe inválido.');
   if (meta.voice != null && meta.voice !== s.voice) return clipError(res, 409, 'Você mudou de chamada: o clipe foi descartado.');
   const room = sessionsOf(online.inRoom(s.voice)).map(([, x]) => x).filter((x) => x.voiceServerId === s.voiceServerId);
-  if (room.some((x) => participants.includes(x.accountId) && x.allowClips === false)) return clipError(res, 403, 'Alguém no clipe não quer ser clipado.');
+  // A tela que entrou no clipe (opcional): o dono dela também precisa deixar clipar.
+  const screenOwner = typeof meta.screen === 'string' ? meta.screen : null;
+  const inClip = screenOwner ? [...participants, screenOwner] : participants;
+  if (room.some((x) => inClip.includes(x.accountId) && x.allowClips === false)) return clipError(res, 403, 'Alguém no clipe não quer ser clipado.');
   if (!allow('clip:' + acc.id, 6, 60_000) || !allow('clip-h:' + acc.id, 30, 60 * 60 * 1000)) return clipError(res, 429, 'Clipes demais seguidos. Espere um pouco.');
   const channelName = isDmCall(s) ? 'Chamada' : communities.run(s.voiceServerId, () => db.channels.find((c) => c.id === s.voice)?.name) || 'Chamada';
   const file = crypto.randomBytes(16).toString('hex') + '.mp4';

@@ -71,6 +71,12 @@
     return cells;
   }
 
+  // Com a tela no clipe: fotos pequenas em fila no canto de baixo à esquerda (a marca fica à direita).
+  function stripLayout(count, width = 1280, height = 720) {
+    const r = count > 8 ? 22 : 26, gap = count > 8 ? 12 : 16, left = 28 + r;
+    return Array.from({ length: count }, (_, i) => ({ x: left + i * (2 * r + gap), y: height - 22 - r, r }));
+  }
+
   function peaks(pcmList, buckets) {
     const length = Math.max(0, ...pcmList.map((p) => p.length));
     const out = new Array(buckets).fill(0), size = length / buckets;
@@ -102,7 +108,7 @@
     return { start: round(start), end: round(end) };
   }
 
-  const api = { included, speakingFrames, layout, peaks, clampSelection };
+  const api = { included, speakingFrames, layout, stripLayout, peaks, clampSelection };
   if (typeof window !== 'undefined') window.ClipModel = api;
   if (typeof module !== 'undefined') module.exports = api;
 })();

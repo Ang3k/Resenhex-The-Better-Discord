@@ -4,6 +4,20 @@
 // O título deve destacar as principais funcionalidades ou correções, com termos objetivos.
 window.CHANGELOG = [
   {
+    version: '2.4.0', date: '2026-11-07', name: 'Clipar com a tela de quem está transmitindo',
+    summary: 'Agora o clipe mostra a transmissão: se você está assistindo à tela de alguém (ou transmitindo a sua), os últimos 30 segundos dela entram no clipe junto com o som da chamada.',
+    sections: [
+      { kind: 'new', items: [
+        'Clipar com a tela: o clipe mostra a tela que você está assistindo, grande, com as fotos de quem está na chamada embaixo e o círculo verde em quem fala. Se você mesmo está transmitindo, entra a sua tela. Com duas transmissões, entra a que estiver fixada. Sem transmissão, o clipe fica como antes.',
+        'A prévia da janela Clipar já mostra a tela, e a linha "No clipe" avisa de quem é a tela que vai junto.',
+      ] },
+      { kind: 'improved', items: [
+        'A opção "Pode clipar meu áudio" virou "Pode clipar meu áudio e minha tela". Desligada, nem a sua voz nem a sua transmissão entram nos clipes dos outros.',
+        'Funciona no app do Windows e no navegador do computador. A tela fica guardada só no seu aparelho, comprimida pela placa de vídeo, e só sai dele quando você solta o clipe.',
+      ] },
+    ],
+  },
+  {
     version: '2.3.5', date: '2026-10-31', name: 'Mudae 2.0 e o círculo verde de quem fala mostrando o que os outros ouvem',
     summary: 'O Mudae ficou só com personagens: a roleta deixou de sortear cerca de 100 mil lugares, itens, tipos de inimigo e figurantes, e continuam mais de 130 mil personagens de anime, jogos, quadrinhos, desenhos e séries. E o círculo verde da chamada agora acende sempre que os outros estão ouvindo você, até com um som baixinho.',
     sections: [

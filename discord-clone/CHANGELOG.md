@@ -3,6 +3,22 @@
 Histórico de versões. A mesma lista aparece dentro do app em **Novidades** (menu do servidor ou rodapé das Configurações).
 O Resenhex chegou à versão 1.0 em 4 de outubro de 2026.
 
+## v2.4.0 — Clipar com a tela de quem está transmitindo
+
+7 de novembro de 2026.
+
+Agora o clipe mostra a transmissão: se você está assistindo à tela de alguém (ou transmitindo a sua), os últimos 30 segundos dela entram no clipe junto com o som da chamada.
+
+### Novidades
+
+- Clipar com a tela: o clipe mostra a tela que você está assistindo, grande, com as fotos de quem está na chamada embaixo e o círculo verde em quem fala. Se você mesmo está transmitindo, entra a sua tela. Com duas transmissões, entra a que estiver fixada. Sem transmissão, o clipe fica como antes.
+- A prévia da janela Clipar já mostra a tela, e a linha "No clipe" avisa de quem é a tela que vai junto.
+
+### Melhorias
+
+- A opção "Pode clipar meu áudio" virou "Pode clipar meu áudio e minha tela". Desligada, nem a sua voz nem a sua transmissão entram nos clipes dos outros.
+- Funciona no app do Windows e no navegador do computador. A tela fica guardada só no seu aparelho, comprimida pela placa de vídeo, e só sai dele quando você solta o clipe.
+
 ## v2.3.5 — Mudae 2.0 e o círculo verde de quem fala mostrando o que os outros ouvem
 
 31 de outubro de 2026.

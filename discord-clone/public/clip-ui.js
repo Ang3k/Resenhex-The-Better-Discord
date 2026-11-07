@@ -1,5 +1,6 @@
 // CLIPAR: janela com duas abas, "Novo clipe" (prévia, onda e duas alças) e "Clipes da chamada", e o aviso de clipe novo.
-// Quem entra no vídeo é decidido de novo na hora de soltar: quem desligou "Pode clipar meu áudio" durante o corte fica fora.
+// Quem entra no vídeo é decidido de novo na hora de soltar: quem desligou "Pode clipar meu áudio e minha tela" durante o corte fica fora
+// (e, se for o dono da tela, a tela também sai).
 window.ClipUI = ({ el, Icon, toast, call, token, buffer, model, render, getContext, setAllowClips, nameOf, loadImage, audioCtx, fetch: send = (...args) => fetch(...args) }) => {
   const W = 1280, H = 720, FPS = 30, BARS = 120;
   const NOTICE_MS = 10_000;
@@ -83,7 +84,7 @@ window.ClipUI = ({ el, Icon, toast, call, token, buffer, model, render, getConte
     const privacy = el('label', { class: 'clip-privacy' },
       el('span', { class: 'clip-privacy-icon', ariaHidden: 'true' }, Icon(allow.checked ? 'mic' : 'micOff', 16)),
       el('span', { class: 'clip-privacy-text' },
-        el('strong', { textContent: 'Pode clipar meu áudio' }),
+        el('strong', { textContent: 'Pode clipar meu áudio e minha tela' }),
         el('small', { textContent: 'Desligado, você some dos clipes que os outros fizerem.' })),
       allow);
     allow.addEventListener('change', () => privacy.firstChild.replaceChildren(Icon(allow.checked ? 'mic' : 'micOff', 16)));
@@ -142,6 +143,7 @@ window.ClipUI = ({ el, Icon, toast, call, token, buffer, model, render, getConte
 
     function close() {
       cutter?.stop();
+      cutter?.dispose();
       Motion.leave(overlay);
       if (modal?.overlay === overlay) modal = null;
       if (lastFocus?.isConnected) lastFocus.focus?.();
@@ -180,6 +182,14 @@ window.ClipUI = ({ el, Icon, toast, call, token, buffer, model, render, getConte
     const peaks = model.peaks(snapshot.people.map((p) => p.pcm), BARS);
     const label = () => `${getContext().channelName} · ${stamp(takenAt)}`;
     const people = () => model.included(snapshot, getContext(), sel);
+    // A tela entra se o dono dela ainda deixa clipar (pode ter mudado de ideia durante o corte).
+    const screenOk = () => {
+      const scr = snapshot.screen, ctx = getContext();
+      if (!scr) return false;
+      return scr.accountId === ctx.selfId ? ctx.selfAllow !== false : ctx.allowNow(scr.accountId) !== false;
+    };
+    const screenReader = snapshot.screen && window.ClipScreen ? window.ClipScreen.reader(snapshot.screen) : null;
+    let previewWanted = null, previewBusy = false;
 
     const preview = el('canvas', { class: 'clip-preview', width: W, height: H, ariaHidden: 'true' });
     const wave = el('canvas', { class: 'clip-wave-bars', width: BARS * 6, height: 64, ariaHidden: 'true' });
@@ -226,14 +236,33 @@ window.ClipUI = ({ el, Icon, toast, call, token, buffer, model, render, getConte
       });
     }
 
-    function drawPreview(t) {
+    function paintPreview(t, shot) {
       const ctx = preview.getContext('2d');
       if (!ctx) return;
-      const list = people(), circles = model.layout(list.length, W, H), frame = Math.min(Math.round(t * FPS), total * FPS - 1);
+      const list = people(), frame = Math.min(Math.round(t * FPS), total * FPS - 1);
+      const circles = shot ? model.stripLayout(list.length, W, H) : model.layout(list.length, W, H);
       render.drawFrame(ctx, {
         width: W, height: H, label: label(), progress: Math.min(1, Math.max(0, (t - sel.start) / (sel.end - sel.start))),
+        screen: shot, screenName: snapshot.screen?.name,
         people: list.map((p, i) => ({ profile: p.profile, image: images.get(p.accountId) || null, circle: circles[i], speaking: !!speech.get(p.accountId)?.[frame] })),
       });
+    }
+
+    // Com a tela, o quadro sai do leitor (assíncrono): só o pedido mais novo é desenhado.
+    async function drawPreview(t) {
+      if (!screenReader || !screenOk()) { paintPreview(t, null); return; }
+      previewWanted = t;
+      if (previewBusy) return;
+      previewBusy = true;
+      try {
+        while (previewWanted != null) {
+          const want = previewWanted;
+          previewWanted = null;
+          const shot = await screenReader.at(want).catch(() => null);
+          if (!panel.isConnected) return;
+          paintPreview(want, shot);
+        }
+      } finally { previewBusy = false; }
     }
 
     function update() {
@@ -250,7 +279,9 @@ window.ClipUI = ({ el, Icon, toast, call, token, buffer, model, render, getConte
       span.textContent = `${decimal(sel.end - sel.start)} s`;
       selection.textContent = `início ${ago(sel.start)} · fim ${ago(sel.end)} · ${decimal(sel.end - sel.start)} s`;
       const list = people();
-      who.textContent = list.length ? 'No clipe: ' + list.map((p) => p.profile.name).join(', ') : 'Ninguém neste trecho pode entrar no clipe.';
+      who.textContent = list.length
+        ? 'No clipe: ' + list.map((p) => p.profile.name).join(', ') + (screenOk() ? ` · com a tela de ${snapshot.screen.name}` : '')
+        : 'Ninguém neste trecho pode entrar no clipe.';
       who.title = who.textContent;
       release.disabled = busy || !list.length;
       drawWave();
@@ -334,14 +365,15 @@ window.ClipUI = ({ el, Icon, toast, call, token, buffer, model, render, getConte
       release.disabled = true;
       release.textContent = 'Gerando o clipe…';
       try {
-        const clip = await render.render({ snapshot, people: list, start: sel.start, end: sel.end, label: label(), loadImage });
+        const screen = screenOk() ? snapshot.screen : null;
+        const clip = await render.render({ snapshot: { ...snapshot, screen }, people: list, start: sel.start, end: sel.end, label: label(), loadImage });
         const head = new Uint8Array(4);
         new DataView(head.buffer).setUint32(0, clip.thumb.size);
         const res = await send('/clips', {
           method: 'POST',
           headers: {
             'content-type': 'application/octet-stream', 'x-token': token(),
-            'x-clip': encodeURIComponent(JSON.stringify({ duration: Math.round(clip.duration * 1000) / 1000, participants: list.map((p) => p.accountId), voice: channelId })),
+            'x-clip': encodeURIComponent(JSON.stringify({ duration: Math.round(clip.duration * 1000) / 1000, participants: list.map((p) => p.accountId), voice: channelId, ...(screen ? { screen: screen.accountId } : {}) })),
           },
           body: new Blob([head, clip.thumb, clip.mp4]),
         });
@@ -368,7 +400,7 @@ window.ClipUI = ({ el, Icon, toast, call, token, buffer, model, render, getConte
       }, () => {});
     }
     update();
-    return { panel, footer, onKey, stop, refresh: () => { stop(); update(); }, busy: () => busy, focus: () => endHandle.focus() };
+    return { panel, footer, onKey, stop, refresh: () => { stop(); update(); }, busy: () => busy, focus: () => endHandle.focus(), dispose: () => screenReader?.close() };
   }
 
   // ---------- Aviso de clipe novo ----------

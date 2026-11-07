@@ -1,5 +1,6 @@
 // CLIPAR: monta o vídeo do clipe no próprio aparelho. Cada quadro é desenhado num canvas
-// (perfis em grade, anel verde em quem fala) e codificado com WebCodecs em H.264 + AAC num MP4.
+// (perfis em grade, anel verde em quem fala; com a tela, ela grande e as fotos pequenas embaixo) e codificado
+// com WebCodecs em H.264 + AAC num MP4.
 window.ClipRender = (() => {
   const W = 1280, H = 720, FPS = 30, RATE = 48000;
   const GREEN = '#23a55a', BRAND = '#8e2fd8';
@@ -48,7 +49,70 @@ window.ClipRender = (() => {
     ctx.restore();
   }
 
-  function drawFrame(ctx, { width = W, height = H, people, label, progress }) {
+  const roundRect = (ctx, x, y, w, h, r) => {
+    ctx.beginPath();
+    if (ctx.roundRect) ctx.roundRect(x, y, w, h, r);
+    else { ctx.moveTo(x, y); ctx.lineTo(x + w, y); ctx.lineTo(x + w, y + h); ctx.lineTo(x, y + h); ctx.closePath(); }
+  };
+
+  // Marca discreta: "Resenhex · Sala 1 · 17/10 22:14" e a barrinha de progresso.
+  function drawBrand(ctx, { width, height, label, progress, align = 'left' }) {
+    ctx.textBaseline = 'alphabetic';
+    ctx.font = '700 18px system-ui, sans-serif';
+    const brand = ctx.measureText('Resenhex').width;
+    ctx.font = '500 18px system-ui, sans-serif';
+    const rest = ctx.measureText(' · ' + label).width;
+    const x = align === 'right' ? width - 24 - brand - rest : 24;
+    ctx.textAlign = 'left';
+    ctx.font = '700 18px system-ui, sans-serif';
+    ctx.fillStyle = '#f3f3f5';
+    ctx.fillText('Resenhex', x, height - 24);
+    ctx.font = '500 18px system-ui, sans-serif';
+    ctx.fillStyle = align === 'right' ? '#c9cad1' : '#8d8f98';
+    ctx.fillText(' · ' + label, x + brand, height - 24);
+    ctx.fillStyle = 'rgba(255, 255, 255, .1)';
+    ctx.fillRect(0, height - 3, width, 3);
+    ctx.fillStyle = BRAND;
+    ctx.fillRect(0, height - 3, Math.round(progress * width), 3);
+  }
+
+  // Com a tela: ela ocupa o quadro; embaixo, uma sombra com as fotos pequenas e a marca à direita.
+  function drawScreenFrame(ctx, { width, height, people, label, progress, screen, screenName }) {
+    ctx.fillStyle = '#000';
+    ctx.fillRect(0, 0, width, height);
+    ctx.drawImage(screen, 0, 0, width, height);
+    const shade = ctx.createLinearGradient(0, height - 140, 0, height);
+    shade.addColorStop(0, 'rgba(0, 0, 0, 0)');
+    shade.addColorStop(1, 'rgba(0, 0, 0, .75)');
+    ctx.fillStyle = shade;
+    ctx.fillRect(0, height - 140, width, 140);
+    for (const p of people) {
+      const { x, y, r } = p.circle;
+      ctx.save();
+      ctx.beginPath();
+      ctx.arc(x, y, r + (p.speaking ? 5 : 2), 0, Math.PI * 2);
+      ctx.fillStyle = p.speaking ? GREEN : 'rgba(0, 0, 0, .6)';
+      if (p.speaking) { ctx.shadowColor = 'rgba(35, 165, 90, .8)'; ctx.shadowBlur = 16; }
+      ctx.fill();
+      ctx.restore();
+      drawAvatar(ctx, p);
+    }
+    if (screenName) {
+      ctx.font = '600 17px system-ui, sans-serif';
+      const text = 'Tela de ' + screenName, w = ctx.measureText(text).width + 28;
+      ctx.fillStyle = 'rgba(0, 0, 0, .55)';
+      roundRect(ctx, 20, 20, w, 34, 17);
+      ctx.fill();
+      ctx.fillStyle = '#f3f3f5';
+      ctx.textAlign = 'left';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(text, 34, 38);
+    }
+    drawBrand(ctx, { width, height, label, progress, align: 'right' });
+  }
+
+  function drawFrame(ctx, { width = W, height = H, people, label, progress, screen = null, screenName = '' }) {
+    if (screen) return drawScreenFrame(ctx, { width, height, people, label, progress, screen, screenName });
     const bg = ctx.createRadialGradient(width / 2, height * 0.38, 40, width / 2, height * 0.38, width * 0.75);
     bg.addColorStop(0, '#1d1428');
     bg.addColorStop(1, '#0d0b12');
@@ -74,20 +138,7 @@ window.ClipRender = (() => {
       ctx.textBaseline = 'top';
       ctx.fillText(p.profile.name || '', x, y + r + 14);
     }
-    // Marca discreta: "Resenhex · Sala 1 · 17/10 22:14".
-    ctx.textAlign = 'left';
-    ctx.textBaseline = 'alphabetic';
-    ctx.font = '700 18px system-ui, sans-serif';
-    ctx.fillStyle = '#f3f3f5';
-    ctx.fillText('Resenhex', 24, height - 24);
-    const brand = ctx.measureText('Resenhex').width;
-    ctx.font = '500 18px system-ui, sans-serif';
-    ctx.fillStyle = '#8d8f98';
-    ctx.fillText(' · ' + label, 24 + brand, height - 24);
-    ctx.fillStyle = 'rgba(255, 255, 255, .1)';
-    ctx.fillRect(0, height - 3, width, 3);
-    ctx.fillStyle = BRAND;
-    ctx.fillRect(0, height - 3, Math.round(progress * width), 3);
+    drawBrand(ctx, { width, height, label, progress });
   }
 
   // Mistura de quem entra no clipe, no volume original, com um limitador para não estourar.
@@ -147,50 +198,58 @@ window.ClipRender = (() => {
     await loadMuxer();
     const duration = end - start, frames = Math.max(1, Math.round(duration * FPS));
     const images = await Promise.all(people.map((p) => (p.profile.avatarUrl ? loadImage(p.profile.avatarUrl).catch(() => null) : null)));
-    const circles = window.ClipModel.layout(people.length, W, H);
-    const speaking = people.map((p) => window.ClipModel.speakingFrames(p, snapshot, { start, end, fps: FPS }));
-    const audio = await mix(people, snapshot, { start, end });
-    const { Muxer, ArrayBufferTarget } = window.Mp4Muxer;
-    const muxer = new Muxer({
-      target: new ArrayBufferTarget(),
-      video: { codec: 'avc', width: W, height: H, frameRate: FPS },
-      audio: { codec: 'aac', sampleRate: RATE, numberOfChannels: 2 },
-      fastStart: 'in-memory',
-    });
-    let failure = null;
-    const video = new VideoEncoder({ output: (chunk, meta) => muxer.addVideoChunk(chunk, meta), error: (e) => { failure = e; } });
-    video.configure({ codec: 'avc1.4d0028', width: W, height: H, bitrate: 2_500_000, framerate: FPS, avc: { format: 'avc' } });
-    const canvas = makeCanvas(W, H), ctx = canvas.getContext('2d');
-    let thumb = null;
-    for (let f = 0; f < frames && !failure; f++) {
-      drawFrame(ctx, {
-        width: W, height: H, label, progress: (f + 1) / frames,
-        people: people.map((p, i) => ({ profile: p.profile, image: images[i], circle: circles[i], speaking: !!speaking[i][f] })),
+    const grid = window.ClipModel.layout(people.length, W, H), strip = window.ClipModel.stripLayout(people.length, W, H);
+    // A tela que entrou no clipe (ou nenhuma). Antes do primeiro quadro dela, o clipe mostra as fotos em grade.
+    const screen = snapshot.screen && window.ClipScreen ? window.ClipScreen.reader(snapshot.screen) : null;
+    try {
+      const speaking = people.map((p) => window.ClipModel.speakingFrames(p, snapshot, { start, end, fps: FPS }));
+      const audio = await mix(people, snapshot, { start, end });
+      const { Muxer, ArrayBufferTarget } = window.Mp4Muxer;
+      const muxer = new Muxer({
+        target: new ArrayBufferTarget(),
+        video: { codec: 'avc', width: W, height: H, frameRate: FPS },
+        audio: { codec: 'aac', sampleRate: RATE, numberOfChannels: 2 },
+        fastStart: 'in-memory',
       });
-      if (f === 0) thumb = await thumbnail(canvas);
-      const frame = new VideoFrame(canvas, { timestamp: Math.round((f * 1e6) / FPS), duration: Math.round(1e6 / FPS) });
-      video.encode(frame, { keyFrame: f % (FPS * 2) === 0 });
-      frame.close();
-      if (video.encodeQueueSize > 8) await new Promise((r) => video.addEventListener('dequeue', r, { once: true }));
+      let failure = null;
+      const video = new VideoEncoder({ output: (chunk, meta) => muxer.addVideoChunk(chunk, meta), error: (e) => { failure = e; } });
+      video.configure({ codec: 'avc1.4d0028', width: W, height: H, bitrate: screen ? 4_000_000 : 2_500_000, framerate: FPS, avc: { format: 'avc' } });
+      const canvas = makeCanvas(W, H), ctx = canvas.getContext('2d');
+      let thumb = null;
+      for (let f = 0; f < frames && !failure; f++) {
+        const shot = screen ? await screen.at(start + f / FPS) : null;
+        const circles = shot ? strip : grid;
+        drawFrame(ctx, {
+          width: W, height: H, label, progress: (f + 1) / frames, screen: shot, screenName: snapshot.screen?.name,
+          people: people.map((p, i) => ({ profile: p.profile, image: images[i], circle: circles[i], speaking: !!speaking[i][f] })),
+        });
+        if (f === 0) thumb = await thumbnail(canvas);
+        const frame = new VideoFrame(canvas, { timestamp: Math.round((f * 1e6) / FPS), duration: Math.round(1e6 / FPS) });
+        video.encode(frame, { keyFrame: f % (FPS * 2) === 0 });
+        frame.close();
+        if (video.encodeQueueSize > 8) await new Promise((r) => video.addEventListener('dequeue', r, { once: true }));
+      }
+      await video.flush();
+      const sound = new AudioEncoder({ output: (chunk, meta) => muxer.addAudioChunk(chunk, meta), error: (e) => { failure = e; } });
+      sound.configure({ codec: 'mp4a.40.2', sampleRate: RATE, numberOfChannels: 2, bitrate: 128_000 });
+      const left = audio.getChannelData(0), right = audio.getChannelData(1), step = 4800;
+      for (let i = 0; i < audio.length && !failure; i += step) {
+        const n = Math.min(step, audio.length - i), data = new Float32Array(n * 2);
+        data.set(left.subarray(i, i + n), 0);
+        data.set(right.subarray(i, i + n), n);
+        const chunk = new AudioData({ format: 'f32-planar', sampleRate: RATE, numberOfFrames: n, numberOfChannels: 2, timestamp: Math.round((i * 1e6) / RATE), data });
+        sound.encode(chunk);
+        chunk.close();
+      }
+      await sound.flush();
+      video.close();
+      sound.close();
+      if (failure) throw failure;
+      muxer.finalize();
+      return { mp4: new Blob([muxer.target.buffer], { type: 'video/mp4' }), thumb, duration };
+    } finally {
+      screen?.close();
     }
-    await video.flush();
-    const sound = new AudioEncoder({ output: (chunk, meta) => muxer.addAudioChunk(chunk, meta), error: (e) => { failure = e; } });
-    sound.configure({ codec: 'mp4a.40.2', sampleRate: RATE, numberOfChannels: 2, bitrate: 128_000 });
-    const left = audio.getChannelData(0), right = audio.getChannelData(1), step = 4800;
-    for (let i = 0; i < audio.length && !failure; i += step) {
-      const n = Math.min(step, audio.length - i), data = new Float32Array(n * 2);
-      data.set(left.subarray(i, i + n), 0);
-      data.set(right.subarray(i, i + n), n);
-      const chunk = new AudioData({ format: 'f32-planar', sampleRate: RATE, numberOfFrames: n, numberOfChannels: 2, timestamp: Math.round((i * 1e6) / RATE), data });
-      sound.encode(chunk);
-      chunk.close();
-    }
-    await sound.flush();
-    video.close();
-    sound.close();
-    if (failure) throw failure;
-    muxer.finalize();
-    return { mp4: new Blob([muxer.target.buffer], { type: 'video/mp4' }), thumb, duration };
   }
 
   return { supported, drawFrame, mix, render };

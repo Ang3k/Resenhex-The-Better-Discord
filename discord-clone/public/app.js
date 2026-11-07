@@ -67,7 +67,7 @@
     local: { screen: null, camera: null }, // meus streams de vídeo
     sharePreset: SHARE_PRESETS[localStorage.getItem('sharePreset')] ? localStorage.getItem('sharePreset') : 'p1080_60',
     sharePaused: false,
-    allowClips: localStorage.getItem('allowClips') !== '0', // CLIPAR: "Pode clipar meu áudio"
+    allowClips: localStorage.getItem('allowClips') !== '0', // CLIPAR: "Pode clipar meu áudio e minha tela"
     clips: [], // clipes da chamada atual (24 h, só para quem estava nela)
     uploadMbps: Math.min(100, Math.max(3, Number(localStorage.getItem('uploadMbps')) || 50)),
     cameraDeviceId: localStorage.getItem('cameraDeviceId') || '',
@@ -5047,6 +5047,8 @@
   // Cada voz que a chamada ouve também vai para um anel de 30 s por conta (clip-buffer.js). Nada sai
   // do aparelho até alguém clipar; quem desliga "Pode clipar meu áudio" some do anel na hora.
   const clipBuffer = window.ClipBuffer({ getCtx: getAudioCtx });
+  // E a tela: a fixada, senão a que estou assistindo, senão a minha. Só de quem deixa clipar.
+  const clipScreen = window.ClipScreen();
   const clipStreams = new Map(); // sid -> { stream, accountId }
   const callVoices = () => (callInfo()?.voice || state.server?.voice || []).filter((v) => !v.channel || v.channel === state.voiceChannel);
   const clipProfile = (accountId) => {
@@ -5068,6 +5070,22 @@
     }
     if (state.me) states.set(state.me.accountId, { muted: selfSilent(), silenced: false, allowClips: state.allowClips, speaking: state.speaking.has(state.me.sid) });
     clipBuffer.sample(states);
+    clipScreenSync();
+  }
+  function clipScreenSync() {
+    const meSid = state.me?.sid;
+    const sharing = voiceEntries(state.voiceChannel).filter((v) => v.sharing);
+    const allowed = (v) => (v.sid === meSid ? state.allowClips : v.allowClips !== false);
+    const trackOf = (v) => {
+      const stream = v.sid === meSid ? state.local.screen : isWatching(v.sid) ? state.peers.get(v.sid)?.remote?.screen : null;
+      const track = stream?.getVideoTracks()[0];
+      return track?.readyState === 'live' ? track : null;
+    };
+    for (const v of sharing) if (!allowed(v)) clipScreen.forget(v.accountId);
+    const pinned = state.pinned?.startsWith('screen-') ? state.pinned.slice('screen-'.length) : null;
+    const rank = (v) => (v.sid === pinned ? 0 : v.sid === meSid ? 2 : 1);
+    const pick = sharing.filter((v) => allowed(v) && trackOf(v)).sort((a, b) => rank(a) - rank(b))[0];
+    clipScreen.follow(pick ? { accountId: pick.accountId, track: trackOf(pick), name: clipProfile(pick.accountId).name } : null);
   }
   const clipUi = window.ClipUI({
     el, Icon, toast, call, token: () => localStorage.getItem('token') || '', buffer: clipBuffer, model: window.ClipModel, render: window.ClipRender,
@@ -5092,7 +5110,11 @@
     },
   });
   async function startClip() {
-    if (!state.voiceChannel || !await clipUi.start(() => clipBuffer.snapshot())) return;
+    const takeSnapshot = async () => {
+      const shot = await clipBuffer.snapshot();
+      return { ...shot, screen: clipScreen.snapshot(shot.takenAt, shot.seconds) };
+    };
+    if (!state.voiceChannel || !await clipUi.start(takeSnapshot)) return;
     const button = $('#sc-clip');
     button.classList.add('clipping');
     setTimeout(() => button.classList.remove('clipping'), 1000);
@@ -5102,6 +5124,7 @@
   let clipChannel = null;
   function clipEnd() {
     clipBuffer.stop();
+    clipScreen.stop();
     clipStreams.clear();
     clipChannel = null;
     state.clips = [];

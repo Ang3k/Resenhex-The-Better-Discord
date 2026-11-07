@@ -18,6 +18,7 @@ function fakeCtx() {
     fillStyle: '#000', strokeStyle: '#000', lineWidth: 1, shadowBlur: 0, shadowColor: 'transparent', font: '', textAlign: 'left', textBaseline: 'alphabetic', globalAlpha: 1,
     calls,
     createRadialGradient: () => ({ addColorStop() {} }),
+    createLinearGradient: () => ({ addColorStop() {} }),
     measureText: (text) => ({ width: text.length * 10 }),
   };
   for (const name of ['fillRect', 'beginPath', 'arc', 'fill', 'stroke', 'save', 'restore', 'clip', 'drawImage', 'fillText', 'translate', 'scale', 'closePath', 'moveTo', 'lineTo']) {
@@ -64,4 +65,19 @@ test('a marca e o progresso aparecem', () => {
   assert.ok(ctx.calls.some((c) => c.name === 'fillText' && c.args[0] === 'Resenhex' && /bold|700/.test(c.font)));
   assert.ok(ctx.calls.some((c) => c.name === 'fillText' && String(c.args[0]).includes('Sala 1 · 17/10 22:14')));
   assert.ok(ctx.calls.some((c) => c.name === 'fillRect' && c.args[1] >= 717 && c.args[2] === 320 && c.fillStyle === '#8e2fd8'));
+});
+
+test('com a tela: ela cobre o quadro, as fotos ficam embaixo e só quem fala ganha o verde', () => {
+  const ctx = fakeCtx();
+  const screen = { displayWidth: 1280, displayHeight: 720 };
+  const list = people().map((p, i) => ({ ...p, circle: { x: 54 + i * 68, y: 672, r: 26 } }));
+  load().drawFrame(ctx, { width: 1280, height: 720, people: list, label: 'Sala 1', progress: 0.5, screen, screenName: 'Ana' });
+  const draws = ctx.calls.filter((c) => c.name === 'drawImage');
+  assert.equal(draws[0].args[0], screen);
+  assert.deepEqual(draws[0].args.slice(1), [0, 0, 1280, 720]);
+  assert.equal(ctx.calls.filter((c) => c.name === 'fill' && c.fillStyle === '#23a55a').length, 1);
+  assert.ok(ctx.calls.some((c) => c.name === 'fillText' && c.args[0] === 'Tela de Ana'));
+  assert.ok(!ctx.calls.some((c) => c.name === 'fillText' && c.args[0] === 'Bruno'), 'sem nomes embaixo das fotos pequenas');
+  const brand = ctx.calls.find((c) => c.name === 'fillText' && c.args[0] === 'Resenhex');
+  assert.ok(brand.args[1] > 640, 'marca à direita, longe das fotos');
 });

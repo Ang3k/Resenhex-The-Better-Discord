@@ -104,6 +104,10 @@ test('clipes: envio, aviso só na sala, recusas, download de uso único, lista e
     const refused = await postClip(host, meta);
     assert.equal(refused.status, 403);
     assert.match((await refused.json()).error, /não quer/);
+    // A tela de quem desligou a opção também não entra, mesmo sem a voz dela no clipe.
+    const screenRefused = await postClip(host, { ...meta, participants: [host.accountId], screen: viewer.accountId });
+    assert.equal(screenRefused.status, 403);
+    assert.match((await screenRefused.json()).error, /não quer/);
     assert.equal((await postClip(host, { ...meta, participants: [host.accountId] })).status, 200);
     // Corte feito noutra chamada (a pessoa foi movida com o corte aberto): recusado.
     const moved = await postClip(host, { ...meta, participants: [host.accountId], voice: rooms[1].id });
