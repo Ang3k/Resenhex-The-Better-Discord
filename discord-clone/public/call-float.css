@@ -1,0 +1,55 @@
+/* Cartão flutuante da chamada no celular (app.js, renderCallFloat): fora da tela da chamada, com a sala,
+   quem está nela e microfone, fone e desligar. Arrastável até um dos quatro cantos. */
+#call-float { display: none; }
+
+@media (max-width: 640px) {
+  #call-float {
+    position: fixed; z-index: 12;
+    display: flex; flex-direction: column; gap: 10px;
+    width: 176px; padding: 10px;
+    border-radius: 16px; border: 1px solid var(--divider);
+    background: var(--bg-floating); box-shadow: var(--shadow-float);
+    touch-action: none; user-select: none; -webkit-user-select: none;
+    animation: cf-in var(--motion-slow, .28s) var(--ease-enter, cubic-bezier(.2, .9, .3, 1));
+  }
+  #call-float.hidden,
+  body:has(#app.channels-open) #call-float,
+  body:has(#app.members-open) #call-float,
+  body:has(.confirm-overlay) #call-float { display: none; }
+  #call-float[data-corner^="top"] { top: calc(68px + env(safe-area-inset-top)); }
+  #call-float[data-corner^="bottom"] { bottom: calc(88px + env(safe-area-inset-bottom)); }
+  #call-float[data-corner$="left"] { left: 12px; }
+  #call-float[data-corner$="right"] { right: 12px; }
+  #call-float.dragging { box-shadow: var(--shadow-float), 0 18px 40px rgb(0 0 0 / .35); scale: 1.03; }
+
+  .cf-open {
+    all: unset; box-sizing: border-box;
+    display: flex; flex-direction: column; gap: 8px; min-width: 0;
+    cursor: pointer; border-radius: 10px;
+  }
+  .cf-open:focus-visible { outline: 2px solid var(--brand); outline-offset: 3px; }
+  .cf-head { display: flex; align-items: center; gap: 6px; min-width: 0; font-size: 12px; line-height: 16px; }
+  .cf-dot { flex-shrink: 0; width: 8px; height: 8px; border-radius: 50%; background: var(--green); box-shadow: 0 0 0 3px color-mix(in srgb, var(--green) 22%, transparent); }
+  .cf-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 700; color: var(--text-strong); }
+  .cf-head .call-time { flex-shrink: 0; color: var(--green); }
+
+  .cf-people { display: flex; align-items: center; gap: 6px; min-height: 32px; }
+  .cf-people .avatar { width: 32px; height: 32px; font-size: 12px; flex-shrink: 0; }
+  .cf-people .avatar.speaking { box-shadow: 0 0 0 2px var(--bg-floating), 0 0 0 4px var(--green); }
+  .cf-more { font-size: 12px; font-weight: 600; color: var(--text-muted); }
+
+  .cf-actions { display: flex; gap: 6px; }
+  .cf-btn {
+    flex: 1; height: 38px; display: grid; place-items: center;
+    border: 0; border-radius: 10px; cursor: pointer;
+    background: var(--hover-strong); color: var(--text);
+  }
+  .cf-btn:active { filter: brightness(1.2); }
+  .cf-btn.off { background: color-mix(in srgb, var(--red) 18%, transparent); color: var(--red); }
+  .cf-btn.locked { opacity: .55; }
+  .cf-leave { background: var(--red-dark); color: var(--text-strong); }
+  .cf-leave svg { rotate: 135deg; }
+}
+
+@keyframes cf-in { from { opacity: 0; scale: .92; } to { opacity: 1; scale: 1; } }
+@media (prefers-reduced-motion: reduce) { #call-float { animation: none; } }

@@ -4,12 +4,13 @@
 // O título deve destacar as principais funcionalidades ou correções, com termos objetivos.
 window.CHANGELOG = [
   {
-    version: '2.4.0', date: '2026-11-07', name: 'Clipar com a tela de quem está transmitindo',
+    version: '2.4.0', date: '2026-11-07', name: 'Clipar com a tela de quem está transmitindo e a call flutuante no celular',
     summary: 'Agora o clipe mostra a transmissão: se você está assistindo à tela de alguém (ou transmitindo a sua), os últimos 30 segundos dela entram no clipe junto com o som da chamada. E o Propor Melhorias voltou a entregar as sugestões.',
     sections: [
       { kind: 'new', items: [
         'Clipar com a tela: o clipe mostra a tela que você está assistindo, grande, com as fotos de quem está na chamada embaixo e o círculo verde em quem fala. Se você mesmo está transmitindo, entra a sua tela. Com duas transmissões, entra a que estiver fixada. Sem transmissão, o clipe fica como antes.',
         'A prévia da janela Clipar já mostra a tela, e a linha "No clipe" avisa de quem é a tela que vai junto.',
+        'No celular, a call ganhou um cartão flutuante, como no Discord: fora da tela da chamada (num canal de texto, nas mensagens diretas), ele mostra a sala, o tempo e quem está nela, com os botões de microfone, fone e desligar. Dá para arrastar o cartão até qualquer canto, e um toque nele volta para a chamada.',
       ] },
       { kind: 'improved', items: [
         'A opção "Pode clipar meu áudio" virou "Pode clipar meu áudio e minha tela". Desligada, nem a sua voz nem a sua transmissão entram nos clipes dos outros.',

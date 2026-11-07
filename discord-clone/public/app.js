@@ -1613,6 +1613,7 @@
     $('#voice-view').classList.toggle('hidden', !inVoiceView && !dmSplit);
     $('#main').classList.toggle('dm-call', dmSplit);
     $('#voice-view').classList.toggle('dm-call-full', !!inVoiceView && isDm(state.voiceChannel));
+    renderCallFloat();
     renderDmCallTools(friendsPage || inVoiceView ? null : channelById(state.textChannel));
     if (dmSplit) renderStage();
     if (friendsPage || inVoiceView) {
@@ -3027,6 +3028,111 @@
     button.replaceChildren(svg, label);
   }
 
+  // ---------------- Cartão flutuante da chamada (celular) ----------------
+  // Como no Discord do celular: fora da tela da chamada aparece um cartão com a sala, quem está nela e os
+  // botões de microfone, fone e desligar. Dá para arrastar até qualquer canto (fica lembrado); um toque
+  // no cartão volta à chamada. Só aparece no layout de celular (call-float.css).
+  const CALL_FLOAT_CORNERS = ['top-left', 'top-right', 'bottom-left', 'bottom-right'];
+  let callFloat = null;
+  let callFloatControls = { micOff: false, forcedMute: false, deaf: false, serverDeaf: false };
+
+  function callFloatCorner() {
+    try { const saved = localStorage.getItem('callFloatCorner'); if (CALL_FLOAT_CORNERS.includes(saved)) return saved; } catch {}
+    return 'top-right';
+  }
+
+  function buildCallFloat() {
+    const open = el('button', { type: 'button', class: 'cf-open', onclick: () => { closePanels(); returnToCall(); } },
+      el('span', { class: 'cf-head' },
+        el('span', { class: 'cf-dot', ariaHidden: 'true' }),
+        el('span', { class: 'cf-name' }),
+        el('time', { class: 'call-time', data: { callTime: '' } })),
+      el('span', { class: 'cf-people' }));
+    const mic = el('button', { type: 'button', class: 'cf-btn cf-mic', onclick: () => $('#btn-mute').click() });
+    const deaf = el('button', { type: 'button', class: 'cf-btn cf-deaf', onclick: () => $('#btn-deafen').click() });
+    const leave = el('button', { type: 'button', class: 'cf-btn cf-leave', ariaLabel: 'Desconectar', onclick: () => leaveVoice() }, Icon('phone', 18));
+    const node = el('div', { id: 'call-float', class: 'hidden', role: 'group', ariaLabel: 'Chamada em andamento', data: { corner: callFloatCorner() } },
+      open, el('div', { class: 'cf-actions' }, mic, deaf, leave));
+    document.body.append(node);
+    dragCallFloat(node);
+    return node;
+  }
+
+  // Arrastar: o cartão segue o dedo e, ao soltar, desliza até o canto mais perto. Um arrasto não vira toque.
+  function dragCallFloat(node) {
+    let start = null, moved = false;
+    node.addEventListener('pointerdown', (e) => {
+      if (e.button > 0) return;
+      start = { x: e.clientX, y: e.clientY, id: e.pointerId };
+      moved = false;
+    });
+    node.addEventListener('pointermove', (e) => {
+      if (!start || e.pointerId !== start.id) return;
+      const dx = e.clientX - start.x, dy = e.clientY - start.y;
+      if (!moved && Math.hypot(dx, dy) < 8) return;
+      if (!moved) { moved = true; node.setPointerCapture?.(e.pointerId); node.classList.add('dragging'); }
+      node.style.transform = `translate(${dx}px, ${dy}px)`;
+    });
+    const end = (e) => {
+      if (!start || e.pointerId !== start.id) return;
+      start = null;
+      if (!moved) return;
+      const before = node.getBoundingClientRect();
+      const cx = before.left + before.width / 2, cy = before.top + before.height / 2;
+      const corner = `${cy < innerHeight / 2 ? 'top' : 'bottom'}-${cx < innerWidth / 2 ? 'left' : 'right'}`;
+      try { localStorage.setItem('callFloatCorner', corner); } catch {}
+      node.classList.remove('dragging');
+      node.style.transform = '';
+      node.dataset.corner = corner;
+      // Sai de onde o dedo soltou e desliza até o canto.
+      const after = node.getBoundingClientRect();
+      node.animate?.([{ transform: `translate(${before.left - after.left}px, ${before.top - after.top}px)` }, { transform: 'none' }],
+        { duration: matchMedia('(prefers-reduced-motion: reduce)').matches ? 0 : 260, easing: 'cubic-bezier(.2, .9, .3, 1.15)' });
+    };
+    node.addEventListener('pointerup', end);
+    node.addEventListener('pointercancel', end);
+    // O toque que terminou um arrasto não aperta botão nenhum.
+    node.addEventListener('click', (e) => { if (moved) { e.stopPropagation(); e.preventDefault(); moved = false; } }, true);
+  }
+
+  function renderCallFloat() {
+    if (!state.me) return;
+    const inVoiceView = state.view === 'voice' && state.voiceChannel;
+    const dmSplit = !inVoiceView && isDm(state.voiceChannel) && state.home && state.textChannel === state.voiceChannel;
+    const show = !!state.voiceChannel && !inVoiceView && !dmSplit;
+    if (!show) { callFloat?.classList.add('hidden'); return; }
+    callFloat ||= buildCallFloat();
+    callFloat.classList.remove('hidden');
+    const room = callInfo()?.dm ? 'Chamada' : callChannelName() || 'Chamada';
+    callFloat.querySelector('.cf-name').textContent = room;
+    callFloat.querySelector('.cf-open').setAttribute('aria-label', 'Voltar à chamada: ' + room);
+    updateCallTime();
+    const { micOff, forcedMute, deaf, serverDeaf } = callFloatControls;
+    const mic = callFloat.querySelector('.cf-mic');
+    setControlIcon(mic, micOff ? 'micOff' : 'mic', 18);
+    mic.classList.toggle('off', micOff && !forcedMute);
+    mic.classList.toggle('locked', forcedMute);
+    mic.setAttribute('aria-label', forcedMute ? 'Silenciado pelo servidor' : micOff ? 'Ativar microfone' : 'Silenciar');
+    const deafen = callFloat.querySelector('.cf-deaf');
+    setControlIcon(deafen, deaf ? 'headphonesOff' : 'headphones', 18);
+    deafen.classList.toggle('off', deaf && !serverDeaf);
+    deafen.classList.toggle('locked', serverDeaf);
+    deafen.setAttribute('aria-label', serverDeaf ? 'Ensurdecido pelo servidor' : deaf ? 'Desativar surdez' : 'Ensurdecer');
+    // Quem está na sala: até 4 fotos (o anel verde de quem fala vem do mesmo laço da chamada) e "+N".
+    const entries = voiceEntries(state.voiceChannel).filter((v) => callMember(v.accountId));
+    const shown = entries.slice(0, 4);
+    const key = JSON.stringify([shown.map((v) => { const m = callMember(v.accountId); return [v.sid, m.name, m.avatarUrl, m.color]; }), entries.length]);
+    const people = callFloat.querySelector('.cf-people');
+    if (people.dataset.key !== key) {
+      people.dataset.key = key;
+      people.replaceChildren(...shown.map((v) => {
+        const node = avatar(callMember(v.accountId), '', v.sid);
+        node.classList.toggle('speaking', state.speaking.has(v.sid));
+        return node;
+      }), ...(entries.length > shown.length ? [el('span', { class: 'cf-more', textContent: '+' + (entries.length - shown.length) })] : []));
+    }
+  }
+
   function renderControls() {
     const me = callMe();
     const inVoice = !!state.voiceChannel;
@@ -3034,6 +3140,8 @@
     const micOff = state.muted || state.deafened || forcedMute;
     syncAndroidCall(micOff);
     const deaf = state.deafened || me.serverDeafened;
+    callFloatControls = { micOff, forcedMute, deaf: !!deaf, serverDeaf: !!me.serverDeafened };
+    renderCallFloat();
     $('#voice-panel').classList.toggle('hidden', !inVoice);
     const roomName = inVoice ? `${callChannelName()} / ${callInfo()?.serverName || serverName()}` : '';
     $('#voice-room-name').textContent = roomName;
