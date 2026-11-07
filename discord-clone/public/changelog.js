@@ -4,26 +4,15 @@
 // O título deve destacar as principais funcionalidades ou correções, com termos objetivos.
 window.CHANGELOG = [
   {
-    version: '2.4.1', date: '2026-11-07', name: 'Janelinha da call no Android, por cima dos outros apps',
-    summary: 'No app do Android, a call agora vira uma janelinha quando você sai do Resenhex: aperte Home ou Voltar durante a call e ela fica por cima de qualquer outro app, com a transmissão que você assiste ou as fotos de quem está na sala.',
-    sections: [
-      { kind: 'new', items: [
-        'App do Android 1.3.3: durante a call, Home, Voltar ou o gesto de ir para a tela inicial transformam o Resenhex numa janelinha por cima dos outros apps, como no Discord. Ela mostra ao vivo a transmissão que você está assistindo ou, sem transmissão, a sala, o tempo e as fotos de quem está nela.',
-        'Toque na janelinha para ver os botões de microfone, fone e desligar. O botão do meio abre o Resenhex de novo na call, e dá para arrastar a janelinha para qualquer canto ou fechar no X (a call continua).',
-      ] },
-      { kind: 'fixed', items: [
-        'O cartão flutuante da call no celular não troca mais de formato quando a imagem da transmissão para por um instante, e o vídeo não mostra mais um botão de play cinza enquanto muda de tamanho.',
-      ] },
-    ],
-  },
-  {
     version: '2.4.0', date: '2026-11-07', name: 'Clipar com a tela de quem está transmitindo e a call flutuante no celular',
-    summary: 'Agora o clipe mostra a transmissão: se você está assistindo à tela de alguém (ou transmitindo a sua), os últimos 30 segundos dela entram no clipe junto com o som da chamada. E o Propor Melhorias voltou a entregar as sugestões.',
+    summary: 'Agora o clipe mostra a transmissão: se você está assistindo à tela de alguém (ou transmitindo a sua), os últimos 30 segundos dela entram no clipe junto com o som da chamada. No celular, a call fica num cartão flutuante e, no app do Android, vira uma janelinha por cima dos outros apps. E o Propor Melhorias voltou a entregar as sugestões.',
     sections: [
       { kind: 'new', items: [
         'Clipar com a tela: o clipe mostra a tela que você está assistindo, grande, com as fotos de quem está na chamada embaixo e o círculo verde em quem fala. Se você mesmo está transmitindo, entra a sua tela. Com duas transmissões, entra a que estiver fixada. Sem transmissão, o clipe fica como antes.',
         'A prévia da janela Clipar já mostra a tela, e a linha "No clipe" avisa de quem é a tela que vai junto.',
         'No celular, a call ganhou um cartão flutuante, como no Discord: fora da tela da chamada (num canal de texto, nas mensagens diretas), ele mostra a sala, o tempo e quem está nela, com os botões de microfone, fone e desligar. Se você está assistindo a uma transmissão, ela aparece ao vivo no cartão, em miniatura. Dá para arrastar o cartão até qualquer canto, e um toque nele volta para a chamada.',
+        'App do Android 1.3.3: durante a call, Home, Voltar ou o gesto de ir para a tela inicial transformam o Resenhex numa janelinha por cima dos outros apps, como no Discord. Ela mostra ao vivo a transmissão que você está assistindo ou, sem transmissão, a sala, o tempo e as fotos de quem está nela.',
+        'Toque na janelinha para ver os botões de microfone, fone e desligar. O botão do meio abre o Resenhex de novo na call, e dá para arrastar a janelinha para qualquer canto ou fechar no X (a call continua).',
       ] },
       { kind: 'improved', items: [
         'A opção "Pode clipar meu áudio" virou "Pode clipar meu áudio e minha tela". Desligada, nem a sua voz nem a sua transmissão entram nos clipes dos outros.',
@@ -31,6 +20,7 @@ window.CHANGELOG = [
       ] },
       { kind: 'fixed', items: [
         'O Propor Melhorias dizia "Não foi possível enviar agora" e a sugestão não chegava. O serviço de fora que entregava as sugestões parou de aceitar depois que o site mudou de endereço. Agora elas vão pelo mesmo e-mail que manda o "Esqueci a senha", e, se a sua conta tem e-mail confirmado, dá para receber a resposta direto nele.',
+        'O cartão flutuante da call no celular não troca mais de formato quando a imagem da transmissão para por um instante, e o vídeo não mostra mais um botão de play cinza enquanto muda de tamanho.',
       ] },
     ],
   },
