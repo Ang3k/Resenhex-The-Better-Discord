@@ -26,7 +26,8 @@ Deixar o Resenhex aguentar **5 mil pessoas online ao mesmo tempo**, espalhadas e
 
 ## O que está no ar
 
-- **Site:** versão **2.4.0** em https://resenhex.com.br, publicada em 07/11 às 17:02 (Brasília) a partir da branch `claude/call-flutuante` (`d7f5c94`): Clipar com a tela de quem transmite, call flutuante no celular (com a transmissão em miniatura) e o Propor Melhorias enviando pelo e-mail do site. O `main` local foi avançado para `d7f5c94`. Antes estava a 2.3.5 (`74d90a2`, 31/10). A 2.0.0, do plano de 5 mil, saiu em 25/10 de `claude/chamada-atual` (`68639d1`); as versões seguintes estão no `CHANGELOG.md`.
+- **Site:** versão **2.4.0** em https://resenhex.com.br, publicada de novo em 07/11 às 17:36 (Brasília) a partir da branch `claude/android-pip` (`9dc2c00`), com o mesmo número a pedido do dono: Clipar com a tela de quem transmite, call flutuante no celular (com a transmissão em miniatura), a janelinha da call no Android e o Propor Melhorias enviando pelo e-mail do site. A primeira publicação da 2.4.0 foi às 17:02, de `claude/call-flutuante` (`d7f5c94`). O `main` local foi avançado para `9dc2c00`.
+- **Apps:** Windows 1.4.7; Android 1.3.3 (janelinha da call por cima dos outros apps), publicado em 07/11 às 17:38. Antes estava a 2.3.5 (`74d90a2`, 31/10). A 2.0.0, do plano de 5 mil, saiu em 25/10 de `claude/chamada-atual` (`68639d1`); as versões seguintes estão no `CHANGELOG.md`.
 - **Painel "Chamadas agora":** só o dono vê, em Configurações. Mostra quem está online e em qual call.
 - **GitHub:** o `main` de lá tem o mesmo código que está no ar (2.3.5), enviado em 31/10 a pedido do dono.
 - **Servidor:** Oracle ARM grátis (2 núcleos, 12 GB), IP `146.235.41.73`, usuário `ubuntu`, chave `~/.ssh/resenhex-oracle-ed25519`.
