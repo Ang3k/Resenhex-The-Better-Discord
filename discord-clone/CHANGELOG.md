@@ -3,6 +3,16 @@
 Histórico de versões. A mesma lista aparece dentro do app em **Novidades** (menu do servidor ou rodapé das Configurações).
 O Resenhex chegou à versão 1.0 em 4 de outubro de 2026.
 
+## v2.3.6 — Propor Melhorias voltou a funcionar
+
+7 de novembro de 2026.
+
+As sugestões mandadas pelo Propor Melhorias não estavam chegando desde a troca para resenhex.com.br. Agora elas vão pelo e-mail do próprio Resenhex.
+
+### Correções
+
+- O Propor Melhorias dizia "Não foi possível enviar agora" e a sugestão não chegava. O serviço de fora que entregava as sugestões parou de aceitar depois que o site mudou de endereço. Agora elas vão pelo mesmo e-mail que manda o "Esqueci a senha", e, se a sua conta tem e-mail confirmado, dá para receber a resposta direto nele.
+
 ## v2.3.5 — Mudae 2.0 e o círculo verde de quem fala mostrando o que os outros ouvem
 
 31 de outubro de 2026.

@@ -427,7 +427,7 @@ Relatórios, planos e o roadmap ficam em [`docs/`](../docs/), na raiz do reposit
 
 ## Sugestões de melhoria por e-mail
 
-O formulário **Propor Melhorias** envia as sugestões para **angejesufern@gmail.com** pelo [FormSubmit](https://formsubmit.co/), sem senha de e-mail ou chave de API. No primeiro envio, confirme o link de ativação que chegará à caixa de entrada (confira também o spam). O FormSubmit guarda as sugestões pendentes por até 30 dias e as entrega após a confirmação; a confirmação do formulário no app indica que o serviço aceitou o envio, não que o e-mail já chegou.
+O formulário **Propor Melhorias** envia as sugestões para **angejesufern@gmail.com** (ou para `FEEDBACK_EMAIL`, se definido) pelo mesmo e-mail que manda o "Esqueci a senha" (as variáveis `SMTP_*`). Sem SMTP configurado, o formulário avisa que o envio está desligado. Quando a conta de quem envia tem e-mail confirmado, ele vai como "responder para". Até a 2.3.5 o envio era pelo FormSubmit, que parou de entregar com a troca de domínio.
 
 A rota `/feedback` exige uma sessão válida, confere o limite de 3000 caracteres e permite até três tentativas de envio a cada dez minutos por conta. O destinatário é definido no servidor; o usuário não pode alterá-lo. O e-mail inclui apenas o nome da conta, a sugestão, a versão do Resenhex e o horário do envio. `RESENHEX_DOMAIN`, já configurado no deploy, identifica o formulário no serviço; o padrão é `resenhex.duckdns.org`. Ao trocar o domínio, pode ser necessária uma nova confirmação do formulário.
 

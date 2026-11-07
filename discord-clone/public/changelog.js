@@ -4,6 +4,15 @@
 // O título deve destacar as principais funcionalidades ou correções, com termos objetivos.
 window.CHANGELOG = [
   {
+    version: '2.3.6', date: '2026-11-07', name: 'Propor Melhorias voltou a funcionar',
+    summary: 'As sugestões mandadas pelo Propor Melhorias não estavam chegando desde a troca para resenhex.com.br. Agora elas vão pelo e-mail do próprio Resenhex.',
+    sections: [
+      { kind: 'fixed', items: [
+        'O Propor Melhorias dizia "Não foi possível enviar agora" e a sugestão não chegava. O serviço de fora que entregava as sugestões parou de aceitar depois que o site mudou de endereço. Agora elas vão pelo mesmo e-mail que manda o "Esqueci a senha", e, se a sua conta tem e-mail confirmado, dá para receber a resposta direto nele.',
+      ] },
+    ],
+  },
+  {
     version: '2.3.5', date: '2026-10-31', name: 'Mudae 2.0 e o círculo verde de quem fala mostrando o que os outros ouvem',
     summary: 'O Mudae ficou só com personagens: a roleta deixou de sortear cerca de 100 mil lugares, itens, tipos de inimigo e figurantes, e continuam mais de 130 mil personagens de anime, jogos, quadrinhos, desenhos e séries. E o círculo verde da chamada agora acende sempre que os outros estão ouvindo você, até com um som baixinho.',
     sections: [
