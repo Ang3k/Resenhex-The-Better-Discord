@@ -26,10 +26,10 @@ Deixar o Resenhex aguentar **5 mil pessoas online ao mesmo tempo**, espalhadas e
 
 ## O que está no ar
 
-- **Site:** versão **2.4.0** em https://resenhex.com.br, publicada de novo em 07/11 às 17:36 (Brasília) a partir da branch `claude/android-pip` (`9dc2c00`), com o mesmo número a pedido do dono: Clipar com a tela de quem transmite, call flutuante no celular (com a transmissão em miniatura), a janelinha da call no Android e o Propor Melhorias enviando pelo e-mail do site. A primeira publicação da 2.4.0 foi às 17:02, de `claude/call-flutuante` (`d7f5c94`). O `main` local foi avançado para `9dc2c00`.
-- **Apps:** Windows 1.4.7; Android 1.3.3 (janelinha da call por cima dos outros apps), publicado em 07/11 às 17:38. Antes estava a 2.3.5 (`74d90a2`, 31/10). A 2.0.0, do plano de 5 mil, saiu em 25/10 de `claude/chamada-atual` (`68639d1`); as versões seguintes estão no `CHANGELOG.md`.
+- **Site:** versão **2.4.5** em https://resenhex.com.br, publicada em 07/11 às 19:56 (Brasília) a partir da branch `claude/janelinha-call` (`303effd`): Mudae com troca de cartas, ranking de personagens, lista de desejos e kakera, mais a janelinha e o cartão da call com quem fala em destaque. Havia 23 conexões abertas; o dono mandou publicar e 24 estavam conectadas logo depois. Backup do banco em `/var/backups/resenhex/data-before-20261107-195559.*`. O `main` local foi avançado para `303effd`. Antes estava a 2.4.0 (`9dc2c00`, 07/11 às 17:36).
+- **Apps:** Windows 1.4.7; Android 1.3.4 (janelinha no formato da transmissão e opção de desligá-la), publicado em 07/11 às 19:57. A 2.0.0, do plano de 5 mil, saiu em 25/10 de `claude/chamada-atual` (`68639d1`); as versões seguintes estão no `CHANGELOG.md`.
 - **Painel "Chamadas agora":** só o dono vê, em Configurações. Mostra quem está online e em qual call.
-- **GitHub:** o `main` de lá tem o mesmo código que está no ar (2.3.5), enviado em 31/10 a pedido do dono.
+- **GitHub:** o `main` de lá ainda está na 2.3.5 (`14ba682`), enviada em 31/10 a pedido do dono. A 2.4.0 e a 2.4.5 só estão no `main` local.
 - **Servidor:** Oracle ARM grátis (2 núcleos, 12 GB), IP `146.235.41.73`, usuário `ubuntu`, chave `~/.ssh/resenhex-oracle-ed25519`.
   - App em `/opt/resenhex`; dados em `/var/lib/resenhex/data.db` (SQLite; o `data.json` da 1.9.0 ficou como `data.json.antes-do-sqlite`) e `/var/lib/resenhex/uploads`.
   - Backups em `/var/backups/resenhex`.
