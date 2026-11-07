@@ -5,7 +5,7 @@
 window.CHANGELOG = [
   {
     version: '2.4.0', date: '2026-11-07', name: 'Clipar com a tela de quem está transmitindo',
-    summary: 'Agora o clipe mostra a transmissão: se você está assistindo à tela de alguém (ou transmitindo a sua), os últimos 30 segundos dela entram no clipe junto com o som da chamada.',
+    summary: 'Agora o clipe mostra a transmissão: se você está assistindo à tela de alguém (ou transmitindo a sua), os últimos 30 segundos dela entram no clipe junto com o som da chamada. E o Propor Melhorias voltou a entregar as sugestões.',
     sections: [
       { kind: 'new', items: [
         'Clipar com a tela: o clipe mostra a tela que você está assistindo, grande, com as fotos de quem está na chamada embaixo e o círculo verde em quem fala. Se você mesmo está transmitindo, entra a sua tela. Com duas transmissões, entra a que estiver fixada. Sem transmissão, o clipe fica como antes.',
@@ -14,6 +14,9 @@ window.CHANGELOG = [
       { kind: 'improved', items: [
         'A opção "Pode clipar meu áudio" virou "Pode clipar meu áudio e minha tela". Desligada, nem a sua voz nem a sua transmissão entram nos clipes dos outros.',
         'Funciona no app do Windows e no navegador do computador. A tela fica guardada só no seu aparelho, comprimida pela placa de vídeo, e só sai dele quando você solta o clipe.',
+      ] },
+      { kind: 'fixed', items: [
+        'O Propor Melhorias dizia "Não foi possível enviar agora" e a sugestão não chegava. O serviço de fora que entregava as sugestões parou de aceitar depois que o site mudou de endereço. Agora elas vão pelo mesmo e-mail que manda o "Esqueci a senha", e, se a sua conta tem e-mail confirmado, dá para receber a resposta direto nele.',
       ] },
     ],
   },

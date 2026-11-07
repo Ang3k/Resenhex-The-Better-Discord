@@ -3,17 +3,23 @@ const assert = require('node:assert/strict');
 const express = require('express');
 const { feedbackRoutes } = require('../server/feedback');
 
+const ACCOUNTS = {
+  'valid-session': { id: 'ana', name: 'Ana', email: 'ana@exemplo.com', emailVerified: true },
+  'unverified-session': { id: 'bia', name: 'Bia\r\nBcc: x@y.z', email: 'bia@exemplo.com' },
+};
+
 async function setup(t, options = {}) {
   const deliveries = [];
   const counts = new Map();
   const app = express();
   app.use(feedbackRoutes({
-    authenticate: (req) => req.get('x-token') === 'valid-session' ? { id: 'ana', name: 'Ana' } : null,
+    authenticate: (req) => ACCOUNTS[req.get('x-token')] || null,
     allow: (key, max) => { const count = (counts.get(key) || 0) + 1; counts.set(key, count); return count <= max; },
-    version: '1.3.0', domain: 'resenhex.test',
-    fetchImpl: async (url, request) => {
-      deliveries.push({ url, request });
-      return options.deliver ? options.deliver() : { ok: true, json: async () => ({ success: 'true' }) };
+    version: '1.3.0',
+    to: options.to,
+    mailer: options.mailer || {
+      enabled: true,
+      async send(message) { deliveries.push(message); if (options.deliver) await options.deliver(); },
     },
   }));
   const server = app.listen(0, '127.0.0.1');
@@ -37,40 +43,46 @@ test('feedback: exige autenticação e rejeita conteúdo vazio, inválido ou gra
   assert.equal(deliveries.length, 0);
 });
 
-test('feedback: envia só os dados previstos para o destinatário fixo e limita os envios', async (t) => {
+test('feedback: manda e-mail só para o destinatário fixo, com os dados previstos, e limita os envios', async (t) => {
   const { send, deliveries } = await setup(t);
   assert.deepEqual(await send({ message: '  Adicionar busca no histórico.  ', name: 'Outra pessoa', to: 'outro@example.com', token: 'não enviar' }), { status: 200, body: { ok: true } });
-  assert.equal(deliveries[0].url, 'https://formsubmit.co/ajax/angejesufern@gmail.com');
-  const { request } = deliveries[0];
-  const payload = JSON.parse(request.body);
-  assert.equal(payload.name, 'Ana');
-  assert.equal(payload.message, 'Adicionar busca no histórico.');
-  assert.equal(payload.Versão, '1.3.0');
-  assert.equal(payload._url, 'https://resenhex.test/');
-  assert.equal(request.headers.Referer, payload._url);
-  assert.equal(request.headers.Origin, 'https://resenhex.test');
-  assert.equal(request.headers['x-token'], undefined);
-  assert.equal(payload.token, undefined);
-  assert.equal(payload.to, undefined);
-  assert.ok(request.signal instanceof AbortSignal);
+  const mail = deliveries[0];
+  assert.equal(mail.to, 'angejesufern@gmail.com');
+  assert.equal(mail.replyTo, 'ana@exemplo.com');
+  assert.equal(mail.subject, '[Resenhex] Sugestão de Ana');
+  assert.ok(mail.text.startsWith('Adicionar busca no histórico.\n'));
+  assert.match(mail.text, /De: Ana \(conta ana\)/);
+  assert.match(mail.text, /Versão: 1\.3\.0/);
+  assert.doesNotMatch(mail.text, /Outra pessoa|outro@example\.com|não enviar|valid-session/);
   assert.equal((await send({ message: 'x'.repeat(3000) })).status, 200);
   assert.equal((await send({ message: 'Outra ideia' })).status, 200);
   assert.equal((await send({ message: 'Ideia demais' })).status, 429);
   assert.equal(deliveries.length, 3);
 });
 
-test('feedback: recusas, erros de rede e respostas inválidas nunca confirmam o envio', async (t) => {
-  for (const deliver of [
-    () => ({ ok: false, json: async () => ({ success: true }) }),
-    () => ({ ok: true, json: async () => ({ success: 'false' }) }),
-    () => ({ ok: true, json: async () => ({}) }),
-    () => ({ ok: true, json: async () => { throw new SyntaxError('JSON inválido'); } }),
-    () => { throw new Error('Segredo do provedor'); },
-  ]) {
-    const { send } = await setup(t, { deliver });
+test('feedback: sem e-mail confirmado não há "responder para", e o nome não quebra o assunto', async (t) => {
+  const { send, deliveries } = await setup(t, { to: 'dono@exemplo.com' });
+  assert.equal((await send({ message: 'Ideia' }, 'unverified-session')).status, 200);
+  assert.equal(deliveries[0].to, 'dono@exemplo.com');
+  assert.equal(deliveries[0].replyTo, undefined);
+  assert.doesNotMatch(deliveries[0].subject, /[\r\n]/);
+  assert.match(deliveries[0].text, /sem e-mail confirmado/);
+});
+
+test('feedback: com o e-mail do site desligado, avisa sem gastar a cota de envios', async (t) => {
+  const { send } = await setup(t, { mailer: { enabled: false, async send() { throw new Error('desligado'); } } });
+  for (let i = 0; i < 4; i++) {
     const result = await send({ message: 'Ideia' });
-    assert.equal(result.status, 502);
-    assert.match(result.body.error, /tente novamente/);
-    assert.doesNotMatch(result.body.error, /Segredo/);
+    assert.equal(result.status, 503);
+    assert.match(result.body.error, /desligado/);
   }
+});
+
+test('feedback: falhas do envio nunca confirmam nem mostram o erro do provedor', async (t) => {
+  t.mock.method(console, 'error', () => {});
+  const { send } = await setup(t, { deliver: () => { throw new Error('Segredo do provedor'); } });
+  const result = await send({ message: 'Ideia' });
+  assert.equal(result.status, 502);
+  assert.match(result.body.error, /tente novamente/);
+  assert.doesNotMatch(result.body.error, /Segredo/);
 });

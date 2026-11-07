@@ -20,7 +20,7 @@ function createMailer(env = process.env, { createTransport = nodemailer.createTr
   const from = MAIL_FROM || `Resenhex <${SMTP_USER}>`;
   return {
     enabled: true,
-    async send({ to, subject, text, html }) { await transport.sendMail({ from, to, subject, text, html }); },
+    async send({ to, subject, text, html, replyTo }) { await transport.sendMail({ from, to, subject, text, html, ...(replyTo ? { replyTo } : {}) }); },
   };
 }
 

@@ -742,7 +742,7 @@ const authFromToken = (req) => {
   const acc = db.accounts[db.sessions[req.get('x-token')]];
   return acc || null;
 };
-app.use(feedbackRoutes({ authenticate: authFromToken, allow, version: APP_VERSION, domain: process.env.RESENHEX_DOMAIN }));
+app.use(feedbackRoutes({ authenticate: authFromToken, allow, version: APP_VERSION, mailer, to: process.env.FEEDBACK_EMAIL || undefined }));
 app.post('/profile/avatar', express.raw({ type: () => true, limit: MAX_BANNER_UPLOAD }), async (req, res) => {
   const acc = authFromToken(req);
   if (!acc) return res.status(401).json({ error: 'Não autenticado' });

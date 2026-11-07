@@ -7,7 +7,7 @@ O Resenhex chegou à versão 1.0 em 4 de outubro de 2026.
 
 7 de novembro de 2026.
 
-Agora o clipe mostra a transmissão: se você está assistindo à tela de alguém (ou transmitindo a sua), os últimos 30 segundos dela entram no clipe junto com o som da chamada.
+Agora o clipe mostra a transmissão: se você está assistindo à tela de alguém (ou transmitindo a sua), os últimos 30 segundos dela entram no clipe junto com o som da chamada. E o Propor Melhorias voltou a entregar as sugestões.
 
 ### Novidades
 
@@ -18,6 +18,10 @@ Agora o clipe mostra a transmissão: se você está assistindo à tela de algué
 
 - A opção "Pode clipar meu áudio" virou "Pode clipar meu áudio e minha tela". Desligada, nem a sua voz nem a sua transmissão entram nos clipes dos outros.
 - Funciona no app do Windows e no navegador do computador. A tela fica guardada só no seu aparelho, comprimida pela placa de vídeo, e só sai dele quando você solta o clipe.
+
+### Correções
+
+- O Propor Melhorias dizia "Não foi possível enviar agora" e a sugestão não chegava. O serviço de fora que entregava as sugestões parou de aceitar depois que o site mudou de endereço. Agora elas vão pelo mesmo e-mail que manda o "Esqueci a senha", e, se a sua conta tem e-mail confirmado, dá para receber a resposta direto nele.
 
 ## v2.3.5 — Mudae 2.0 e o círculo verde de quem fala mostrando o que os outros ouvem
 
