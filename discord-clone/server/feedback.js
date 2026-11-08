@@ -1,7 +1,7 @@
 // Sugestões de usuários autenticados, entregues ao mantenedor pelo mesmo e-mail do Resenhex que manda o
 // "Esqueci a senha" (server/mailer.js). Até a 2.3.5 iam pelo FormSubmit, que parou de entregar quando o site
 // trocou de domínio (ele pede uma nova ativação para cada endereço de site).
-// Desde a 2.6.0 a pessoa também pode mandar a ideia como mensagem direta para o dev (o dono do site): quem cuida
+// Desde a 2.5.0 a pessoa também pode mandar a ideia como mensagem direta para o dev (o dono do site): quem cuida
 // da conversa é o server.js (`dev.status` e `dev.send`); aqui ficam só as regras do formulário.
 const express = require('express');
 

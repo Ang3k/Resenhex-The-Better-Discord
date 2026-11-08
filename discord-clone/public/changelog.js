@@ -4,10 +4,16 @@
 // O título deve destacar as principais funcionalidades ou correções, com termos objetivos.
 window.CHANGELOG = [
   {
-    version: '2.6.0', date: '2026-11-08', name: 'Enquetes na chamada e mensagem direta para o dev',
-    summary: 'Agora dá para fazer enquetes na chamada: elas nascem no chat da sala e aparecem por cima da call, para todo mundo votar com um toque. E dá para escolher como mandar a sua ideia no Propor Melhorias: por e-mail, como antes, ou como mensagem direta para o dev do Resenhex. A bolinha ao lado fica verde quando o dev está online e cinza quando não está. No celular, o cartão flutuante da call ficou igual à janelinha do Android e ganhou setas para trocar de transmissão.',
+    version: '2.5.0', date: '2026-11-08', name: 'Tela do celular na call, enquetes e mensagem direta para o dev',
+    summary: 'Quem está no app do Android agora transmite a tela do celular na call, como no Discord: um jogo, um vídeo ou qualquer app, com o som dele e sem as vozes da call. Na chamada também dá para fazer enquetes: elas nascem no chat da sala e aparecem por cima da call, para todo mundo votar com um toque, e cada opção mostra a foto de quem votou. No Propor Melhorias, a sua ideia pode ir por e-mail ou como mensagem direta para o dev, com uma bolinha que mostra se ele está online. E o cartão flutuante da call no celular ficou igual à janelinha do Android, com setas para trocar de transmissão. A tela do celular precisa do app do Android 1.4.0; as setas na janelinha, do 1.4.1.',
     sections: [
       { kind: 'new', items: [
+        'App do Android 1.4.0: o botão Compartilhar tela da call agora funciona no celular. O Android pergunta o que transmitir (a tela inteira ou, no Android 14 ou mais novo, um app só) e a transmissão começa.',
+        'O som do celular vai junto: música, vídeos e jogos (Android 10 ou mais novo). As vozes da call nunca entram na transmissão, então ninguém se ouve com eco.',
+        'Dois perfis próprios do celular: Padrão (720p, leve para a bateria e para a internet) e Nitidez (1080p). Dá para trocar com a transmissão rodando.',
+        'Girar o celular gira a transmissão: deitado para jogos, em pé para apps, sem faixas pretas.',
+        'Transmitindo um app só, se ele sai da tela a transmissão pausa e você vê o aviso; quando ele volta, a transmissão volta sozinha.',
+        'Para parar: o botão Parar transmissão na tela da call ou o Parar na notificação do Android. A call continua.',
         'Enquetes na chamada: no chat de uma sala de voz, o + agora tem "Criar enquete". Escreva a pergunta, de 2 a 6 opções e a duração (1 min, 5 min ou até alguém encerrar).',
         'Enquanto a enquete está aberta, ela aparece num cartão no alto da chamada: um toque já vota, sem abrir o chat. Dá para encolher o cartão numa pílula com a pergunta e o tempo.',
         'Cada opção mostra a porcentagem e a foto de quem votou nela. Dá para trocar o voto enquanto ela está aberta, e tocar de novo na mesma opção tira o voto.',
@@ -21,26 +27,10 @@ window.CHANGELOG = [
         'App do Android 1.4.1: as mesmas setas na janelinha do Android, quando você sai do app com mais de uma transmissão na call.',
       ] },
       { kind: 'improved', items: [
-        'O link de convite agora é sempre resenhex.com.br, também nos apps de Windows e Android, que ainda abriam pelo endereço antigo (resenhex.duckdns.org). Links antigos que alguém colar continuam funcionando.',
-      ] },
-    ],
-  },
-  {
-    version: '2.5.0', date: '2026-11-08', name: 'Transmitir a tela do celular na call, com o som dos jogos e vídeos',
-    summary: 'Quem está no app do Android agora transmite a tela do celular na call, como no Discord: um jogo, um vídeo ou qualquer app, com o som dele e sem as vozes da call. Quem assiste vê como uma transmissão normal, no PC ou no celular. Precisa do app do Android 1.4.0.',
-    sections: [
-      { kind: 'new', items: [
-        'App do Android 1.4.0: o botão Compartilhar tela da call agora funciona no celular. O Android pergunta o que transmitir (a tela inteira ou, no Android 14 ou mais novo, um app só) e a transmissão começa.',
-        'O som do celular vai junto: música, vídeos e jogos (Android 10 ou mais novo). As vozes da call nunca entram na transmissão, então ninguém se ouve com eco.',
-        'Dois perfis próprios do celular: Padrão (720p, leve para a bateria e para a internet) e Nitidez (1080p). Dá para trocar com a transmissão rodando.',
-        'Girar o celular gira a transmissão: deitado para jogos, em pé para apps, sem faixas pretas.',
-        'Transmitindo um app só, se ele sai da tela a transmissão pausa e você vê o aviso; quando ele volta, a transmissão volta sozinha.',
-        'Para parar: o botão Parar transmissão na tela da call ou o Parar na notificação do Android. A call continua.',
-      ] },
-      { kind: 'improved', items: [
         'Se o celular não der conta (jogo pesado, pouca memória), a transmissão passa a mandar menos quadros por segundo em vez de atrasar, e volta aos 30 quadros sozinha quando o aperto passa.',
         'Enquanto você transmite a tela, a janelinha da call não abre ao sair do app (ela apareceria dentro da própria transmissão). Ela volta assim que a transmissão termina.',
         'Quem ainda está com o app antigo vê, no botão de compartilhar tela, como atualizar.',
+        'O link de convite agora é sempre resenhex.com.br, também nos apps de Windows e Android, que ainda abriam pelo endereço antigo (resenhex.duckdns.org). Links antigos que alguém colar continuam funcionando.',
       ] },
       { kind: 'fixed', items: [
         'Em celulares com o navegador do sistema (WebView) desatualizado, como um Android 12 sem as atualizações da Play Store, o app ficava parado em "Entrando na resenha…". Agora ele abre normalmente, com as cores e o layout da call no lugar.',
