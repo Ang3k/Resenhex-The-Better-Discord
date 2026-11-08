@@ -20,6 +20,9 @@ window.CHANGELOG = [
         'Enquanto você transmite a tela, a janelinha da call não abre ao sair do app (ela apareceria dentro da própria transmissão). Ela volta assim que a transmissão termina.',
         'Quem ainda está com o app antigo vê, no botão de compartilhar tela, como atualizar.',
       ] },
+      { kind: 'fixed', items: [
+        'Em celulares com o navegador do sistema (WebView) desatualizado, como um Android 12 sem as atualizações da Play Store, o app ficava parado em "Entrando na resenha…". Agora ele abre normalmente, com as cores e o layout da call no lugar.',
+      ] },
     ],
   },
   {
