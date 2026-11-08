@@ -494,7 +494,9 @@
     return s.friends.includes(id) ? 'friend' : s.incoming.includes(id) ? 'incoming' : s.outgoing.includes(id) ? 'outgoing' : s.blocked.includes(id) ? 'blocked' : 'none';
   }
   // Pode escrever no chat aberto? Num canal depende do cargo; numa conversa privada, de ainda serem amigos.
-  const canWrite = () => (inDm() ? !!member(dmPeerId(state.textChannel)) && state.social.friends.includes(dmPeerId(state.textChannel)) : canSend());
+  // Conversa que começou pelo Propor Melhorias (suggestion): dá para responder mesmo sem amizade.
+  const canWrite = () => (inDm() ? !!member(dmPeerId(state.textChannel)) && (state.social.friends.includes(dmPeerId(state.textChannel))
+    || !!state.social.dms.find((d) => d.id === state.textChannel)?.suggestion) : canSend());
 
   const fmtCtx = { member: (id) => member(id), role: (id) => roleById(id), onUser: (id, e) => (e.type === 'contextmenu' ? openMemberMenu(id, e) : (e.stopPropagation(), openProfile(id, e.currentTarget || e.target))) };
   // Mudae (mudae.js): cards de personagem, harem e o botão de casar nas respostas do bot.
@@ -1592,7 +1594,8 @@
 
   // Botões de chamada de voz e de vídeo no cabeçalho de uma conversa privada.
   function renderDmCallTools(c) {
-    const show = c?.type === 'dm' && canWrite() && state.voiceChannel !== c.id;
+    // Chamada privada continua só entre amigos (a conversa do Propor Melhorias é só por mensagem).
+    const show = c?.type === 'dm' && canWrite() && state.social.friends.includes(dmPeerId(c.id)) && state.voiceChannel !== c.id;
     for (const [id, video] of [['#btn-dm-call', false], ['#btn-dm-video', true]]) {
       const button = $(id);
       button.classList.toggle('hidden', !show);

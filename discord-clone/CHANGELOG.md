@@ -3,6 +3,18 @@
 Histórico de versões. A mesma lista aparece dentro do app em **Novidades** (menu do servidor ou rodapé das Configurações).
 O Resenhex chegou à versão 1.0 em 4 de outubro de 2026.
 
+## v2.6.0 — Propor Melhorias com mensagem direta para o dev
+
+8 de novembro de 2026.
+
+Agora dá para escolher como mandar a sua ideia no Propor Melhorias: por e-mail, como antes, ou como mensagem direta para o dev do Resenhex. A bolinha ao lado fica verde quando o dev está online e cinza quando não está.
+
+### Novidades
+
+- No Propor Melhorias, a opção "Mensagem pro dev" manda a sua ideia direto para o dev, sem precisar ser amigo dele. O e-mail continua sendo o jeito padrão.
+- A bolinha ao lado da opção mostra se o dev está online agora (verde) ou não (cinza), e muda sozinha com a janela aberta. Não mostra mais nada além disso.
+- Depois de enviar, nada aparece nas suas mensagens. Se o dev responder, a conversa surge na sua lista e vocês conversam por ali, como numa conversa privada qualquer.
+
 ## v2.5.0 — Transmitir a tela do celular na call, com o som dos jogos e vídeos
 
 8 de novembro de 2026.

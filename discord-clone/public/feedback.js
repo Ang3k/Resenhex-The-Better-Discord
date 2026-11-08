@@ -8,7 +8,37 @@ window.createFeedback = ({ token, prepare = () => {} }) => {
   const submit = root.querySelector('#feedback-send');
   const success = root.querySelector('#feedback-success');
   const closeButtons = [...root.querySelectorAll('[data-feedback-close]')];
-  let busy = false, sent = false, returnFocus = null, roots = [];
+  const via = root.querySelector('#feedback-via');
+  const devOption = root.querySelector('#feedback-via-dev');
+  const devDot = root.querySelector('#feedback-dev-dot');
+  const viaNote = root.querySelector('#feedback-via-note');
+  const successText = root.querySelector('#feedback-success-description');
+  const SUCCESS_EMAIL = successText.textContent;
+  const SUCCESS_DEV = 'Sua mensagem chegou ao dev. Se ele responder, a conversa aparece nas suas mensagens.';
+  let busy = false, sent = false, returnFocus = null, roots = [], devTimer = null;
+
+  // Mensagem pro dev: a bolinha fica verde quando o dev está online e cinza quando não está. Atualiza sozinha
+  // enquanto a janela está aberta. Se o servidor não oferece (ou é o próprio dev), a opção some.
+  const channel = () => via.querySelector('input:checked')?.value || 'email';
+  function showDev(available, online) {
+    if (!available && channel() === 'dev') via.querySelector('input[value="email"]').checked = true;
+    devOption.classList.toggle('hidden', !available);
+    via.classList.toggle('hidden', !available);
+    devDot.classList.toggle('online', !!online);
+    const label = online ? 'Dev online agora' : 'Dev offline';
+    devDot.setAttribute('aria-label', label);
+    devDot.title = label;
+    viaNote.classList.toggle('hidden', channel() !== 'dev');
+  }
+  async function checkDev() {
+    try {
+      const response = await fetch('/feedback/dev', { headers: { 'x-token': token() || '' }, cache: 'no-store' });
+      if (!response.ok) throw new Error();
+      const result = await response.json();
+      if (isOpen()) showDev(!!result.available, !!result.online);
+    } catch { /* sem resposta: fica como estava */ }
+  }
+  via.addEventListener('change', () => { viaNote.classList.toggle('hidden', channel() !== 'dev'); });
 
   const isOpen = () => !root.classList.contains('hidden');
   function refresh() {
@@ -18,6 +48,7 @@ window.createFeedback = ({ token, prepare = () => {} }) => {
   function close() {
     if (!isOpen() || busy) return;
     root.classList.add('hidden');
+    clearInterval(devTimer);
     roots.forEach(([element, inert]) => { element.inert = inert; });
     document.removeEventListener('keydown', onKey, true);
     returnFocus?.focus();
@@ -25,7 +56,7 @@ window.createFeedback = ({ token, prepare = () => {} }) => {
   function onKey(event) {
     if (event.key === 'Escape') { event.preventDefault(); event.stopImmediatePropagation(); close(); }
     if (event.key !== 'Tab') return;
-    const controls = [...root.querySelectorAll('button, textarea, a[href]')].filter((node) => !node.disabled && !node.closest('.hidden'));
+    const controls = [...root.querySelectorAll('button, textarea, a[href], input:checked')].filter((node) => !node.disabled && !node.closest('.hidden'));
     const first = controls[0], last = controls.at(-1);
     if (!first) { event.preventDefault(); return; }
     if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last.focus(); }
@@ -43,6 +74,9 @@ window.createFeedback = ({ token, prepare = () => {} }) => {
     status.textContent = '';
     status.classList.remove('error');
     root.classList.remove('hidden');
+    checkDev();
+    clearInterval(devTimer);
+    devTimer = setInterval(checkDev, 15_000);
     document.addEventListener('keydown', onKey, true);
     refresh();
     // No celular, só abre o teclado quando a pessoa toca no campo.
@@ -64,6 +98,8 @@ window.createFeedback = ({ token, prepare = () => {} }) => {
     busy = true;
     form.setAttribute('aria-busy', 'true');
     input.disabled = true;
+    via.disabled = true;
+    const sentVia = channel();
     closeButtons.forEach((button) => { button.disabled = true; });
     submit.textContent = 'Enviando…';
     status.textContent = 'Enviando sua sugestão…';
@@ -74,12 +110,13 @@ window.createFeedback = ({ token, prepare = () => {} }) => {
     try {
       const response = await fetch('/feedback', {
         method: 'POST', headers: { 'Content-Type': 'application/json', 'x-token': token() || '' },
-        signal: controller.signal, body: JSON.stringify({ message }),
+        signal: controller.signal, body: JSON.stringify({ message, channel: sentVia }),
       });
       const result = await response.json();
       if (!response.ok || result.ok !== true) throw new Error(result.error || 'Não foi possível enviar sua sugestão. Tente novamente.');
       sent = true;
       input.value = '';
+      successText.textContent = sentVia === 'dev' ? SUCCESS_DEV : SUCCESS_EMAIL;
       form.classList.add('hidden');
       success.classList.remove('hidden');
       root.setAttribute('aria-labelledby', 'feedback-success-title');
@@ -95,6 +132,7 @@ window.createFeedback = ({ token, prepare = () => {} }) => {
       busy = false;
       form.removeAttribute('aria-busy');
       input.disabled = false;
+      via.disabled = false;
       closeButtons.forEach((button) => { button.disabled = false; });
       submit.textContent = 'Enviar sugestão';
       refresh();

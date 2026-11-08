@@ -428,7 +428,7 @@ function socialFor(acc) {
   }
   const dms = [...social.dmIdsOf(acc.id)].map((id) => db.dms[id])
     .filter((dm) => dm && !dm.closed?.[acc.id])
-    .map((dm) => ({ id: dm.id, userId: dm.users.find((u) => u !== acc.id), last: (db.messages[dm.id] || []).at(-1)?.ts || 0 }))
+    .map((dm) => ({ id: dm.id, userId: dm.users.find((u) => u !== acc.id), last: (db.messages[dm.id] || []).at(-1)?.ts || 0, ...(dm.suggestion && { suggestion: true }) }))
     .filter((dm) => presentAccount(dm.userId))
     .sort((x, y) => y.last - x.last);
   return { friends, incoming, outgoing, blocked: (db.blocks[acc.id] || []).filter((id) => db.accounts[id]), dms };
@@ -742,7 +742,37 @@ const authFromToken = (req) => {
   const acc = db.accounts[db.sessions[req.get('x-token')]];
   return acc || null;
 };
-app.use(feedbackRoutes({ authenticate: authFromToken, allow, version: APP_VERSION, mailer, to: process.env.FEEDBACK_EMAIL || undefined }));
+// Propor Melhorias como mensagem para o dev (o dono do site). Vira uma conversa privada normal, mesmo sem amizade
+// (dm.suggestion). Para quem manda, ela só aparece na lista quando o dev responder: até lá, foi só um envio.
+const siteOwnerAccount = () => db.accounts[communities.root.siteOwnerId] || null;
+const devFeedback = {
+  // Verde só com o status "Online"; ausente, não perturbe e invisível ficam cinza.
+  status(acc) {
+    const owner = siteOwnerAccount();
+    if (!owner || owner.id === acc.id) return { available: false, online: false };
+    return { available: true, online: online.accounts.has(owner.id) && !owner.presence };
+  },
+  send(acc, text) {
+    const owner = siteOwnerAccount();
+    if (!owner || owner.id === acc.id || hasBlocked(acc.id, owner.id) || hasBlocked(owner.id, acc.id)) return false;
+    const id = dmIdOf(acc.id, owner.id);
+    if (!db.dms[id]) social.addDm({ id, users: [acc.id, owner.id].sort(), closed: { [acc.id]: true }, suggestion: true });
+    const dm = db.dms[id];
+    if (!areFriends(acc.id, owner.id)) dm.suggestion = true;
+    const list = (db.messages[id] ||= []);
+    const msg = { id: newId(), authorId: acc.id, text, ts: Date.now(), suggestion: true, mentions: { users: [owner.id], roles: [], everyone: false } };
+    pushMessage(id, list, msg);
+    (acc.lastRead ||= {})[id] = msg.ts;
+    delete dm.closed?.[owner.id];
+    const payload = { channel: id, msg, author: publicProfiles([acc.id])[0] };
+    emitToAccount(owner.id, 'chat:message', payload);
+    if (!dm.closed?.[acc.id]) emitToAccount(acc.id, 'chat:message', payload);
+    pushSocial(owner.id);
+    save(chunk.dm(id), chunk.account(acc.id));
+    return true;
+  },
+};
+app.use(feedbackRoutes({ authenticate: authFromToken, allow, version: APP_VERSION, mailer, to: process.env.FEEDBACK_EMAIL || undefined, dev: devFeedback }));
 app.post('/profile/avatar', express.raw({ type: () => true, limit: MAX_BANNER_UPLOAD }), async (req, res) => {
   const acc = authFromToken(req);
   if (!acc) return res.status(401).json({ error: 'Não autenticado' });
@@ -1045,7 +1075,7 @@ app.post('/upload', uploadGate(MAX_UPLOAD_MB * 1024 * 1024), express.raw({ type:
   const dm = targetId && db.dms[targetId];
   if (dm) {
     const peer = dm.users.find((id) => id !== acc.id);
-    if (!dm.users.includes(acc.id) || !areFriends(acc.id, peer) || hasBlocked(acc.id, peer) || hasBlocked(peer, acc.id)) return res.status(403).json({ error: 'Conversa não disponível.' });
+    if (!dm.users.includes(acc.id) || !(areFriends(acc.id, peer) || dm.suggestion) || hasBlocked(acc.id, peer) || hasBlocked(peer, acc.id)) return res.status(403).json({ error: 'Conversa não disponível.' });
   } else if (!can(acc, 'SEND_MESSAGES') || timedOut(acc) || (targetId && !db.channels.some((c) => c.id === targetId && CHAT_TYPES.includes(c.type) && canView(acc, c)))) return res.status(403).json({ error: 'Você não pode enviar arquivos agora.' });
   if (!allow('upload:' + acc.id, 20, 60 * 1000)) return res.status(429).json({ error: 'Muitos arquivos seguidos. Espere um pouco.' });
   if (!Buffer.isBuffer(req.body) || !req.body.length) return res.status(400).json({ error: 'Arquivo vazio' });
@@ -2033,12 +2063,12 @@ io.on('connection', (socket) => {
     return { id: dm.id, dm };
   };
 
-  // Mensagem direta só entre amigos. Não revela quem bloqueou quem.
+  // Mensagem direta só entre amigos (ou numa conversa que começou pelo Propor Melhorias). Não revela quem bloqueou quem.
   const dmPeer = (acc, dm) => {
     const peer = presentAccount(dm.users.find((u) => u !== acc.id));
     if (!peer) fail('Essa pessoa não está mais no servidor.');
     if (hasBlocked(acc.id, peer.id) || hasBlocked(peer.id, acc.id)) fail('Não foi possível enviar a mensagem.');
-    if (!areFriends(acc.id, peer.id)) fail('Vocês não são mais amigos. Adicione de novo para voltar a conversar.');
+    if (!areFriends(acc.id, peer.id) && !dm.suggestion) fail('Vocês não são mais amigos. Adicione de novo para voltar a conversar.');
     return peer;
   };
 

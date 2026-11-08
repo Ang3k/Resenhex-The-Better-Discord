@@ -86,3 +86,31 @@ test('feedback: falhas do envio nunca confirmam nem mostram o erro do provedor',
   assert.match(result.body.error, /tente novamente/);
   assert.doesNotMatch(result.body.error, /Segredo/);
 });
+
+test('feedback: mensagem pro dev usa o canal do servidor, não o e-mail, e divide a mesma cota', async (t) => {
+  const sent = [];
+  const deliveries = [];
+  const counts = new Map();
+  const app = express();
+  app.use(feedbackRoutes({
+    authenticate: (req) => ACCOUNTS[req.get('x-token')] || null,
+    allow: (key, max) => { const count = (counts.get(key) || 0) + 1; counts.set(key, count); return count <= max; },
+    version: '2.6.0',
+    mailer: { enabled: true, async send(message) { deliveries.push(message); } },
+    dev: { status: (account) => ({ available: account.id !== 'bia', online: true }), send: (account, text) => { sent.push([account.id, text]); return true; } },
+  }));
+  const server = app.listen(0, '127.0.0.1');
+  await new Promise((resolve) => server.once('listening', resolve));
+  t.after(() => new Promise((resolve) => { server.close(resolve); server.closeAllConnections(); }));
+  const url = `http://127.0.0.1:${server.address().port}`;
+  const post = async (body, token = 'valid-session') => (await fetch(url + '/feedback', { method: 'POST', headers: { 'Content-Type': 'application/json', 'x-token': token }, body: JSON.stringify(body) })).status;
+  assert.deepEqual(await (await fetch(url + '/feedback/dev', { headers: { 'x-token': 'valid-session' } })).json(), { available: true, online: true });
+  assert.equal(await post({ message: '  Ideia  ', channel: 'dev' }), 200);
+  assert.deepEqual(sent, [['ana', 'Ideia']]);
+  assert.equal(deliveries.length, 0);
+  assert.equal(await post({ message: 'Por e-mail' }), 200);
+  assert.equal(await post({ message: 'De novo', channel: 'dev' }), 200);
+  assert.equal(await post({ message: 'Demais', channel: 'dev' }), 429);
+  assert.equal(await post({ message: 'Sem a opção', channel: 'dev' }, 'unverified-session'), 400);
+  assert.equal(deliveries.length, 1);
+});

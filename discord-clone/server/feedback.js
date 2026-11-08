@@ -1,14 +1,23 @@
 // Sugestões de usuários autenticados, entregues ao mantenedor pelo mesmo e-mail do Resenhex que manda o
 // "Esqueci a senha" (server/mailer.js). Até a 2.3.5 iam pelo FormSubmit, que parou de entregar quando o site
 // trocou de domínio (ele pede uma nova ativação para cada endereço de site).
+// Desde a 2.6.0 a pessoa também pode mandar a ideia como mensagem direta para o dev (o dono do site): quem cuida
+// da conversa é o server.js (`dev.status` e `dev.send`); aqui ficam só as regras do formulário.
 const express = require('express');
 
 const FEEDBACK_EMAIL = 'angejesufern@gmail.com';
 const MAX_FEEDBACK_LENGTH = 3000;
 const DELIVERY_TIMEOUT_MS = 15_000;
 
-function feedbackRoutes({ authenticate, allow, version, mailer, to = FEEDBACK_EMAIL }) {
+function feedbackRoutes({ authenticate, allow, version, mailer, to = FEEDBACK_EMAIL, dev = null }) {
   const router = express.Router();
+  // Se o dev está online (verde) ou não (cinza). Só isso: nada de "visto por último".
+  router.get('/feedback/dev', (req, res) => {
+    res.set('Cache-Control', 'no-store');
+    const account = authenticate(req);
+    if (!account) return res.status(401).json({ error: 'Sua sessão expirou.' });
+    res.json(dev ? dev.status(account) : { available: false, online: false });
+  });
   router.post('/feedback', (req, res, next) => {
     res.set('Cache-Control', 'no-store');
     const account = authenticate(req);
@@ -22,6 +31,19 @@ function feedbackRoutes({ authenticate, allow, version, mailer, to = FEEDBACK_EM
       return res.status(400).json({ error: `Escreva uma sugestão de até ${MAX_FEEDBACK_LENGTH} caracteres.` });
     }
     const account = res.locals.feedbackAccount;
+    if (req.body?.channel === 'dev') {
+      if (!dev?.status(account).available) return res.status(400).json({ error: 'A mensagem para o dev não está disponível. Mande por e-mail.' });
+      if (!allow('feedback-send:' + account.id, 3, 10 * 60_000)) {
+        return res.status(429).json({ error: 'Você já enviou algumas sugestões. Aguarde dez minutos para enviar outra.' });
+      }
+      try {
+        if (!dev.send(account, message)) throw new Error('não entregue');
+        return res.json({ ok: true });
+      } catch (error) {
+        console.error('[feedback] mensagem para o dev falhou:', error?.message || error);
+        return res.status(502).json({ error: 'Não foi possível enviar agora. Sua ideia continua aqui; tente novamente em alguns instantes.' });
+      }
+    }
     if (!mailer?.enabled) {
       return res.status(503).json({ error: 'O envio de sugestões está desligado agora. Sua ideia continua aqui; tente mais tarde.' });
     }

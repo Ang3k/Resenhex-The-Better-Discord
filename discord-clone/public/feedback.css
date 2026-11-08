@@ -56,6 +56,23 @@ body.stream-immersive .feedback-link { display: none !important; }
 .feedback-meta { display: flex; justify-content: space-between; gap: 12px; margin-top: 8px; color: var(--text-muted); font-size: 11px; }
 .feedback-meta span:first-child { min-width: 0; }
 #feedback-count { flex-shrink: 0; font-variant-numeric: tabular-nums; }
+/* Como enviar: e-mail (padrão) ou mensagem direta para o dev, com a bolinha verde (online) ou cinza (offline). */
+.feedback-via { margin: 18px 0 0; padding: 0; border: 0; min-width: 0; }
+.feedback-via legend { padding: 0; margin-bottom: 8px; font-size: 12px; font-weight: 600; color: var(--text); }
+.feedback-via-options { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.feedback-card label.feedback-option {
+  position: relative; display: flex; align-items: center; justify-content: center; gap: 8px; margin: 0; min-height: 42px; padding: 8px 12px;
+  border: 1px solid var(--divider); border-radius: 9px; background: var(--bg-panel);
+  color: var(--interactive); font-size: 13px; font-weight: 500; cursor: pointer;
+  transition: border-color var(--motion-fast, .12s) ease, background-color var(--motion-fast, .12s) ease, color var(--motion-fast, .12s) ease;
+}
+.feedback-option input { position: absolute; opacity: 0; pointer-events: none; }
+.feedback-card label.feedback-option:hover { color: var(--text-strong); background: var(--hover); }
+.feedback-card label.feedback-option:has(input:checked) { border-color: var(--brand); color: var(--text-strong); background: color-mix(in srgb, var(--brand) 12%, var(--bg-panel)); }
+.feedback-option:has(input:focus-visible) { outline: 2px solid var(--focus-ring); outline-offset: 2px; }
+.feedback-dot { flex-shrink: 0; width: 9px; height: 9px; border-radius: 50%; background: var(--text-muted); transition: background-color .2s ease; }
+.feedback-dot.online { background: var(--green); box-shadow: 0 0 0 3px color-mix(in srgb, var(--green) 22%, transparent); }
+.feedback-card p.feedback-via-note { margin: 8px 0 0; font-size: 12px; line-height: 1.5; color: var(--text-muted); }
 .feedback-card p.feedback-status { margin: 12px 0 0; font-size: 12px; }
 .feedback-status:empty { display: none; }
 .feedback-card p.feedback-status.error { color: var(--red); }
@@ -71,6 +88,7 @@ body.stream-immersive .feedback-link { display: none !important; }
 @media (max-width: 640px) {
   .feedback-overlay { padding: 12px; }
   .feedback-card { padding: 24px 20px; max-height: calc(100dvh - 24px); }
+  .feedback-card label.feedback-option { gap: 6px; padding: 8px; font-size: 12.5px; white-space: nowrap; }
   /* No celular, o rodapé das Configurações vira uma fileira abaixo das abas: é aqui que Propor Melhorias mora. */
   /* Quebra em duas linhas em vez de rolar de lado: "Sair da conta" aparecia cortado no meio da palavra, sem sinal de que havia mais. */
   #settings .settings-nav-bottom { display: flex; flex-direction: row; flex-wrap: wrap; gap: 4px 6px; margin: 0; padding: 8px 0 0; }

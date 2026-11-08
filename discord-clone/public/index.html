@@ -1321,6 +1321,14 @@
         <label for="feedback-message">Sua ideia ou sugestão</label>
         <textarea id="feedback-message" name="message" rows="5" maxlength="3000" required placeholder="O que você gostaria de melhorar no Resenhex?" aria-describedby="feedback-note feedback-count feedback-status"></textarea>
         <div class="feedback-meta"><span id="feedback-note">Sua sugestão e seu nome de usuário serão enviados à equipe do Resenhex.</span><span id="feedback-count">0/3000</span></div>
+        <fieldset id="feedback-via" class="feedback-via hidden">
+          <legend>Como enviar</legend>
+          <div class="feedback-via-options">
+            <label class="feedback-option"><input type="radio" name="feedback-via" value="email" checked><span>Por e-mail</span></label>
+            <label class="feedback-option" id="feedback-via-dev"><input type="radio" name="feedback-via" value="dev"><span>Mensagem pro dev</span><span id="feedback-dev-dot" class="feedback-dot" role="img" aria-label="Dev offline" title="Dev offline"></span></label>
+          </div>
+          <p id="feedback-via-note" class="feedback-via-note hidden">Chega como mensagem para o dev. Se ele responder, a conversa aparece nas suas mensagens.</p>
+        </fieldset>
         <p id="feedback-status" class="feedback-status" role="status" aria-live="polite"></p>
         <div class="feedback-actions"><button type="button" class="feedback-cancel" data-feedback-close>Cancelar</button><button type="submit" id="feedback-send" class="feedback-submit" disabled>Enviar sugestão</button></div>
       </form>

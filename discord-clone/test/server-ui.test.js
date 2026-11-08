@@ -129,7 +129,7 @@ test('Propor Melhorias: envia a sugestão autenticada uma vez e confirma só ap�
   form.dispatchEvent(new app.w.Event('submit', { bubbles: true, cancelable: true }));
   form.dispatchEvent(new app.w.Event('submit', { bubbles: true, cancelable: true }));
   assert.equal(requests.length, 1);
-  assert.deepEqual(JSON.parse(requests[0].body), { message: 'Busca no histórico' });
+  assert.deepEqual(JSON.parse(requests[0].body), { message: 'Busca no histórico', channel: 'email' });
   assert.equal(requests[0].headers['x-token'], 'fake-ui-token');
   assert.equal(send.disabled, true);
   assert.equal(app.d.querySelector('#feedback-success').classList.contains('hidden'), true);

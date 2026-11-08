@@ -4,6 +4,17 @@
 // O título deve destacar as principais funcionalidades ou correções, com termos objetivos.
 window.CHANGELOG = [
   {
+    version: '2.6.0', date: '2026-11-08', name: 'Propor Melhorias com mensagem direta para o dev',
+    summary: 'Agora dá para escolher como mandar a sua ideia no Propor Melhorias: por e-mail, como antes, ou como mensagem direta para o dev do Resenhex. A bolinha ao lado fica verde quando o dev está online e cinza quando não está.',
+    sections: [
+      { kind: 'new', items: [
+        'No Propor Melhorias, a opção "Mensagem pro dev" manda a sua ideia direto para o dev, sem precisar ser amigo dele. O e-mail continua sendo o jeito padrão.',
+        'A bolinha ao lado da opção mostra se o dev está online agora (verde) ou não (cinza), e muda sozinha com a janela aberta. Não mostra mais nada além disso.',
+        'Depois de enviar, nada aparece nas suas mensagens. Se o dev responder, a conversa surge na sua lista e vocês conversam por ali, como numa conversa privada qualquer.',
+      ] },
+    ],
+  },
+  {
     version: '2.5.0', date: '2026-11-08', name: 'Transmitir a tela do celular na call, com o som dos jogos e vídeos',
     summary: 'Quem está no app do Android agora transmite a tela do celular na call, como no Discord: um jogo, um vídeo ou qualquer app, com o som dele e sem as vozes da call. Quem assiste vê como uma transmissão normal, no PC ou no celular. Precisa do app do Android 1.4.0.',
     sections: [
