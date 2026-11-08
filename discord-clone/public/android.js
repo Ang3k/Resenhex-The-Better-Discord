@@ -127,6 +127,8 @@ window.AndroidApp = (() => {
       if (status) serviceHandler?.(status);
     },
     _djReport(report) { if (report && typeof report === 'object') djHandler?.(report); },
+    // Transmissão da tela do celular (APK 1.4.0+): o estado vai para o android-screen.js.
+    _screenState(status) { window.AndroidScreen?._state(status); },
     _pipChanged(on) {
       document.documentElement.classList.toggle('android-pip', !!on);
       pipHandler?.(!!on);

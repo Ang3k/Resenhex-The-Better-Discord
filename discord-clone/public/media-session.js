@@ -305,6 +305,12 @@ window.MediaSession = function ({ state, socket, call, el, toast, voiceEntry, me
       const track = state.local.screen?.getVideoTracks()[0];
       if (!track || track.readyState === 'ended') return;
       const preset = presets[state.sharePreset];
+      // Tela do celular (app de Android): o próprio app ajusta a captura e o codificador.
+      if (track.androidScreen) {
+        window.AndroidScreen?.setQuality({ width: preset.width, height: preset.height, fps: sfu?.active() && !viewers().length ? 5 : preset.fps });
+        tuneSenders();
+        return;
+      }
       const aspect = captureAspect(track, preset);
       const height = Math.max(2, Math.floor(Math.min(preset.height, preset.width / aspect)));
       const width = Math.max(2, Math.round(height * aspect));
@@ -333,6 +339,12 @@ window.MediaSession = function ({ state, socket, call, el, toast, voiceEntry, me
 
   async function captureScreen() {
     const preset = presets[state.sharePreset];
+    // App de Android: o WebView não tem getDisplayMedia; a captura é do próprio app (android-screen.js).
+    if (window.AndroidScreen?.available) {
+      const stream = await window.AndroidScreen.capture({ width: preset.width, height: preset.height, fps: preset.fps, audio: state.shareAudio });
+      stream.audioMode = await audioMode(stream);
+      return stream;
+    }
     if (!navigator.mediaDevices?.getDisplayMedia) throw new Error('Seu navegador não oferece captura de tela.');
     const fps = MediaPolicy.captureFps(preset.fps);
     const capture = () => navigator.mediaDevices.getDisplayMedia({
@@ -382,6 +394,14 @@ window.MediaSession = function ({ state, socket, call, el, toast, voiceEntry, me
   }
   function watchScreenTrack(track) {
     track.contentHint = presets[state.sharePreset].hint;
+    if (track.androidScreen) {
+      // Tela do celular: parada pelo botão da notificação, pelo Android ou por erro (endNotice diz o motivo).
+      track.onended = () => { stopVideo('screen'); if (track.endNotice) mediaNotice(track.endNotice); };
+      // Android 14+, um app só: ele saiu da tela.
+      track.onmute = () => { state.sharePaused = true; sendVoiceState(); mediaNotice('O app transmitido saiu da tela. A transmissão volta quando ele voltar.'); };
+      track.onunmute = () => { state.sharePaused = false; sendVoiceState(); };
+      return;
+    }
     track.onended = () => {
       // App do Windows seguindo a partida: a janela do jogo fechou e o app volta sozinho para o
       // launcher. Enquanto isso, quem assiste vê a transmissão pausada.
@@ -423,7 +443,7 @@ window.MediaSession = function ({ state, socket, call, el, toast, voiceEntry, me
         watchScreenTrack(track);
         syncScreenSubscriptions();
         Sounds.play('stream');
-        if (state.shareAudio && !stream.getAudioTracks().length) mediaNotice('Sua tela está sendo compartilhada sem áudio. Essa fonte ou navegador não forneceu som.');
+        if (state.shareAudio && !stream.getAudioTracks().length) mediaNotice(stream.noAudioNotice || 'Sua tela está sendo compartilhada sem áudio. Essa fonte ou navegador não forneceu som.');
         setAudioMode(stream.audioMode);
       } else {
         track.onended = () => stopVideo(kind);

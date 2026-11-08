@@ -11,6 +11,9 @@
   // Perfis de transmissão de tela. "hint" diz ao codificador o tipo de conteúdo e
   // "degradation" decide o que sacrificar quando falta internet: nitidez ou fluidez.
   const SHARE_PRESETS = MediaPolicy.presets;
+  // App de Android 1.4.0+: transmite a tela do celular, com perfis próprios (public/android-screen.js).
+  const PHONE_SHARE = !!window.AndroidScreen?.available;
+  const sharePresetEntries = () => MediaPolicy.sharePresetKeys(PHONE_SHARE).map((key) => [key, SHARE_PRESETS[key]]);
 
   const NOISE_MODES = {
     ai: 'IA avançada (recomendado)',
@@ -65,7 +68,7 @@
     deafened: false,
     micStream: null,
     local: { screen: null, camera: null }, // meus streams de vídeo
-    sharePreset: SHARE_PRESETS[localStorage.getItem('sharePreset')] ? localStorage.getItem('sharePreset') : 'p1080_60',
+    sharePreset: MediaPolicy.sharePresetFor(localStorage.getItem('sharePreset'), PHONE_SHARE),
     sharePaused: false,
     allowClips: localStorage.getItem('allowClips') !== '0', // CLIPAR: "Pode clipar meu áudio e minha tela"
     callPip: localStorage.getItem('callPip') !== '0', // app do Android: janelinha da call ao sair do app
@@ -2708,14 +2711,21 @@
         }
         const hidden = !self && !isWatching(v.sid);
         const waiting = !hidden && !self && (!remote.screen || remote.screen.getVideoTracks()[0]?.muted);
-        tile.querySelector('.paused-overlay').classList.toggle('hidden', !v.paused || hidden);
+        // Tela do próprio celular: a prévia mostraria a tela dentro dela mesma (espelho infinito). Como no
+        // Discord, fica um aviso com o botão de parar.
+        const phoneSelf = self && !!state.local.screen?.androidScreen;
+        tile.querySelector('.paused-overlay').classList.toggle('hidden', !v.paused || hidden || phoneSelf);
         const watch = tile.querySelector('.watch-overlay');
-        watch.classList.toggle('hidden', !hidden && !waiting);
-        const watchState = hidden ? 'idle' : waiting ? 'loading' : 'playing';
+        watch.classList.toggle('hidden', !hidden && !waiting && !phoneSelf);
+        const watchState = phoneSelf ? (v.paused ? 'phone-paused' : 'phone') : hidden ? 'idle' : waiting ? 'loading' : 'playing';
         if (watch.dataset.state !== watchState) {
           watch.dataset.state = watchState;
           watch.replaceChildren();
-          if (hidden || waiting) watch.append(hidden ? Icon('screen', 36) : el('span', { class: 'watch-spinner', ariaHidden: 'true' }),
+          if (phoneSelf) watch.append(Icon(v.paused ? 'pause' : 'screen', 36),
+            el('div', { class: 'paused-title', textContent: v.paused ? 'O app transmitido saiu da tela' : 'Você está transmitindo a tela do celular' }),
+            el('div', { class: 'muted-text', textContent: v.paused ? 'A transmissão volta quando ele voltar.' : 'Quem está na call vê o que aparece na sua tela. Para parar, toque abaixo ou use a notificação.' }),
+            el('button', { class: 'watch-btn', onclick: (e) => { e.stopPropagation(); stopVideo('screen'); } }, Icon('stop', 18), el('span', { textContent: 'Parar transmissão' })));
+          else if (hidden || waiting) watch.append(hidden ? Icon('screen', 36) : el('span', { class: 'watch-spinner', ariaHidden: 'true' }),
             el('div', { class: 'paused-title', textContent: hidden ? 'Tela de ' + m.name : 'Conectando à transmissão…' }),
             el('div', { class: 'muted-text', textContent: hidden ? 'Entre para assistir e ouvir a tela compartilhada.' : 'A voz continua conectada. Você pode parar e tentar novamente.' }),
             // Nas miniaturas o botão diz só "Assistir"; o nome acessível é sempre o completo.
@@ -2723,7 +2733,7 @@
               ...(hidden ? [Icon('eye', 18), el('span', { class: 'wb-long', ariaHidden: 'true' }, 'Assistir transmissão'), el('span', { class: 'wb-short', ariaHidden: 'true' }, 'Assistir')] : ['Parar de assistir'])));
         }
         const video = tile.querySelector('video');
-        const src = hidden ? null : remote.screen || null;
+        const src = hidden || phoneSelf ? null : remote.screen || null;
         // Quem para de assistir continua vendo o último quadro até a próxima foto chegar, sem as medições
         // da transmissão (elas só são atualizadas enquanto se assiste).
         if (hidden && video.srcObject && !self) streamPreview.keep(v.sid, video);
@@ -2870,7 +2880,7 @@
       el('p', { textContent: 'Chame a galera: com o convite, a pessoa entra no servidor e já encontra a sala.' }),
       el('div', { class: 'sa-actions' },
         action('Convidar pessoas', 'userPlus', () => copyInvite(), 'primary'),
-        canVideo() && navigator.mediaDevices?.getDisplayMedia ? action('Compartilhar tela', 'screenShare', (e) => openShareMenu(e.currentTarget)) : null,
+        canVideo() && (navigator.mediaDevices?.getDisplayMedia || PHONE_SHARE) ? action('Compartilhar tela', 'screenShare', (e) => openShareMenu(e.currentTarget)) : null,
         action('Abrir o chat da sala', 'message', () => toggleVoiceChat(true), 'chat')));
   }
 
@@ -6663,7 +6673,7 @@
     menu.querySelector('.device-select, .device-item.current, .device-item')?.focus();
   }
 
-  if (window.DesktopApp?.available) window.DesktopApp.shareQuality = { presets: SHARE_PRESETS, current: () => state.sharePreset, set: setSharePreset };
+  if (window.DesktopApp?.available) window.DesktopApp.shareQuality = { presets: Object.fromEntries(sharePresetEntries()), current: () => state.sharePreset, set: setSharePreset };
   // O app do Windows troca a transmissão sozinho quando a partida abre ou acaba.
   if (window.DesktopApp) window.DesktopApp.follow = { switch: (message) => switchScreen(message), stop: () => { if (state.local.screen) { stopVideo('screen'); mediaNotice('A janela transmitida fechou e não voltou. A transmissão parou.'); } } };
 
@@ -6672,12 +6682,15 @@
     const live = !!state.local.screen;
     // No app, a qualidade fica na própria janela de escolha (como no Go Live): vai direto para ela.
     if (!live && window.DesktopApp?.available) { startVideo('screen'); return; }
-    if (!live && !navigator.mediaDevices?.getDisplayMedia) {
+    if (!live && !navigator.mediaDevices?.getDisplayMedia && !PHONE_SHARE) {
       // Sem https o navegador esconde a captura; no celular (Chrome Android, Safari do iPhone) ela não existe.
-      const why = !window.isSecureContext
+      // O app de Android transmite a tela a partir do 1.4.0.
+      const why = window.AndroidScreen?.outdated
+        ? `Atualize o app do Resenhex para transmitir a tela do celular: abra ${location.host}/baixar e instale a versão nova.`
+        : !window.isSecureContext
         ? `A transmissão de tela só funciona em conexão segura. Abra o site por https://${location.host}${location.pathname} e tente de novo.`
         : mobileStream.touch
-          ? (window.ResenhexAndroid ? 'No celular não dá para transmitir a tela.' : 'Navegadores de celular não permitem transmitir a tela.') + ' Pelo celular você pode assistir às transmissões em tela cheia (pince para aproximar) e ligar a câmera; para transmitir, use um computador.'
+          ? (window.ResenhexAndroid ? 'Este celular não permite transmitir a tela.' : 'Navegadores de celular não permitem transmitir a tela. No Android, o app do Resenhex transmite.') + ' Pelo celular você pode assistir às transmissões em tela cheia (pince para aproximar) e ligar a câmera.'
           : 'Este navegador não permite transmitir a tela. Use o Chrome, Edge ou Firefox atualizado no computador (navegadores embutidos em outros apps não funcionam).';
       menu.replaceChildren(el('div', { class: 'menu-section', textContent: 'COMPARTILHAR TELA' }),
         el('div', { class: 'menu-tip', textContent: why }),
@@ -6691,7 +6704,7 @@
     }
     menu.replaceChildren(
       el('div', { class: 'menu-section', textContent: live ? 'QUALIDADE DA TRANSMISSÃO' : 'COMPARTILHAR TELA' }),
-      ...Object.entries(SHARE_PRESETS).map(([key, p]) => el('button', {
+      ...sharePresetEntries().map(([key, p]) => el('button', {
         class: 'menu-item preset' + (key === state.sharePreset ? ' selected' : ''),
         onclick: () => {
           closeMenu();
@@ -6701,10 +6714,15 @@
       }, el('div', { textContent: p.label }), el('div', { class: 'muted-text', textContent: p.desc }))),
       ...(live
         ? [el('div', { class: 'menu-sep' }),
-          menuItem('Trocar tela/aplicativo', 'refresh', () => switchScreen()),
+          // No celular a fonte é escolhida na pergunta do Android: para trocar, para e transmite de novo.
+          ...(PHONE_SHARE ? [] : [menuItem('Trocar tela/aplicativo', 'refresh', () => switchScreen())]),
           el('button', { class: 'menu-item danger', textContent: '⏹ Parar transmissão', onclick: () => { closeMenu(); stopVideo('screen'); } })]
-        : [el('div', { class: 'menu-tip', textContent: 'Dica: para jogos, escolha "Tela inteira" e use o jogo em modo janela sem bordas. Se você compartilhar só uma janela e minimizá-la, a transmissão pausa.' })]));
+        : [el('div', { class: 'menu-tip', textContent: PHONE_SHARE
+          ? 'O Android pergunta o que transmitir. Quem assiste vê o que aparece na sua tela' + (window.AndroidScreen.audioAvailable ? ' e ouve o som dos jogos e vídeos (nunca a call).' : '. Neste Android a tela vai sem som.')
+          : 'Dica: para jogos, escolha "Tela inteira" e use o jogo em modo janela sem bordas. Se você compartilhar só uma janela e minimizá-la, a transmissão pausa.' })]));
     const rect = anchor.getBoundingClientRect();
+    // No celular o menu abre como folha embaixo (igual ao aviso acima).
+    menu.classList.toggle('sheet-menu', PHONE_SHARE && !hasMouse() && matchMedia('(max-width:640px)').matches);
     menu.classList.remove('hidden');
     showMenuAt(rect.left, rect.top - menu.offsetHeight - 8);
   }
@@ -7258,7 +7276,7 @@
     $('#overlay-reset').onclick = () => { setPosition(0, 0.5); testOverlay(); };
   }
   $('#noise-mode').replaceChildren(...Object.entries(NOISE_MODES).map(([value, label]) => new Option(label, value)));
-  $('#share-preset').replaceChildren(...Object.entries(SHARE_PRESETS).map(([value, p]) => new Option(p.label, value)));
+  $('#share-preset').replaceChildren(...sharePresetEntries().map(([value, p]) => new Option(p.label, value)));
   for (const id of ['mic-select', 'speaker-select', 'camera-select']) document.getElementById(id).replaceChildren(new Option('Padrão do sistema', ''));
 
   function readPreferences() {

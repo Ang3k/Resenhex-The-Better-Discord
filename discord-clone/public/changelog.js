@@ -4,6 +4,25 @@
 // O título deve destacar as principais funcionalidades ou correções, com termos objetivos.
 window.CHANGELOG = [
   {
+    version: '2.5.0', date: '2026-11-08', name: 'Transmitir a tela do celular na call, com o som dos jogos e vídeos',
+    summary: 'Quem está no app do Android agora transmite a tela do celular na call, como no Discord: um jogo, um vídeo ou qualquer app, com o som dele e sem as vozes da call. Quem assiste vê como uma transmissão normal, no PC ou no celular. Precisa do app do Android 1.4.0.',
+    sections: [
+      { kind: 'new', items: [
+        'App do Android 1.4.0: o botão Compartilhar tela da call agora funciona no celular. O Android pergunta o que transmitir (a tela inteira ou, no Android 14 ou mais novo, um app só) e a transmissão começa.',
+        'O som do celular vai junto: música, vídeos e jogos (Android 10 ou mais novo). As vozes da call nunca entram na transmissão, então ninguém se ouve com eco.',
+        'Dois perfis próprios do celular: Padrão (720p, leve para a bateria e para a internet) e Nitidez (1080p). Dá para trocar com a transmissão rodando.',
+        'Girar o celular gira a transmissão: deitado para jogos, em pé para apps, sem faixas pretas.',
+        'Transmitindo um app só, se ele sai da tela a transmissão pausa e você vê o aviso; quando ele volta, a transmissão volta sozinha.',
+        'Para parar: o botão Parar transmissão na tela da call ou o Parar na notificação do Android. A call continua.',
+      ] },
+      { kind: 'improved', items: [
+        'Se o celular não der conta (jogo pesado, pouca memória), a transmissão passa a mandar menos quadros por segundo em vez de atrasar, e volta aos 30 quadros sozinha quando o aperto passa.',
+        'Enquanto você transmite a tela, a janelinha da call não abre ao sair do app (ela apareceria dentro da própria transmissão). Ela volta assim que a transmissão termina.',
+        'Quem ainda está com o app antigo vê, no botão de compartilhar tela, como atualizar.',
+      ] },
+    ],
+  },
+  {
     version: '2.4.5', date: '2026-11-07', name: 'Mudae com troca de cartas e lista de desejos, e a janelinha da call com quem fala em destaque',
     summary: 'O Mudae ganhou os comandos que faltavam: trocar cartas e kakera com outra pessoa (só acontece quando os dois confirmam), o ranking dos personagens com filtro por obra, waifus e husbandos, a lista de desejos com aviso quando o personagem sair e o kakera de verdade, com $dk, $daily e o cristal dos personagens que já têm dono. A janelinha da call no Android e o cartão flutuante no celular ficaram mais parecidos com os do Discord: quem está falando aparece grande, a transmissão ocupa a janelinha no formato certo e, quando a conexão cai, os dois avisam que estão reconectando em vez de ficar vazios. O formato da tela e a opção de desligar a janelinha precisam do app do Android 1.3.4.',
     sections: [

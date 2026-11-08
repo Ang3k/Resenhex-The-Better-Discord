@@ -19,7 +19,17 @@
     p720: { label: 'Economia · 720p / 30', desc: 'Menor uso de internet e processamento', width: 1280, height: 720, fps: 30, hint: 'detail', degradation: 'maintain-resolution', adaptive: true, bitrate: 2_500_000, codecs: TEXT_CODECS },
     p1080: { label: 'Nitidez · 1080p / 30', desc: 'Textos, trabalho e apresentações', width: 1920, height: 1080, fps: 30, hint: 'detail', degradation: 'maintain-resolution', adaptive: false, bitrate: 4_000_000, codecs: TEXT_CODECS },
     p1080_60: { label: 'Movimento · 1080p / 60', desc: 'Jogos e vídeos; exige mais do computador', width: 1920, height: 1080, fps: 60, hint: 'motion', degradation: 'maintain-framerate-and-resolution', adaptive: true, steps: [1080, 900, 720], bitrate: 8_000_000, codecs: ['video/H264', 'video/VP8'] },
+    // Celular (app de Android, public/android-screen.js): H.264 ou VP8, que o celular codifica pelo chip
+    // de vídeo (AV1 e VP9 sairiam no processador e esquentariam o aparelho). A captura cabe na caixa do
+    // perfil nas duas posições: deitado 1280×576, em pé 320×720. Quando falta processador ou internet, a
+    // resolução desce antes dos quadros (jogos).
+    phone720: { label: 'Padrão · 720p / 30', desc: 'Leve para o celular e para a internet', width: 1280, height: 720, fps: 30, hint: 'motion', degradation: 'maintain-framerate', adaptive: true, bitrate: 2_500_000, codecs: ['video/H264', 'video/VP8'], phone: true },
+    phone1080: { label: 'Nitidez · 1080p / 30', desc: 'Mais detalhes; gasta mais bateria e internet', width: 1920, height: 1080, fps: 30, hint: 'motion', degradation: 'maintain-framerate', adaptive: true, bitrate: 4_000_000, codecs: ['video/H264', 'video/VP8'], phone: true },
   };
+  // Perfis oferecidos em cada lugar: os do celular só no app de Android, os outros só fora dele.
+  const sharePresetKeys = (phone) => Object.keys(presets).filter((key) => !!presets[key].phone === !!phone);
+  const defaultSharePreset = (phone) => (phone ? 'phone720' : 'p1080_60');
+  const sharePresetFor = (key, phone) => (presets[key] && !!presets[key].phone === !!phone ? key : defaultSharePreset(phone));
 
   // Quadros por segundo pedidos à captura de tela. O Chromium agenda cada quadro da captura só depois
   // de terminar o anterior, com timer em milissegundos, e perde um pouco em cada um: pedindo 60, a
@@ -338,5 +348,5 @@
     const captured = measurements.some((item) => Number.isFinite(item.sourceFps)) ? `captura ${range('sourceFps')} fps` : '';
     return [size, `${range('fps')} fps`, captured, rate, codecs].filter(Boolean).join(' · ');
   }
-  return { presets, watchModes, CODECS, captureFps, viewerDemand, screenTarget, stepHeights, allocate, screenEncoding, relayCap, RELAY, screenCodecs, h264Rank, hardwareH264, pickCodec, cpuFallback, cpuStrain, sustained, encoderLoad, strained, adapt, ladder, encoding, enqueue, startBitrate, audioMids, opusStereo, formatVideoStats };
+  return { presets, sharePresetKeys, defaultSharePreset, sharePresetFor, watchModes, CODECS, captureFps, viewerDemand, screenTarget, stepHeights, allocate, screenEncoding, relayCap, RELAY, screenCodecs, h264Rank, hardwareH264, pickCodec, cpuFallback, cpuStrain, sustained, encoderLoad, strained, adapt, ladder, encoding, enqueue, startBitrate, audioMids, opusStereo, formatVideoStats };
 });

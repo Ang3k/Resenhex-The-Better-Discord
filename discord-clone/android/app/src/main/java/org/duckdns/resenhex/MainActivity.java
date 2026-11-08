@@ -22,6 +22,7 @@ import android.graphics.drawable.Icon;
 import android.graphics.Color;
 import android.media.AudioManager;
 import android.media.AudioRecordingConfiguration;
+import android.media.projection.MediaProjectionManager;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
@@ -46,11 +47,14 @@ import android.webkit.ValueCallback;
 import android.webkit.WebChromeClient;
 import android.webkit.WebResourceError;
 import android.webkit.WebResourceRequest;
+import android.webkit.WebResourceResponse;
 import android.webkit.WebSettings;
 import android.webkit.WebView;
 import android.webkit.WebViewClient;
 import android.widget.FrameLayout;
 
+import java.io.ByteArrayInputStream;
+import java.security.SecureRandom;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -78,6 +82,9 @@ public class MainActivity extends Activity {
     private static final int REQUEST_MEDIA = 1;
     private static final int REQUEST_NOTIFICATIONS = 2;
     private static final int REQUEST_FILES = 3;
+    private static final int REQUEST_SCREEN = 4;
+    /** Endereço (do próprio site) por onde a transmissão da tela chega à página: /__resenhex/tela/<chave>. */
+    static final String SCREEN_PATH = "/__resenhex/tela/";
     private static final String PREFS = "resenhex";
 
     /** Atividade aberta, para o serviço da chamada repassar os botões da notificação ao site. */
@@ -102,6 +109,9 @@ public class MainActivity extends Activity {
     private final Handler handler = new Handler(Looper.getMainLooper());
     private final Runnable stopCall = this::endCall;
     private Updater updater;
+    /** Transmissão de tela: o Android está perguntando se pode capturar, e o perfil pedido pelo site. */
+    private boolean screenPending;
+    private String screenConfig = "{}";
 
     // Janelinha (picture-in-picture) da call: o site diz o que mostrar e o estado dos botões (pipState).
     // Sem esse aviso (site antigo), Home e Voltar só mandam o app para trás, como antes.
@@ -226,6 +236,14 @@ public class MainActivity extends Activity {
                 if ("about".equals(uri.getScheme()) || "data".equals(uri.getScheme())) return false;
                 openOutside(uri); // links de fora abrem no navegador
                 return true;
+            }
+
+            @Override
+            public WebResourceResponse shouldInterceptRequest(WebView view, WebResourceRequest request) {
+                Uri uri = request.getUrl();
+                String path = uri.getPath();
+                if (path == null || !path.startsWith(SCREEN_PATH)) return null;
+                return screenResponse(uri, path, request.getMethod());
             }
 
             @Override
@@ -485,7 +503,8 @@ public class MainActivity extends Activity {
 
     /** Numa call, com o site novo e a janelinha ligada: Home, Voltar e o gesto de sair viram a janelinha. */
     private boolean pipWanted() {
-        return inCall && pipReady && pipEnabled && pipSupported();
+        // Transmitindo a tela, a janelinha apareceria dentro da própria transmissão.
+        return inCall && pipReady && pipEnabled && pipSupported() && !ScreenService.isRunning();
     }
 
     /** Formato da janelinha: o da tela transmitida (dentro do que o Android aceita); sem transmissão, 4:3. */
@@ -583,6 +602,7 @@ public class MainActivity extends Activity {
         CallService.ready = false;
         CallService.microphoneReady = false;
         stopDjSound(); // o DJ só toca dentro da call
+        ScreenService.stopNow(); // a transmissão da tela também
         reportCallServiceState(null);
         updater.allowCheck(); // atualização que chegou durante a call é oferecida agora
         updater.checkSoon();
@@ -774,6 +794,77 @@ public class MainActivity extends Activity {
         });
     }
 
+    // ---------------- transmissão da tela ----------------
+
+    /** O celular tem a captura de tela do Android (MediaProjection). */
+    private boolean screenSupported() {
+        return getSystemService(MediaProjectionManager.class) != null;
+    }
+
+    private static String screenStatus(String state, String reason) {
+        return "{\"state\":\"" + state + "\"" + (reason == null ? "" : ",\"reason\":\"" + reason + "\"") + "}";
+    }
+
+    /** O site pediu para transmitir: o Android pergunta à pessoa (a tela inteira ou, no 14+, um app só). */
+    private void startScreen(String json) {
+        if (screenPending || ScreenService.isRunning()) { screenState(screenStatus("error", "busy")); return; }
+        if (!inCall) { screenState(screenStatus("error", "not_in_call")); return; }
+        MediaProjectionManager manager = getSystemService(MediaProjectionManager.class);
+        if (manager == null) { screenState(screenStatus("error", "unsupported")); return; }
+        String config = safeJson(json);
+        screenConfig = config == null ? "{}" : config;
+        screenPending = true;
+        try {
+            startActivityForResult(manager.createScreenCaptureIntent(), REQUEST_SCREEN);
+        } catch (RuntimeException e) {
+            screenPending = false;
+            screenState(screenStatus("error", "unsupported"));
+        }
+    }
+
+    /** Resposta da pergunta do Android: com o sim, o serviço abre a captura (com uma chave nova). */
+    private void screenConsent(int resultCode, Intent data) {
+        screenPending = false;
+        if (resultCode != RESULT_OK || data == null) { screenState(screenStatus("denied", null)); return; }
+        if (!inCall) { screenState(screenStatus("error", "not_in_call")); return; }
+        byte[] random = new byte[16];
+        new SecureRandom().nextBytes(random);
+        StringBuilder token = new StringBuilder();
+        for (byte b : random) token.append(String.format(java.util.Locale.ROOT, "%02x", b));
+        Intent intent = new Intent(this, ScreenService.class)
+                .putExtra(ScreenService.EXTRA_CODE, resultCode)
+                .putExtra(ScreenService.EXTRA_DATA, data)
+                .putExtra(ScreenService.EXTRA_CONFIG, screenConfig)
+                .putExtra(ScreenService.EXTRA_TOKEN, token.toString());
+        try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) startForegroundService(intent);
+            else startService(intent);
+        } catch (RuntimeException e) {
+            screenState(screenStatus("error", "foreground"));
+        }
+    }
+
+    /** Responde o fetch do site com a transmissão; só a chave da transmissão atual abre o fluxo. */
+    private WebResourceResponse screenResponse(Uri uri, String path, String method) {
+        Map<String, String> headers = new HashMap<>();
+        headers.put("Cache-Control", "no-store");
+        String token = ScreenService.token;
+        if (token == null || !"GET".equals(method) || !HOST.equals(uri.getHost()) || !path.equals(SCREEN_PATH + token)) {
+            return new WebResourceResponse("text/plain", "utf-8", 404, "Not Found", headers, new ByteArrayInputStream(new byte[0]));
+        }
+        return new WebResourceResponse("application/octet-stream", null, 200, "OK", headers, ScreenService.feed.open());
+    }
+
+    /** O serviço da tela mudou de estado: conta ao site e atualiza a janelinha (desligada durante a transmissão). */
+    static void screenState(String json) {
+        MainActivity activity = current;
+        if (activity == null) return;
+        activity.runOnUiThread(() -> {
+            activity.updatePip();
+            activity.callJs("_screenState", json);
+        });
+    }
+
     // ---------------- ponte com o site ----------------
 
     private void callJs(String method, String argument) {
@@ -883,6 +974,42 @@ public class MainActivity extends Activity {
         public void djSound(String json) {
             runOnUiThread(() -> setDjSound(json));
         }
+
+        /** APK 1.4.0+: transmitir a tela do celular (MediaProjection; som do celular no Android 10+). */
+        @JavascriptInterface
+        public boolean screenAvailable() {
+            return screenSupported();
+        }
+
+        @JavascriptInterface
+        public boolean screenAudioAvailable() {
+            return Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q;
+        }
+
+        @JavascriptInterface
+        public void screenStart(String json) {
+            runOnUiThread(() -> startScreen(json));
+        }
+
+        @JavascriptInterface
+        public void screenStop() {
+            ScreenService.stopNow();
+        }
+
+        @JavascriptInterface
+        public void screenQuality(int boxWidth, int boxHeight, int fps) {
+            ScreenService.setQuality(boxWidth, boxHeight, fps);
+        }
+
+        @JavascriptInterface
+        public void screenKeyframe() {
+            ScreenService.requestKeyframe();
+        }
+
+        @JavascriptInterface
+        public void screenUseJpeg() {
+            ScreenService.useJpeg();
+        }
     }
 
     private void openNotificationSettings() {
@@ -906,6 +1033,10 @@ public class MainActivity extends Activity {
 
     @Override
     protected void onActivityResult(int requestCode, int resultCode, Intent data) {
+        if (requestCode == REQUEST_SCREEN) {
+            screenConsent(resultCode, data);
+            return;
+        }
         if (requestCode != REQUEST_FILES || pendingFiles == null) return;
         Uri[] result = null;
         if (resultCode == RESULT_OK && data != null) {
@@ -953,6 +1084,7 @@ public class MainActivity extends Activity {
         if (current == this) current = null;
         handler.removeCallbacksAndMessages(null);
         stopDjSound();
+        ScreenService.stopNow();
         if (inCall) {
             inCall = false;
             stopService(new Intent(this, CallService.class));

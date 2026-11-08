@@ -16,6 +16,8 @@
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MICROPHONE" />
     <!-- Sem o microfone liberado (app fora da tela), o serviço segue só com o som da call. -->
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK" />
+    <!-- Transmitir a tela do celular na call (captura de tela do Android). -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PROJECTION" />
     <uses-permission android:name="android.permission.WAKE_LOCK" />
     <!-- Pedido (com explicação) para o Android não pausar o app durante a call. -->
     <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
@@ -69,6 +71,12 @@
             android:name=".CallService"
             android:exported="false"
             android:foregroundServiceType="microphone|mediaPlayback" />
+
+        <!-- Transmissão da tela: segura a captura, o codificador de vídeo e o som do celular. -->
+        <service
+            android:name=".ScreenService"
+            android:exported="false"
+            android:foregroundServiceType="mediaProjection" />
 
         <!-- Som do DJ num processo sem microfone: toca como mídia, fora da faixa da ligação. -->
         <service
