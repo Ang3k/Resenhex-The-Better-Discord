@@ -16,11 +16,11 @@ const CHOICES = {
   mode: ['', 'tela', 'app'],
   content: ['', 'mexendo', 'video', 'jogo', 'parado'],
   codec: ['auto', 'h264', 'vp8'],
-  capture: ['h264', 'jpeg'],
+  capture: ['auto', 'vp8', 'h264', 'jpeg'],
 };
 
 function createLab({ dir, now = Date.now, log = console } = {}) {
-  let state = { on: false, until: 0, mode: '', content: '', lagRule: true, codec: 'auto', capture: 'h264', run: 0 };
+  let state = { on: false, until: 0, mode: '', content: '', lagRule: true, codec: 'auto', capture: 'auto', run: 0 };
   let version = 0;
   const lastAt = new Map(); // conexão -> instante da última amostra aceita
   let file = { day: '', stream: null, bytes: 0 };

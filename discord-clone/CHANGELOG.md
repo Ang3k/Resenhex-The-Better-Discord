@@ -3,6 +3,18 @@
 Histórico de versões. A mesma lista aparece dentro do app em **Novidades** (menu do servidor ou rodapé das Configurações).
 O Resenhex chegou à versão 1.0 em 4 de outubro de 2026.
 
+## v2.5.1 — Tela do celular mais fluida na call
+
+8 de novembro de 2026.
+
+A tela do celular chega mais fluida para quem assiste. O celular agora captura a tela no tamanho em que as pessoas estão vendo, em vez de sempre em 720p, e a gravação dos últimos 30 segundos para o Clipar ficou bem mais leve quando é a sua tela do celular. Com o app do Android 1.4.2, a imagem também vai num formato que o celular repassa para a call com menos esforço.
+
+### Melhorias
+
+- A tela do celular é capturada no tamanho que quem assiste está vendo: se todo mundo vê num quadro pequeno, o celular não gasta força com 720p. Quando alguém abre a tela grande, a captura cresce junto.
+- O Clipar continua guardando os últimos 30 segundos da sua tela do celular, mas de um jeito leve: no tamanho da captura e a 15 quadros por segundo. No clipe, a tela em pé aparece inteira no meio, sem esticar.
+- App do Android 1.4.2: a tela vai em VP8, que o celular passa para a call sem copiar cada quadro de volta da placa de vídeo. Se o celular não der conta desse formato, ele volta sozinho para o de antes.
+
 ## v2.5.0 — Tela do celular na call, enquetes e mensagem direta para o dev
 
 8 de novembro de 2026.

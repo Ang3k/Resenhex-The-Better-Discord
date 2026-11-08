@@ -312,7 +312,7 @@ window.MediaSession = function ({ state, socket, call, el, toast, voiceEntry, me
       const preset = presets[state.sharePreset];
       // Tela do celular (app de Android): o próprio app ajusta a captura e o codificador.
       if (track.androidScreen) {
-        window.AndroidScreen?.setQuality({ width: preset.width, height: preset.height, fps: sfu?.active() && !viewers().length ? 5 : preset.fps });
+        phoneCapture();
         tuneSenders();
         return;
       }
@@ -326,6 +326,19 @@ window.MediaSession = function ({ state, socket, call, el, toast, voiceEntry, me
       tuneSenders();
     });
     return constraintsQueue;
+  }
+  // Tela do celular: a captura fica do tamanho que alguém assiste (o maior pedido entre os espectadores, já com
+  // o degrau da adaptação), em vez de sempre o do perfil. O celular codifica, a página decodifica e a call
+  // recodifica só os pontos que vão sair: antes tudo andava em 720p mesmo quando a call mandava 360p, e o
+  // processador que sobra vira quadros por segundo. Muda junto com a adaptação (no máximo a cada 6 s).
+  function phoneCapture() {
+    const track = state.local.screen?.getVideoTracks()[0];
+    if (!track?.androidScreen || track.readyState === 'ended') return;
+    const preset = presets[state.sharePreset];
+    const watching = viewers();
+    const heights = watching.map((sid) => MediaPolicy.screenTarget(preset, demandOf(sid), state.peers.get(sid)?.adaptation?.level || 0).height);
+    const height = heights.length ? Math.min(preset.height, Math.max(...heights)) : preset.height;
+    window.AndroidScreen?.setQuality({ width: Math.round(preset.width * height / preset.height), height, fps: sfu?.active() && !watching.length ? 5 : preset.fps });
   }
   function setSharePreset(key) {
     if (!presets[key]) return;
@@ -855,6 +868,7 @@ window.MediaSession = function ({ state, socket, call, el, toast, voiceEntry, me
         own.querySelector('.stats').textContent = !connections.length ? 'Sem espectadores · 0,0 Mbps' : measured.length !== connections.length ? 'Medindo qualidade…' : MediaPolicy.formatVideoStats(measured, connections.length > 1);
       }
       syncScreenSubscriptions();
+      phoneCapture();
       tuneSenders();
       if (!$('#settings').classList.contains('hidden')) renderDiagnostics();
       const validIds = new Set(state.peers.keys());

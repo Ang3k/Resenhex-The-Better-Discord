@@ -2,6 +2,8 @@
 
 Anotado em 08/11/2026, depois que a 2.5.0 (APK 1.4.0) foi ao ar.
 
+**Andamento (08/11, fim da tarde):** o agente mediu e mexeu no emulador com a placa de vídeo do PC. Três mudanças, sem publicar, na `claude/tela-celular` (site 2.5.1 + APK 1.4.2): captura em VP8 (sem a cópia de volta da placa de vídeo), captura no tamanho que se assiste e rolo leve do Clipar. Média de todas as rodadas: **antes 2,4 fps → agora 9,1 fps**; com o emulador folgado, 6 → 13. Detalhes em [FPS-TELA-DO-CELULAR-2026-11-08.md](../relatorios/FPS-TELA-DO-CELULAR-2026-11-08.md). Os testes no celular de verdade (abaixo) continuam valendo, agora com o APK 1.4.2.
+
 **Andamento (08/11, tarde):** o laboratório (os contadores do passo 1) está pronto na branch `claude/tela-celular`, testado de ponta a ponta no emulador, **sem publicar**. Só o site precisa ir ao ar (o APK 1.4.1 já serve). Depois, o dono roda a lista de "Como o dono roda a bateria" no celular dele, e um agente analisa os números (veja "Como analisar").
 
 ## O que o dono viu num celular de verdade
@@ -60,7 +62,7 @@ Um interruptor do dono que faz cada página da call dele mandar ao servidor, a c
 - **Variações** (para comparar com o normal):
   - **Regra de atraso** ligada ou desligada (suspeita 2). Vale a partir da próxima transmissão.
   - **Codec da call:** automático, H.264 ou VP8 (suspeitas 4 e 5). Muda na hora.
-  - **Captura do celular:** H.264 ou JPEG. Vale a partir da próxima transmissão.
+  - **Captura do celular:** automática (VP8 no APK 1.4.2+, senão H.264), VP8, H.264 ou JPEG. Vale a partir da próxima transmissão.
   - O Padrão (720p) e a Nitidez (1080p) se escolhem no próprio botão de transmitir.
 - **Onde grava:** no servidor, em `/var/lib/resenhex/lab/tela-AAAA-MM-DD.jsonl`. Uma linha por amostra, uma amostra por segundo por página, no máximo 64 MB por dia.
 

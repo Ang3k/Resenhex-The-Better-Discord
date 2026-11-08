@@ -54,6 +54,19 @@ test('o leitor junta pacotes cortados em qualquer ponto e separa os grudados', (
   }
 });
 
+test('os tipos de pacote são os mesmos do app (ScreenFeed.java), com o VP8 do APK 1.4.2', () => {
+  const java = require('node:fs').readFileSync(require('node:path').join(__dirname, '..', 'android', 'app', 'src', 'main', 'java', 'org', 'duckdns', 'resenhex', 'ScreenFeed.java'), 'utf8');
+  for (const [name, value] of Object.entries(screen.TYPE)) {
+    const m = java.match(new RegExp(`TYPE_${name}\\s*=\\s*(\\d+)`));
+    assert.ok(m, `TYPE_${name} no Java`);
+    assert.equal(Number(m[1]), value, name);
+  }
+  assert.equal(screen.TYPE.VP8, 5);
+  const got = [];
+  screen.packetParser((p) => got.push(p))(packet(screen.TYPE.VP8, screen.FLAG_KEY, 2, 5_000, new Uint8Array([0x10, 0x02, 0x00])));
+  assert.deepEqual(got.map((p) => [p.type, p.flags, p.gen, p.data.length]), [[5, 1, 2, 3]]);
+});
+
 test('o leitor recusa um tamanho absurdo (fluxo corrompido)', () => {
   const push = screen.packetParser(() => {});
   const bad = packet(screen.TYPE.H264, 0, 1, 0, new Uint8Array(0));

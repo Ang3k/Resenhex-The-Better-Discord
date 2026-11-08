@@ -60,7 +60,7 @@ window.ScreenLab = (() => {
   }
 
   function setState(next) {
-    api.state = next?.on ? { on: true, run: next.run, lagRule: next.lagRule !== false, codec: next.codec || 'auto', capture: next.capture || 'h264' } : { on: false };
+    api.state = next?.on ? { on: true, run: next.run, lagRule: next.lagRule !== false, codec: next.codec || 'auto', capture: next.capture || 'auto' } : { on: false };
     clearInterval(timer);
     timer = null;
     if (api.state.on) {

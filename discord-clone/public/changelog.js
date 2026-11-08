@@ -4,6 +4,17 @@
 // O título deve destacar as principais funcionalidades ou correções, com termos objetivos.
 window.CHANGELOG = [
   {
+    version: '2.5.1', date: '2026-11-08', name: 'Tela do celular mais fluida na call',
+    summary: 'A tela do celular chega mais fluida para quem assiste. O celular agora captura a tela no tamanho em que as pessoas estão vendo, em vez de sempre em 720p, e a gravação dos últimos 30 segundos para o Clipar ficou bem mais leve quando é a sua tela do celular. Com o app do Android 1.4.2, a imagem também vai num formato que o celular repassa para a call com menos esforço.',
+    sections: [
+      { kind: 'improved', items: [
+        'A tela do celular é capturada no tamanho que quem assiste está vendo: se todo mundo vê num quadro pequeno, o celular não gasta força com 720p. Quando alguém abre a tela grande, a captura cresce junto.',
+        'O Clipar continua guardando os últimos 30 segundos da sua tela do celular, mas de um jeito leve: no tamanho da captura e a 15 quadros por segundo. No clipe, a tela em pé aparece inteira no meio, sem esticar.',
+        'App do Android 1.4.2: a tela vai em VP8, que o celular passa para a call sem copiar cada quadro de volta da placa de vídeo. Se o celular não der conta desse formato, ele volta sozinho para o de antes.',
+      ] },
+    ],
+  },
+  {
     version: '2.5.0', date: '2026-11-08', name: 'Tela do celular na call, enquetes e mensagem direta para o dev',
     summary: 'Quem está no app do Android agora transmite a tela do celular na call, como no Discord: um jogo, um vídeo ou qualquer app, com o som dele e sem as vozes da call. Na chamada também dá para fazer enquetes: elas nascem no chat da sala e aparecem por cima da call, para todo mundo votar com um toque, e cada opção mostra a foto de quem votou. No Propor Melhorias, a sua ideia pode ir por e-mail ou como mensagem direta para o dev, com uma bolinha que mostra se ele está online. E o cartão flutuante da call no celular ficou igual à janelinha do Android, com setas para trocar de transmissão. A tela do celular precisa do app do Android 1.4.0; as setas na janelinha, do 1.4.1.',
     sections: [

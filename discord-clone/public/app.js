@@ -5672,7 +5672,9 @@
     const pinned = state.pinned?.startsWith('screen-') ? state.pinned.slice('screen-'.length) : null;
     const rank = (v) => (v.sid === pinned ? 0 : v.sid === meSid ? 2 : 1);
     const pick = sharing.filter((v) => allowed(v) && trackOf(v)).sort((a, b) => rank(a) - rank(b))[0];
-    clipScreen.follow(pick ? { accountId: pick.accountId, track: trackOf(pick), name: clipProfile(pick.accountId).name } : null);
+    // A minha tela vinda do app de Android grava no rolo leve (o celular já está no limite com a transmissão).
+    const light = !!pick && pick.sid === meSid && !!trackOf(pick)?.androidScreen;
+    clipScreen.follow(pick ? { accountId: pick.accountId, track: trackOf(pick), name: clipProfile(pick.accountId).name, light } : null);
   }
   const clipUi = window.ClipUI({
     el, Icon, toast, call, token: () => localStorage.getItem('token') || '', buffer: clipBuffer, model: window.ClipModel, render: window.ClipRender,

@@ -80,7 +80,11 @@ window.ClipRender = (() => {
   function drawScreenFrame(ctx, { width, height, people, label, progress, screen, screenName }) {
     ctx.fillStyle = '#000';
     ctx.fillRect(0, 0, width, height);
-    ctx.drawImage(screen, 0, 0, width, height);
+    // O rolo do celular guarda a tela no tamanho dela (em pé, por exemplo): encaixa sem esticar.
+    const sw = screen.displayWidth || width, sh = screen.displayHeight || height;
+    const scale = Math.min(width / sw, height / sh);
+    const w = Math.round(sw * scale), h = Math.round(sh * scale);
+    ctx.drawImage(screen, Math.round((width - w) / 2), Math.round((height - h) / 2), w, h);
     const shade = ctx.createLinearGradient(0, height - 140, 0, height);
     shade.addColorStop(0, 'rgba(0, 0, 0, 0)');
     shade.addColorStop(1, 'rgba(0, 0, 0, .75)');

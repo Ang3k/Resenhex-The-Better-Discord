@@ -1,11 +1,11 @@
 // Transmitir a tela do celular pelo app de Android (APK 1.4.0+). O WebView não tem getDisplayMedia:
-// quem captura é o app (MediaProjection). Ele codifica a tela em H.264 pelo chip de vídeo do celular
+// quem captura é o app (MediaProjection). Ele codifica a tela pelo próprio celular, em VP8 (APK 1.4.2+) ou H.264
 // (ou em JPEG, se não der) e manda os pacotes por um fetch em /__resenhex/tela/<chave>, que o próprio
 // app responde, sem passar pela rede. Aqui eles viram uma MediaStream comum (vídeo e, no Android 10+,
 // o som do celular), que a call transmite como a de um computador (media-session.js, captureScreen).
 //
 // Pacote (igual ao android/.../ScreenFeed.java): cabeçalho de 16 bytes, little-endian, e o conteúdo.
-//   byte 0: tipo (1 descrição, 2 H.264, 3 JPEG, 4 som); byte 1: marcas (1 = quadro-chave);
+//   byte 0: tipo (1 descrição, 2 H.264, 3 JPEG, 4 som, 5 VP8); byte 1: marcas (1 = quadro-chave);
 //   bytes 2-3: geração do codificador; 4-7: tamanho do conteúdo; 8-15: instante em microssegundos.
 // A descrição (JSON) abre cada geração: codec, largura, altura e fps. Girar o celular ou trocar a
 // qualidade cria um codificador novo, com geração nova; pacotes de gerações antigas são ignorados.
@@ -14,7 +14,7 @@
   if (typeof module === 'object' && module.exports) module.exports = api;
   else root.AndroidScreen = api;
 })(typeof globalThis !== 'undefined' ? globalThis : this, (root) => {
-  const TYPE = { INFO: 1, H264: 2, JPEG: 3, PCM: 4 };
+  const TYPE = { INFO: 1, H264: 2, JPEG: 3, PCM: 4, VP8: 5 };
   const FLAG_KEY = 1;
   const HEADER = 16;
   const MAX_PACKET = 16 * 1024 * 1024;
@@ -113,6 +113,17 @@
     return h264Check;
   }
 
+  // APK 1.4.2+: o celular pode mandar VP8, que este WebView decodifica no processador (libvpx).
+  let vp8Check = null;
+  function vp8Decodable() {
+    vp8Check ||= (async () => {
+      if (!has('screenUseH264') || typeof root.VideoDecoder !== 'function' || typeof root.EncodedVideoChunk !== 'function') return false;
+      try { return !!(await root.VideoDecoder.isConfigSupported({ codec: 'vp8', optimizeForLatency: true, hardwareAcceleration: 'prefer-software' })).supported; }
+      catch { return false; }
+    })();
+    return vp8Check;
+  }
+
   // Trilha de vídeo que recebe os quadros: o gerador de trilhas do Chrome ou, em WebViews antigos, um canvas.
   function videoSink(fps) {
     if (typeof root.MediaStreamTrackGenerator === 'function' && typeof root.VideoFrame === 'function') {
@@ -189,7 +200,10 @@
     if (session) throw named(START_ERRORS.busy, 'InvalidStateError');
     // Laboratório ligado pelo dono (lab-tela.js): pode forçar o JPEG e desligar a regra de atraso neste teste.
     const lab = root.ScreenLab?.state?.on ? root.ScreenLab.state : null;
-    const h264 = lab?.capture === 'jpeg' ? false : await h264Decodable();
+    // Formato da captura: VP8 quando o app e o WebView dão conta (decodifica no processador, sem a cópia da placa
+    // de vídeo antes da call), senão H.264; JPEG só quando nenhum dos dois decodifica aqui (ou o laboratório pede).
+    const h264 = lab?.capture === 'jpeg' || lab?.capture === 'vp8' ? false : await h264Decodable();
+    const vp8 = lab?.capture === 'jpeg' || lab?.capture === 'h264' ? false : await vp8Decodable();
     const s = {
       stopped: false, started: false, token: '', box: { width, height, fps },
       gen: -1, info: null, decoder: null, decoderCodec: '', waitKey: true, decodeErrors: 0, lastKeyAsk: 0,
@@ -213,7 +227,7 @@
             reject(st.reason === 'not_in_call' ? named('Fora da call', 'ShareCancelledError') : named(START_ERRORS[st.reason] || START_ERRORS.projection, 'NotReadableError'));
           }
         };
-        bridge.screenStart(JSON.stringify({ width, height, fps, h264, audio: !!audio && audioAvailable }));
+        bridge.screenStart(JSON.stringify({ width, height, fps, h264, vp8, audio: !!audio && audioAvailable }));
       });
       if (s.stopped) throw named('Transmissão cancelada.', 'ShareCancelledError');
       s.started = true;
@@ -230,10 +244,11 @@
       readLoop(s);
       s.repeat = setInterval(() => { repeatStill(s); speedBackUp(s); }, 250);
 
-      // 3. Espera o primeiro quadro. H.264 que não decodifica neste WebView: passa para JPEG.
+      // 3. Espera o primeiro quadro.
+      // Sem imagem em 6 s: o VP8 volta para o H.264 e o H.264 vai para o JPEG.
       let got = await Promise.race([firstFrame.then(() => true), sleep(6000).then(() => false)]);
-      if (!got && !s.stopped && s.info?.codec !== 'jpeg') {
-        safe(() => bridge.screenUseJpeg());
+      for (let tries = 0; !got && !s.stopped && s.info?.codec !== 'jpeg' && tries < 2; tries++) {
+        fallBack(s);
         got = await Promise.race([firstFrame.then(() => true), sleep(6000).then(() => false)]);
       }
       if (s.stopped) throw named('Transmissão cancelada.', 'ShareCancelledError');
@@ -330,7 +345,7 @@
     if (s.lastTime !== null && packet.time > s.lastTime && c.gaps.length < 600) c.gaps.push((packet.time - s.lastTime) / 1000);
     s.lastTime = packet.time;
     if (packet.type === TYPE.JPEG) { drawJpeg(s, packet); return; }
-    if (packet.type === TYPE.H264) decodeH264(s, packet);
+    if (packet.type === TYPE.H264 || packet.type === TYPE.VP8) decodeVideo(s, packet);
   }
 
   function configureDecoder(s, codec) {
@@ -339,7 +354,9 @@
       output: (frame) => { if (decoder === s.decoder) emit(s, frame); else frame.close(); },
       error: () => { if (decoder === s.decoder) decodeFailed(s); },
     });
-    decoder.configure({ codec, optimizeForLatency: true });
+    // VP8 no processador (libvpx): o quadro já sai na memória e a call o codifica direto. O H.264 do Android só
+    // decodifica pela placa de vídeo, e a call precisava copiar cada quadro de volta antes de codificar.
+    decoder.configure({ codec, optimizeForLatency: true, ...(codec === 'vp8' ? { hardwareAcceleration: 'prefer-software' } : {}) });
     s.decoder = decoder;
     s.decoderCodec = codec;
   }
@@ -351,20 +368,27 @@
     if (decoder && decoder.state !== 'closed') try { decoder.close(); } catch {}
   }
 
-  // Três erros do decodificador na mesma transmissão: este WebView não se dá com o H.264 do celular.
+  // Três erros do decodificador na mesma transmissão: este WebView não se dá com o formato do celular.
+  // Do VP8 volta para o H.264; do H.264, para o JPEG.
   function decodeFailed(s) {
     s.lab.errs++;
     closeDecoder(s);
     s.waitKey = true;
-    if (++s.decodeErrors >= 3) safe(() => bridge.screenUseJpeg());
-    else askKeyframe(s);
+    if (++s.decodeErrors < 3) { askKeyframe(s); return; }
+    s.decodeErrors = 0;
+    fallBack(s);
   }
 
-  function decodeH264(s, packet) {
+  function fallBack(s) {
+    if (s.info?.codec === 'vp8') safe(() => bridge.screenUseH264());
+    else safe(() => bridge.screenUseJpeg());
+  }
+
+  function decodeVideo(s, packet) {
     if (typeof root.VideoDecoder !== 'function') return;
     const key = !!(packet.flags & FLAG_KEY);
     if (key) {
-      const codec = codecFromSps(packet.data) || s.decoderCodec || 'avc1.42E01F';
+      const codec = packet.type === TYPE.VP8 ? 'vp8' : codecFromSps(packet.data) || (s.decoderCodec !== 'vp8' && s.decoderCodec) || 'avc1.42E01F';
       try { if (!s.decoder || s.decoder.state !== 'configured' || codec !== s.decoderCodec) configureDecoder(s, codec); }
       catch { decodeFailed(s); return; }
       s.waitKey = false;
@@ -399,7 +423,7 @@
   // O aperto passou (um jogo abrindo, por exemplo): sem atraso por um tempo, dobra os quadros de novo até
   // voltar ao do perfil. Cada vez que precisou reduzir, espera o dobro antes de tentar (30 s, 1 min… até 5 min).
   function speedBackUp(s) {
-    if (s.stopped || s.fpsLimit >= s.wantFps || s.info?.codec !== 'h264') return;
+    if (s.stopped || s.fpsLimit >= s.wantFps || !s.info || s.info.codec === 'jpeg') return;
     const now = performance.now();
     const wait = Math.min(300_000, 30_000 * 2 ** Math.max(0, s.slowCount - 1));
     if (now - s.slowedAt < wait || s.behind.some((t) => now - t < 10_000)) return;

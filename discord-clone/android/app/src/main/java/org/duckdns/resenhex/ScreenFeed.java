@@ -23,6 +23,8 @@ final class ScreenFeed {
     static final int TYPE_H264 = 2;
     static final int TYPE_JPEG = 3;
     static final int TYPE_PCM = 4;
+    /** APK 1.4.2+: VP8, que o site decodifica no processador (o quadro já sai na memória, pronto para a call). */
+    static final int TYPE_VP8 = 5;
     static final int FLAG_KEY = 1;
     static final int HEADER = 16;
     private static final int MAX_BYTES = 12 * 1024 * 1024;

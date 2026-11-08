@@ -29,7 +29,7 @@ test('ligar abre um teste novo; trocar o nome ou a variação abre outro', () =>
   assert.equal(on.on, true);
   assert.equal(on.run, 1);
   assert.ok(lab.version > before);
-  assert.deepEqual(lab.client(), { on: true, run: 1, lagRule: true, codec: 'auto', capture: 'h264' });
+  assert.deepEqual(lab.client(), { on: true, run: 1, lagRule: true, codec: 'auto', capture: 'auto' });
   assert.equal(lab.set({ mode: 'app' }).run, 2);
   assert.equal(lab.set({ lagRule: false, codec: 'vp8' }).run, 3);
   assert.equal(lab.client().lagRule, false);
@@ -54,7 +54,7 @@ test('cada amostra vira uma linha com o teste, o nome e as variações; uma por 
   await flush(lab);
   const lines = readLines(dir);
   assert.equal(lines.length, 3);
-  assert.deepEqual([lines[0].run, lines[0].mode, lines[0].content, lines[0].lagRule, lines[0].codec, lines[0].capture], [1, 'tela', 'mexendo', true, 'auto', 'h264']);
+  assert.deepEqual([lines[0].run, lines[0].mode, lines[0].content, lines[0].lagRule, lines[0].codec, lines[0].capture], [1, 'tela', 'mexendo', true, 'auto', 'auto']);
   assert.equal(lines[0].sid, 'sid-te');
   assert.equal(lines[0].owner, true);
   assert.equal(lines[0].sample.phone.pk, 29);

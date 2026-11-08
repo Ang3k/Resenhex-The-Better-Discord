@@ -81,3 +81,11 @@ test('com a tela: ela cobre o quadro, as fotos ficam embaixo e só quem fala gan
   const brand = ctx.calls.find((c) => c.name === 'fillText' && c.args[0] === 'Resenhex');
   assert.ok(brand.args[1] > 640, 'marca à direita, longe das fotos');
 });
+
+test('tela do celular em pé (rolo leve, no tamanho da captura): encaixa no meio sem esticar', () => {
+  const ctx = fakeCtx();
+  const screen = { displayWidth: 288, displayHeight: 528 };
+  load().drawFrame(ctx, { width: 1280, height: 720, people: people(), label: 'Sala 1', progress: 0.5, screen, screenName: 'Ana' });
+  const draw = ctx.calls.find((c) => c.name === 'drawImage');
+  assert.deepEqual(draw.args.slice(1), [444, 0, 393, 720]);
+});

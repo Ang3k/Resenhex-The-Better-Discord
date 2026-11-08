@@ -64,6 +64,7 @@
     let chunks = []; // { ms, key, data: ArrayBuffer }
     let owner = null; // { accountId, name } de quem é a tela no rolo
     let session = null; // gravação em andamento: { trackId, stopped, reader, clone, encoder }
+    let lightSize = null; // rolo leve: tamanho dos quadros mais novos
 
     function endSession() {
       if (!session) return;
@@ -79,6 +80,7 @@
       endSession();
       chunks = [];
       owner = null;
+      lightSize = null;
     }
 
     function prune() {
@@ -86,8 +88,13 @@
       if (first > 0) chunks = chunks.slice(first);
     }
 
-    async function record(s, track) {
+    // light: a minha tela do celular (app de Android). O celular já está capturando, decodificando e mandando a
+    // tela para a call; o rolo em 1280×720 a 30 fps era uma segunda codificação pesada, com cada quadro desenhado
+    // numa tela intermediária e copiado de volta da placa de vídeo. Aqui ele grava o quadro como chega (no
+    // tamanho da captura), a 15 fps, e o clipe encaixa a imagem na hora de montar.
+    async function record(s, track, light) {
       if (!await supported() || s.stopped) return;
+      if (light) return recordLight(s, track);
       const canvas = new OffscreenCanvas(W, H);
       const ctx = canvas.getContext('2d', { alpha: false });
       s.encoder = new VideoEncoder({
@@ -128,17 +135,62 @@
       if (session === s) endSession();
     }
 
+    async function recordLight(s, track) {
+      const fps = 15;
+      s.encoder = new VideoEncoder({
+        output: (chunk) => {
+          if (s.stopped) return;
+          const data = new ArrayBuffer(chunk.byteLength);
+          chunk.copyTo(data);
+          chunks.push({ ms: chunk.timestamp / 1000, key: chunk.type === 'key', data });
+          prune();
+        },
+        error: () => { if (session === s) endSession(); },
+      });
+      s.clone = track.clone();
+      s.reader = new MediaStreamTrackProcessor({ track: s.clone }).readable.getReader();
+      let lastFrame = -Infinity, lastKey = -Infinity, w = 0, h = 0;
+      while (!s.stopped) {
+        let result;
+        try { result = await s.reader.read(); } catch { break; }
+        const frame = result.value;
+        if (result.done || !frame) break;
+        const t = now();
+        if (s.stopped || t - lastFrame < 1000 / fps - 4 || s.encoder.encodeQueueSize > 2) { frame.close(); continue; }
+        lastFrame = t;
+        // Tamanho novo (girou o celular, a captura mudou de degrau): o codificador recomeça com quadro-chave.
+        const fw = frame.displayWidth & ~1, fh = frame.displayHeight & ~1;
+        if (fw !== w || fh !== h) {
+          w = fw;
+          h = fh;
+          try { s.encoder.configure({ codec: CODEC, width: w, height: h, bitrate: Math.round(RING_BITRATE * (w * h) / (W * H)) + 300_000, framerate: fps, latencyMode: 'realtime', avc: { format: 'annexb' } }); }
+          catch { frame.close(); break; }
+          lightSize = { width: w, height: h };
+          lastKey = -Infinity;
+        }
+        const out = new VideoFrame(frame, { timestamp: Math.round(t * 1000), duration: Math.round(1e6 / fps) });
+        frame.close();
+        const key = t - lastKey >= KEY_EVERY_MS;
+        if (key) lastKey = t;
+        try { s.encoder.encode(out, { keyFrame: key }); } catch { out.close(); break; }
+        out.close();
+      }
+      if (session === s) endSession();
+    }
+
     // Segue a tela escolhida. Outra pessoa: o rolo recomeça. A mesma pessoa com outra trilha (trocou de
     // tela, reconectou): continua o mesmo rolo. Nenhuma tela: para de gravar e o que tem vai vencendo.
     function follow(target) {
       if (!target?.track || target.track.readyState === 'ended') { endSession(); return; }
       if (owner && owner.accountId !== target.accountId) clear();
-      owner = { accountId: target.accountId, name: target.name || '' };
+      // Rolo leve e rolo normal não se misturam (tamanhos diferentes no mesmo rolo).
+      if (owner && !!owner.light !== !!target.light) clear();
+      owner = { accountId: target.accountId, name: target.name || '', light: !!target.light };
       if (session?.trackId === target.track.id) return;
       endSession();
       const s = { trackId: target.track.id, stopped: false };
       session = s;
-      record(s, target.track).catch(() => { if (session === s) endSession(); });
+      record(s, target.track, !!target.light).catch(() => { if (session === s) endSession(); });
     }
 
     // Quem desliga "Pode clipar" some do rolo na hora.
@@ -153,7 +205,8 @@
       const start = takenAt - seconds * 1000;
       const list = chunks.filter((c) => c.ms <= takenAt).map((c) => ({ t: (c.ms - start) / 1000, key: c.key, data: c.data }));
       if (!list.some((c) => c.key && c.t <= seconds)) return null;
-      return { accountId: owner.accountId, name: owner.name, chunks: list, codec: CODEC, width: W, height: H };
+      const size = owner.light && lightSize ? lightSize : { width: W, height: H };
+      return { accountId: owner.accountId, name: owner.name, chunks: list, codec: CODEC, ...size };
     }
 
     return { follow, forget, snapshot, stop: clear, recording: () => !!session, supported };
