@@ -74,7 +74,7 @@ O que sobrou de gargalo, mesmo agora: o codificador da call. O celular entrega 2
 
 ## Como repetir
 
-Os scripts ficaram na pasta temporária da sessão. A receita:
+Os scripts e as amostras do laboratório (todas as rodadas do dia) estão em `artifacts/fps-celular-2026-11-08/`, fora do git; `medir.js` tira a média de um trecho. A receita:
 
 1. Emulador com `-gpu host`, aberto por uma tarefa agendada na sessão do usuário. O shell do agente não tem placa de vídeo.
 2. Site local na porta 3124, laboratório ligado pelo dono, o app de teste (debug) na Sala 1, e um Chrome sem janela assistindo pela porta de depuração 9333.
