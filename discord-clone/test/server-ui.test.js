@@ -82,7 +82,7 @@ async function ui(t, invited = false, options = {}) {
   const configReady = options.deferConfig ? new Promise((resolve) => { releaseConfig = resolve; }) : Promise.resolve();
   w.fetch = async (url) => {
     if (url === '/config') await configReady;
-    return { json: async () => url === '/config' ? { hasOwner: options.hasOwner ?? true, passwordRequired: false, maxUploadMb: 25, mailEnabled: options.mailEnabled ?? false } : { id: 'invited', name: 'Turma convidada', members: 3, icon: null } };
+    return { json: async () => url === '/config' ? { hasOwner: options.hasOwner ?? true, passwordRequired: false, maxUploadMb: 25, mailEnabled: options.mailEnabled ?? false, ...(options.siteUrl && { siteUrl: options.siteUrl }) } : { id: 'invited', name: 'Turma convidada', members: 3, icon: null } };
   };
   let copied = '';
   Object.defineProperty(w.navigator, 'clipboard', { value: { writeText: async (text) => { copied = text; } } });
@@ -933,6 +933,29 @@ test('late config respects the chosen form; an empty installation still starts w
   assert.equal(app.d.querySelector('#login-submit').textContent, 'Entrar');
   const empty = await ui(t, false, { hash: '#entrar', hasOwner: false });
   assert.equal(empty.d.querySelector('#login-submit').textContent, 'Criar conta');
+});
+
+test('convite usa o endereço oficial mesmo com o app aberto no endereço antigo, e aceita links antigos', async (t) => {
+  const app = await ui(t, false, { siteUrl: 'https://resenhex.com.br', setup(w) {
+    // Como um app instalado: fica no endereço antigo em vez de mudar para o oficial.
+    const original = w.matchMedia?.bind(w);
+    w.matchMedia = (query) => (query.includes('standalone') ? { matches: true, media: query, addEventListener() {}, removeEventListener() {}, addListener() {}, removeListener() {} } : original(query));
+  } });
+  await app.register();
+  app.d.querySelector('#btn-add-server').click(); await settle();
+  await app.clickText('Criar meu servidorDê um nome e convide seus amigos.');
+  app.d.querySelector('#new-server-name').value = 'Turma'; await app.clickText('Criar servidor');
+  assert.equal(app.d.querySelector('#server-invite-link').value, 'https://resenhex.com.br/?invite=' + code);
+  app.d.querySelector('#server-dialog .dialog-close').click();
+  app.d.querySelector('#btn-add-server').click(); await settle();
+  await app.clickText('Entrar em um servidorCole o link que alguém enviou.');
+  const input = app.d.querySelector('#server-invite-input');
+  assert.match(input.placeholder, /^https:\/\/resenhex\.com\.br\/\?invite=/);
+  for (const link of ['https://resenhex.duckdns.org/?invite=' + code, 'https://resenhex.com.br/?invite=' + code]) {
+    input.value = link;
+    input.form.dispatchEvent(new app.w.Event('submit', { bubbles: true, cancelable: true })); await settle();
+    assert.equal(app.d.querySelector('.invite-error')?.textContent || '', '', link);
+  }
 });
 
 test('real UI registers without email, creates two servers, copies a scoped invite and restores drafts when switching', async (t) => {

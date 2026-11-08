@@ -1279,12 +1279,19 @@
     el('div', { class: 'dialog-actions' }, el('button', { type: 'button', class: 'secondary', textContent: 'Voltar', onclick: openAddServer }), submit)));
   }
 
+  // Endereço oficial do site (PUBLIC_URL, vem no /config). Os convites usam ele mesmo quando o app de Windows ou de
+  // Android ainda abre o endereço antigo (resenhex.duckdns.org), para o link que a pessoa manda ser sempre o novo.
+  const siteOrigin = () => { try { return new URL(config.siteUrl).origin; } catch { return location.origin; } };
+  const inviteLink = (code) => siteOrigin() + '/?invite=' + code;
+  // Links colados de qualquer endereço deste Resenhex valem, inclusive os antigos do duckdns.
+  const INVITE_ORIGINS = () => new Set([location.origin, siteOrigin(), 'https://resenhex.duckdns.org']);
+
   function codeFromInvite(value) {
     const text = value.trim();
     if (/^[\w-]{24}$/.test(text)) return text;
     try {
       const url = new URL(text);
-      if (url.origin !== location.origin) throw new Error('origin');
+      if (!INVITE_ORIGINS().has(url.origin)) throw new Error('origin');
       const code = url.searchParams.get('invite');
       if (/^[\w-]{24}$/.test(code || '')) return code;
     } catch {}
@@ -1293,14 +1300,14 @@
 
   function openJoinServer() {
     const dialog = serverDialog('Entrar em um servidor', 'Cole o convite para ver o servidor antes de entrar.', { icon: 'link' });
-    const input = el('input', { id: 'server-invite-input', required: true, placeholder: location.origin + '/?invite=…', autocomplete: 'off' });
+    const input = el('input', { id: 'server-invite-input', required: true, placeholder: siteOrigin() + '/?invite=…', autocomplete: 'off' });
     const note = el('p', { class: 'invite-error', role: 'alert' });
     input.oninput = () => { note.textContent = ''; };
     dialog.body.append(el('form', { onsubmit: (event) => {
       event.preventDefault();
       try { showInviteAcceptance(codeFromInvite(input.value)); } catch (error) { note.textContent = error.message; input.focus(); }
     } }, el('label', { htmlFor: input.id, textContent: 'LINK OU CÓDIGO DO CONVITE' }), input, note,
-    el('p', { class: 'dialog-hint' }, 'Os convites são assim: ', el('code', { textContent: location.origin + '/?invite=AbC…' })),
+    el('p', { class: 'dialog-hint' }, 'Os convites são assim: ', el('code', { textContent: siteOrigin() + '/?invite=AbC…' })),
     el('div', { class: 'dialog-actions' }, el('button', { type: 'button', class: 'secondary', textContent: 'Voltar', onclick: openAddServer }),
       el('button', { type: 'submit', class: 'btn-primary', textContent: 'Ver convite' }))));
   }
@@ -1349,7 +1356,7 @@
 
   function openInviteLink(invite) {
     const dialog = serverDialog('Chame seus amigos', `Convide a turma para ${invite.name}. É só compartilhar este link.`, { icon: 'userPlus' });
-    const input = el('input', { id: 'server-invite-link', readOnly: true, value: location.origin + '/?invite=' + invite.code, ariaLabel: 'Link de convite', onclick: (event) => event.target.select() });
+    const input = el('input', { id: 'server-invite-link', readOnly: true, value: inviteLink(invite.code), ariaLabel: 'Link de convite', onclick: (event) => event.target.select() });
     const copy = el('button', { type: 'button', class: 'btn-primary invite-copy', textContent: 'Copiar link', onclick: async () => {
       try {
         await navigator.clipboard.writeText(input.value);
@@ -1364,7 +1371,7 @@
     if (hasPerm('ADMIN')) dialog.body.append(el('button', { type: 'button', class: 'invite-revoke', textContent: 'Revogar este link e gerar outro', onclick: async () => {
       if (!await confirmDialog({ title: 'Revogar o convite atual?', text: 'O link antigo vai parar de funcionar. Quem já entrou permanece no servidor.', confirm: 'Gerar novo convite' })) return;
       const next = await call('server:invite', { rotate: true });
-      if (next) { input.value = location.origin + '/?invite=' + next.code; copy.textContent = 'Copiar link'; copy.classList.remove('copied'); toast('Novo convite criado. O anterior foi revogado.', 'info'); }
+      if (next) { input.value = inviteLink(next.code); copy.textContent = 'Copiar link'; copy.classList.remove('copied'); toast('Novo convite criado. O anterior foi revogado.', 'info'); }
     } }));
   }
 

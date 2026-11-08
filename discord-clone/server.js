@@ -197,7 +197,7 @@ const accountByName = (name) => db.accounts[accountIdByName.get(name.toLowerCase
 // E-mail de recuperação (opcional). Os links usam PUBLIC_URL, nunca o Host da requisição,
 // para ninguém conseguir um e-mail com link apontando para outro site.
 const mailer = createMailer();
-const recovery = createRecovery({ db, save, mailer, publicUrl: process.env.PUBLIC_URL || 'https://resenhex.duckdns.org' });
+const recovery = createRecovery({ db, save, mailer, publicUrl: process.env.PUBLIC_URL || 'https://resenhex.com.br' });
 setInterval(() => recovery.prune(), 60 * 60 * 1000).unref();
 
 // Publicação ou parada (Ctrl+C): avisa todo mundo antes de sair e diz por quanto tempo espalhar a volta

@@ -15,6 +15,10 @@ Agora dá para escolher como mandar a sua ideia no Propor Melhorias: por e-mail,
 - A bolinha mostra se o dev está online agora (verde) ou não (cinza), ao lado da opção e no botão Propor Melhorias, embaixo da lista de membros. Ela muda sozinha e não mostra mais nada além disso.
 - Depois de enviar, nada aparece nas suas mensagens. Se o dev responder, a conversa surge na sua lista e vocês conversam por ali, como numa conversa privada qualquer.
 
+### Melhorias
+
+- O link de convite agora é sempre resenhex.com.br, também nos apps de Windows e Android, que ainda abriam pelo endereço antigo (resenhex.duckdns.org). Links antigos que alguém colar continuam funcionando.
+
 ## v2.5.0 — Transmitir a tela do celular na call, com o som dos jogos e vídeos
 
 8 de novembro de 2026.

@@ -381,7 +381,7 @@ Depois de criar sua conta, mande aos amigos o **link de convite do servidor**, d
 | `MS_STORE_ID` | ID do app na Microsoft Store (ex.: `9NBLGGH4R32N`). Com ele, a página `/baixar` entrega o instalador oficial da Microsoft |
 | `KLIPY_KEY` | Chave da API de GIFs do [KLIPY](https://partner.klipy.com/api-keys). Com ela aparece o botão de GIF no chat; a busca sai do navegador de quem usa (regra do KLIPY), então a chave chega aos clientes logados. A chave de teste faz 100 buscas por hora; peça a de produção no painel deles |
 | `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASS`, `MAIL_FROM` | Envio dos e-mails de confirmação e de "Esqueci a senha" (Gmail: `smtp.gmail.com`, porta `465`, senha de app). Sem eles, a recuperação por e-mail fica desligada. Em produção ficam num drop-in do systemd (`/etc/systemd/system/resenhex.service.d/mail.conf`) |
-| `PUBLIC_URL` | Endereço usado nos links dos e-mails (padrão `https://resenhex.duckdns.org`) |
+| `PUBLIC_URL` | Endereço oficial: links dos e-mails e dos convites (padrão `https://resenhex.com.br`) |
 | `MAIL_DEV` | `console` escreve os e-mails no log em vez de enviar. Só para a máquina local e para os testes |
 
 ### Voz não conecta para alguém? Configure um TURN

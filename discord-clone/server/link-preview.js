@@ -8,7 +8,7 @@ const net = require('node:net');
 const crypto = require('node:crypto');
 
 const PORTS = new Set(['', '80', '443', '8080', '8443']);
-const UA = 'Mozilla/5.0 (compatible; ResenhexBot/1.0; +https://resenhex.duckdns.org) link preview';
+const UA = 'Mozilla/5.0 (compatible; ResenhexBot/1.0; +https://resenhex.com.br) link preview';
 const MAX_HTML = 768 * 1024;
 const MAX_IMAGE = 8 * 1024 * 1024;
 const TIMEOUT = 6000;
