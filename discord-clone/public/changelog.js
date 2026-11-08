@@ -4,10 +4,15 @@
 // O título deve destacar as principais funcionalidades ou correções, com termos objetivos.
 window.CHANGELOG = [
   {
-    version: '2.6.0', date: '2026-11-08', name: 'Propor Melhorias com mensagem direta para o dev',
-    summary: 'Agora dá para escolher como mandar a sua ideia no Propor Melhorias: por e-mail, como antes, ou como mensagem direta para o dev do Resenhex. A bolinha ao lado fica verde quando o dev está online e cinza quando não está. No celular, o cartão flutuante da call ficou igual à janelinha do Android e ganhou setas para trocar de transmissão.',
+    version: '2.6.0', date: '2026-11-08', name: 'Enquetes na chamada e mensagem direta para o dev',
+    summary: 'Agora dá para fazer enquetes na chamada: elas nascem no chat da sala e aparecem por cima da call, para todo mundo votar com um toque. E dá para escolher como mandar a sua ideia no Propor Melhorias: por e-mail, como antes, ou como mensagem direta para o dev do Resenhex. A bolinha ao lado fica verde quando o dev está online e cinza quando não está. No celular, o cartão flutuante da call ficou igual à janelinha do Android e ganhou setas para trocar de transmissão.',
     sections: [
       { kind: 'new', items: [
+        'Enquetes na chamada: no chat de uma sala de voz, o + agora tem "Criar enquete". Escreva a pergunta, de 2 a 6 opções e a duração (1 min, 5 min ou até alguém encerrar).',
+        'Enquanto a enquete está aberta, ela aparece num cartão no alto da chamada: um toque já vota, sem abrir o chat. Dá para encolher o cartão numa pílula com a pergunta e o tempo.',
+        'Cada opção mostra a porcentagem e a foto de quem votou nela. Dá para trocar o voto enquanto ela está aberta, e tocar de novo na mesma opção tira o voto.',
+        'Quando acaba, toca um somzinho, o cartão mostra a vencedora por alguns segundos e a mensagem no chat guarda o resultado. Quem criou (ou quem gerencia mensagens) pode encerrar antes.',
+        'No celular, com a enquete aberta, o cartão flutuante da call mostra "Enquete: toque para votar"; o toque abre a chamada.',
         'No Propor Melhorias, a opção "Mensagem pro dev" manda a sua ideia direto para o dev, sem precisar ser amigo dele. O e-mail continua sendo o jeito padrão.',
         'A bolinha mostra se o dev está online agora (verde) ou não (cinza), ao lado da opção e no botão Propor Melhorias, embaixo da lista de membros. Ela muda sozinha e não mostra mais nada além disso.',
         'Depois de enviar, nada aparece nas suas mensagens. Se o dev responder, a conversa surge na sua lista e vocês conversam por ali, como numa conversa privada qualquer.',

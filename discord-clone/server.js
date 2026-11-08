@@ -30,6 +30,7 @@ const { createAlarms } = require('./server/alarms');
 const { openStore } = require('./server/store');
 const { Online } = require('./server/online');
 const { socialStore, pairKey } = require('./server/social');
+const polls = require('./server/polls');
 const { version: APP_VERSION } = require('./package.json');
 
 const PORT = process.env.PORT || 3000;
@@ -1696,6 +1697,36 @@ for (const server of Object.values(communities.root.servers)) {
   }
 }
 
+// ---------------- enquetes do chat da chamada ----------------
+// Cada enquete com prazo tem um relógio; quando ele toca, ela fecha e todo mundo recebe a mensagem nova.
+const pollTimers = new Map(); // id da mensagem -> relógio
+function finishPoll(serverId, channelId, msgId) {
+  pollTimers.delete(msgId);
+  communities.run(serverId, () => {
+    const msg = (db.messages[channelId] || []).find((m) => m.id === msgId);
+    if (!msg?.poll || !polls.end(msg.poll)) return;
+    save(chunk.message(channelId, msgId));
+    const c = db.channels.find((ch) => ch.id === channelId);
+    if (c) emitPoll(c, 'chat:update', { channel: c.id, msg });
+  });
+}
+function schedulePoll(channelId, msg) {
+  clearTimeout(pollTimers.get(msg.id));
+  pollTimers.delete(msg.id);
+  if (!msg.poll?.endsAt || msg.poll.ended) return;
+  const serverId = communities.currentId();
+  pollTimers.set(msg.id, setTimeout(() => finishPoll(serverId, channelId, msg.id), Math.max(0, msg.poll.endsAt - Date.now())));
+}
+// Ao ligar: as enquetes que ainda estavam abertas voltam a contar (ou fecham, se o prazo passou).
+for (const server of Object.values(communities.root.servers)) {
+  communities.run(server.id, () => {
+    for (const c of db.channels) {
+      if (c.type !== 'voice') continue;
+      for (const msg of db.messages[c.id] || []) if (msg.poll?.endsAt && !msg.poll.ended) schedulePoll(c.id, msg);
+    }
+  });
+}
+
 const CHAT_TYPES = ['text', 'voice'];
 // Efeitos do modificador de voz (public/voice-fx.js); o servidor só repassa qual está ligado.
 const VOICE_FX = ['esquilo', 'gigante', 'robo', 'radio', 'caverna', 'alien', 'telefone', 'megafone', 'banheiro', 'fantasma', 'bebado', 'autotune', 'acordes', 'coral'];
@@ -1705,6 +1736,13 @@ function emitToViewers(channel, event, payload, except = null) {
     if (sid !== except && canView(db.accounts[s.accountId], channel)) sids.push(sid);
   }
   deliver(sids, event, payload);
+}
+// Enquete de uma sala de voz: quem está no servidor e também quem está na chamada olhando outro servidor
+// (o cartão da enquete fica na chamada).
+function emitPoll(channel, event, payload) {
+  emitToViewers(channel, event, payload);
+  const viewing = online.viewers(communities.currentId());
+  deliver([...online.inRoom(channel.id)].filter((sid) => !viewing.has(sid) && online.get(sid)?.voiceServerId === communities.currentId()), event, payload);
 }
 
 const cleanName = (s, max = 32) => String(s || '').trim().replace(/\s+/g, ' ').slice(0, max);
@@ -2411,6 +2449,7 @@ io.on('connection', (socket) => {
     const { c, list, msg } = findMessage(acc, channel, id);
     text = String(text || '').trim().slice(0, 4000);
     if (msg.authorId !== acc.id) fail('Só dá para editar suas mensagens.');
+    if (msg.poll) fail('Não dá para editar uma enquete.');
     if (msg.call) fail('Não dá para editar o aviso de uma chamada.');
     if (msg.voice) fail('Não dá para editar uma mensagem de áudio.');
     if (c.dm) dmPeer(acc, c.dm);
@@ -2442,6 +2481,7 @@ io.on('connection', (socket) => {
     // Numa conversa privada, ninguém (nem a moderação) apaga a mensagem do outro.
     if (msg.authorId !== acc.id && (c.dm || !can(acc, 'MANAGE_MESSAGES'))) fail('Sem permissão para apagar essa mensagem.');
     list.splice(i, 1);
+    if (msg.poll) { clearTimeout(pollTimers.get(msg.id)); pollTimers.delete(msg.id); }
     deleteAttachments(msg);
     emitToChat(c, 'chat:delete', { channel: c.id, id });
     save(chunk.message(c.id, msg.id));
@@ -2467,6 +2507,61 @@ io.on('connection', (socket) => {
     emitToChat(c, 'chat:update', { channel: c.id, msg });
     save(chunk.message(c.id, msg.id));
   });
+
+  // ---------------- enquetes (só no chat das salas de voz) ----------------
+  const openPollIn = (c) => (db.messages[c.id] || []).findLast((m) => polls.isOpen(m.poll));
+
+  on('poll:create', (acc, { channel, question, options, duration }) => {
+    const c = chatTarget(acc, channel);
+    if (c.dm || c.type !== 'voice') fail('Enquetes ficam no chat das salas de voz.');
+    if (!can(acc, 'SEND_MESSAGES')) fail('Você não tem permissão para enviar mensagens.');
+    if (timedOut(acc)) fail('Você está de castigo.');
+    if (openPollIn(c)) fail('Já tem uma enquete aberta nesta sala. Encerre ela antes de criar outra.');
+    if (!allow('poll:' + acc.id, 3, 60 * 1000)) fail('Calma! Espere um pouco para criar outra enquete.');
+    const poll = polls.create({ question, options, duration });
+    const list = (db.messages[c.id] ||= []);
+    const msg = { id: newId(), authorId: acc.id, text: '', ts: Date.now(), poll };
+    pushMessage(c.id, list, msg);
+    (acc.lastRead ||= {})[c.id] = msg.ts;
+    schedulePoll(c.id, msg);
+    emitPoll(c, 'chat:message', { channel: c.id, msg, author: publicProfiles([acc.id])[0] });
+    save(chunk.account(acc.id));
+    return { ok: true, id: msg.id };
+  });
+
+  const pollVote = (acc, { channel, id, option }) => {
+    const { c, msg } = findMessage(acc, channel, id);
+    if (!msg.poll) fail('Isso não é uma enquete.');
+    if (timedOut(acc)) fail('Você está de castigo.');
+    if (!allow('poll-vote:' + acc.id, 10, 5000)) fail('Calma! Votos rápidos demais.');
+    // O prazo passou e o relógio ainda não tocou: fecha agora, para ninguém votar depois do fim.
+    if (!polls.isOpen(msg.poll)) { finishPoll(communities.currentId(), c.id, msg.id); fail('Essa enquete já acabou.'); }
+    const voted = polls.vote(msg.poll, acc.id, option);
+    save(chunk.message(c.id, msg.id));
+    emitPoll(c, 'chat:update', { channel: c.id, msg });
+    return { ok: true, voted };
+  };
+  on('poll:vote', pollVote);
+  // Pelo cartão da chamada: vale o servidor da chamada, mesmo olhando outro servidor.
+  on('poll:callVote', pollVote, { voice: true });
+
+  on('poll:end', (acc, { channel, id }) => {
+    const { c, msg } = findMessage(acc, channel, id);
+    if (!msg.poll) fail('Isso não é uma enquete.');
+    if (msg.authorId !== acc.id && !can(acc, 'MANAGE_MESSAGES')) fail('Só quem criou a enquete pode encerrar.');
+    clearTimeout(pollTimers.get(msg.id));
+    pollTimers.delete(msg.id);
+    if (!polls.end(msg.poll)) return { ok: true };
+    save(chunk.message(c.id, msg.id));
+    emitPoll(c, 'chat:update', { channel: c.id, msg });
+  });
+
+  // A enquete aberta na sala (para o cartão na chamada de quem entra depois).
+  on('poll:active', (acc, { channel }) => {
+    const c = chatTarget(acc, channel);
+    const msg = c.dm ? null : openPollIn(c) || null;
+    return { msg, authors: msg ? publicProfiles([msg.authorId]) : [] };
+  }, { voice: true });
 
   on('chat:read', (acc, { channel }) => {
     const c = chatTarget(acc, channel);

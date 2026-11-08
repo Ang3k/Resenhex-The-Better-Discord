@@ -19,6 +19,9 @@ window.Sounds = (() => {
     undeafen: [[262, 0, 0.08], [392, 0.07, 0.12]],
     stream: [[523, 0, 0.08], [659, 0.07, 0.08], [784, 0.14, 0.12]],
     message: [[740, 0, 0.07]],
+    // Enquete na chamada: abriu (duas notas) e acabou (subida curta, o resultado).
+    pollOpen: [[659, 0, 0.08], [880, 0.08, 0.12]],
+    pollEnd: [[784, 0, 0.08], [988, 0.09, 0.08], [1319, 0.18, 0.22]],
     // Salão do Mudae: tique da roleta, revelação por raridade, casamento e a fanfarra do lendário.
     mudaeTick: [[1568, 0, 0.025]],
     mudaeCommon: [[523, 0, 0.1], [659, 0.07, 0.14]],

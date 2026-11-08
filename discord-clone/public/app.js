@@ -478,6 +478,9 @@
   // Chamada nas conversas privadas (dm-call.js): toque, mensagem de chamada e quem ainda não entrou.
   const dmCall = DmCallUI({ state, el, Icon, avatar, person: (id) => person(id), call, toast, Sounds,
     join: (dm, opts) => startDmCall(dm, opts), openDm: (dm) => openDm(dm), openProfile: (id, anchor) => openProfile(id, anchor) });
+  // Enquetes do chat da chamada (poll.js): a mensagem no chat, o formulário e o cartão por cima da chamada.
+  const polls = PollUI({ state, el, Icon, avatar, member: (id) => callMember(id), call, toast, Sounds, Motion, canManage: () => hasPerm('MANAGE_MESSAGES') });
+  polls.onCallChange(() => { renderCallPoll(); renderCallFloat(); });
   // Conversa privada: id "dm-<conta>-<conta>". Aparece como um canal de texto, com a outra pessoa em "peer".
   const isDm = (id) => typeof id === 'string' && id.startsWith('dm-');
   const dmPeerId = (id) => id.slice(3).split('-').find((x) => x !== state.me?.accountId);
@@ -1817,7 +1820,7 @@
         el('span', { class: 'reply-curve' }),
         replied
           ? [el('span', { class: 'reply-author', style: { color: nameColor(ra) }, textContent: '@' + (ra?.name || replied.authorName || '?') }),
-            el('span', { class: 'reply-snippet', textContent: Format.plain(replied.text, fmtCtx) || (replied.voice ? '🎤 Mensagem de áudio' : 'Clique para ver o anexo') })]
+            el('span', { class: 'reply-snippet', textContent: Format.plain(replied.text, fmtCtx) || (replied.poll ? polls.preview(replied) : replied.voice ? '🎤 Mensagem de áudio' : 'Clique para ver o anexo') })]
           : el('span', { class: 'reply-snippet', textContent: 'Mensagem original apagada' })));
     }
 
@@ -1857,6 +1860,7 @@
         msg.edited ? el('span', { class: 'edited', textContent: ' (editado)', tip: formatStamp(msg.edited) }) : null));
     }
 
+    if (msg.poll) body.append(polls.body(msg, state.textChannel));
     if (msg.gif) body.append(gifNode(msg.gif));
     if (msg.attachments?.length) body.append(msg.voice ? voiceMessageNode(msg) : attachmentsNode(msg.attachments));
     if (msg.embeds?.length) body.append(el('div', { class: 'embeds' }, msg.embeds.map((e) => embedNode(e, msg))));
@@ -1881,7 +1885,7 @@
       actions.append(action('Adicionar reação', 'smilePlus', (e) => openEmojiPicker(e.currentTarget, (em) => react(msg.id, em))));
       actions.append(action('Responder', 'reply', () => startReply(msg)));
     }
-    const canEdit = mine && canWrite() && !msg.voice;
+    const canEdit = mine && canWrite() && !msg.voice && !msg.poll;
     if (canEdit) actions.append(action('Editar', 'pencil', () => { state.editing = msg.id; renderMessages(); }));
     const canDelete = mine || (!inDm() && hasPerm('MANAGE_MESSAGES'));
     if (canDelete) actions.append(action('Apagar (Shift+clique apaga sem perguntar)', 'trash', (e) => deleteMessage(msg, e.shiftKey), 'danger'));
@@ -2098,6 +2102,9 @@
       input.placeholder = (c?.type === 'voice' ? 'Conversar em ' : 'Conversar em #') + (c?.name || '');
     }
     $('#btn-attach').disabled = input.disabled;
+    const attachLabel = !inDm() && c?.type === 'voice' ? 'Enviar arquivo ou criar enquete' : 'Enviar arquivo';
+    $('#btn-attach').setAttribute('aria-label', attachLabel);
+    $('#btn-attach').dataset.tip = attachLabel;
     $('#btn-emoji').disabled = input.disabled;
     $('#btn-gif').disabled = input.disabled;
     $('#btn-voice-msg').disabled = input.disabled;
@@ -2224,7 +2231,19 @@
   }
 
   $('#chat-form').addEventListener('submit', (e) => e.preventDefault());
-  $('#btn-attach').onclick = () => $('#file-input').click();
+  // No chat de uma sala de voz, o "+" também cria enquete; nos outros, abre direto a escolha de arquivo.
+  $('#btn-attach').onclick = (e) => {
+    const channel = state.textChannel;
+    if (inDm() || channelById(channel)?.type !== 'voice') { $('#file-input').click(); return; }
+    const menu = $('#context-menu');
+    menu.replaceChildren(
+      menuItem('Enviar arquivo', 'upload', () => $('#file-input').click()),
+      menuItem('Criar enquete', 'poll', () => polls.openCreator(channel)));
+    const r = e.currentTarget.getBoundingClientRect();
+    showMenuAt(r.left, r.top - menu.offsetHeight - 8);
+    menu.style.top = Math.max(8, r.top - menu.offsetHeight - 8) + 'px';
+    menu.querySelector('button')?.focus();
+  };
   $('#file-input').onchange = (e) => {
     uploadFiles([...e.target.files]);
     e.target.value = '';
@@ -2511,7 +2530,7 @@
     if (document.visibilityState === 'visible' && document.hasFocus()) return;
     const author = (isDm(channel) ? person(msg.authorId) : serverMember(msg.authorId) || person(msg.authorId))?.name || 'Alguém';
     const n = new Notification(isDm(channel) ? `${author} (mensagem direta)` : `${author} em ${channelById(channel)?.type === 'voice' ? '' : '#'}${channelById(channel)?.name || ''}`, {
-      body: Format.plain(msg.text, fmtCtx).slice(0, 200) || (msg.gif ? 'GIF' : msg.voice ? '🎤 Mensagem de áudio' : '📎 Anexo'),
+      body: Format.plain(msg.text, fmtCtx).slice(0, 200) || (msg.poll ? polls.preview(msg) : msg.gif ? 'GIF' : msg.voice ? '🎤 Mensagem de áudio' : '📎 Anexo'),
       tag: channel,
       silent: true,
     });
@@ -2541,6 +2560,7 @@
     if (msg.bot) mudae.sync(msg.ts);
     if (msg.bot) queueMicrotask(() => salon.onMessage(channel, msg));
     state.messages[channel]?.push(msg);
+    if (msg.poll) polls.onMessage(channel, msg);
     if (msg.authorId !== state.me?.accountId) {
       if (isViewing(channel)) markRead(channel);
       else {
@@ -2573,11 +2593,13 @@
     const list = state.messages[channel];
     const i = list ? list.findIndex((m) => m.id === msg.id) : -1;
     if (i >= 0) list[i] = msg;
+    if (msg.poll) polls.onUpdate(channel, msg);
     if (channel === state.textChannel) msg.call ? renderMain() : renderMessages();
     if (msg.bot) salon.onUpdate(channel, msg);
   });
 
   socket.on('chat:delete', ({ channel, id }) => {
+    polls.onDelete(channel, id);
     if (state.messages[channel]) state.messages[channel] = state.messages[channel].filter((m) => m.id !== id);
     if (state.replyTo?.id === id) {
       state.replyTo = null;
@@ -3125,8 +3147,11 @@
       menuButton('cf-menu-prev', 'Transmissão anterior', 'chevronLeft', () => { switchCallFloatStream(-1); showCallFloatMenu(true); }),
       menuButton('cf-menu-next', 'Próxima transmissão', 'chevronRight', () => { switchCallFloatStream(1); showCallFloatMenu(true); }),
       el('div', { class: 'cf-menu-actions' }, mic, deaf, leave));
+    // Enquete aberta na sala: um selo no cartão; tocar nele abre a chamada, onde está o cartão da enquete.
+    const pollBadge = el('button', { type: 'button', class: 'cf-poll hidden', onclick: (e) => { e.stopPropagation(); hideCallFloatMenu(); openCallFromFloat(); } },
+      Icon('poll', 13), el('span', {}));
     const node = el('div', { id: 'call-float', class: 'hidden', role: 'group', ariaLabel: 'Chamada em andamento', data: { corner: callFloatCorner() } },
-      open, menu);
+      open, pollBadge, menu);
     document.body.append(node);
     dragCallFloat(node);
     // Nos cantos de baixo, o cartão acompanha a altura da caixa de mensagem (texto longo, resposta, anexo).
@@ -3354,6 +3379,19 @@
       ...(flag ? [el('span', { class: 'cf-flag' + (flag.server ? ' server' : '') }, Icon(flag.icon, 10))] : []));
   }
 
+  // O cartão da enquete por cima da chamada (poll.js monta; aqui só entra no lugar).
+  function renderCallPoll() {
+    const view = $('#voice-view');
+    const next = polls.callCard();
+    const old = $('#call-poll:not(.leaving)');
+    if (!next) { if (old) Motion.leave(old); return; }
+    if (!old) { view.append(next); return; }
+    // Quem votou pelo teclado continua no mesmo botão depois da contagem nova.
+    const focused = old.contains(document.activeElement) ? [...old.querySelectorAll('button')].indexOf(document.activeElement) : -1;
+    old.replaceWith(next);
+    if (focused >= 0) next.querySelectorAll('button')[focused]?.focus({ preventScroll: true });
+  }
+
   function renderCallFloat() {
     if (!state.me) return;
     if (state.voiceChannel) heldCallName = ''; // voltou à chamada (ou entrou em outra)
@@ -3387,6 +3425,15 @@
     callFloat.querySelector('.cf-name').textContent = room;
     callFloat.querySelector('.cf-open').setAttribute('aria-label', (held ? 'Reconectando à chamada: ' : 'Chamada: ') + room + '. Toque para ver os botões.');
     callFloat.classList.toggle('multi', !held && !!state.voiceChannel && callFloatStreams().length > 1);
+    const pollBadge = callFloat.querySelector('.cf-poll');
+    const pollOpen = !held && !pip && polls.hasOpenCallPoll();
+    pollBadge.classList.toggle('hidden', !pollOpen);
+    callFloat.classList.toggle('has-poll', pollOpen);
+    if (pollOpen) {
+      const text = polls.myCallVote() ? 'Enquete: você votou' : 'Enquete: toque para votar';
+      pollBadge.lastChild.textContent = text;
+      pollBadge.setAttribute('aria-label', text + '. Abre a chamada.');
+    }
     updateCallTime();
     const { micOff, forcedMute, deaf, serverDeaf } = callFloatControls;
     const mic = callFloat.querySelector('.cf-mic');
@@ -3565,6 +3612,7 @@
   }
 
   function renderControls() {
+    polls.syncCall();
     const me = callMe();
     const inVoice = !!state.voiceChannel;
     const forcedMute = me.serverMuted || timedOut(me) || !callPerm('SPEAK');
@@ -7026,7 +7074,7 @@
     nextServer: () => stepServer(1),
     toggleMembers: () => press('#btn-members'),
     emojiPicker: () => press('#btn-emoji'),
-    upload: () => press('#btn-attach'),
+    upload: () => !$('#btn-attach').disabled && $('#file-input').click(),
     settings: () => preferences.open(),
     shortcuts: () => preferences.open('accessibility').then(() => $('#keybinds-group').scrollIntoView({ block: 'start' })),
   };
