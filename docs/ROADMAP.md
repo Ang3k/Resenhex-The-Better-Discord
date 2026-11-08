@@ -28,3 +28,4 @@ Ideias anotadas para as próximas versões do Resenhex.
 - [x] Trocar a qualidade (720p/1080p, 30/60 fps) depois de começar. Já existe: clique de novo no 🖥️.
 - [x] **Trocar a tela ou o aplicativo transmitido sem parar a transmissão**: no meio da live, um botão "Trocar tela/aplicativo" abre de novo a escolha do navegador (outro monitor, outro programa ou outra aba), e quem assiste continua vendo sem interrupção. Precisa pedir a nova captura e substituir o vídeo enviado para cada pessoa, sem renegociar a conexão.
 - [x] Deixar a opção de qualidade mais visível durante a transmissão, por exemplo num menu "⚙️ Transmissão" direto no bloco da tela.
+- [ ] **Melhorar o fps da transmissão pelo celular** (pedido do dono em 08/11): na tela inteira o fps fica baixo e a qualidade oscila; com um app só fica aceitável. Fazer uma bateria de testes para achar onde os quadros se perdem. Plano: [PLANO-FPS-TELA-DO-CELULAR-2026-11-08.md](planos/PLANO-FPS-TELA-DO-CELULAR-2026-11-08.md).

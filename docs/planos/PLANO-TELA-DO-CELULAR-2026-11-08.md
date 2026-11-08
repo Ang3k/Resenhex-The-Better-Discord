@@ -70,3 +70,7 @@ Corrigido na mesma versão com `public/compat.js`, o primeiro script da página,
 - CSS (relido do cache e posto no lugar da folha original, na mesma ordem): `color-mix()` vira a cor calculada com as variáveis da raiz (variável só de um elemento, como a cor de cada pessoa no bloco da call, fica com a cor que pesa mais); `@container` vira `@media` e `cqw` vira `vw` (no celular a call ocupa a largura toda); seletores com `:has()` saem das listas para o resto da regra valer (o modo imersivo e o cinema do DJ dependiam disso); `dvh` vira `vh`; `inset` vira `top/right/bottom/left` no Chrome 85–86.
 - Testado no emulador Android 12 (WebView 91), sem nada injetado: abre, sem erro no console, chat, gaveta de canais, call, configurações e transmissão da tela funcionando. Num navegador novo nada muda. O que segue diferente no WebView antigo: os blocos da call ficam todos na mesma cor, e regras que só funcionam com `:has()` (esconder o cartão da call com a gaveta aberta, por exemplo) não valem.
 - Mínimo: Chrome/WebView 85 (o site usa `??=`, que é do 85). Abaixo disso a página nem é lida.
+
+## Depois de publicar (08/11)
+
+A 2.5.0 e o APK 1.4.0 foram ao ar em 08/11 às 05:26. No celular de verdade do dono, transmitir a tela inteira deu fps baixo e qualidade oscilando; com um app só ficou aceitável. A bateria de testes para melhorar isso está em [PLANO-FPS-TELA-DO-CELULAR-2026-11-08.md](PLANO-FPS-TELA-DO-CELULAR-2026-11-08.md).
