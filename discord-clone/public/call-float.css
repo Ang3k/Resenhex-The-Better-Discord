@@ -1,21 +1,24 @@
-/* Cartão flutuante da chamada no celular (app.js, renderCallFloat): fora da tela da chamada, com a sala,
-   quem está nela (o anel verde de quem fala e o microfone cortado de quem está mudo) ou a transmissão que
-   você assiste, em miniatura, e microfone, fone e desligar. Arrastável até um dos quatro cantos, ou até o X
-   que aparece embaixo para escondê-lo sem sair da chamada. No app do Android, o mesmo cartão vira a
-   janelinha por cima dos outros apps (html.android-pip, no fim do arquivo). */
+/* Cartão flutuante da chamada no celular (app.js, renderCallFloat) e janelinha do app do Android: os dois têm o
+   mesmo desenho. Sem transmissão, quem fala aparece grande no meio e os outros pequenos embaixo; com uma
+   transmissão assistida, só o vídeo, de ponta a ponta, com AO VIVO e o nome por cima. No cartão, um toque mostra
+   os botões por cima (como o Android faz na janelinha): voltar à chamada no meio, microfone, fone e desligar
+   embaixo, o X para esconder e, com duas ou mais transmissões, as setas para trocar. O cartão é arrastável até um
+   dos quatro cantos, ou até o X que aparece embaixo. No Android, o mesmo cartão vira a janelinha por cima dos
+   outros apps (html.android-pip, no fim do arquivo); lá os botões são os do próprio Android. */
 #call-float, #call-float-bin { display: none; }
 
 /* ---- peças do cartão e da janelinha ---- */
 .cf-face { position: relative; flex-shrink: 0; display: inline-grid; }
 /* Microfone ou fone desligado de alguém: um recorte no canto da foto, como o status no Discord. */
 .cf-flag {
-  position: absolute; right: -3px; bottom: -3px;
-  width: 16px; height: 16px; border-radius: 50%;
+  position: absolute; right: -4px; bottom: -4px;
+  width: 13px; height: 13px; border-radius: 50%;
   display: grid; place-items: center;
   background: var(--bg-floating); color: var(--text-muted);
 }
+.cf-flag svg { width: 8px; height: 8px; }
 .cf-flag.server { color: var(--red); }
-/* Amigo que ainda não atendeu a chamada privada: apagado ao lado da sua foto. */
+/* Amigo que ainda não atendeu a chamada privada. */
 .cf-waiting { opacity: .45; }
 .cf-held-label { display: none; }
 .cf-spinner {
@@ -24,18 +27,136 @@
   animation: cf-spin .9s linear infinite;
 }
 .cf-spinner.big { width: 40px; height: 40px; border-width: 3px; }
-.cf-feature, .cf-self { display: none; }
+
+#call-float { --pip-face: 52px; }
+.cf-open {
+  all: unset; box-sizing: border-box; position: relative;
+  display: flex; flex: 1; flex-direction: column; gap: 4px; min-width: 0; min-height: 0;
+  cursor: pointer; border-radius: inherit;
+}
+.cf-open:focus-visible { outline: 2px solid var(--brand); outline-offset: 2px; }
+.cf-head { display: flex; align-items: center; gap: 6px; min-width: 0; font-size: 12px; line-height: 16px; }
+#call-float.self-off .cf-head { padding-right: 26px; }
+/* O halo é um ::before translúcido, não color-mix: o WebView de Androids mais antigos (Chrome 113) o pinta de cinza. */
+.cf-dot { position: relative; flex-shrink: 0; width: 8px; height: 8px; border-radius: 50%; background: var(--green); }
+.cf-dot::before { content: ''; position: absolute; inset: -3px; border-radius: 50%; background: var(--green); opacity: .22; }
+.cf-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 700; color: var(--text-strong); }
+.cf-head .call-time { flex-shrink: 0; color: var(--green); }
+
+/* A conexão caiu: o ponto fica amarelo e pulsando, e o nome de quem fala vira "Reconectando…". */
+#call-float.held .cf-dot, #call-float.held .cf-dot::before { background: var(--yellow); }
+#call-float.held .cf-dot::before { animation: cf-held-pulse 1.4s var(--ease-enter, ease-out) infinite; }
+#call-float.held .call-time { display: none; }
+#call-float.held .cf-feature-name { color: var(--yellow); font-weight: 600; }
+#call-float.held .cf-people { display: none; }
+
+/* Quem fala, grande no meio, com o nome embaixo. */
+.cf-feature { display: flex; flex: 1; min-height: 0; flex-direction: column; align-items: center; justify-content: center; gap: 5px; }
+.cf-feature-face { display: grid; }
+.cf-feature-face .avatar { width: var(--pip-face); height: var(--pip-face); font-size: calc(var(--pip-face) * .4); }
+.cf-feature-face .avatar.speaking { box-shadow: 0 0 0 3px var(--bg-floating), 0 0 0 6px var(--green); }
+.cf-feature-face .cf-flag { display: none; } /* o nome embaixo já mostra */
+.cf-feature-name {
+  display: flex; align-items: center; justify-content: center; gap: 4px; max-width: 100%;
+  font-size: 13px; line-height: 16px; font-weight: 700; color: var(--text-strong);
+}
+.cf-feature-text { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cf-feature-flag { display: grid; flex-shrink: 0; color: var(--text-muted); }
+.cf-feature-flag.server { color: var(--red); }
+.cf-calling { font-weight: 600; color: var(--text-muted); }
+
+/* Os outros, pequenos, numa fileira embaixo. */
+.cf-people { display: flex; align-items: center; justify-content: center; gap: 6px; }
+.cf-people:empty { display: none; }
+.cf-people .avatar { width: 22px; height: 22px; font-size: 9px; }
+.cf-people .avatar.speaking { box-shadow: 0 0 0 2px var(--bg-floating), 0 0 0 3px var(--green); }
+.cf-more { font-size: 11px; font-weight: 600; color: var(--text-muted); }
+.cf-status { display: none; } /* o texto vira o rótulo do botão do cartão (app.js) */
+
+/* O seu microfone ou fone desligado: um selo vermelho no canto de cima. */
+.cf-self {
+  display: grid; place-items: center; position: absolute; top: 7px; right: 8px; z-index: 1;
+  width: 22px; height: 22px; border-radius: 50%;
+  background: var(--red); color: #fff; box-shadow: 0 1px 4px rgb(0 0 0 / .35);
+}
+.cf-self.hidden { display: none; }
+
+/* Com a transmissão: só o vídeo, de ponta a ponta, com AO VIVO e o nome por cima e quem fala no canto. */
+#call-float.with-screen { padding: 0; background: #000; }
+#call-float.with-screen .cf-head,
+#call-float.with-screen .cf-feature,
+#call-float.with-screen .cf-people { display: none; }
+#call-float.with-screen .cf-self { top: 6px; right: 6px; }
+.cf-screen { position: relative; display: block; flex: 1; min-height: 0; overflow: hidden; background: #000; }
+.cf-screen.hidden { display: none; }
+.cf-screen video { display: block; width: 100%; height: 100%; object-fit: contain; pointer-events: none; }
+.cf-screen.paused video { opacity: .45; }
+/* Trocando de transmissão: a próxima ainda não chegou. */
+.cf-loading { position: absolute; inset: 0; display: none; place-items: center; }
+.cf-screen.loading .cf-loading { display: grid; }
+.cf-screen.loading .cf-live { display: none; }
+.cf-live { position: absolute; top: 6px; left: 6px; }
+.cf-screen-name {
+  position: absolute; left: 6px; bottom: 6px; width: fit-content; max-width: calc(100% - 46px);
+  padding: 1px 8px; border-radius: 999px; background: rgb(0 0 0 / .6); color: #fff;
+  font-size: 11px; font-weight: 600; line-height: 18px;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+/* Acabou de trocar: o nome de quem transmite cresce um pouco, para dar para ver de quem é a tela. */
+.cf-screen-name.switched { animation: cf-name-pop 1.8s var(--ease-enter, ease-out); }
+.cf-talker {
+  position: absolute; right: 8px; bottom: 8px; display: grid;
+  opacity: 0; scale: .6; transition: opacity var(--motion-fast, .14s) ease, scale var(--motion-base, .2s) var(--ease-enter, ease-out);
+}
+.cf-talker.on { opacity: 1; scale: 1; }
+.cf-talker .avatar { width: 26px; height: 26px; font-size: 10px; box-shadow: 0 0 0 2px #000, 0 0 0 4px var(--green); }
+
+/* ---- os botões por cima do cartão (um toque mostra, somem sozinhos em 3 s) ---- */
+.cf-menu {
+  position: absolute; inset: 0; z-index: 2; border-radius: inherit;
+  background: rgb(0 0 0 / .58); color: #fff;
+  opacity: 0; visibility: hidden;
+  transition: opacity var(--motion-fast, .14s) ease, visibility 0s linear var(--motion-fast, .14s);
+}
+/* Com os botões à vista, o nome, o AO VIVO e quem fala saem da frente (os botões de baixo ficariam por cima deles). */
+.cf-screen-name, .cf-live, .cf-talker, .cf-self { transition: opacity var(--motion-fast, .14s) ease; }
+#call-float.menu-open :is(.cf-screen-name, .cf-live, .cf-talker, .cf-self, .cf-head, .cf-people) { opacity: 0; }
+#call-float.menu-open .cf-menu { opacity: 1; visibility: visible; transition: opacity var(--motion-fast, .14s) ease, visibility 0s; }
+.cf-menu button {
+  all: unset; box-sizing: border-box; position: absolute;
+  display: grid; place-items: center; border-radius: 50%; cursor: pointer; color: #fff;
+  -webkit-tap-highlight-color: transparent;
+}
+.cf-menu button:active { background: rgb(255 255 255 / .16); }
+.cf-menu button:focus-visible { outline: 2px solid #fff; outline-offset: 1px; }
+.cf-menu .cf-menu-expand { left: 50%; top: 50%; width: 44px; height: 44px; translate: -50% -62%; }
+.cf-menu .cf-menu-close { top: 4px; right: 4px; width: 30px; height: 30px; }
+.cf-menu .cf-menu-prev, .cf-menu .cf-menu-next { top: 50%; width: 32px; height: 40px; translate: 0 -62%; border-radius: 10px; }
+.cf-menu .cf-menu-prev { left: 2px; }
+.cf-menu .cf-menu-next { right: 2px; }
+#call-float:not(.multi) .cf-menu-prev, #call-float:not(.multi) .cf-menu-next { display: none; }
+.cf-menu-actions { position: absolute; left: 0; right: 0; bottom: 6px; display: flex; justify-content: center; gap: 10px; }
+.cf-menu .cf-menu-actions button { position: static; width: 34px; height: 34px; }
+.cf-menu .cf-btn.off { color: #ff8a93; }
+.cf-menu .cf-btn.locked { opacity: .5; }
+.cf-menu .cf-leave { background: var(--red-dark, #c8323c); }
+.cf-menu .cf-leave svg { rotate: 135deg; }
 
 @media (max-width: 640px) {
   #call-float {
     position: fixed; z-index: 12;
-    display: flex; flex-direction: column; gap: 10px;
-    width: 188px; padding: 10px;
+    display: flex; flex-direction: column; gap: 6px;
+    width: 200px; height: 150px; padding: 8px 10px 10px; overflow: hidden;
     border-radius: 16px; border: 1px solid var(--divider);
     background: var(--bg-floating); box-shadow: var(--shadow-float);
     touch-action: none; user-select: none; -webkit-user-select: none;
     animation: cf-in var(--motion-slow, .28s) var(--ease-enter, cubic-bezier(.2, .9, .3, 1));
     transition: scale var(--motion-fast, .14s) var(--ease-enter, ease-out), opacity var(--motion-fast, .14s) var(--ease-enter, ease-out);
+  }
+  /* Com a transmissão, o cartão tem o formato dela (o app.js mede o vídeo): 248 px deitada, mais estreito em pé. */
+  #call-float.with-screen {
+    width: min(var(--cf-w, 248px), calc(100vw - 32px)); height: auto; aspect-ratio: var(--cf-ratio, 16 / 9);
+    border-color: rgb(255 255 255 / .08);
   }
   #call-float.hidden,
   html:not(.android-pip) body:has(#app.channels-open) #call-float,
@@ -53,74 +174,6 @@
     scale: .6; opacity: .85;
     transition: scale var(--motion-fast, .14s) var(--ease-enter, ease-out), opacity var(--motion-fast, .14s) var(--ease-enter, ease-out), translate var(--motion-fast, .14s) var(--ease-enter, ease-out);
   }
-
-  .cf-open {
-    all: unset; box-sizing: border-box;
-    display: flex; flex-direction: column; gap: 8px; min-width: 0;
-    cursor: pointer; border-radius: 10px;
-  }
-  .cf-open:focus-visible { outline: 2px solid var(--brand); outline-offset: 3px; }
-  .cf-head { display: flex; align-items: center; gap: 6px; min-width: 0; font-size: 12px; line-height: 16px; }
-  /* O halo é um ::before translúcido, não color-mix: o WebView de Androids mais antigos (Chrome 113) o pinta de cinza. */
-  .cf-dot { position: relative; flex-shrink: 0; width: 8px; height: 8px; border-radius: 50%; background: var(--green); }
-  .cf-dot::before { content: ''; position: absolute; inset: -3px; border-radius: 50%; background: var(--green); opacity: .22; }
-  .cf-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 700; color: var(--text-strong); }
-  .cf-head .call-time { flex-shrink: 0; color: var(--green); }
-
-  /* A conexão caiu: o ponto fica amarelo e pulsando, e "Reconectando…" toma o lugar do tempo. */
-  #call-float.held .cf-dot, #call-float.held .cf-dot::before { background: var(--yellow); }
-  #call-float.held .cf-dot::before { animation: cf-held-pulse 1.4s var(--ease-enter, ease-out) infinite; }
-  #call-float.held .call-time { display: none; }
-  #call-float.held .cf-held-label { display: inline; flex-shrink: 0; color: var(--yellow); font-weight: 600; }
-
-  .cf-people { display: flex; align-items: center; gap: 8px; min-height: 30px; }
-  .cf-people .avatar { width: 30px; height: 30px; font-size: 12px; }
-  .cf-people .avatar.speaking { box-shadow: 0 0 0 2px var(--bg-floating), 0 0 0 4px var(--green); }
-  .cf-more { font-size: 12px; font-weight: 600; color: var(--text-muted); }
-  /* Quem está falando agora (ou quantos estão na chamada), embaixo das fotos. */
-  .cf-status {
-    margin-top: -2px; font-size: 12px; line-height: 16px; color: var(--text-muted);
-    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
-    transition: color var(--motion-fast, .14s) ease;
-  }
-  .cf-status.talking { color: var(--green); font-weight: 600; }
-
-  /* Com uma transmissão assistida, o cartão fica mais largo e mostra a tela em miniatura no lugar das fotos. */
-  #call-float.with-screen { width: min(248px, calc(100vw - 32px)); }
-  #call-float.with-screen .cf-people, #call-float.with-screen .cf-status { display: none; }
-  .cf-screen {
-    position: relative; display: block; overflow: hidden;
-    aspect-ratio: 16 / 9; border-radius: 10px; background: #000;
-  }
-  .cf-screen.hidden { display: none; }
-  .cf-screen video { display: block; width: 100%; height: 100%; object-fit: contain; pointer-events: none; }
-  .cf-screen.paused video { opacity: .45; }
-  .cf-live { position: absolute; top: 6px; left: 6px; }
-  .cf-screen-name {
-    position: absolute; left: 6px; right: 40px; bottom: 6px; width: fit-content; max-width: calc(100% - 46px);
-    padding: 1px 8px; border-radius: 999px; background: rgb(0 0 0 / .6); color: #fff;
-    font-size: 11px; font-weight: 600; line-height: 18px;
-    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
-  }
-  /* Quem fala enquanto você assiste: a foto com o anel verde no canto da tela. */
-  .cf-talker {
-    position: absolute; right: 8px; bottom: 8px; display: grid;
-    opacity: 0; scale: .6; transition: opacity var(--motion-fast, .14s) ease, scale var(--motion-base, .2s) var(--ease-enter, ease-out);
-  }
-  .cf-talker.on { opacity: 1; scale: 1; }
-  .cf-talker .avatar { width: 24px; height: 24px; font-size: 10px; box-shadow: 0 0 0 2px #000, 0 0 0 4px var(--green); }
-
-  .cf-actions { display: flex; gap: 6px; }
-  .cf-btn {
-    flex: 1; height: 38px; display: grid; place-items: center;
-    border: 0; border-radius: 10px; cursor: pointer;
-    background: var(--hover-strong); color: var(--text);
-  }
-  .cf-btn:active { filter: brightness(1.2); }
-  .cf-btn.off { background: color-mix(in srgb, var(--red) 18%, transparent); color: var(--red); }
-  .cf-btn.locked { opacity: .55; }
-  .cf-leave { background: var(--red-dark); color: var(--text-strong); }
-  .cf-leave svg { rotate: 135deg; }
 
   /* O X para esconder o cartão: sobe do pé da tela enquanto ele é arrastado, com um véu escuro atrás. */
   #call-float-bin {
@@ -142,7 +195,7 @@
   #call-float-bin.active .cfb-ring { scale: 1.18; background: var(--red-dark); border-color: transparent; color: #fff; }
 }
 
-/* Tocar no cartão abre a chamada: ele cresce até ocupar a tela dela (app.js, openCallFromFloat). */
+/* Tocar em "voltar à chamada" abre a chamada: o cartão cresce até ocupar a tela dela (app.js, openCallFromFloat). */
 ::view-transition-group(call-float) { animation-duration: var(--motion-slow, .28s); animation-timing-function: var(--ease-enter, ease-out); }
 /* A foto do cartão some logo no começo, para não aparecer esticada enquanto o quadro cresce. */
 ::view-transition-old(call-float) { height: 100%; object-fit: cover; animation: cf-vt-out var(--motion-exit, .12s) linear both; }
@@ -152,68 +205,26 @@ html.cf-expanding::view-transition-new(root) { animation-duration: var(--motion-
 
 /* ---- Janelinha do Android (APK 1.3.3+, android.js) ----
    A janela é pequena (uns 220 × 165 px) e só o cartão aparece, ocupando tudo. Os botões ficam por conta do
-   Android (microfone, fone e desligar aparecem ao tocar na janelinha); o selo vermelho no canto avisa
-   quando o seu microfone ou o seu fone está desligado. Sem transmissão, quem fala aparece grande no meio. */
+   Android (aparecem ao tocar na janelinha). */
 html.android-pip body > :not(#call-float) { visibility: hidden !important; }
 html.android-pip #call-float {
   --pip-face: clamp(36px, 36vh, 128px);
   display: flex; flex-direction: column; position: fixed; inset: 0; z-index: 2147483647;
-  width: auto; padding: 8px 10px 10px; gap: 6px;
+  width: auto; height: auto; aspect-ratio: auto; padding: 8px 10px 10px; gap: 6px; overflow: hidden;
   border: 0; border-radius: 0; box-shadow: none; animation: none; transform: none; scale: none;
   background: var(--bg-floating);
 }
-html.android-pip #call-float.hidden { display: none; }
-html.android-pip #call-float .cf-actions,
-html.android-pip #call-float .cf-status,
-html.android-pip #call-float .cf-held-label { display: none; }
-html.android-pip #call-float .cf-open { flex: 1; min-height: 0; gap: 4px; }
-html.android-pip #call-float .cf-head { font-size: 12px; }
-html.android-pip #call-float.self-off .cf-head { padding-right: 26px; }
-html.android-pip #call-float .cf-feature {
-  display: flex; flex: 1; min-height: 0; flex-direction: column; align-items: center; justify-content: center; gap: 5px;
-}
-html.android-pip #call-float .cf-feature-face { display: grid; }
-html.android-pip #call-float .cf-feature-face .avatar { width: var(--pip-face); height: var(--pip-face); font-size: calc(var(--pip-face) * .4); }
-html.android-pip #call-float .cf-feature-face .avatar.speaking { box-shadow: 0 0 0 3px var(--bg-floating), 0 0 0 6px var(--green); }
-html.android-pip #call-float .cf-feature-face .cf-flag { display: none; } /* o nome embaixo já mostra */
-html.android-pip #call-float .cf-feature-name {
-  display: flex; align-items: center; justify-content: center; gap: 4px; max-width: 100%;
-  font-size: 13px; line-height: 16px; font-weight: 700; color: var(--text-strong);
-}
-.cf-feature-text { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.cf-feature-flag { display: grid; flex-shrink: 0; color: var(--text-muted); }
-.cf-feature-flag.server { color: var(--red); }
-.cf-calling { font-weight: 600; color: var(--text-muted); }
-html.android-pip #call-float.held .cf-feature-name { color: var(--yellow); font-weight: 600; }
-html.android-pip #call-float .cf-people { justify-content: center; gap: 6px; min-height: 0; }
-html.android-pip #call-float .cf-people:empty { display: none; }
-html.android-pip #call-float .cf-people .avatar { width: 22px; height: 22px; font-size: 9px; }
-html.android-pip #call-float .cf-people .avatar.speaking { box-shadow: 0 0 0 2px var(--bg-floating), 0 0 0 3px var(--green); }
-html.android-pip #call-float .cf-people .cf-flag { right: -4px; bottom: -4px; width: 13px; height: 13px; }
-html.android-pip #call-float .cf-people .cf-flag svg { width: 8px; height: 8px; }
-html.android-pip #call-float .cf-more { font-size: 11px; }
-html.android-pip #call-float.held .cf-people { display: none; }
-html.android-pip #call-float .cf-self {
-  display: grid; place-items: center; position: absolute; top: 7px; right: 8px; z-index: 1;
-  width: 22px; height: 22px; border-radius: 50%;
-  background: var(--red); color: #fff; box-shadow: 0 1px 4px rgb(0 0 0 / .35);
-}
-html.android-pip #call-float .cf-self.hidden { display: none; }
-/* Com a transmissão: só o vídeo, de ponta a ponta (a janelinha tem o formato dele), com AO VIVO e o nome
-   por cima, quem fala no canto de baixo e o seu selo no de cima. */
 html.android-pip #call-float.with-screen { padding: 0; background: #000; }
-html.android-pip #call-float.with-screen .cf-head,
-html.android-pip #call-float.with-screen .cf-feature,
-html.android-pip #call-float.with-screen .cf-people { display: none; }
-html.android-pip #call-float.with-screen .cf-screen { flex: 1; aspect-ratio: auto; border-radius: 0; }
-html.android-pip #call-float.with-screen .cf-self { top: 6px; right: 6px; }
+html.android-pip #call-float.hidden,
+html.android-pip #call-float .cf-menu { display: none; }
 html.android-pip #call-float .cf-talker .avatar { width: 28px; height: 28px; font-size: 11px; }
 
 @keyframes cf-in { from { opacity: 0; scale: .92; } to { opacity: 1; scale: 1; } }
 @keyframes cf-spin { to { rotate: 1turn; } }
 @keyframes cf-held-pulse { from { scale: .6; opacity: .5; } to { scale: 1.8; opacity: 0; } }
+@keyframes cf-name-pop { 0% { scale: .9; opacity: .4; } 15% { scale: 1.08; opacity: 1; } 30%, 100% { scale: 1; } }
 @keyframes cfb-in { from { opacity: 0; translate: 0 24px; } }
 @keyframes cfb-out { to { opacity: 0; translate: 0 24px; } }
 @keyframes cf-vt-out { to { opacity: 0; } }
 @keyframes cf-vt-in { from { opacity: 0; } }
-@media (prefers-reduced-motion: reduce) { #call-float, #call-float-bin { animation: none; } }
+@media (prefers-reduced-motion: reduce) { #call-float, #call-float-bin { animation: none; } .cf-screen-name.switched { animation: none; } }

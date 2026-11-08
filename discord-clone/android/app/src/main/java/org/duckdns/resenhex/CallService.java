@@ -42,6 +42,9 @@ public class CallService extends Service {
     private static final String ACTION_MUTE = "org.duckdns.resenhex.MUTE";
     private static final String ACTION_LEAVE = "org.duckdns.resenhex.LEAVE";
     private static final String ACTION_DEAFEN = "org.duckdns.resenhex.DEAFEN";
+    // Setas da janelinha (APK 1.4.1+): a transmissão anterior ou a próxima.
+    private static final String ACTION_PREV = "org.duckdns.resenhex.PREV";
+    private static final String ACTION_NEXT = "org.duckdns.resenhex.NEXT";
     private static final int NOTIFICATION_ID = 1;
     private static final String ALERT_TAG = "microfone-pausado";
 
@@ -81,6 +84,8 @@ public class CallService extends Service {
         if (ACTION_MUTE.equals(action)) { MainActivity.callAction("mute"); return START_NOT_STICKY; }
         if (ACTION_LEAVE.equals(action)) { MainActivity.callAction("leave"); return START_NOT_STICKY; }
         if (ACTION_DEAFEN.equals(action)) { MainActivity.callAction("deafen"); return START_NOT_STICKY; }
+        if (ACTION_PREV.equals(action)) { MainActivity.callAction("prev"); return START_NOT_STICKY; }
+        if (ACTION_NEXT.equals(action)) { MainActivity.callAction("next"); return START_NOT_STICKY; }
         MainActivity activity = MainActivity.current();
         if (activity == null || !activity.isInCall()) { stopSelf(); return START_NOT_STICKY; }
 
@@ -155,8 +160,9 @@ public class CallService extends Service {
 
     /** Botões da janelinha (MainActivity.pipParams): os mesmos caminhos dos botões da notificação. */
     static PendingIntent actionIntent(Context context, String which) {
-        String action = "leave".equals(which) ? ACTION_LEAVE : "deafen".equals(which) ? ACTION_DEAFEN : ACTION_MUTE;
-        int code = "leave".equals(which) ? 12 : "deafen".equals(which) ? 11 : 10;
+        String action = "leave".equals(which) ? ACTION_LEAVE : "deafen".equals(which) ? ACTION_DEAFEN
+                : "prev".equals(which) ? ACTION_PREV : "next".equals(which) ? ACTION_NEXT : ACTION_MUTE;
+        int code = "leave".equals(which) ? 12 : "deafen".equals(which) ? 11 : "prev".equals(which) ? 13 : "next".equals(which) ? 14 : 10;
         return PendingIntent.getService(context, code, new Intent(context, CallService.class).setAction(action), PendingIntent.FLAG_IMMUTABLE);
     }
 

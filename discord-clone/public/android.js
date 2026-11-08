@@ -85,17 +85,18 @@ window.AndroidApp = (() => {
     onDjReport(handler) { djHandler = handler; },
     // Janelinha da call (APK 1.3.3+): Home ou Voltar durante a call viram uma janela por cima dos outros
     // apps. O site conta se há transmissão na tela e o estado do microfone e do fone. No APK 1.3.4+ vão também
-    // o formato da tela transmitida (a janelinha fica do mesmo formato) e se a pessoa quer a janelinha.
+    // o formato da tela transmitida (a janelinha fica do mesmo formato) e se a pessoa quer a janelinha. No APK 1.4.1+,
+    // com duas ou mais transmissões na call, a janelinha ganha as setas para trocar (o app ignora o campo nos antigos).
     pip: typeof bridge.pipState === 'function' || typeof bridge.pipSetup === 'function',
     pipOptional: typeof bridge.pipSetup === 'function',
-    pipState({ stream = false, muted = false, deafened = false, width = 16, height = 9, enabled = true } = {}) {
+    pipState({ stream = false, muted = false, deafened = false, width = 16, height = 9, enabled = true, streams = 0 } = {}) {
       if (typeof bridge.pipSetup === 'function') {
         const w = Math.max(1, Math.round(width) || 16), h = Math.max(1, Math.round(height) || 9);
         // Mudanças de formato abaixo de 2% não mexem na janelinha (o Android anima cada troca).
-        const key = [stream, muted, deafened, enabled].map(Number).join('') + (stream ? ':' + Math.round((w / h) * 50) : '');
+        const key = [stream, muted, deafened, enabled, streams > 1].map(Number).join('') + (stream ? ':' + Math.round((w / h) * 50) : '');
         if (key === pipKey) return;
         pipKey = key;
-        bridge.pipSetup(JSON.stringify({ stream: !!stream, muted: !!muted, deafened: !!deafened, width: w, height: h, enabled: !!enabled }));
+        bridge.pipSetup(JSON.stringify({ stream: !!stream, muted: !!muted, deafened: !!deafened, width: w, height: h, enabled: !!enabled, streams: Math.max(0, streams | 0) }));
         return;
       }
       if (typeof bridge.pipState !== 'function') return;

@@ -123,6 +123,8 @@ public class MainActivity extends Activity {
     private int pipWidth = 16;
     private int pipHeight = 9;
     private boolean pipEnabled = true;
+    // APK 1.4.1+: quantas transmissões há na call. Com duas ou mais, a janelinha ganha as setas para trocar.
+    private int pipStreams = 0;
 
     // Som do DJ no processo :dj (DjService). djLast é o último estado: vai de novo se o processo reiniciar.
     private Messenger djService;
@@ -515,16 +517,29 @@ public class MainActivity extends Activity {
         return new Rational((int) Math.round(ratio * 1000), 1000);
     }
 
-    /** Formato e botões da janelinha: o da transmissão ou 4:3 com as fotos; microfone, fone e desligar. */
+    /** Formato e botões da janelinha: o da transmissão ou 4:3 com as fotos; microfone, fone e desligar. Com duas ou
+     *  mais transmissões, as setas para trocar ficam nas pontas (‹ anterior e › próxima). */
     @android.annotation.TargetApi(Build.VERSION_CODES.O)
     private PictureInPictureParams pipParams() {
         ArrayList<RemoteAction> actions = new ArrayList<>();
-        actions.add(pipAction(pipMuted ? R.drawable.ic_pip_mic_off : R.drawable.ic_pip_mic,
-                pipMuted ? "Ativar microfone" : "Silenciar", "mute"));
-        actions.add(pipAction(pipDeafened ? R.drawable.ic_pip_headset_off : R.drawable.ic_pip_headset,
-                pipDeafened ? "Desativar surdez" : "Ensurdecer", "deafen"));
-        actions.add(pipAction(R.drawable.ic_pip_call_end, "Desconectar", "leave"));
+        RemoteAction mic = pipAction(pipMuted ? R.drawable.ic_pip_mic_off : R.drawable.ic_pip_mic,
+                pipMuted ? "Ativar microfone" : "Silenciar", "mute");
+        RemoteAction deafen = pipAction(pipDeafened ? R.drawable.ic_pip_headset_off : R.drawable.ic_pip_headset,
+                pipDeafened ? "Desativar surdez" : "Ensurdecer", "deafen");
+        RemoteAction leave = pipAction(R.drawable.ic_pip_call_end, "Desconectar", "leave");
         int max = maxPipActions();
+        if (pipStreams >= 2 && max >= 3) {
+            // Sem espaço para tudo (a maioria dos celulares deixa 3), o fone e depois o desligar ficam dentro do app.
+            actions.add(pipAction(R.drawable.ic_pip_prev, "Transmissão anterior", "prev"));
+            actions.add(mic);
+            if (max >= 5) actions.add(deafen);
+            if (max >= 4) actions.add(leave);
+            actions.add(pipAction(R.drawable.ic_pip_next, "Próxima transmissão", "next"));
+        } else {
+            actions.add(mic);
+            actions.add(deafen);
+            actions.add(leave);
+        }
         while (actions.size() > max && actions.size() > 1) actions.remove(1); // sem espaço, o fone sai primeiro
         PictureInPictureParams.Builder builder = new PictureInPictureParams.Builder()
                 .setAspectRatio(pipRatio())
@@ -947,8 +962,9 @@ public class MainActivity extends Activity {
                 boolean stream = setup.optBoolean("stream"), muted = setup.optBoolean("muted"), deafened = setup.optBoolean("deafened");
                 boolean enabled = setup.optBoolean("enabled", true);
                 int width = Math.max(1, setup.optInt("width", 16)), height = Math.max(1, setup.optInt("height", 9));
+                int streams = Math.max(0, setup.optInt("streams", 0));
                 boolean changed = !pipReady || stream != pipStream || muted != pipMuted || deafened != pipDeafened
-                        || enabled != pipEnabled || width != pipWidth || height != pipHeight;
+                        || enabled != pipEnabled || width != pipWidth || height != pipHeight || (streams >= 2) != (pipStreams >= 2);
                 pipReady = true;
                 pipStream = stream;
                 pipMuted = muted;
@@ -956,6 +972,7 @@ public class MainActivity extends Activity {
                 pipEnabled = enabled;
                 pipWidth = width;
                 pipHeight = height;
+                pipStreams = streams;
                 if (changed) updatePip();
             });
         }

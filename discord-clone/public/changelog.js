@@ -5,12 +5,15 @@
 window.CHANGELOG = [
   {
     version: '2.6.0', date: '2026-11-08', name: 'Propor Melhorias com mensagem direta para o dev',
-    summary: 'Agora dá para escolher como mandar a sua ideia no Propor Melhorias: por e-mail, como antes, ou como mensagem direta para o dev do Resenhex. A bolinha ao lado fica verde quando o dev está online e cinza quando não está.',
+    summary: 'Agora dá para escolher como mandar a sua ideia no Propor Melhorias: por e-mail, como antes, ou como mensagem direta para o dev do Resenhex. A bolinha ao lado fica verde quando o dev está online e cinza quando não está. No celular, o cartão flutuante da call ficou igual à janelinha do Android e ganhou setas para trocar de transmissão.',
     sections: [
       { kind: 'new', items: [
         'No Propor Melhorias, a opção "Mensagem pro dev" manda a sua ideia direto para o dev, sem precisar ser amigo dele. O e-mail continua sendo o jeito padrão.',
         'A bolinha mostra se o dev está online agora (verde) ou não (cinza), ao lado da opção e no botão Propor Melhorias, embaixo da lista de membros. Ela muda sozinha e não mostra mais nada além disso.',
         'Depois de enviar, nada aparece nas suas mensagens. Se o dev responder, a conversa surge na sua lista e vocês conversam por ali, como numa conversa privada qualquer.',
+        'No celular, o cartão da call que flutua dentro do Resenhex ficou com a cara da janelinha do Android: a transmissão ocupa o cartão inteiro e, sem transmissão, quem está falando aparece grande no meio. Um toque mostra os botões (voltar à call, esconder, microfone, fone e desligar), que somem sozinhos depois de 3 segundos.',
+        'Com mais de uma transmissão na call, as setas ‹ › do cartão trocam qual delas aparece ali, mesmo que você ainda não esteja assistindo nenhuma. Quando você troca, a tela que as setas tinham aberto para de chegar, para não gastar a internet à toa.',
+        'App do Android 1.4.1: as mesmas setas na janelinha do Android, quando você sai do app com mais de uma transmissão na call.',
       ] },
       { kind: 'improved', items: [
         'O link de convite agora é sempre resenhex.com.br, também nos apps de Windows e Android, que ainda abriam pelo endereço antigo (resenhex.duckdns.org). Links antigos que alguém colar continuam funcionando.',

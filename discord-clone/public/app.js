@@ -3080,6 +3080,9 @@
   let heldCallName = ''; // sala da chamada guardada durante uma queda da conexão: o cartão mostra "Reconectando…"
   const callFloatSpoke = new Map(); // sid -> última vez que falou: quem fica em destaque
   let callFloatFeature = { sid: '', at: 0 };
+  let callFloatMenuTimer = 0; // os botões por cima do cartão somem sozinhos
+  let callFloatShown = ''; // sid da transmissão que o cartão mostrava: se ela acabar, passa para a próxima
+  const callFloatAutoWatch = new Set(); // telas que as setas começaram a assistir: param ao trocar de novo
   const inAndroidPip = () => document.documentElement.classList.contains('android-pip');
 
   function callFloatCorner() {
@@ -3093,9 +3096,11 @@
     const video = el('video', { autoplay: true, playsInline: true, muted: true, disablePictureInPicture: true,
       poster: 'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7' });
     video.muted = true; // o som da transmissão já toca pelo bloco dela na chamada
-    video.addEventListener('resize', () => syncAndroidPip()); // a janelinha acompanha o formato da tela
-    const open = el('button', { type: 'button', class: 'cf-open', onclick: () => openCallFromFloat() },
+    video.addEventListener('resize', () => { syncAndroidPip(); renderCallFloat(); }); // o cartão e a janelinha acompanham o formato da tela
+    // Um toque mostra os botões por cima (como a janelinha do Android); voltar à chamada fica no meio deles.
+    const open = el('button', { type: 'button', class: 'cf-open', onclick: () => showCallFloatMenu() },
       el('span', { class: 'cf-screen hidden' }, video,
+        el('span', { class: 'cf-loading', ariaHidden: 'true' }, el('span', { class: 'cf-spinner big' })),
         el('span', { class: 'cf-live live-pill' }, 'AO VIVO'),
         el('span', { class: 'cf-screen-name' }),
         el('span', { class: 'cf-talker', ariaHidden: 'true' })),
@@ -3108,11 +3113,20 @@
       el('span', { class: 'cf-people' }),
       el('span', { class: 'cf-status' }),
       el('span', { class: 'cf-self hidden', ariaHidden: 'true' }));
-    const mic = el('button', { type: 'button', class: 'cf-btn cf-mic', onclick: () => $('#btn-mute').click() });
-    const deaf = el('button', { type: 'button', class: 'cf-btn cf-deaf', onclick: () => $('#btn-deafen').click() });
-    const leave = el('button', { type: 'button', class: 'cf-btn cf-leave', ariaLabel: 'Desconectar', onclick: () => leaveCall() }, Icon('phone', 18));
+    const menuButton = (cls, label, icon, action) => el('button', { type: 'button', class: cls, ariaLabel: label, tabIndex: -1,
+      onclick: (e) => { e.stopPropagation(); action(); } }, icon ? Icon(icon, cls.includes('expand') ? 26 : 20) : null);
+    const mic = menuButton('cf-btn cf-mic', 'Silenciar', null, () => { $('#btn-mute').click(); showCallFloatMenu(true); });
+    const deaf = menuButton('cf-btn cf-deaf', 'Ensurdecer', null, () => { $('#btn-deafen').click(); showCallFloatMenu(true); });
+    const leave = menuButton('cf-btn cf-leave', 'Desconectar', 'phone', () => { hideCallFloatMenu(); leaveCall(); });
+    // Tocar fora dos botões (no escuro) esconde os botões de novo.
+    const menu = el('div', { class: 'cf-menu', onclick: (e) => { if (e.target === e.currentTarget) hideCallFloatMenu(); } },
+      menuButton('cf-menu-expand', 'Voltar à chamada', 'maximize', () => { hideCallFloatMenu(); openCallFromFloat(); }),
+      menuButton('cf-menu-close', 'Esconder o cartão (a chamada continua)', 'x', () => { hideCallFloatMenu(); dismissCallFloat(node); }),
+      menuButton('cf-menu-prev', 'Transmissão anterior', 'chevronLeft', () => { switchCallFloatStream(-1); showCallFloatMenu(true); }),
+      menuButton('cf-menu-next', 'Próxima transmissão', 'chevronRight', () => { switchCallFloatStream(1); showCallFloatMenu(true); }),
+      el('div', { class: 'cf-menu-actions' }, mic, deaf, leave));
     const node = el('div', { id: 'call-float', class: 'hidden', role: 'group', ariaLabel: 'Chamada em andamento', data: { corner: callFloatCorner() } },
-      open, el('div', { class: 'cf-actions' }, mic, deaf, leave));
+      open, menu);
     document.body.append(node);
     dragCallFloat(node);
     // Nos cantos de baixo, o cartão acompanha a altura da caixa de mensagem (texto longo, resposta, anexo).
@@ -3120,6 +3134,54 @@
     if (typeof ResizeObserver !== 'undefined') new ResizeObserver(follow).observe($('#composer'));
     addEventListener('resize', follow);
     return node;
+  }
+
+  // Os botões por cima do cartão: aparecem com um toque e somem sozinhos depois de 3 s sem mexer (como no
+  // Android). Mexer num botão conta o tempo de novo.
+  function showCallFloatMenu(keep = false) {
+    if (!callFloat || inAndroidPip()) return;
+    if (!keep && callFloat.classList.contains('menu-open')) { hideCallFloatMenu(); return; }
+    callFloat.classList.add('menu-open');
+    callFloat.querySelectorAll('.cf-menu button').forEach((b) => { b.tabIndex = 0; });
+    clearTimeout(callFloatMenuTimer);
+    callFloatMenuTimer = setTimeout(() => {
+      // Andando pelos botões com o teclado, eles ficam.
+      if (callFloat?.querySelector('.cf-menu').contains(document.activeElement) && document.activeElement.matches(':focus-visible')) return showCallFloatMenu(true);
+      hideCallFloatMenu();
+    }, 3000);
+  }
+  function hideCallFloatMenu() {
+    clearTimeout(callFloatMenuTimer);
+    if (!callFloat?.classList.contains('menu-open')) return;
+    const hadFocus = callFloat.querySelector('.cf-menu').contains(document.activeElement);
+    callFloat.classList.remove('menu-open');
+    callFloat.querySelectorAll('.cf-menu button').forEach((b) => { b.tabIndex = -1; });
+    if (hadFocus) callFloat.querySelector('.cf-open').focus({ preventScroll: true });
+  }
+
+  // As transmissões da chamada que dá para ver no cartão (as de todo mundo, menos a sua).
+  const callFloatStreams = () => voiceEntries(state.voiceChannel).filter((v) => v.sharing && v.sid !== state.me.sid && callMember(v.accountId));
+
+  // As setas: passa para a transmissão anterior ou a próxima (começa a assistir, se preciso) e fixa ela, para a
+  // chamada abrir nela também.
+  function switchCallFloatStream(step) {
+    const list = callFloatStreams();
+    if (!list.length) return;
+    const pinned = state.pinned?.startsWith('screen-') ? state.pinned.slice('screen-'.length) : '';
+    const current = list.findIndex((v) => v.sid === (callFloatShown || pinned));
+    const next = list[current < 0 ? (step > 0 ? 0 : list.length - 1) : (current + step + list.length) % list.length];
+    if (!isWatching(next.sid)) { setWatching(next.sid, true); callFloatAutoWatch.add(next.sid); }
+    // A tela que as próprias setas abriram para de chegar (economiza a internet do celular); a que a pessoa
+    // escolheu assistir na chamada continua.
+    const previous = callFloatShown || pinned;
+    if (previous && previous !== next.sid && callFloatAutoWatch.delete(previous) && isWatching(previous)) setWatching(previous, false);
+    state.pinned = 'screen-' + next.sid;
+    state.stageGrid = false;
+    callFloatShown = next.sid;
+    renderCallFloat();
+    if (state.view === 'voice') renderStage();
+    const name = callFloat?.querySelector('.cf-screen-name');
+    if (name) { name.classList.remove('switched'); void name.offsetWidth; name.classList.add('switched'); }
   }
 
   function placeCallFloat(node) {
@@ -3134,6 +3196,7 @@
   // transição do navegador, ou com menos movimento pedido, a troca é direta.
   function openCallFromFloat() {
     closePanels();
+    callFloatAutoWatch.clear(); // na chamada aberta, o que está sendo assistido passa a ser escolha da pessoa
     const voiceView = $('#voice-view');
     if (!document.startViewTransition || reducedMotion() || !callFloat || inAndroidPip()) { returnToCall(); return; }
     callFloat.style.viewTransitionName = 'call-float';
@@ -3184,6 +3247,7 @@
         moved = true;
         node.setPointerCapture?.(e.pointerId);
         node.classList.add('dragging');
+        hideCallFloatMenu();
         callFloatTarget();
       }
       samples.push({ x: e.clientX, y: e.clientY, t: e.timeStamp });
@@ -3236,8 +3300,11 @@
   }
 
   // Esconde o cartão até a pessoa abrir a chamada de novo: ele afunda no X. A chamada continua.
-  function dismissCallFloat(node, bin) {
+  function dismissCallFloat(node, bin = null) {
     callFloatHiddenIn = state.voiceChannel || callTarget;
+    hideCallFloatMenu();
+    // Pelo X dos botões (sem o X do arrasto): o cartão só encolhe e some onde está.
+    bin ||= { x: node.offsetLeft + node.offsetWidth / 2, y: node.offsetTop + node.offsetHeight / 2 };
     const done = () => {
       node.classList.remove('over-bin');
       node.style.translate = '';
@@ -3292,7 +3359,14 @@
     if (state.voiceChannel) heldCallName = ''; // voltou à chamada (ou entrou em outra)
     const held = !state.voiceChannel && !!callTarget && !!heldCallName;
     if (!state.voiceChannel && !held) { callFloatHiddenIn = null; callFloatSpoke.clear(); }
-    const live = state.voiceChannel ? callFloatStream() : null;
+    let live = state.voiceChannel ? callFloatStream() : null;
+    // A transmissão que estava no cartão acabou: passa sozinha para a próxima que ainda está no ar.
+    if (!live && callFloatShown && state.voiceChannel) {
+      const others = callFloatStreams();
+      if (!others.some((v) => v.sid === callFloatShown) && others.length) { callFloatShown = ''; switchCallFloatStream(1); return; }
+    }
+    if (live) callFloatShown = live.entry.sid;
+    if (!state.voiceChannel) { callFloatShown = ''; callFloatAutoWatch.clear(); }
     const pip = inAndroidPip();
     const inVoiceView = state.view === 'voice' && state.voiceChannel;
     if (inVoiceView) callFloatHiddenIn = null; // abriu a chamada: o cartão escondido volta na próxima saída
@@ -3300,7 +3374,7 @@
     const dismissed = !!callFloatHiddenIn && callFloatHiddenIn === (state.voiceChannel || callTarget);
     const show = (!!state.voiceChannel || held) && (pip || (!inVoiceView && !dmSplit && !dismissed));
     if (!show) {
-      if (callFloat) { callFloat.classList.add('hidden'); renderCallFloatScreen(null); }
+      if (callFloat) { hideCallFloatMenu(); callFloat.classList.add('hidden'); renderCallFloatScreen(null); }
       syncAndroidPip(live);
       return;
     }
@@ -3311,7 +3385,8 @@
     // Chamada privada: o nome do amigo no lugar do nome da sala (o servidor já manda a conversa com o nome dele).
     const room = held ? heldCallName : callChannelName() || 'Chamada';
     callFloat.querySelector('.cf-name').textContent = room;
-    callFloat.querySelector('.cf-open').setAttribute('aria-label', (held ? 'Reconectando à chamada: ' : 'Voltar à chamada: ') + room);
+    callFloat.querySelector('.cf-open').setAttribute('aria-label', (held ? 'Reconectando à chamada: ' : 'Chamada: ') + room + '. Toque para ver os botões.');
+    callFloat.classList.toggle('multi', !held && !!state.voiceChannel && callFloatStreams().length > 1);
     updateCallTime();
     const { micOff, forcedMute, deaf, serverDeaf } = callFloatControls;
     const mic = callFloat.querySelector('.cf-mic');
@@ -3357,9 +3432,8 @@
     }
     const entries = voiceEntries(state.voiceChannel).filter((v) => callMember(v.accountId));
     const feature = callFloatFeatured(entries);
-    const pip = inAndroidPip();
-    // Na janelinha, a fileira de baixo mostra só os outros; no cartão, todo mundo.
-    const row = pip ? entries.filter((v) => v !== feature) : entries;
+    // Quem está em destaque fica grande no meio; a fileira de baixo mostra os outros.
+    const row = entries.filter((v) => v !== feature);
     let shown = row.slice(0, 4);
     const talker = row.find((v) => state.speaking.has(v.sid) && v.sid !== state.me.sid);
     if (talker && !shown.includes(talker)) shown = [...shown.slice(0, 3), talker];
@@ -3367,8 +3441,8 @@
     const ringing = !!callInfo()?.ringing && entries.length < 2;
     const friend = ringing ? callMember(callInfo().peerId) : null;
     const flagKey = (v) => { const f = callFloatFlag(v, callMember(v.accountId)); return f ? f.icon + f.server : ''; };
-    const waiting = friend && !pip ? friend : null;
-    const key = JSON.stringify([pip, shown.map((v) => { const m = callMember(v.accountId); return [v.sid, m.name, m.avatarUrl, m.color, flagKey(v)]; }), row.length,
+    const waiting = null; // o amigo que ainda não atendeu aparece grande, com "Chamando…"
+    const key = JSON.stringify([shown.map((v) => { const m = callMember(v.accountId); return [v.sid, m.name, m.avatarUrl, m.color, flagKey(v)]; }), row.length,
       waiting ? [waiting.name, waiting.avatarUrl, waiting.color] : '']);
     if (people.dataset.key !== key) {
       people.dataset.key = key;
@@ -3436,7 +3510,8 @@
       const video = [...document.querySelectorAll('video')].find((v) => v.srcObject === live.stream && v.videoWidth && v.videoHeight);
       if (video) { width = video.videoWidth; height = video.videoHeight; }
     }
-    app.pipState({ stream: !!live, muted, deafened, width, height, enabled: state.callPip });
+    const streams = state.voiceChannel ? callFloatStreams().length : 0;
+    app.pipState({ stream: !!live, muted, deafened, width, height, enabled: state.callPip, streams });
   }
 
   // A transmissão que você assiste, em miniatura no cartão (como no Discord do celular): a fixada ou a
@@ -3444,6 +3519,15 @@
   function callFloatStream() {
     const pinned = state.pinned?.startsWith('screen-') ? state.pinned.slice('screen-'.length) : null;
     const watched = voiceEntries(state.voiceChannel).filter((v) => v.sharing && v.sid !== state.me.sid && isWatching(v.sid) && callMember(v.accountId));
+    // Escolhida pelas setas e ainda chegando: o cartão espera por ela (carregando) em vez de mostrar outra.
+    // (O pedido para assistir pode ainda estar a caminho: vale a lista de quem transmite, não a de quem já assiste.)
+    const chosen = callFloatShown && callFloatShown === pinned && callFloatStreams().find((v) => v.sid === pinned);
+    if (chosen) {
+      const stream = state.peers.get(chosen.sid)?.remote?.screen;
+      const track = stream?.getVideoTracks()[0];
+      const showing = callFloat?.querySelector('.cf-screen video')?.srcObject === stream;
+      return { entry: chosen, stream: track?.readyState === 'live' && (!track.muted || showing) ? stream : null };
+    }
     for (const v of [...watched.filter((w) => w.sid === pinned), ...watched]) {
       const stream = state.peers.get(v.sid)?.remote?.screen;
       const track = stream?.getVideoTracks()[0];
@@ -3464,9 +3548,14 @@
       video.srcObject = src;
       if (src) video.play().catch(() => {});
     }
-    callFloat.classList.toggle('with-screen', !!src);
-    screen.classList.toggle('hidden', !src);
+    callFloat.classList.toggle('with-screen', !!live);
+    screen.classList.toggle('hidden', !live);
+    screen.classList.toggle('loading', !!live && !src);
     if (!live) return;
+    // O cartão tem o formato da tela: 248 px de largura deitada; em pé, 220 px de altura.
+    const ratio = video.videoWidth && video.videoHeight ? video.videoWidth / video.videoHeight : 16 / 9;
+    callFloat.style.setProperty('--cf-ratio', String(ratio));
+    callFloat.style.setProperty('--cf-w', (ratio >= 1 ? 248 : Math.max(110, Math.round(220 * ratio))) + 'px');
     const paused = !!live.entry.paused;
     screen.classList.toggle('paused', paused);
     const pill = screen.querySelector('.cf-live');
@@ -5881,6 +5970,8 @@
     if (action === 'leave') leaveCall();
     else if (action === 'mute' && callTarget) $('#btn-mute').click();
     else if (action === 'deafen' && callTarget) $('#btn-deafen').click();
+    // As setas da janelinha (APK 1.4.1+): a transmissão anterior ou a próxima.
+    else if ((action === 'prev' || action === 'next') && state.voiceChannel) switchCallFloatStream(action === 'next' ? 1 : -1);
   });
   // Abrir a janelinha fecha menus e folhas abertos (eles ficariam por cima dela ao voltar) e desenha o cartão.
   window.AndroidApp?.onPip((on) => {
@@ -6135,14 +6226,17 @@
       if (kind !== 'mic') {
         if (kind === 'screen') mobileStream.tuneReceiver(receiver);
         peer.remote[kind] = stream;
-        track.onmute = track.onunmute = () => { if (state.view === 'voice') renderStage(); };
+        // Fora da chamada, só o cartão flutuante (renderStage já o redesenha): a tela escolhida pelas setas
+        // sai do "carregando" quando chega.
+        const refresh = () => { if (state.view === 'voice') renderStage(); else renderCallFloat(); };
+        track.onmute = track.onunmute = refresh;
         stream.onremovetrack = () => {
           if (!stream.getTracks().length && peer.remote[kind] === stream) {
             peer.remote[kind] = null;
             renderStage();
           }
         };
-        if (state.view === 'voice') renderStage();
+        refresh();
         return;
       }
       peer.micStream = stream;
