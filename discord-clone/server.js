@@ -745,12 +745,17 @@ const authFromToken = (req) => {
 // Propor Melhorias como mensagem para o dev (o dono do site). Vira uma conversa privada normal, mesmo sem amizade
 // (dm.suggestion). Para quem manda, ela só aparece na lista quando o dev responder: até lá, foi só um envio.
 const siteOwnerAccount = () => db.accounts[communities.root.siteOwnerId] || null;
+// Verde só com o status "Online"; ausente, não perturbe e invisível ficam cinza.
+function devOnlineNow() {
+  const owner = siteOwnerAccount();
+  return !!owner && online.accounts.has(owner.id) && !owner.presence;
+}
+let lastDevOnline = false;
 const devFeedback = {
-  // Verde só com o status "Online"; ausente, não perturbe e invisível ficam cinza.
   status(acc) {
     const owner = siteOwnerAccount();
     if (!owner || owner.id === acc.id) return { available: false, online: false };
-    return { available: true, online: online.accounts.has(owner.id) && !owner.presence };
+    return { available: true, online: devOnlineNow() };
   },
   send(acc, text) {
     const owner = siteOwnerAccount();
@@ -1615,6 +1620,9 @@ function flushBroadcast() {
     const [serverId, channel] = key.split(':');
     if (communities.root.servers[serverId]) communities.run(serverId, () => patchMusic(serverId, channel, key, full));
   }
+  // A bolinha do Propor Melhorias: avisa todo mundo só quando o dev muda de online para offline (ou o contrário).
+  const devOnline = devOnlineNow();
+  if (devOnline !== lastDevOnline) { lastDevOnline = devOnline; io.emit('dev:status', { online: devOnline }); }
   health.count('sendMs', performance.now() - started);
 }
 
@@ -1929,7 +1937,7 @@ io.on('connection', (socket) => {
     const legacy = typeof payload.version === 'string' && /^\d/.test(payload.version) && payload.patches !== 1;
     online.set(socket.id, { accountId: acc.id, serverId, voice: null, voiceServerId: null, muted: false, deafened: false, sharing: false, camera: false, legacy });
     save();
-    ack({ token, accountId: acc.id, name: acc.name, since: acc.createdAt || null, serverId, sid: socket.id, presence: acc.presence || 'online', statusText: acc.statusText || '', iceServers: turn.iceServers(acc.id), permNames: PERMS, maxUploadMb: MAX_UPLOAD_MB, version: APP_VERSION, gifKey: process.env.KLIPY_KEY || null, siteOwner: isSiteOwner(acc), ...recovery.view(acc), mailEnabled: recovery.enabled });
+    ack({ token, accountId: acc.id, name: acc.name, since: acc.createdAt || null, serverId, sid: socket.id, presence: acc.presence || 'online', statusText: acc.statusText || '', iceServers: turn.iceServers(acc.id), permNames: PERMS, maxUploadMb: MAX_UPLOAD_MB, version: APP_VERSION, gifKey: process.env.KLIPY_KEY || null, siteOwner: isSiteOwner(acc), dev: devFeedback.status(acc), ...recovery.view(acc), mailEnabled: recovery.enabled });
     // Páginas de antes da 0.99.3 não mandam a versão nem sabem mostrar o aviso de atualização.
     if (!payload.version) socket.emit('notice', 'Saiu uma versão nova do Resenhex. Aperte F5 para atualizar.');
     socket.emit('social', socialFor(acc));

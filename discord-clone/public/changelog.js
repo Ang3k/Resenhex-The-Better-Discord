@@ -9,7 +9,7 @@ window.CHANGELOG = [
     sections: [
       { kind: 'new', items: [
         'No Propor Melhorias, a opção "Mensagem pro dev" manda a sua ideia direto para o dev, sem precisar ser amigo dele. O e-mail continua sendo o jeito padrão.',
-        'A bolinha ao lado da opção mostra se o dev está online agora (verde) ou não (cinza), e muda sozinha com a janela aberta. Não mostra mais nada além disso.',
+        'A bolinha mostra se o dev está online agora (verde) ou não (cinza), ao lado da opção e no botão Propor Melhorias, embaixo da lista de membros. Ela muda sozinha e não mostra mais nada além disso.',
         'Depois de enviar, nada aparece nas suas mensagens. Se o dev responder, a conversa surge na sua lista e vocês conversam por ali, como numa conversa privada qualquer.',
       ] },
     ],

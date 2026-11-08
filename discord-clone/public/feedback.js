@@ -1,4 +1,11 @@
 // Janela compartilhada pelo navegador e pelos apps de Windows e Android.
+// O app.js conta se o dev está online (na entrada e pelo aviso "dev:status"); a janela e o botão mostram a bolinha.
+let feedbackDev = { available: false, online: false };
+const feedbackDevListeners = new Set();
+window.setFeedbackDev = (next) => {
+  feedbackDev = { ...feedbackDev, ...next };
+  feedbackDevListeners.forEach((listener) => listener());
+};
 window.createFeedback = ({ token, prepare = () => {} }) => {
   const root = document.querySelector('#feedback');
   const form = root.querySelector('#feedback-form');
@@ -15,27 +22,34 @@ window.createFeedback = ({ token, prepare = () => {} }) => {
   const successText = root.querySelector('#feedback-success-description');
   const SUCCESS_EMAIL = successText.textContent;
   const SUCCESS_DEV = 'Sua mensagem chegou ao dev. Se ele responder, a conversa aparece nas suas mensagens.';
-  let busy = false, sent = false, returnFocus = null, roots = [], devTimer = null;
+  const linkDot = document.querySelector('#feedback-link-dot');
+  let busy = false, sent = false, returnFocus = null, roots = [];
 
-  // Mensagem pro dev: a bolinha fica verde quando o dev está online e cinza quando não está. Atualiza sozinha
-  // enquanto a janela está aberta. Se o servidor não oferece (ou é o próprio dev), a opção some.
+  // Mensagem pro dev: a bolinha fica verde quando o dev está online e cinza quando não está, na janela e no botão.
+  // Muda sozinha pelo aviso do servidor. Se o servidor não oferece (ou é o próprio dev), a opção e a bolinha somem.
   const channel = () => via.querySelector('input:checked')?.value || 'email';
-  function showDev(available, online) {
+  function showDev() {
+    const { available, online } = feedbackDev;
     if (!available && channel() === 'dev') via.querySelector('input[value="email"]').checked = true;
     devOption.classList.toggle('hidden', !available);
     via.classList.toggle('hidden', !available);
-    devDot.classList.toggle('online', !!online);
     const label = online ? 'Dev online agora' : 'Dev offline';
-    devDot.setAttribute('aria-label', label);
-    devDot.title = label;
+    for (const dot of [devDot, linkDot].filter(Boolean)) {
+      dot.classList.toggle('online', !!online);
+      dot.setAttribute('aria-label', label);
+      dot.title = label;
+    }
+    linkDot?.classList.toggle('hidden', !available);
     viaNote.classList.toggle('hidden', channel() !== 'dev');
   }
+  feedbackDevListeners.add(showDev);
+  // Ao abrir, confere de novo (a conexão pode ter caído e perdido um aviso).
   async function checkDev() {
     try {
       const response = await fetch('/feedback/dev', { headers: { 'x-token': token() || '' }, cache: 'no-store' });
       if (!response.ok) throw new Error();
       const result = await response.json();
-      if (isOpen()) showDev(!!result.available, !!result.online);
+      window.setFeedbackDev({ available: !!result.available, online: !!result.online });
     } catch { /* sem resposta: fica como estava */ }
   }
   via.addEventListener('change', () => { viaNote.classList.toggle('hidden', channel() !== 'dev'); });
@@ -48,7 +62,6 @@ window.createFeedback = ({ token, prepare = () => {} }) => {
   function close() {
     if (!isOpen() || busy) return;
     root.classList.add('hidden');
-    clearInterval(devTimer);
     roots.forEach(([element, inert]) => { element.inert = inert; });
     document.removeEventListener('keydown', onKey, true);
     returnFocus?.focus();
@@ -74,9 +87,8 @@ window.createFeedback = ({ token, prepare = () => {} }) => {
     status.textContent = '';
     status.classList.remove('error');
     root.classList.remove('hidden');
+    showDev();
     checkDev();
-    clearInterval(devTimer);
-    devTimer = setInterval(checkDev, 15_000);
     document.addEventListener('keydown', onKey, true);
     refresh();
     // No celular, só abre o teclado quando a pessoa toca no campo.
@@ -142,5 +154,6 @@ window.createFeedback = ({ token, prepare = () => {} }) => {
   });
   for (const selector of ['#btn-feedback', '#settings-feedback']) document.querySelector(selector).onclick = open;
   refresh();
+  showDev();
   return { open, close, isOpen };
 };

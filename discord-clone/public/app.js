@@ -647,6 +647,7 @@
       state.maxUploadMb = res.maxUploadMb;
       state.gifKey = res.gifKey || null;
       $('#settings').classList.toggle('site-owner', !!res.siteOwner); // libera "Chamadas agora" nas Configurações
+      if (res.dev) window.setFeedbackDev?.(res.dev); // bolinha do dev no Propor Melhorias
       $('#btn-gif').classList.toggle('hidden', !state.gifKey);
       // O servidor foi atualizado depois que esta página abriu: o código novo só vem recarregando.
       $('#update-banner').classList.toggle('hidden', !res.version || res.version === window.APP_VERSION);
@@ -831,6 +832,7 @@
   // pessoa online, até 30 s). Cada um volta num momento sorteado desse intervalo, e não todos no mesmo segundo.
   const RECONNECT = { delay: 1000, max: 5000, jitter: 0.5 }; // o padrão do socket.io
   let spreadReconnect = false;
+  socket.on('dev:status', ({ online } = {}) => window.setFeedbackDev?.({ online: !!online }));
   socket.on('server:restart', ({ spreadMs } = {}) => {
     const spread = Math.min(30_000, Number(spreadMs) || 0);
     if (spread < 2000) return;

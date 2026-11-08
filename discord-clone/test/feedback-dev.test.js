@@ -35,11 +35,14 @@ async function startServer(t) {
     socket.on('social', (s) => (socket.social = s));
     socket.messages = [];
     socket.on('chat:message', (m) => socket.messages.push(m));
+    socket.devStatus = [];
+    socket.on('dev:status', (d) => socket.devStatus.push(d.online));
     socket.call = (event, payload) => new Promise((resolve) => socket.emit(event, payload, resolve));
     const res = await socket.call('auth', { mode: 'register', name, password: '1234', confirmPassword: '1234' });
     assert.ok(!res.error, res.error);
     socket.id_ = res.accountId;
     socket.token = res.token;
+    socket.dev = res.dev;
     await wait();
     return socket;
   };
@@ -55,7 +58,9 @@ test('mensagem pro dev: bolinha, conversa escondida até o dev responder, e os d
   const dev = await connect('Dev'); // a primeira conta é a dona do site
   const bia = await connect('Bia');
 
-  // O dev não vê a opção para si mesmo; os outros veem a bolinha verde com ele online.
+  // O dev não vê a opção para si mesmo; os outros veem a bolinha verde com ele online (já na entrada).
+  assert.deepEqual(dev.dev, { available: false, online: false });
+  assert.deepEqual(bia.dev, { available: true, online: true });
   assert.deepEqual((await http('GET', '/feedback/dev', dev.token)).body, { available: false, online: false });
   assert.deepEqual((await http('GET', '/feedback/dev', bia.token)).body, { available: true, online: true });
   assert.equal((await http('GET', '/feedback/dev', '')).status, 401);
@@ -66,6 +71,9 @@ test('mensagem pro dev: bolinha, conversa escondida até o dev responder, e os d
   }
   await dev.call('presence', { presence: 'online' });
   assert.equal((await http('GET', '/feedback/dev', bia.token)).body.online, true);
+  // O aviso só sai quando muda de verde para cinza ou o contrário (idle → dnd → invisible não repete).
+  await wait();
+  assert.deepEqual(bia.devStatus, [false, true]);
 
   assert.equal((await http('POST', '/feedback', dev.token, { message: 'oi', channel: 'dev' })).status, 400);
   assert.deepEqual(await http('POST', '/feedback', bia.token, { message: '  Botão de modo escuro mais forte  ', channel: 'dev' }), { status: 200, body: { ok: true } });
