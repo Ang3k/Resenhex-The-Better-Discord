@@ -6660,7 +6660,7 @@
     joinVoice(state.voiceChannel, { keepView: state.view !== 'voice', serverId: callInfo()?.serverId, startedAt: state.callStartedAt, silent: true });
   }
   const sfu = MediaSfu({ state, renderStage, applyAudio, watchSpeaking, unwatchSpeaking, closePeer, notice: (message) => mediaNotice(message), onLost: recoverMedia, tuneReceiver: (receiver) => mobileStream.tuneReceiver(receiver) });
-  const { isWatching, setWatching, getWatchQuality, setWatchQuality, syncViewerQuality, addVideoTracks, syncScreenSubscriptions, videoBitrates, remoteDescription, tuneSenders, applySharePreset, setSharePreset, captureScreen, watchScreenTrack, switchScreen, startVideo, stopVideo, connectionChanged, renderDiagnostics, updateStreamStats, mediaNotice, firstIceServers } = MediaSession({ state, socket, call, el, toast, voiceEntry, member: callMember, render, renderStage, sendVoiceState, preferCodec, ownAudio, sfu });
+  const { isWatching, setWatching, getWatchQuality, setWatchQuality, syncViewerQuality, addVideoTracks, syncScreenSubscriptions, videoBitrates, remoteDescription, tuneSenders, applySharePreset, setSharePreset, captureScreen, watchScreenTrack, switchScreen, startVideo, stopVideo, connectionChanged, renderDiagnostics, updateStreamStats, mediaNotice, firstIceServers, labStats } = MediaSession({ state, socket, call, el, toast, voiceEntry, member: callMember, render, renderStage, sendVoiceState, preferCodec, ownAudio, sfu });
   // Prévia da transmissão para quem está na chamada sem assistir: a última foto da tela de quem transmite.
   const streamPreview = StreamPreview({ state, socket, el, voiceEntry, roomEntries: () => voiceEntries(state.voiceChannel), onPreview: () => { if (state.view === 'voice') renderStage(); } });
   const streamZoom = StreamZoom({ el, Icon, syncViewerQuality });
@@ -7697,6 +7697,7 @@
   $('#settings-server-link').onclick = () => { if (preferences.close()) openServerSettings(); };
   SiteCalls({ request: (event) => accountRequest(event, {}, 8000), el, avatar });
   SiteHealth({ request: (event) => accountRequest(event, {}, 8000), el });
+  ScreenLab.init({ socket, request: (event, payload) => accountRequest(event, payload || {}, 8000), el, labStats, onCodec: () => tuneSenders() });
   $('#btn-logout').onclick = async () => { if (!preferences.close()) return; const result = await call('logout', { token: localStorage.getItem('token') }); if (result) { localStorage.removeItem('token'); location.reload(); } };
   function fillAccountPage() {
     const username = state.me?.name || meMember()?.username || meMember()?.name || '';

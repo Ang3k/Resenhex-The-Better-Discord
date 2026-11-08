@@ -56,6 +56,7 @@
   <link rel="stylesheet" href="voice-message.css">
   <link rel="stylesheet" href="call-float.css">
   <link rel="stylesheet" href="poll.css">
+  <link rel="stylesheet" href="lab-tela.css">
   <script src="compat.js"></script>
   <script>
     // Mouse de verdade = hover + ponteiro fino. O emulador Android responde "pointer: fine" sem hover,
@@ -662,6 +663,9 @@
 <button id="tab-health" data-section="health" data-owner data-keywords="saúde servidor processador memória atraso desempenho carga dono administrador" role="tab" aria-controls="page-health" hidden>
 <span data-icon="activity">
 </span>Saúde do servidor</button>
+<button id="tab-lab" data-section="lab" data-owner data-keywords="laboratório transmissão celular tela fps quadros teste medir dono administrador" role="tab" aria-controls="page-lab" hidden>
+<span data-icon="flask">
+</span>Laboratório</button>
 </nav>
 <p id="settings-search-empty" class="hint hidden">Nenhuma seção encontrada.</p>
 <div class="settings-nav-bottom">
@@ -1215,6 +1219,62 @@
 <div id="site-health">
 </div>
 </section>
+<section id="page-lab" data-settings-page="lab" role="tabpanel" aria-labelledby="tab-lab" class="hidden">
+<div class="eyebrow">DONO DO RESENHEX</div>
+<h1>Laboratório da transmissão</h1>
+<p class="section-description">Mede a transmissão da tela do celular para achar onde os quadros se perdem. Ligado, quem está na mesma call que você manda ao servidor, a cada segundo, só números da transmissão (quadros, taxa, atrasos). Nada de imagem, som ou texto, e um selo na call avisa quem está medindo. Desliga sozinho em 2 horas. Só você vê esta seção.</p>
+<div class="lab-groups">
+<div class="setting-group">
+<label class="setting-switch">
+<span>Laboratório ligado<small id="lab-status">Desligado. Ligue, entre na call e transmita a tela do celular.</small>
+</span>
+<input id="lab-on" type="checkbox">
+</label>
+</div>
+<div class="setting-group">
+<h3>Nome do teste</h3>
+<p class="hint">Escolha antes de começar a transmitir. Cada troca abre um teste novo.</p>
+<label>O QUE FOI TRANSMITIDO
+<select id="lab-mode">
+<option value="">Não sei</option>
+<option value="tela">Tela inteira</option>
+<option value="app">Um app só</option>
+</select>
+</label>
+<label>O QUE ESTAVA NA TELA
+<select id="lab-content">
+<option value="">Não sei</option>
+<option value="mexendo">Mexendo no celular</option>
+<option value="video">Vídeo</option>
+<option value="jogo">Jogo</option>
+<option value="parado">Tela parada</option>
+</select>
+</label>
+</div>
+<div class="setting-group">
+<h3>Variações</h3>
+<p class="hint">A regra de atraso e a captura valem a partir da próxima transmissão do celular. O codec da call muda na hora.</p>
+<label class="setting-switch">
+<span>Regra de atraso<small>Quando o celular atrasa, pula até o próximo quadro-chave e cai para metade dos quadros.</small>
+</span>
+<input id="lab-lag" type="checkbox" checked>
+</label>
+<label>CODEC DA CALL
+<select id="lab-codec">
+<option value="auto">Automático</option>
+<option value="h264">H.264</option>
+<option value="vp8">VP8</option>
+</select>
+</label>
+<label>CAPTURA DO CELULAR
+<select id="lab-capture">
+<option value="h264">H.264 (padrão)</option>
+<option value="jpeg">JPEG</option>
+</select>
+</label>
+</div>
+</div>
+</section>
 </div>
 <div class="settings-footer">
 <p id="settings-status" role="status" aria-live="polite">
@@ -1382,6 +1442,7 @@
 </script>
   <script src="site-calls.js"></script>
   <script src="site-health.js"></script>
+  <script src="lab-tela.js"></script>
   <script src="photo-editor.js"></script>
   <script src="own-audio.js"></script>
   <script src="media-sfu.js"></script>

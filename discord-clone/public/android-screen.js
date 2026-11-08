@@ -78,6 +78,16 @@
     return 'avc1.' + hex(data[sps.start + 1]) + hex(data[sps.start + 2]) + hex(data[sps.start + 3]);
   }
 
+  // Laboratório (lab-tela.js): intervalos entre quadros do codificador, em ms (quantos, menor, mediana, 90% e maior).
+  function intervalSummary(list) {
+    if (!list.length) return null;
+    const sorted = [...list].sort((a, b) => a - b);
+    const at = (p) => sorted[Math.min(sorted.length - 1, Math.floor(p * sorted.length))];
+    const ms = (v) => Math.round(v * 10) / 10;
+    return { n: sorted.length, min: ms(sorted[0]), p50: ms(at(0.5)), p90: ms(at(0.9)), max: ms(sorted[sorted.length - 1]) };
+  }
+  const labCounters = () => ({ pk: 0, bytes: 0, key: 0, gaps: [], dec: 0, qMax: 0, waitDrop: 0, sinkDrop: 0, jpegDrop: 0, behind: 0, gens: 0, errs: 0, reads: 0, pauses: 0 });
+
   // ---------------- ponte com o app ----------------
 
   const bridge = root.ResenhexAndroid;
@@ -112,8 +122,9 @@
         track: generator,
         write(frame) {
           // Página atrasada: descarta o quadro em vez de acumular (são quadros já decodificados).
-          if (writer.desiredSize !== null && writer.desiredSize <= 0) { frame.close(); return; }
+          if (writer.desiredSize !== null && writer.desiredSize <= 0) { frame.close(); return false; }
           writer.write(frame).catch(() => {}).finally(() => { try { frame.close(); } catch {} });
+          return true;
         },
         close() { writer.close().catch(() => {}); },
       };
@@ -129,6 +140,7 @@
         if (canvas.width !== w || canvas.height !== h) { canvas.width = w; canvas.height = h; }
         context.drawImage(frame, 0, 0);
         if (typeof root.VideoFrame === 'function' && frame instanceof root.VideoFrame) frame.close();
+        return true;
       },
       close() {},
     };
@@ -175,11 +187,14 @@
   async function capture({ width = 1280, height = 720, fps = 30, audio = true } = {}) {
     if (!available) throw named('Este app não transmite a tela. Atualize o app do Resenhex.', 'NotSupportedError');
     if (session) throw named(START_ERRORS.busy, 'InvalidStateError');
-    const h264 = await h264Decodable();
+    // Laboratório ligado pelo dono (lab-tela.js): pode forçar o JPEG e desligar a regra de atraso neste teste.
+    const lab = root.ScreenLab?.state?.on ? root.ScreenLab.state : null;
+    const h264 = lab?.capture === 'jpeg' ? false : await h264Decodable();
     const s = {
       stopped: false, started: false, token: '', box: { width, height, fps },
       gen: -1, info: null, decoder: null, decoderCodec: '', waitKey: true, decodeErrors: 0, lastKeyAsk: 0,
       packets: 0, skips: 0, behind: [], slowedAt: -Infinity, slowCount: 0, fpsLimit: 60, wantFps: fps, frames: 0, lastFrameAt: 0, lastTs: 0, lastBitmap: null, jpegBusy: false, repeat: 0,
+      lagRule: lab?.lagRule !== false, lab: labCounters(), lastTime: null, paused: false,
       settings: { width: 0, height: 0, frameRate: fps, aspectRatio: 16 / 9, displaySurface: 'monitor', deviceId: 'android-screen' },
       sink: null, audio: null, video: null, nativeStop: null, abort: null,
       onStatus: null, firstFrame: null,
@@ -250,8 +265,9 @@
     if (s.stopped) return;
     if (status.state === 'stopped' || status.state === 'error') { endFromApp(s, status.reason === 'notification' || status.reason === 'app' ? '' : END_NOTICES[status.reason] || END_NOTICES.lost); return; }
     // Android 14+, um app só: ele saiu da tela (a transmissão fica pausada até ele voltar).
-    if (status.state === 'paused') s.video?.dispatchEvent(new Event('mute'));
-    if (status.state === 'resumed') s.video?.dispatchEvent(new Event('unmute'));
+    // O Android manda "resumed" logo no começo de qualquer captura; só a pausa mostra que é um app só.
+    if (status.state === 'paused') { s.paused = true; s.lab.pauses++; s.video?.dispatchEvent(new Event('mute')); }
+    if (status.state === 'resumed') { s.paused = false; s.video?.dispatchEvent(new Event('unmute')); }
   }
 
   function askKeyframe(s) {
@@ -281,6 +297,7 @@
         // Tenta abrir de novo logo abaixo.
       }
       if (s.stopped) return;
+      s.lab.reads++;
       if (++failures > 5) { endFromApp(s, END_NOTICES.lost); return; }
       await sleep(250 * failures);
     }
@@ -299,11 +316,19 @@
       s.info = info;
       s.waitKey = true;
       s.settings.frameRate = info.fps || s.settings.frameRate;
+      s.lab.gens++;
+      s.lastTime = null;
       if (info.codec === 'jpeg') closeDecoder(s);
       return;
     }
     if (packet.gen !== s.gen || !s.info) return; // pacote de um codificador que já foi trocado
     s.packets++;
+    const c = s.lab;
+    c.pk++;
+    c.bytes += packet.data.length;
+    if (packet.flags & FLAG_KEY) c.key++;
+    if (s.lastTime !== null && packet.time > s.lastTime && c.gaps.length < 600) c.gaps.push((packet.time - s.lastTime) / 1000);
+    s.lastTime = packet.time;
     if (packet.type === TYPE.JPEG) { drawJpeg(s, packet); return; }
     if (packet.type === TYPE.H264) decodeH264(s, packet);
   }
@@ -328,6 +353,7 @@
 
   // Três erros do decodificador na mesma transmissão: este WebView não se dá com o H.264 do celular.
   function decodeFailed(s) {
+    s.lab.errs++;
     closeDecoder(s);
     s.waitKey = true;
     if (++s.decodeErrors >= 3) safe(() => bridge.screenUseJpeg());
@@ -342,10 +368,12 @@
       try { if (!s.decoder || s.decoder.state !== 'configured' || codec !== s.decoderCodec) configureDecoder(s, codec); }
       catch { decodeFailed(s); return; }
       s.waitKey = false;
-    } else if (s.waitKey || !s.decoder) { askKeyframe(s); return; }
+    } else if (s.waitKey || !s.decoder) { s.lab.waitDrop++; askKeyframe(s); return; }
+    s.lab.qMax = Math.max(s.lab.qMax, s.decoder.decodeQueueSize);
     // Decodificador atrasado mais de meio segundo (celular ocupado): pula até o próximo quadro-chave em vez
     // de acumular atraso. Engasgos curtos passam: o decodificador costuma correr atrás e alcançar sozinho.
-    if (s.decoder.decodeQueueSize > Math.max(8, Math.ceil(s.box.fps / 2))) { s.waitKey = true; decoderBehind(s); askKeyframe(s); return; }
+    // (O laboratório pode desligar esta regra para comparar.)
+    if (s.lagRule && s.decoder.decodeQueueSize > Math.max(8, Math.ceil(s.box.fps / 2))) { s.waitKey = true; s.lab.waitDrop++; decoderBehind(s); askKeyframe(s); return; }
     try { s.decoder.decode(new root.EncodedVideoChunk({ type: key ? 'key' : 'delta', timestamp: packet.time, data: packet.data })); }
     catch { decodeFailed(s); }
   }
@@ -355,6 +383,7 @@
   // quadros (mínimo 10 fps).
   function decoderBehind(s) {
     s.skips++;
+    s.lab.behind++;
     const now = performance.now();
     s.behind = s.behind.filter((t) => now - t < 10_000);
     s.behind.push(now);
@@ -382,7 +411,7 @@
   }
 
   async function drawJpeg(s, packet) {
-    if (s.jpegBusy) return; // o anterior ainda está sendo aberto: este quadro fica de fora
+    if (s.jpegBusy) { s.lab.jpegDrop++; return; } // o anterior ainda está sendo aberto: este quadro fica de fora
     s.jpegBusy = true;
     try {
       const { width, height } = s.info;
@@ -408,7 +437,7 @@
 
   function emitBitmap(s, bitmap, time) {
     const timestamp = Math.max(time, s.lastTs + 1000);
-    if (typeof root.VideoFrame !== 'function') { s.lastTs = timestamp; s.sink.write(bitmap); frameShown(s, bitmap.width, bitmap.height); return; }
+    if (typeof root.VideoFrame !== 'function') { s.lastTs = timestamp; s.sink.write(bitmap); s.lab.dec++; frameShown(s, bitmap.width, bitmap.height); return; }
     let frame;
     try { frame = new root.VideoFrame(bitmap, { timestamp }); } catch { return; }
     emit(s, frame);
@@ -418,7 +447,8 @@
     if (s.stopped || !s.sink) { frame.close(); return; }
     s.lastTs = Math.max(s.lastTs, frame.timestamp);
     frameShown(s, frame.displayWidth, frame.displayHeight);
-    s.sink.write(frame);
+    if (s.sink.write(frame) === false) s.lab.sinkDrop++;
+    else s.lab.dec++;
   }
 
   function frameShown(s, width, height) {
@@ -480,7 +510,18 @@
       return s && { codec: s.info?.codec, gen: s.gen, packets: s.packets, frames: s.frames, decodeQueue: s.decoder?.decodeQueueSize ?? null,
         decodeErrors: s.decodeErrors, skippedToKey: s.skips, captureFps: s.box.fps, audio: !!s.audio, ...s.settings };
     },
+    // Laboratório (lab-tela.js): o que aconteceu desde a última leitura (os contadores recomeçam a cada uma).
+    labTake() {
+      const s = session;
+      if (!s?.started || s.stopped) return null;
+      const c = s.lab;
+      s.lab = labCounters();
+      return { codec: s.info?.codec || null, w: s.info?.width || null, h: s.info?.height || null, fps: s.box.fps, want: s.wantFps, limit: s.fpsLimit,
+        gen: s.gen, gens: c.gens, pk: c.pk, kb: Math.round(c.bytes / 1024), key: c.key, gaps: intervalSummary(c.gaps), dec: c.dec,
+        q: c.qMax, waitDrop: c.waitDrop, sinkDrop: c.sinkDrop, jpegDrop: c.jpegDrop, behind: c.behind, errs: c.errs, reads: c.reads,
+        rule: s.lagRule, paused: s.paused, pauses: c.pauses, audio: !!s.audio };
+    },
     // Partes puras, para os testes.
-    TYPE, FLAG_KEY, HEADER, packetParser, nalUnits, codecFromSps,
+    TYPE, FLAG_KEY, HEADER, packetParser, nalUnits, codecFromSps, intervalSummary,
   };
 });

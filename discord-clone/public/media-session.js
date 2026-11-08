@@ -100,7 +100,12 @@ window.MediaSession = function ({ state, socket, call, el, toast, voiceEntry, me
     } finally { watchingRequests.delete(sid); }
   }
 
-  const screenCodecs = (sid) => MediaPolicy.screenCodecs(presets[state.sharePreset], demands.get(sid)?.codecs, state.screenCodecFallback);
+  const screenCodecs = (sid) => {
+    // Laboratório da transmissão do celular (lab-tela.js): o dono pode fixar o codec da call para comparar.
+    const lab = window.ScreenLab?.state;
+    if (lab?.on && lab.codec !== 'auto' && state.local.screen?.getVideoTracks()[0]?.androidScreen) return [lab.codec === 'vp8' ? 'video/VP8' : 'video/H264'];
+    return MediaPolicy.screenCodecs(presets[state.sharePreset], demands.get(sid)?.codecs, state.screenCodecFallback);
+  };
   // O pedido do espectador, a 30 fps quando a escada do Movimento precisou liberar processador para o 1080p.
   const demandOf = (sid) => state.peers.get(sid)?.adaptation?.half ? { ...demands.get(sid), fps: 30 } : demands.get(sid);
   // Jogo ou vídeo detectado num perfil de texto: cada espectador volta a receber o tamanho do seu bloco.
@@ -645,6 +650,71 @@ window.MediaSession = function ({ state, socket, call, el, toast, voiceEntry, me
     tuneSenders(peer);
   }
 
+  // Laboratório da transmissão do celular (lab-tela.js): números de envio da tela para cada espectador e de
+  // recebimento de cada tela assistida, com as diferenças desde a última leitura. Só números, nada de imagem.
+  const labPrev = new Map();
+  const labDelta = (key, value) => {
+    const prev = labPrev.get(key);
+    labPrev.set(key, value);
+    return Number.isFinite(prev) && Number.isFinite(value) && value >= prev ? value - prev : null;
+  };
+  const round = (value, digits = 0) => (Number.isFinite(value) ? Math.round(value * 10 ** digits) / 10 ** digits : null);
+  function labPair(report) {
+    let pair = null;
+    report.forEach((r) => { if (r.type === 'transport' && r.selectedCandidatePairId) pair = report.get(r.selectedCandidatePairId) || pair; });
+    if (!pair) report.forEach((r) => { if (r.type === 'candidate-pair' && r.state === 'succeeded' && r.nominated) pair = r; });
+    return pair;
+  }
+  async function labStats() {
+    if (sfu?.active()) return { sfu: true };
+    if (!state.voiceChannel) return {};
+    const out = [], incoming = [];
+    await Promise.allSettled([...state.peers].map(async ([sid, peer]) => {
+      if (!active(peer)) return;
+      const who = sid.slice(0, 6);
+      const sender = peer.senders.screen.find((s) => s.track?.kind === 'video');
+      if (sender && viewers().includes(sid)) {
+        const report = await sender.getStats();
+        let r = null;
+        report.forEach((x) => { if (x.type === 'outbound-rtp' && (x.kind === 'video' || x.mediaType === 'video')) r = x; });
+        if (r) {
+          const k = 'o:' + sid, source = report.get(r.mediaSourceId), pair = labPair(report);
+          const ms = labDelta(k + ':t', r.timestamp), bytes = labDelta(k + ':bytes', r.bytesSent);
+          const frames = labDelta(k + ':enc', r.framesEncoded), time = labDelta(k + ':time', r.totalEncodeTime);
+          const limits = r.qualityLimitationDurations || {}, params = sender.getParameters(), e = params.encodings?.[0] || {};
+          out.push({ to: who, fps: round(r.framesPerSecond), src: round(source?.framesPerSecond), srcW: source?.width ?? null, srcH: source?.height ?? null,
+            sent: labDelta(k + ':sent', r.framesSent), enc: frames, w: r.frameWidth ?? null, h: r.frameHeight ?? null,
+            kbps: ms && bytes !== null ? round(bytes * 8 / ms) : null,
+            target: round(r.targetBitrate / 1000), why: r.qualityLimitationReason ?? null,
+            cpuS: round(labDelta(k + ':cpu', limits.cpu), 1), bwS: round(labDelta(k + ':bw', limits.bandwidth), 1),
+            impl: r.encoderImplementation ?? null, hw: r.powerEfficientEncoder ?? null, encMs: frames ? round(time / frames * 1000, 1) : null,
+            codec: report.get(r.codecId)?.mimeType?.split('/')[1] || null, pli: labDelta(k + ':pli', r.pliCount), nack: labDelta(k + ':nack', r.nackCount),
+            keys: labDelta(k + ':keys', r.keyFramesEncoded), rtt: round(pair?.currentRoundTripTime * 1000), avail: round(pair?.availableOutgoingBitrate / 1000),
+            maxFps: e.maxFramerate ?? null, scale: e.scaleResolutionDownBy ?? null, maxKbps: round(e.maxBitrate / 1000), deg: params.degradationPreference ?? null,
+            level: peer.adaptation?.level || 0, relayed: !!peer.relayed, demand: demands.get(sid) || null });
+        }
+      }
+      if (!isWatching(sid)) return;
+      const track = peer.remote.screen?.getVideoTracks()[0];
+      const receiver = track && peer.pc.getReceivers().find((x) => x.track === track);
+      if (!receiver) return;
+      const report = await receiver.getStats();
+      let r = null;
+      report.forEach((x) => { if (x.type === 'inbound-rtp' && (x.kind === 'video' || x.mediaType === 'video')) r = x; });
+      if (!r) return;
+      const k = 'i:' + sid, pair = labPair(report);
+      const ms = labDelta(k + ':t', r.timestamp), bytes = labDelta(k + ':bytes', r.bytesReceived);
+      const buffered = labDelta(k + ':jb', r.jitterBufferDelay), emitted = labDelta(k + ':jbn', r.jitterBufferEmittedCount);
+      incoming.push({ from: who, fps: round(r.framesPerSecond), dec: labDelta(k + ':dec', r.framesDecoded), recv: labDelta(k + ':recv', r.framesReceived),
+        drop: labDelta(k + ':drop', r.framesDropped), w: r.frameWidth ?? null, h: r.frameHeight ?? null, kbps: ms && bytes !== null ? round(bytes * 8 / ms) : null,
+        freezes: labDelta(k + ':fz', r.freezeCount), freezeMs: round(labDelta(k + ':fzd', r.totalFreezesDuration) * 1000),
+        jbMs: emitted ? round(buffered / emitted * 1000) : null, impl: r.decoderImplementation ?? null, hw: r.powerEfficientDecoder ?? null,
+        codec: report.get(r.codecId)?.mimeType?.split('/')[1] || null, lost: labDelta(k + ':lost', r.packetsLost), rtt: round(pair?.currentRoundTripTime * 1000),
+        demand: requestedQuality(sid) });
+    }));
+    return { out, in: incoming };
+  }
+
   let stepDownAt = -Infinity; // última descida da escada do Movimento, entre todos os espectadores
   async function updateStreamStats() {
     if (statsBusy) return;
@@ -792,5 +862,5 @@ window.MediaSession = function ({ state, socket, call, el, toast, voiceEntry, me
     } finally { statsBusy = false; }
   }
   setInterval(updateStreamStats, 1500);
-  return { isWatching, setWatching, getWatchQuality, setWatchQuality, syncViewerQuality, addVideoTracks, syncScreenSubscriptions, videoBitrates, remoteDescription, tuneSenders, applySharePreset, setSharePreset, captureScreen, watchScreenTrack, switchScreen, startVideo, stopVideo, scheduleRecovery, connectionChanged, renderDiagnostics, updateStreamStats, mediaNotice, firstIceServers };
+  return { isWatching, setWatching, getWatchQuality, setWatchQuality, syncViewerQuality, addVideoTracks, syncScreenSubscriptions, videoBitrates, remoteDescription, tuneSenders, applySharePreset, setSharePreset, captureScreen, watchScreenTrack, switchScreen, startVideo, stopVideo, scheduleRecovery, connectionChanged, renderDiagnostics, updateStreamStats, mediaNotice, firstIceServers, labStats };
 };

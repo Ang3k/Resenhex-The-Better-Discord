@@ -31,6 +31,7 @@ const { openStore } = require('./server/store');
 const { Online } = require('./server/online');
 const { socialStore, pairKey } = require('./server/social');
 const polls = require('./server/polls');
+const { createLab } = require('./server/lab');
 const { version: APP_VERSION } = require('./package.json');
 
 const PORT = process.env.PORT || 3000;
@@ -200,6 +201,8 @@ const accountByName = (name) => db.accounts[accountIdByName.get(name.toLowerCase
 const mailer = createMailer();
 const recovery = createRecovery({ db, save, mailer, publicUrl: process.env.PUBLIC_URL || 'https://resenhex.com.br' });
 setInterval(() => recovery.prune(), 60 * 60 * 1000).unref();
+// Laboratório da transmissão do celular: amostras ao lado do banco, em lab/tela-AAAA-MM-DD.jsonl.
+const lab = createLab({ dir: process.env.LAB_DIR || path.join(path.dirname(DATA_DB), 'lab') });
 
 // Publicação ou parada (Ctrl+C): avisa todo mundo antes de sair e diz por quanto tempo espalhar a volta
 // (public/app.js): 6 ms por pessoa online, até 30 s. Com 5 mil online, cada um volta num momento sorteado desses
@@ -1624,6 +1627,7 @@ function flushBroadcast() {
   // A bolinha do Propor Melhorias: avisa todo mundo só quando o dev muda de online para offline (ou o contrário).
   const devOnline = devOnlineNow();
   if (devOnline !== lastDevOnline) { lastDevOnline = devOnline; io.emit('dev:status', { online: devOnline }); }
+  syncLab(); // alguém entrou ou saiu da call do dono: liga ou desliga o laboratório nessa página
   health.count('sendMs', performance.now() - started);
 }
 
@@ -1737,6 +1741,26 @@ function emitToViewers(channel, event, payload, except = null) {
   }
   deliver(sids, event, payload);
 }
+// Laboratório da transmissão do celular (server/lab.js): com ele ligado, as conexões na mesma call que o dono
+// recebem lab:state e passam a mandar amostras. Quem sai da call (ou o laboratório desligando) recebe on: false.
+const labSent = new Map(); // conexão -> versão do estado que ela recebeu
+function syncLab() {
+  if (!lab.active() && !labSent.size) return;
+  const wanted = new Set();
+  const ownerId = communities.root.siteOwnerId;
+  if (lab.active() && ownerId) {
+    for (const sid of online.sidsOf(ownerId)) {
+      const owner = online.get(sid);
+      if (!owner?.voice) continue;
+      for (const other of online.inRoom(owner.voice)) if ((online.get(other)?.voiceServerId ?? null) === (owner.voiceServerId ?? null)) wanted.add(other);
+    }
+  }
+  for (const sid of [...labSent.keys()]) if (!wanted.has(sid)) { labSent.delete(sid); lab.forget(sid); io.to(sid).emit('lab:state', { on: false }); }
+  const version = lab.version, state = lab.client();
+  for (const sid of wanted) if (labSent.get(sid) !== version) { labSent.set(sid, version); io.to(sid).emit('lab:state', state); }
+}
+setInterval(() => { if (lab.expire()) syncLab(); }, 30_000).unref();
+
 // Enquete de uma sala de voz: quem está no servidor e também quem está na chamada olhando outro servidor
 // (o cartão da enquete fica na chamada).
 function emitPoll(channel, event, payload) {
@@ -2845,6 +2869,24 @@ io.on('connection', (socket) => {
   on('site:health', (acc) => {
     if (!isSiteOwner(acc)) fail('Só o dono do Resenhex vê a saúde do servidor.');
     return health.view();
+  });
+
+  // Laboratório da transmissão do celular (server/lab.js): o dono liga, dá nome ao teste e escolhe as variações.
+  const labView = () => ({ ...lab.view(), collectors: labSent.size });
+  on('lab:get', (acc) => {
+    if (!isSiteOwner(acc)) fail('Só o dono do Resenhex usa o laboratório.');
+    return labView();
+  });
+  on('lab:set', (acc, input) => {
+    if (!isSiteOwner(acc)) fail('Só o dono do Resenhex usa o laboratório.');
+    lab.set(input);
+    syncLab();
+    return labView();
+  });
+  // Amostra de quem está na call do dono com o laboratório ligado; de mais ninguém.
+  on('lab:sample', (acc, sample) => {
+    if (!labSent.has(socket.id)) return { ok: false };
+    return { ok: lab.write(socket.id, sample, isSiteOwner(acc) ? { owner: true } : {}) };
   });
 
   on('voice:state', (acc, { muted, deafened, sharing, paused, camera, voiceFx, allowClips }) => {

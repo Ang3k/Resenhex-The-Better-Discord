@@ -94,3 +94,11 @@ test('celular em pé (320×720) não é reduzido de novo no envio; deitado (1280
   assert.equal(policy.screenEncoding(preset, 2e6, demand, { width: 1280, height: 576 }).scaleResolutionDownBy, 1);
   assert.deepEqual(policy.screenCodecs(preset, []), ['video/H264', 'video/VP8']);
 });
+
+test('laboratório: intervalos entre quadros viram quantos, menor, mediana, 90% e maior', () => {
+  assert.equal(screen.intervalSummary([]), null);
+  // 30 fps com dois engasgos: a mediana fica nos 33 ms e o maior mostra o buraco.
+  const gaps = [...Array(18).fill(33.3), 100.04, 250];
+  assert.deepEqual(screen.intervalSummary(gaps), { n: 20, min: 33.3, p50: 33.3, p90: 100, max: 250 });
+  assert.equal(screen.labTake(), null, 'sem transmissão, nada a ler');
+});
