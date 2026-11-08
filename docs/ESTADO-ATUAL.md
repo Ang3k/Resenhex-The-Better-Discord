@@ -29,7 +29,7 @@ Deixar o Resenhex aguentar **5 mil pessoas online ao mesmo tempo**, espalhadas e
 - **Site:** versão **2.5.0** em https://resenhex.com.br, publicada em 08/11 às 05:26 (Brasília) a partir da branch `claude/tela-celular` (`354fac1`): transmitir a tela do celular na call pelo app de Android, com o som dos jogos e vídeos, e o site abrindo em WebView antigo (85+) pelo `public/compat.js`. Havia 7 conexões abertas; o dono mandou publicar e 8 estavam conectadas logo depois. Backup do banco em `/var/backups/resenhex/data-before-20261108-052543.*`. O `main` local foi avançado para `354fac1`. Antes estava a 2.4.5 (`303effd`, 07/11 às 19:56).
 - **Apps:** Windows 1.4.7; Android 1.4.0 (transmitir a tela do celular), publicado em 08/11 às 05:27. A transmissão pelo celular foi testada só nos emuladores Android 12, 14 e 16, ainda não num celular de verdade. A 2.0.0, do plano de 5 mil, saiu em 25/10 de `claude/chamada-atual` (`68639d1`); as versões seguintes estão no `CHANGELOG.md`.
 - **Painel "Chamadas agora":** só o dono vê, em Configurações. Mostra quem está online e em qual call.
-- **GitHub:** o `main` de lá ainda está na 2.3.5 (`14ba682`), enviada em 31/10 a pedido do dono. A 2.4.0, a 2.4.5 e a 2.5.0 só estão no `main` local.
+- **GitHub:** o `main` de lá tem o mesmo código que está no ar (2.5.0), enviado em 08/11 a pedido do dono (antes estava na 2.3.5, `14ba682`).
 - **Servidor:** Oracle ARM grátis (2 núcleos, 12 GB), IP `146.235.41.73`, usuário `ubuntu`, chave `~/.ssh/resenhex-oracle-ed25519`.
   - App em `/opt/resenhex`; dados em `/var/lib/resenhex/data.db` (SQLite; o `data.json` da 1.9.0 ficou como `data.json.antes-do-sqlite`) e `/var/lib/resenhex/uploads`.
   - Backups em `/var/backups/resenhex`.
