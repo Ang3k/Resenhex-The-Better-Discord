@@ -2322,10 +2322,7 @@ io.on('connection', (socket) => {
         }
         // Cadeado e Laço miram o roll mais recente deste canal em que o poder vale agora; sem nenhum, o poder dá o seu erro.
         const t = Date.now();
-        const valid = {
-          cadeado: (m) => m.by === acc.id && t < m.mudae.revealAt && !m.mudae.ownerId && !m.mudae.pairFree,
-          laco: (m) => m.by && m.by !== acc.id && !m.mudae.ownerId && !m.mudae.pairFree && m.mudae.revealAt <= t && t < m.mudae.priorityUntil,
-        }[power.key];
+        const valid = { cadeado: (m) => !lockError(m, acc.id, t), laco: (m) => !lassoError(m, acc.id, t) }[power.key];
         const aim = valid && [...(db.messages[c.id] || [])].reverse().find((m) => m.bot === 'mudae' && m.mudae?.kind === 'roll' && valid(m));
         const r = usePower(acc, c, { power: power.key, id: aim?.id || '' });
         if (power.key === 'videncia') return only({ kind: 'foresee', future: r.future, wish: r.wish });
@@ -2612,6 +2609,17 @@ io.on('connection', (socket) => {
     }
     return cards;
   };
+  // Quando o Cadeado e o Laço valem num roll: devolvem o erro, ou null se valem. Os efeitos e o $poder usam as mesmas regras.
+  const lockError = (msg, accId, t) => {
+    if (!msg || msg.by !== accId || t >= msg.mudae.revealAt) return 'O Cadeado só funciona no seu roll, enquanto a cápsula gira.';
+    if (msg.mudae.ownerId || msg.mudae.pairFree) return 'O Cadeado não serve nessa carta.';
+    return null;
+  };
+  const lassoError = (msg, accId, t) => {
+    const d = msg?.mudae;
+    if (!d || !msg.by || msg.by === accId || d.ownerId || d.pairFree || !(d.revealAt <= t && t < d.priorityUntil)) return 'O Laço só funciona nos 3 s de quem rodou.';
+    return null;
+  };
   const POWER_EFFECTS = {
     videncia: (store, id) => mudae.foresee(store, id),
     amuleto: (store, id) => mudae.arm(store, id, 'amuleto'),
@@ -2620,8 +2628,8 @@ io.on('connection', (socket) => {
     // Cadeado: tranca o seu roll enquanto a cápsula gira; vale até o fim dos 45 s.
     cadeado: (store, accId, { c, id }) => {
       const msg = rollOf(c, id);
-      if (!msg || msg.by !== accId || Date.now() >= msg.mudae.revealAt) fail('O Cadeado só funciona no seu roll, enquanto a cápsula gira.');
-      if (msg.mudae.ownerId || msg.mudae.pairFree) fail('O Cadeado não serve nessa carta.');
+      const refused = lockError(msg, accId, Date.now());
+      if (refused) fail(refused);
       msg.mudae.lockedBy = accId;
       return { extra: { id }, reply: { armed: 'cadeado' }, after: () => {
         save(chunk.message(c.id, msg.id));
@@ -2632,8 +2640,8 @@ io.on('connection', (socket) => {
     laco: (store, accId, { c, id }) => {
       const msg = rollOf(c, id);
       const d = msg?.mudae;
-      const t = Date.now();
-      if (!d || !msg.by || msg.by === accId || d.ownerId || d.pairFree || !(d.revealAt <= t && t < d.priorityUntil)) fail('O Laço só funciona nos 3 s de quem rodou.');
+      const refused = lassoError(msg, accId, Date.now());
+      if (refused) fail(refused);
       const blocked = mudae.claimError(store, accId);
       if (blocked) fail(blocked);
       if (d.lockedBy) return { extra: { id, bounced: true }, line: { card: d.card }, reply: { bounced: true } };
