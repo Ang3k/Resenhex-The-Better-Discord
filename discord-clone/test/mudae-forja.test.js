@@ -49,11 +49,16 @@ test('nível I já sai com acabamento; do II em diante a pessoa escolhe', () => 
   const second = forja.forge(store, 'a', 'bronze');
   assert.equal(second.offer, 'galaxia');
   assert.equal(second.finish, 'holo');
-  assert.deepEqual(forja.chooseFinish(store, 'a', 'bronze', 'old'), { finish: 'holo' });
+  assert.deepEqual(forja.chooseFinish(store, 'a', 'bronze', 'old'), { finish: 'holo', announce: false });
   assert.equal(forja.medalsOf(store, 'a').bronze.offer, null);
   forja.forge(store, 'a', 'bronze');
-  assert.deepEqual(forja.chooseFinish(store, 'a', 'bronze', 'new'), { finish: 'galaxia' });
-  assert.deepEqual(forja.medalsOf(store, 'a').bronze, { level: 3, finish: 'galaxia', offer: null });
+  assert.deepEqual(forja.chooseFinish(store, 'a', 'bronze', 'new'), { finish: 'galaxia', announce: false });
+  forja.forge(store, 'a', 'bronze');
+  assert.equal(forja.chooseFinish(store, 'a', 'bronze', 'old').announce, true, 'nível IV anuncia na primeira escolha');
+  store.kakera.a = 500;
+  forja.reforge(store, 'a', 'bronze');
+  assert.equal(forja.chooseFinish(store, 'a', 'bronze', 'new').announce, false, 'e não repete depois de reforjar');
+  assert.deepEqual(forja.medalsOf(store, 'a').bronze, { level: 4, finish: 'galaxia', offer: null });
   assert.equal(forja.medalsOf(store, 'a').prata.level, 0);
   assert.equal(Object.keys(forja.medalsOf(store, 'a')).length, 7);
 });
@@ -176,7 +181,7 @@ test('Forja pelo socket: forjar, nível IV vira linha e aviso para todos', async
   await server.stop();
   const root = saved();
   const community = Object.values(root.servers).find((x) => x.ownerId === anaId);
-  (community.mudae ||= { claims: {}, usage: {} }).kakera = { [anaId]: 5000 };
+  (community.mudae ||= { claims: {}, usage: {} }).kakera = { [anaId]: 6000 };
   writeRoot(dbFile, root);
 
   server = await startServer(dir, clients);
@@ -191,31 +196,45 @@ test('Forja pelo socket: forjar, nível IV vira linha e aviso para todos', async
   assert.ok((await beto.call('mudae:presence', { channel: created.id })).ok);
 
   const got = await ana.call('mudae:forja:get');
-  assert.equal(got.kakera, 5000);
+  assert.equal(got.kakera, 6000);
   assert.equal(got.prices.bronze, 500);
   assert.equal(got.medals.bronze.level, 0);
   assert.equal(got.perks.wishSlots, 0);
 
   assert.match((await ana.call('mudae:forja:forge', { medal: 'nada' })).error, /Medalha inválida/);
-  for (let level = 1; level <= 4; level++) {
+  for (let level = 1; level <= 3; level++) {
     const r = await ana.call('mudae:forja:forge', { medal: 'bronze' });
     assert.ok(!r.error, r.error);
     assert.equal(r.level, level);
     if (r.offer) assert.ok(!(await ana.call('mudae:forja:finish', { medal: 'bronze', pick: 'new' })).error);
   }
-  assert.match((await ana.call('mudae:forja:forge', { medal: 'bronze' })).error, /nível IV/);
+  const medalLines = (s) => s.messages.filter((x) => x.mudae?.kind === 'medal');
+  const fourth = await ana.call('mudae:forja:forge', { medal: 'bronze' });
+  assert.equal(fourth.level, 4);
+  assert.match((await ana.call('mudae:forja:forge', { medal: 'bronze' })).error, /Escolha o acabamento antes/);
 
+  // O aviso ao vivo sai na hora, sem acabamento; a linha salva só depois da escolha.
   const aviso = await eventually(() => { assert.equal(beto.forges.length, 1); return beto.forges[0]; });
-  assert.equal(aviso.medal, 'bronze');
-  assert.equal(aviso.level, 4);
-  assert.equal(aviso.by, anaId);
-  const line = await eventually(() => { const m = beto.messages.find((x) => x.mudae?.kind === 'medal'); assert.ok(m); return m; });
+  assert.deepEqual(aviso, { by: anaId, medal: 'bronze', level: 4 });
+  await wait(150);
+  assert.equal(medalLines(beto).length, 0);
+
+  const picked = await ana.call('mudae:forja:finish', { medal: 'bronze', pick: 'new' });
+  assert.ok(!picked.error, picked.error);
+  const line = await eventually(() => { assert.equal(medalLines(beto).length, 1); return medalLines(beto)[0]; });
   assert.equal(line.mudae.medal, 'bronze');
   assert.equal(line.mudae.level, 4);
   assert.equal(line.mudae.ownerId, anaId);
+  assert.equal(line.mudae.finish, picked.finish);
+
+  // Reforjar e escolher de novo no nível IV não repete a linha.
+  assert.ok(!(await ana.call('mudae:forja:reforge', { medal: 'bronze' })).error);
+  assert.ok(!(await ana.call('mudae:forja:finish', { medal: 'bronze', pick: 'new' })).error);
+  await wait(150);
+  assert.equal(medalLines(beto).length, 1);
 
   const after = await ana.call('mudae:forja:get');
-  assert.equal(after.kakera, 0);
+  assert.equal(after.kakera, 6000 - 500 - 1000 - 1500 - 2000 - 500);
   assert.equal(after.prices.bronze, null);
   assert.equal(after.medals.bronze.level, 4);
 });

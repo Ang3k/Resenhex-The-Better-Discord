@@ -2417,10 +2417,8 @@ io.on('connection', (socket) => {
     const serverId = communities.currentId();
     const s = online.get(socket.id);
     if (r.level === 4) {
-      const c = s.salon && s.salonServerId === serverId ? db.channels.find((ch) => ch.id === s.salon && ch.mudae) : null;
-      if (c) postMudae(c, acc, null, { kind: 'medal', ownerId: acc.id, medal: r.medal, level: 4, finish: r.finish });
       const rooms = new Set(sessionsOf(online.viewers(serverId)).filter(([, o]) => o.salonServerId === serverId && o.salon).map(([sid]) => sid));
-      deliver([...rooms], 'mudae:forge', { by: acc.id, medal: r.medal, level: 4, finish: r.finish });
+      deliver([...rooms], 'mudae:forge', { by: acc.id, medal: r.medal, level: 4 });
     }
     if (s.salon && s.salonServerId === serverId) pushSalon(serverId, s.salon);
     return r;
@@ -2429,7 +2427,12 @@ io.on('connection', (socket) => {
     forgeGuard(acc);
     const r = forja.chooseFinish(mudaeStore(), acc.id, forgeMedal(medal), pick);
     save(chunk.server());
-    return r;
+    if (r.announce) {
+      const s = online.get(socket.id);
+      const c = s.salon && s.salonServerId === communities.currentId() ? db.channels.find((ch) => ch.id === s.salon && ch.mudae) : null;
+      if (c) postMudae(c, acc, null, { kind: 'medal', ownerId: acc.id, medal, level: 4, finish: r.finish });
+    }
+    return { finish: r.finish };
   });
   on('mudae:forja:reforge', (acc, { medal }) => {
     forgeGuard(acc);

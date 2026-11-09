@@ -78,7 +78,10 @@ function createForja({ random = Math.random } = {}) {
     if (pick !== 'old' && pick !== 'new') throw new Error('Escolha inválida.');
     if (pick === 'new') e.finish = e.offer;
     delete e.offer;
-    return { finish: e.finish };
+    // No nível IV a notícia sai uma vez só, com o acabamento que a pessoa ficou (reforjar depois não repete).
+    const announce = e.level === MAX_LEVEL && !e.announced;
+    if (announce) e.announced = true;
+    return { finish: e.finish, announce };
   }
 
   function reforge(store, accountId, medal) {
