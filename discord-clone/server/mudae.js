@@ -5,6 +5,7 @@
 // As fotos vão direto do site de cada fonte para o navegador. Cada comunidade guarda
 // { claims, usage, favorites } e os limites são contados pelo relógio, sem nenhum timer rodando.
 const { kakeraOf, addKakera, statsOf, bumpStat, refundOf } = require('./mudae-conta');
+const { perksOf } = require('./mudae-forja');
 
 const ROLLS_PER_HOUR = 10;
 const ROLL_RESET_MS = 30 * 60_000;
@@ -152,9 +153,19 @@ function createMudae({ catalog, now = Date.now, random = Math.random, refSize = 
   const usageOf = (store, accountId) => (store.usage[accountId] ||= {});
   const pick = (list) => list[Math.floor(random() * list.length)];
 
-  function rollsLeft(u) {
-    return u.rollWindow === Math.floor(now() / ROLL_RESET_MS) ? Math.max(0, ROLLS_PER_HOUR - u.rolls) : ROLLS_PER_HOUR;
+  // Os rolls da janela de 30 min de agora: max = 10 + Safira + os guardados pela Prata; used = quantos já foram.
+  // Quando a janela ainda não foi vista, os guardados saem da sobra da janela imediatamente anterior
+  // (se a pessoa nem passou por ela, a sobra era a janela cheia). Nada é gravado aqui.
+  function rollWindow(u, perks) {
+    const current = Math.floor(now() / ROLL_RESET_MS);
+    const base = ROLLS_PER_HOUR + perks.extraRolls;
+    if (u.rollWindow === current) return { max: base + (u.carry || 0), used: u.rolls, carry: u.carry || 0 };
+    const leftover = u.rollWindow === current - 1 ? Math.max(0, base + (u.carry || 0) - u.rolls) : base;
+    const carry = Math.min(perks.carry, leftover);
+    return { max: base + carry, used: 0, carry };
   }
+  const rollsLeft = (u, perks) => { const w = rollWindow(u, perks); return Math.max(0, w.max - w.used); };
+  const rollsMaxOf = (u, perks) => rollWindow(u, perks).max;
   const claimReady = (u) => !u.lastClaim || Math.floor(u.lastClaim / CLAIM_RESET_MS) < Math.floor(now() / CLAIM_RESET_MS);
   const rollResetIn = () => ROLL_RESET_MS - (now() % ROLL_RESET_MS);
   const claimResetIn = () => CLAIM_RESET_MS - (now() % CLAIM_RESET_MS);
@@ -176,14 +187,20 @@ function createMudae({ catalog, now = Date.now, random = Math.random, refSize = 
   function status(store, accountId) {
     const u = usageOf(store, accountId);
     const buys = recentBuys(u);
-    return { rollsLeft: rollsLeft(u), rollsMax: ROLLS_PER_HOUR, rollResetIn: rollResetIn(), claimReady: claimReady(u), claimResetIn: claimResetIn(),
+    const perks = perksOf(store, accountId);
+    return { rollsLeft: rollsLeft(u, perks), rollsMax: rollsMaxOf(u, perks), wishMax: WISH_LIMIT + perks.wishSlots,
+      reserveReady: reserveReady(u, perks), reserveIn: perks.reserveEveryMs > 0 ? waitFor(u.reserveAt, perks.reserveEveryMs) : 0, rollResetIn: rollResetIn(), claimReady: claimReady(u), claimResetIn: claimResetIn(),
       kakera: kakeraOf(store, accountId), dailyIn: waitFor(u.daily, DAILY_MS), dkIn: waitFor(u.dk, DAILY_MS), dkAmount: DK_AMOUNT,
       buysLeft: ROLLS_BUYS - buys.length, buysMax: ROLLS_BUYS, buysIn: buys.length >= ROLLS_BUYS ? DAY_MS - (now() - buys[0]) : 0, rollsPrice: ROLLS_PRICE,
       crystalReady: !sameWindow(u.lastCrystal) };
   }
 
-  // Os rolls voltam todos agora (o $daily e o $rolls).
-  function refillRolls(u) {
+  // A reserva da Esmeralda: no máximo 1 guardado, pronto de novo depois de reserveEveryMs.
+  const reserveReady = (u, perks) => perks.reserveEveryMs > 0 && !waitFor(u.reserveAt, perks.reserveEveryMs);
+
+  // Os rolls voltam todos agora (o $daily e o $rolls), até o máximo da janela.
+  function refillRolls(u, perks) {
+    u.carry = rollWindow(u, perks).carry;
     u.rollWindow = Math.floor(now() / ROLL_RESET_MS);
     u.rolls = 0;
   }
@@ -193,10 +210,12 @@ function createMudae({ catalog, now = Date.now, random = Math.random, refSize = 
     const u = usageOf(store, accountId);
     const wait = waitFor(u.daily, DAILY_MS);
     if (wait) return { error: `O **$daily** volta em **${minutes(wait)}**.` };
-    if (rollsLeft(u) === ROLLS_PER_HOUR) return { error: 'Você ainda tem todos os rolls. Guarde o **$daily** para quando eles acabarem!' };
+    const perks = perksOf(store, accountId);
+    const max = rollsMaxOf(u, perks);
+    if (rollsLeft(u, perks) === max) return { error: 'Você ainda tem todos os rolls. Guarde o **$daily** para quando eles acabarem!' };
     u.daily = now();
-    refillRolls(u);
-    return { rollsLeft: ROLLS_PER_HOUR };
+    refillRolls(u, perks);
+    return { rollsLeft: max };
   }
 
   // $dk: o kakera do dia, a cada 20 h.
@@ -205,7 +224,8 @@ function createMudae({ catalog, now = Date.now, random = Math.random, refSize = 
     const wait = waitFor(u.dk, DAILY_MS);
     if (wait) return { error: `O **$dk** volta em **${minutes(wait)}**.` };
     u.dk = now();
-    return { amount: DK_AMOUNT, kakera: addKakera(store, accountId, DK_AMOUNT) };
+    const amount = perksOf(store, accountId).dkDouble ? DK_AMOUNT * 2 : DK_AMOUNT;
+    return { amount, kakera: addKakera(store, accountId, amount) };
   }
 
   // $rolls: compra os rolls de volta com kakera, até 3 vezes a cada 24 h.
@@ -213,12 +233,14 @@ function createMudae({ catalog, now = Date.now, random = Math.random, refSize = 
     const u = usageOf(store, accountId);
     const buys = recentBuys(u);
     if (buys.length >= ROLLS_BUYS) return { error: `Você já usou o **$rolls** ${ROLLS_BUYS} vezes nas últimas 24 h. O próximo libera em **${minutes(DAY_MS - (now() - buys[0]))}**.` };
-    if (rollsLeft(u) === ROLLS_PER_HOUR) return { error: 'Você ainda tem todos os rolls.' };
+    const perks = perksOf(store, accountId);
+    const max = rollsMaxOf(u, perks);
+    if (rollsLeft(u, perks) === max) return { error: 'Você ainda tem todos os rolls.' };
     const have = kakeraOf(store, accountId);
     if (have < ROLLS_PRICE) return { error: `O **$rolls** custa **${ROLLS_PRICE}** kakera e você tem **${have}**. Faltam ${ROLLS_PRICE - have}.` };
     u.buys = [...buys, now()];
-    refillRolls(u);
-    return { price: ROLLS_PRICE, kakera: addKakera(store, accountId, -ROLLS_PRICE), rollsLeft: ROLLS_PER_HOUR, buysLeft: ROLLS_BUYS - u.buys.length };
+    refillRolls(u, perks);
+    return { price: ROLLS_PRICE, kakera: addKakera(store, accountId, -ROLLS_PRICE), rollsLeft: max, buysLeft: ROLLS_BUYS - u.buys.length };
   }
 
   // $givek: passa kakera para outra pessoa.
@@ -250,18 +272,28 @@ function createMudae({ catalog, now = Date.now, random = Math.random, refSize = 
     return { amount, kakera: addKakera(store, accountId, amount) };
   }
 
+  // Rubi: com a chance da medalha (um random a mais, só para quem tem Rubi), o roll vira um desejo da pessoa
+  // que esteja na lista que o roll sortearia e não tenha dono. Sem nenhum assim, volta null e o sorteio segue normal.
+  function wishedPick(store, accountId, list, perks) {
+    if (!(perks.wishChance > 0) || random() >= perks.wishChance) return null;
+    const fits = wishesOf(store, accountId).map(lookup).filter((c) => c && !store.claims[c.id] && list.includes(c));
+    return fits.length ? pick(fits) : null;
+  }
+
   // Sorteia um personagem. kind: w/h/m, com ou sem a letra da fonte ($wg = waifu de jogo).
   // Erro (sem rolls) volta como texto para mostrar só a quem pediu.
   // "decoys" são fotos aleatórias para a roleta girar antes de parar no resultado.
   function roll(store, accountId, kind) {
     const u = usageOf(store, accountId);
-    const left = rollsLeft(u);
-    if (!left) return { error: `A roleta é limitada a ${ROLLS_PER_HOUR} rolls a cada 30 minutos. Os rolls voltam em **${minutes(rollResetIn())}**.` };
+    const perks = perksOf(store, accountId);
+    const window = rollWindow(u, perks);
+    const left = Math.max(0, window.max - window.used);
+    if (!left) return { error: `A roleta é limitada a ${window.max} rolls a cada 30 minutos. Os rolls voltam em **${minutes(rollResetIn())}**.` };
     // Sem ninguém daquele gênero, a fonte pedida vale mais que o gênero ($ha sem husbando: qualquer anime).
     const list = [kind, 'm' + (kind?.[1] || ''), kind?.[0], 'm'].map((k) => pools[k]).find((l) => l?.length);
-    const c = pick(list);
+    const c = wishedPick(store, accountId, list, perks) || pick(list);
     const windowId = Math.floor(now() / ROLL_RESET_MS);
-    if (u.rollWindow !== windowId) { u.rollWindow = windowId; u.rolls = 0; }
+    if (u.rollWindow !== windowId) { u.rollWindow = windowId; u.rolls = 0; u.carry = window.carry; }
     u.rolls++;
     bump(store, accountId, 'rolls');
     const decoys = Array.from({ length: DECOYS }, () => thumbOf(pick(list)));
@@ -286,14 +318,19 @@ function createMudae({ catalog, now = Date.now, random = Math.random, refSize = 
     if (t - revealAt > CLAIM_WINDOW_MS) throw new Error('Tarde demais: o tempo para casar com esse personagem acabou.');
     if (rollerId && accountId !== rollerId && t < revealAt + priority) throw new Error('Quem rodou ainda tem prioridade. Espere um instante!');
     const u = usageOf(store, accountId);
-    if (!claimReady(u)) throw new Error(`Você já casou nesta janela. Dá para casar de novo em ${minutes(claimResetIn())}.`);
-    u.lastClaim = t;
+    // Janela de casamento já gasta: a reserva da Esmeralda, se estiver pronta, casa no lugar.
+    const perks = perksOf(store, accountId);
+    const reserve = !claimReady(u);
+    if (reserve && !reserveReady(u, perks)) throw new Error(`Você já casou nesta janela. Dá para casar de novo em ${minutes(claimResetIn())}.`);
+    if (reserve) u.reserveAt = t;
+    else u.lastClaim = t;
     stats(store, accountId);
     store.claims[charId] = { ownerId: accountId, at: t };
     note(store, charId, accountId, 'claim');
     dropWish(store, accountId, charId);
     bumpStat(store, accountId, 'claims');
     if (rarityOf(lookup(charId).eq) === 'legendary') bumpStat(store, accountId, 'legendary');
+    return { reserve };
   }
 
   // Histórico de cada personagem: quantos donos já teve e os últimos (quem, como, quando).
@@ -472,9 +509,10 @@ function createMudae({ catalog, now = Date.now, random = Math.random, refSize = 
     const list = wishesOf(store, accountId);
     if (store.claims[c.id]?.ownerId === accountId) return { error: `**${c.name}** já é seu!` };
     if (list.some((id) => sameId(id, c.id))) return { error: `**${c.name}** já está na sua lista de desejos.` };
-    if (list.length >= WISH_LIMIT) return { error: `Sua lista de desejos está cheia (${WISH_LIMIT}). Tire alguém com **$wr nome**.` };
+    const max = WISH_LIMIT + perksOf(store, accountId).wishSlots;
+    if (list.length >= max) return { error: `Sua lista de desejos está cheia (${max}). Tire alguém com **$wr nome**.` };
     (store.wishes ||= {})[accountId] = [...list, c.id];
-    return { card: card(c), ownerId: store.claims[c.id]?.ownerId || null, total: list.length + 1, max: WISH_LIMIT };
+    return { card: card(c), ownerId: store.claims[c.id]?.ownerId || null, total: list.length + 1, max };
   }
 
   function wish(store, accountId, query) {
@@ -491,19 +529,19 @@ function createMudae({ catalog, now = Date.now, random = Math.random, refSize = 
       const r = addWish(store, accountId, c);
       if (r.error) throw new Error(r.error.replaceAll('**', ''));
     }
-    return { total: wishesOf(store, accountId).length, max: WISH_LIMIT };
+    return { total: wishesOf(store, accountId).length, max: WISH_LIMIT + perksOf(store, accountId).wishSlots };
   }
 
   function unwish(store, accountId, query) {
     const c = find(query, wishesOf(store, accountId).map(lookup).filter(Boolean));
     if (!c) return { error: `Ninguém chamado **${String(query).slice(0, 80)}** na sua lista de desejos.` };
     dropWish(store, accountId, c.id);
-    return { card: card(c), total: wishesOf(store, accountId).length, max: WISH_LIMIT };
+    return { card: card(c), total: wishesOf(store, accountId).length, max: WISH_LIMIT + perksOf(store, accountId).wishSlots };
   }
 
   function wishlist(store, accountId) {
     const chars = wishesOf(store, accountId).map(lookup).filter(Boolean).map((c) => ({ ...card(c), ownerId: store.claims[c.id]?.ownerId || null }));
-    return { ownerId: accountId, total: chars.length, max: WISH_LIMIT, chars };
+    return { ownerId: accountId, total: chars.length, max: WISH_LIMIT + perksOf(store, accountId).wishSlots, chars };
   }
 
   // ---------- presentes e favorito ----------
