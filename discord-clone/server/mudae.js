@@ -393,7 +393,7 @@ function createMudae({ catalog, now = Date.now, random = Math.random, refSize = 
   }
 
   // Fotos soltas para a roleta girar (o Eco não sorteia, só repete uma carta).
-  const spin = () => Array.from({ length: DECOYS }, () => thumbOf(pick(pools.m)));
+  const spin = (c) => Array.from({ length: DECOYS }, () => thumbOf(pick(pools['m' + c.source]?.length ? pools['m' + c.source] : pools.m)));
 
   // Fotos para o navegador já deixar carregadas ao abrir o Salão: a roleta nunca gira vazia,
   // mesmo quando as fotos sorteadas no roll (wikis, Comic Vine) demoram a chegar.

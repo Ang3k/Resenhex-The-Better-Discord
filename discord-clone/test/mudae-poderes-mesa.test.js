@@ -40,9 +40,11 @@ async function startServer(dir, clients) {
     socket.messages = [];
     socket.powers = [];
     socket.crystals = [];
+    socket.wishes = [];
     socket.on('chat:message', (m) => socket.messages.push(m.msg));
     socket.on('mudae:power', (p) => socket.powers.push(p));
     socket.on('mudae:crystal', (p) => socket.crystals.push(p));
+    socket.on('mudae:wish', (p) => socket.wishes.push(p));
     socket.call = (event, value = {}) => new Promise((r) => socket.timeout(3000).emit(event, value, (error, reply) => r(error ? { error: error.message } : reply)));
     socket.auth = await socket.call('auth', { mode, name, password: '1234', confirmPassword: '1234' });
     assert.ok(!socket.auth.error, socket.auth.error);
@@ -54,7 +56,7 @@ async function startServer(dir, clients) {
 
 // Catálogo de 400 comuns (todos "M", só o $m e o $h sorteiam). Ana e Beto começam com os poderes que o teste pede nos
 // espaços; "spent" lista quem já casou na janela de agora (o casamento está gasto).
-async function scene(t, { anaPowers, betoPowers, spent = [] }) {
+async function scene(t, { anaPowers, betoPowers, spent = [], owned = false }) {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'resenhex-mesa-'));
   const catalog = Array.from({ length: 400 }, (_, i) => [1000 + i, 'Personagem ' + i, 'Série', `b${1000 + i}-x.jpg`, 'M', 30000 + i]);
   fs.writeFileSync(path.join(dir, 'catalogo.json'), JSON.stringify(catalog));
@@ -74,6 +76,8 @@ async function scene(t, { anaPowers, betoPowers, spent = [] }) {
   const community = Object.values(root.servers).find((x) => x.ownerId === anaId);
   const seed = (community.mudae ||= { claims: {}, usage: {} });
   const grant = (list) => ({ unlocked: [...list], slots: [...list, null, null, null].slice(0, 3), readyAt: {} });
+  // owned: todo personagem já tem dono (o Beto), então todo roll sai com dono.
+  if (owned) for (let i = 0; i < 400; i++) seed.claims[1000 + i] = { ownerId: betoId, at: 1 };
   seed.powers = { [anaId]: grant(anaPowers), [betoId]: grant(betoPowers) };
   seed.usage = { ...seed.usage };
   for (const who of spent) seed.usage[who === 'ana' ? anaId : betoId] = { lastClaim: Date.now() };
@@ -173,6 +177,35 @@ test('poder fora de hora não gasta a carga', async (t) => {
   assert.equal(s.lines(s.ana).length, 0);
 });
 
+test('Cadeado no roll de outro e Laço no próprio roll são recusados, sem gastar', async (t) => {
+  const s = await scene(t, { anaPowers: ['cadeado', 'laco'], betoPowers: ['cadeado'] });
+  const roll = await s.rollAna();
+  assert.match((await s.beto.call('mudae:power:use', { channel: s.channel, power: 'cadeado', id: roll.id })).error, /seu roll/);
+  await s.until(roll.mudae.revealAt);
+  assert.match((await s.ana.call('mudae:power:use', { channel: s.channel, power: 'laco', id: roll.id })).error, /nos 3 s de quem rodou/);
+  assert.equal(await s.readyIn(s.beto, 'cadeado'), 0);
+  assert.equal(await s.readyIn(s.ana, 'laco'), 0);
+  assert.equal(s.lines(s.ana).length, 0);
+});
+
+test('Cadeado numa carta que já tem dono é recusado e a carga fica', async (t) => {
+  const s = await scene(t, { anaPowers: ['cadeado'], betoPowers: [], owned: true });
+  const roll = await s.rollAna();
+  assert.ok(roll.mudae.ownerId);
+  assert.equal((await s.ana.call('mudae:power:use', { channel: s.channel, power: 'cadeado', id: roll.id })).error, 'O Cadeado não serve nessa carta.');
+  assert.equal(await s.readyIn(s.ana, 'cadeado'), 0);
+});
+
+test('Laço que casou e Eco não deixam a linha de poder; o Laço que bateu deixa', async (t) => {
+  const s = await scene(t, { anaPowers: [], betoPowers: ['laco'] });
+  const roll = await s.rollAna();
+  await s.until(roll.mudae.revealAt);
+  assert.deepEqual(await s.beto.call('mudae:power:use', { channel: s.channel, power: 'laco', id: roll.id }), { lasso: true });
+  await eventually(() => assert.ok(s.ana.messages.some((m) => m.mudae?.kind === 'married')));
+  assert.equal(s.lines(s.ana).length, 0);
+  assert.equal(s.beto.powers.length, 1, 'o aviso continua');
+});
+
 test('Chuva: todos no Salão recebem a chuva', async (t) => {
   const s = await scene(t, { anaPowers: ['chuva'], betoPowers: [] });
   const r = await s.ana.call('mudae:power:use', { channel: s.channel, power: 'chuva' });
@@ -204,6 +237,19 @@ test('cenas longas: Cadeado com o casamento gasto e Eco', { concurrency: true },
       const eco = await s.beto.call('mudae:eco:list', { channel: s.channel });
       assert.deepEqual(eco.cards.map((c) => c.id), [roll.mudae.card.id]);
     }),
+    t.test('Eco: lista até 5, sem repetir e sem quem casou depois', async (st) => {
+      const s = await scene(st, { anaPowers: [], betoPowers: [] });
+      const rolls = [];
+      for (let i = 0; i < 7; i++) rolls.push(await s.rollAna());
+      // O 5º roll é de quem casou: sai da lista, e entra o mais antigo que sobrou.
+      await s.until(rolls[4].mudae.priorityUntil);
+      assert.ok(!(await s.beto.call('mudae:claim', { channel: s.channel, id: rolls[4].id })).error);
+      await s.until(Math.max(...rolls.map((r) => r.mudae.expires)) + 100); // a roleta dos raros gira mais, então o fim varia
+      const expected = [...new Set(rolls.filter((r) => r !== rolls[4]).reverse().map((r) => r.mudae.card.id))].slice(0, 5);
+      const eco = await s.beto.call('mudae:eco:list', { channel: s.channel });
+      assert.equal(eco.cards.length, 5);
+      assert.deepEqual(eco.cards.map((c) => c.id), expected);
+    }),
     t.test('Eco traz de volta um personagem que passou sem dono', async (st) => {
       const s = await scene(st, { anaPowers: [], betoPowers: ['eco'] });
       const roll = await s.rollAna();
@@ -214,6 +260,7 @@ test('cenas longas: Cadeado com o casamento gasto e Eco', { concurrency: true },
       assert.match((await s.beto.call('mudae:power:use', { channel: s.channel, power: 'eco', charId: 'nada' })).error, /não passou por aqui/);
       assert.equal(await s.readyIn(s.beto, 'eco'), 0);
 
+      assert.ok(!(await s.ana.call('mudae:wish', { charId: roll.mudae.card.id, on: true })).error);
       const used = await s.beto.call('mudae:power:use', { channel: s.channel, power: 'eco', charId: roll.mudae.card.id });
       assert.deepEqual(used, { armed: 'eco' });
       const again = await eventually(() => { const r = s.rolls(s.ana).filter((x) => x.mudae.eco); assert.equal(r.length, 1); return r[0]; });
@@ -222,6 +269,14 @@ test('cenas longas: Cadeado com o casamento gasto e Eco', { concurrency: true },
       assert.equal(again.mudae.rollsLeft, (await s.beto.call('mudae:status')).rollsLeft, 'não gasta roll do Beto');
       assert.ok(again.mudae.revealAt > Date.now() - 100 && again.mudae.priorityUntil - again.mudae.revealAt === 3000);
       assert.equal((await s.beto.call('mudae:status')).rollsLeft, (await s.ana.call('mudae:status')).rollsLeft + 1, 'a Ana gastou o dela, o Beto não');
+      assert.deepEqual(again.mudae.wishedBy, [s.anaId]);
+      const wish = await eventually(() => { assert.equal(s.ana.wishes.length, 1); return s.ana.wishes[0]; });
+      assert.equal(wish.id, again.id);
+      assert.equal(wish.by, s.betoId);
+      assert.equal(s.beto.wishes.length, 0, 'quem usou o Eco não recebe aviso');
+      assert.equal(s.lines(s.ana).length, 0, 'o roll com eco já conta o que houve');
+      // Enquanto o roll do Eco vale, o personagem não está na lista nem volta de novo.
+      assert.deepEqual((await s.beto.call('mudae:eco:list', { channel: s.channel })).cards, []);
     }),
   ]);
 });
