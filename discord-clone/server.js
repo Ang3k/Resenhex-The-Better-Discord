@@ -18,7 +18,8 @@ const { downloadRoutes } = require('./server/downloads');
 const { feedbackRoutes } = require('./server/feedback');
 const { createDj } = require('./server/dj');
 const { createMudae, CLAIM_WINDOW_MS, revealDelay, PRIORITY_MS, isRoll } = require('./server/mudae');
-const { createForja, perksOf } = require('./server/mudae-forja');
+const { createForja, perksOf, forgedCount, levelOf, atLeast } = require('./server/mudae-forja');
+const { createPoderes } = require('./server/mudae-poderes');
 const { MEDAL_KEYS, MEDALS, priceOf, CRYSTAL } = require('./server/mudae-regras');
 const { createCrystals } = require('./server/mudae-cristal');
 const { youtubeSearch } = require('./server/youtube');
@@ -934,6 +935,7 @@ const dj = createDj({ newId, onChange: (key) => notifyMusic(key) });
 const MUDAE_CATALOG = process.env.MUDAE_CATALOG || path.join(__dirname, 'server', 'mudae-catalogo.json');
 const mudae = createMudae({ catalog: fs.existsSync(MUDAE_CATALOG) ? JSON.parse(fs.readFileSync(MUDAE_CATALOG, 'utf8')) : [] });
 const forja = createForja({ now: Date.now, random: Math.random });
+const poderes = createPoderes({ now: Date.now });
 // Cristal errante: um relógio só para todas as comunidades. MUDAE_CRYSTAL_MS="min,max" (só os testes) encurta a espera.
 const crystalRules = (() => {
   const [min, max] = String(process.env.MUDAE_CRYSTAL_MS || '').split(',').map(Number);
@@ -2209,8 +2211,9 @@ io.on('connection', (socket) => {
       // Quem tem o personagem na lista de desejos aparece no card e recebe um aviso (menos quem rodou).
       const wishedBy = mudae.wishersOf(store, r.card.id, mudaeMember);
       const msg = postMudae(c, acc, command, { kind: 'roll', card: r.card, ownerId: r.ownerId, revealAt, priorityUntil: revealAt + PRIORITY_MS,
-        expires: revealAt + CLAIM_WINDOW_MS, rollsLeft: r.rollsLeft, ...(r.crystal ? { crystal: r.crystal } : {}), ...(wishedBy.length ? { wishedBy } : {}) }, { decoys: r.decoys });
+        expires: revealAt + CLAIM_WINDOW_MS, rollsLeft: r.rollsLeft, ...(wishedBy.length ? { wishedBy } : {}) }, { decoys: r.decoys });
       pushSalon(communities.currentId(), c.id);
+      afterProgress(acc, c);
       // Personagem que já tem dono: o cristal nasce da carta quando a roleta para.
       if (r.ownerId) {
         const spawned = crystals.spawn(communities.currentId(), { appearAt: revealAt, from: { channel: c.id, msgId: msg.id }, by: acc.id });
@@ -2360,6 +2363,7 @@ io.on('connection', (socket) => {
     save(chunk.server());
     if (r.next) crystalToSalons(serverId, 'mudae:crystal', r.next);
     if (s.salon) pushSalon(serverId, s.salon);
+    afterProgress(acc, null);
     return { ok: true, amount: r.amount, kakera: r.kakera, full: r.full };
   });
 
@@ -2376,6 +2380,7 @@ io.on('connection', (socket) => {
     // Casar com o roll de outra pessoa é um roubo, e o chat conta isso.
     postMudae(c, acc, null, { kind: 'married', card: d.card, ownerId: acc.id, from: msg.by && msg.by !== acc.id ? msg.by : null });
     if (c.mudae) pushSalon(communities.currentId(), c.id);
+    afterProgress(acc, c);
   });
 
   // Entrar ou sair da tela de um Salão (channel: null ao sair).
@@ -2446,6 +2451,7 @@ io.on('connection', (socket) => {
       deliver([...rooms], 'mudae:forge', { by: acc.id, medal: r.medal, level: 4 });
     }
     if (s.salon && s.salonServerId === serverId) pushSalon(serverId, s.salon);
+    afterProgress(acc, null);
     return r;
   });
   on('mudae:forja:finish', (acc, { medal, pick }) => {
@@ -2464,6 +2470,51 @@ io.on('connection', (socket) => {
     const r = forja.reforge(mudaeStore(), acc.id, forgeMedal(medal));
     save(chunk.server());
     return r;
+  });
+
+  // Poderes: abrem com conquistas (casar, rodar, pegar cristal, forjar). O poder novo vira uma linha no Salão
+  // e um aviso para todos os Salões; o crédito do dia do lançamento é quieto, só a própria pessoa fica sabendo.
+  const powerCtx = (store, id) => ({
+    ...mudae.stats(store, id), forged: forgedCount(store, id), bronzeLevel: levelOf(store, id, 'bronze'), medalsAt2: atLeast(store, id, 2),
+  });
+  const powersView = (acc) => {
+    const store = mudaeStore();
+    return poderes.powersOf(store, acc.id, powerCtx(store, acc.id), perksOf(store, acc.id));
+  };
+  function afterProgress(acc, c) {
+    const store = mudaeStore();
+    const { unlocked, fresh } = poderes.refresh(store, acc.id, powerCtx(store, acc.id));
+    if (!unlocked.length) return;
+    save(chunk.server());
+    const serverId = communities.currentId();
+    const mine = socketsOf(acc.id, true).map((o) => o.id);
+    if (fresh.length) {
+      const s = online.get(socket.id);
+      const here = c?.mudae ? c : db.channels.find((ch) => ch.mudae && ch.id === s?.salon && s.salonServerId === serverId);
+      const line = here || db.channels.find((ch) => ch.mudae);
+      const everyone = [...new Set([...salonSocketsOf(serverId).map(([sid]) => sid), ...mine])];
+      for (const power of fresh) {
+        if (line) postMudae(line, acc, null, { kind: 'unlock', ownerId: acc.id, power });
+        deliver(everyone, 'mudae:unlock', { by: acc.id, power });
+      }
+    } else {
+      for (const power of unlocked) deliver(mine, 'mudae:unlock', { by: acc.id, power });
+    }
+  }
+  on('mudae:powers:get', (acc) => {
+    mudaeAllowed(acc);
+    if (!allow('mudae-powers:' + acc.id, 20, 5000)) fail('Calma! Cliques rápidos demais.');
+    afterProgress(acc, null);
+    return powersView(acc);
+  });
+  on('mudae:powers:equip', (acc, { slot, power }) => {
+    mudaeAllowed(acc);
+    if (!allow('mudae-powers:' + acc.id, 20, 5000)) fail('Calma! Cliques rápidos demais.');
+    const store = mudaeStore();
+    afterProgress(acc, null);
+    poderes.equip(store, acc.id, slot, power === null ? null : String(power), perksOf(store, acc.id));
+    save(chunk.server());
+    return powersView(acc);
   });
 
   const findMessage = (acc, channel, id) => {
