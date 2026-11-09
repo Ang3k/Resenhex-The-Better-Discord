@@ -94,17 +94,6 @@ test('Mudae com duas contas: desejo, cristal, $top, troca confirmada pelos dois,
   assert.ok(!(await ana.call('mudae:claim', { channel: salon.id, id: r1.id })).error);
   assert.ok(!(await beto.call('mudae:claim', { channel: salon.id, id: (await rollAndWait(beto, '$hg')).id })).error);
 
-  // Cristal: personagem que já tem dono traz kakera; quem rodou pega primeiro.
-  const r3 = await rollAndWait(beto, '$wa');
-  assert.equal(r3.mudae.ownerId, A);
-  assert.equal(r3.mudae.crystal, 50, 'comum vale 50');
-  assert.match((await ana.call('mudae:kakera', { channel: salon.id, id: r3.id })).error, /prioridade/);
-  const picked = await beto.call('mudae:kakera', { channel: salon.id, id: r3.id });
-  assert.equal(picked.kakera, 50);
-  await eventually(() => assert.equal(ana.updates.find((m) => m.id === r3.id)?.mudae.crystalBy, B));
-  assert.match((await ana.call('mudae:kakera', { channel: salon.id, id: r3.id })).error, /já pegou/);
-  assert.equal((await send(beto, '$k')).ephemeral.kakera, 50);
-
   // $top: a mensagem leva só o filtro; as páginas vêm com o dono de cada um.
   await send(ana, '$top');
   const top = await eventually(() => { const m = lastBot(beto, 'top'); assert.ok(m); return m; });
@@ -114,6 +103,7 @@ test('Mudae com duas contas: desejo, cristal, $top, troca confirmada pelos dois,
   assert.match((await send(beto, '$top animais')).ephemeral.text, /ainda não separa/);
   assert.match((await send(beto, '$obra pokemon')).ephemeral.text, /Nenhuma obra/);
 
+  await send(beto, '$dk'); // o Beto precisa de kakera para a troca
   // Troca: Ana chama, os dois recebem o painel e a mensagem fica no Salão.
   assert.deepEqual(await send(ana, `$trade <@${B}>`), { ok: true });
   const opened = await eventually(() => { const v = beto.trades.at(-1); assert.equal(v?.state, 'open'); return v; });
@@ -146,7 +136,7 @@ test('Mudae com duas contas: desejo, cristal, $top, troca confirmada pelos dois,
   assert.deepEqual((await beto.call('mudae:harem', {})).chars.map((c) => c.name), ['Mikasa Ackerman']);
   // (o saldo pelo evento de status: os comandos têm limite de 8 a cada 5 s)
   assert.equal((await ana.call('mudae:status')).kakera, 20);
-  assert.equal((await beto.call('mudae:status')).kakera, 30);
+  assert.equal((await beto.call('mudae:status')).kakera, 230);
   assert.equal((await beto.call('mudae:wishlist', {})).total, 0, 'ganhar na troca quem desejava tira da lista');
   await send(ana, '$im mikasa');
   const info = await eventually(() => { const m = lastBot(ana, 'info'); assert.ok(m); return m; });

@@ -19,7 +19,8 @@ const { feedbackRoutes } = require('./server/feedback');
 const { createDj } = require('./server/dj');
 const { createMudae, CLAIM_WINDOW_MS, revealDelay, PRIORITY_MS, isRoll } = require('./server/mudae');
 const { createForja, perksOf } = require('./server/mudae-forja');
-const { MEDAL_KEYS, MEDALS, priceOf } = require('./server/mudae-regras');
+const { MEDAL_KEYS, MEDALS, priceOf, CRYSTAL } = require('./server/mudae-regras');
+const { createCrystals } = require('./server/mudae-cristal');
 const { youtubeSearch } = require('./server/youtube');
 const { createDmCalls } = require('./server/dm-calls');
 const { cleanGif } = require('./server/gifs');
@@ -933,6 +934,12 @@ const dj = createDj({ newId, onChange: (key) => notifyMusic(key) });
 const MUDAE_CATALOG = process.env.MUDAE_CATALOG || path.join(__dirname, 'server', 'mudae-catalogo.json');
 const mudae = createMudae({ catalog: fs.existsSync(MUDAE_CATALOG) ? JSON.parse(fs.readFileSync(MUDAE_CATALOG, 'utf8')) : [] });
 const forja = createForja({ now: Date.now, random: Math.random });
+// Cristal errante: um relógio só para todas as comunidades. MUDAE_CRYSTAL_MS="min,max" (só os testes) encurta a espera.
+const crystalRules = (() => {
+  const [min, max] = String(process.env.MUDAE_CRYSTAL_MS || '').split(',').map(Number);
+  return min > 0 && max >= min ? { ...CRYSTAL, everyMinMs: min, everyMaxMs: max, tickMs: 100 } : CRYSTAL;
+})();
+const crystals = createCrystals({ now: Date.now, random: Math.random, rules: crystalRules, countCrystal: (store, id) => mudae.countCrystal(store, id) });
 const MUDAE_REACTIONS = ['😱', '🔥', '💖', '😂', '💀'];
 
 // Quem está com um Salão do Mudae aberto (salon na sessão do socket), para a aba "No salão":
@@ -949,6 +956,18 @@ function pushSalon(serverId, channelId) {
     deliver(sockets.map(([sid]) => sid), 'mudae:presence', { channel: channelId, people });
   });
 }
+// Quem está em qualquer Salão da comunidade (inclusive no modo simplificado): é para eles que vai o cristal.
+function salonSocketsOf(serverId) {
+  return sessionsOf(online.viewers(serverId)).filter(([, s]) => s.salon && s.salonServerId === serverId);
+}
+const crystalToSalons = (serverId, event, payload) => deliver(salonSocketsOf(serverId).map(([sid]) => sid), event, payload);
+function crystalTick() {
+  const present = [...online.viewing.keys()].filter((id) => salonSocketsOf(id).length);
+  const { spawned, ended } = crystals.tick(present);
+  for (const c of spawned) crystalToSalons(c.serverId, 'mudae:crystal', crystals.view(c));
+  for (const e of ended) crystalToSalons(e.serverId, 'mudae:crystal:end', { id: e.id, kind: e.kind, colorKey: e.colorKey, color: e.color, takers: e.takers });
+}
+setInterval(crystalTick, crystalRules.tickMs).unref();
 function leaveSalon(s) {
   if (!s?.salon) return;
   const { salon, salonServerId } = s;
@@ -2192,6 +2211,11 @@ io.on('connection', (socket) => {
       const msg = postMudae(c, acc, command, { kind: 'roll', card: r.card, ownerId: r.ownerId, revealAt, priorityUntil: revealAt + PRIORITY_MS,
         expires: revealAt + CLAIM_WINDOW_MS, rollsLeft: r.rollsLeft, ...(r.crystal ? { crystal: r.crystal } : {}), ...(wishedBy.length ? { wishedBy } : {}) }, { decoys: r.decoys });
       pushSalon(communities.currentId(), c.id);
+      // Personagem que já tem dono: o cristal nasce da carta quando a roleta para.
+      if (r.ownerId) {
+        const spawned = crystals.spawn(communities.currentId(), { appearAt: revealAt, from: { channel: c.id, msgId: msg.id }, by: acc.id });
+        crystalToSalons(spawned.serverId, 'mudae:crystal', crystals.view(spawned));
+      }
       for (const id of wishedBy) {
         if (id !== acc.id) for (const s of socketsOf(id, true)) s.emit('mudae:wish', { channel: c.id, id: msg.id, card: r.card, by: acc.id, revealAt, ownerId: r.ownerId });
       }
@@ -2323,19 +2347,20 @@ io.on('connection', (socket) => {
   });
   on('mudae:status', (acc) => mudae.status(mudaeStore(), acc.id));
 
-  // Cristal de kakera de um roll de quem já tem dono.
-  on('mudae:kakera', (acc, { channel, id }) => {
-    const { c, msg } = findMessage(acc, channel, id);
-    if (c.dm || msg.bot !== 'mudae' || msg.mudae?.kind !== 'roll') fail('Isso não é um roll do Mudae.');
+  // Cristal errante: quem está num Salão da comunidade pode pegar. Cada conta pega uma vez (a chuva, uma vez por gota).
+  on('mudae:crystal:take', (acc, { id, gem }) => {
     mudaeAllowed(acc);
-    if (!allow('mudae-claim:' + acc.id, 6, 5000)) fail('Calma! Cliques rápidos demais.');
-    const d = msg.mudae;
-    const r = mudae.crystal(mudaeStore(), acc.id, { amount: d.crystal, takenBy: d.crystalBy, revealAt: d.revealAt ?? msg.ts, rollerId: msg.by, priority: d.priorityUntil ? PRIORITY_MS : 0 });
-    d.crystalBy = acc.id;
-    save(chunk.message(c.id, msg.id), chunk.server());
-    emitToChat(c, 'chat:update', { channel: c.id, msg });
-    if (c.mudae) pushSalon(communities.currentId(), c.id);
-    return { ok: true, ...r };
+    if (!allow('mudae-crystal:' + acc.id, 24, 5000)) fail('Calma! Cliques rápidos demais.');
+    const serverId = communities.currentId();
+    const s = online.get(socket.id);
+    if (!s.salon || s.salonServerId !== serverId) fail('Esse cristal já sumiu.');
+    const store = mudaeStore();
+    const r = crystals.take(store, serverId, String(id || '').slice(0, 40), acc.id, { gem: gem ?? 0, perks: perksOf(store, acc.id) });
+    if (r.error) fail(r.error);
+    save(chunk.server());
+    if (r.next) crystalToSalons(serverId, 'mudae:crystal', r.next);
+    if (s.salon) pushSalon(serverId, s.salon);
+    return { ok: true, amount: r.amount, kakera: r.kakera, full: r.full };
   });
 
   on('mudae:claim', (acc, { channel, id }) => {
@@ -2354,7 +2379,7 @@ io.on('connection', (socket) => {
   });
 
   // Entrar ou sair da tela de um Salão (channel: null ao sair).
-  on('mudae:presence', (acc, { channel }) => {
+  on('mudae:presence', (acc, { channel }) => { // simple: true (modo simplificado) conta igual ao Salão completo
     const s = online.get(socket.id);
     const c = channel ? salonOf(acc, channel) : null;
     if (c && s.salon === c.id && s.salonServerId === communities.currentId()) return { ok: true, ...mudae.status(mudaeStore(), acc.id), sources: mudae.sources, warm: mudae.warmup() };

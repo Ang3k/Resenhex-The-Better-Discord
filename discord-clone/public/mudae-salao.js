@@ -464,7 +464,7 @@ window.MudaeSalon = function ({ state, el, Icon, call, onSocket, member, avatar,
     if (p === 'owned') {
       const owner = member(m.mudae.ownerId);
       return nodes.actions.replaceChildren(...[el('div', { class: 'salon-owned' }, owner ? avatar(owner, 'salon-chip-avatar') : null,
-        el('span', {}, 'Casado com ', el('strong', { textContent: whoName(m.mudae.ownerId), style: { color: nameColor(owner) || '' } }))), crystalAction(m)].filter(Boolean));
+        el('span', {}, 'Casado com ', el('strong', { textContent: whoName(m.mudae.ownerId), style: { color: nameColor(owner) || '' } })))].filter(Boolean));
     }
     if (p === 'expired') return nodes.actions.replaceChildren(el('button', { type: 'button', class: 'salon-claim', disabled: true }, Icon('heart', 20), 'Tempo esgotado'));
     const s = S.status;
@@ -482,22 +482,6 @@ window.MudaeSalon = function ({ state, el, Icon, call, onSocket, member, avatar,
     const caption = el('div', { class: 'salon-claim-caption' });
     nodes.actions.replaceChildren(el('div', { class: 'salon-claim-row' }, btn, ring), caption);
     captionFor(m, caption);
-  }
-
-  // Cristal de kakera no palco: aparece quando o personagem que saiu já tem dono.
-  function crystalAction(m) {
-    const d = m.mudae;
-    if (!d.crystal || (!d.crystalBy && now() > (d.expires ?? m.ts + 45_000))) return null;
-    if (d.crystalBy) return el('div', { class: 'salon-crystal taken' }, Icon('gem', 16), el('span', { textContent: `${d.crystalBy === me() ? 'Você pegou' : whoName(d.crystalBy) + ' pegou'} ${num(d.crystal)} kakera` }));
-    const wait = m.by !== me() && d.priorityUntil && now() < d.priorityUntil;
-    const btn = el('button', { type: 'button', class: 'salon-crystal', disabled: !!wait || S.status?.crystalReady === false,
-      title: S.status?.crystalReady === false ? 'Você já pegou um cristal nesta janela de 30 minutos' : wait ? 'Quem rodou tem prioridade' : 'O primeiro que clicar leva',
-      onclick: async () => {
-        btn.disabled = true;
-        const res = await call('mudae:kakera', { channel: S.channel, id: m.id });
-        if (res) { Sounds.play('mudaeRare'); refreshStatus(); } else if (btn.isConnected) btn.disabled = false;
-      } }, Icon('gem', 18), el('span', { textContent: `Pegar ${num(d.crystal)} kakera` }));
-    return btn;
   }
 
   function captionFor(m, caption) {
@@ -695,11 +679,7 @@ window.MudaeSalon = function ({ state, el, Icon, call, onSocket, member, avatar,
     updateBackdrop();
     const m = S.stage && byId(S.stage);
     if (m && !S.spinning && nodes.actions) {
-      const crystalWait = m.mudae.crystal && !m.mudae.crystalBy && m.by !== me() && m.mudae.priorityUntil ? String(now() < m.mudae.priorityUntil) : '';
-      if (nodes.actions.dataset.phase !== phase(m) || (nodes.actions.dataset.crystal ?? '') !== crystalWait) {
-        renderActions();
-        nodes.actions.dataset.crystal = crystalWait;
-      }
+      if (nodes.actions.dataset.phase !== phase(m)) renderActions();
       else {
         const text = nodes.actions.querySelector('.salon-ring-text');
         if (text) text.textContent = secondsLeft(m) + 's';

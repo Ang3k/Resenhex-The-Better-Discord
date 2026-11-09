@@ -3,7 +3,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const { createMudae, parse, isRoll, ROLL_RESET_MS, CLAIM_RESET_MS, CLAIM_WINDOW_MS, PRIORITY_MS, DAILY_MS, DK_AMOUNT, ROLLS_PRICE, ROLLS_BUYS,
-  CRYSTAL, WISH_LIMIT, TRADE_TTL, TRADE_MAX, LIST_PAGE, TOP_LIMIT } = require('../server/mudae');
+  WISH_LIMIT, TRADE_TTL, TRADE_MAX, LIST_PAGE, TOP_LIMIT } = require('../server/mudae');
 
 const CATALOG = [
   [1, 'Satoru Gojou', 'Jujutsu Kaisen', 'b1-a.png', 'M', 900],
@@ -102,31 +102,6 @@ test('divórcio devolve o valor da carta em kakera', () => {
   const second = mudae.divorceId(store, 'a', 1);
   assert.equal(second.refund, Math.min(mudae.card(1).value, 500 - first.refund));
   assert.equal(mudae.kakeraOf(store, 'a'), first.refund + second.refund);
-});
-
-test('cristal de kakera: só em quem já tem dono, por raridade, prioridade de quem rodou e um por janela', () => {
-  const { mudae, store, marry, advance, now } = setup();
-  assert.equal(mudae.roll(store, 'r', 'm').crystal, 0, 'sem dono, sem cristal');
-  marry('dono', 1);
-  const r = mudae.roll(store, 'r', 'm');
-  assert.equal(r.ownerId, 'dono');
-  assert.equal(r.crystal, CRYSTAL.legendary, 'o nº 1 de 7 é lendário');
-  const revealAt = now() + 1000;
-  const roll = { amount: r.crystal, revealAt, rollerId: 'r', priority: PRIORITY_MS };
-  assert.throws(() => mudae.crystal(store, 'b', roll), /girando/);
-  advance(1000);
-  assert.throws(() => mudae.crystal(store, 'b', roll), /prioridade/);
-  advance(PRIORITY_MS);
-  assert.deepEqual(mudae.crystal(store, 'b', roll), { amount: CRYSTAL.legendary, kakera: CRYSTAL.legendary });
-  assert.throws(() => mudae.crystal(store, 'c', { ...roll, takenBy: 'b' }), /já pegou/);
-  const later = { ...roll, revealAt: now() - PRIORITY_MS }; // outro roll, já fora da prioridade
-  assert.throws(() => mudae.crystal(store, 'b', later), /já pegou kakera nesta janela/);
-  assert.equal(mudae.status(store, 'b').crystalReady, false);
-  assert.throws(() => mudae.crystal(store, 'c', { ...roll, revealAt: now() - CLAIM_WINDOW_MS - 1 }), /sumiu/);
-  advance(ROLL_RESET_MS);
-  assert.ok(mudae.status(store, 'b').crystalReady);
-  assert.equal(mudae.crystal(store, 'b', { ...roll, revealAt: now() - PRIORITY_MS }).kakera, 2 * CRYSTAL.legendary);
-  assert.throws(() => mudae.crystal(store, 'c', { ...roll, amount: 0 }), /não tem kakera/);
 });
 
 test('lista de desejos: até 10, sem repetir, sem os seus; quem casa sai da lista; o álbum mostra quem deseja', () => {

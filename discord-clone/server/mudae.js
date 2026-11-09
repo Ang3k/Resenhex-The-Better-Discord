@@ -26,7 +26,6 @@ const DK_AMOUNT = 250;
 const ROLLS_PRICE = 500;
 const ROLLS_BUYS = 3; // compras de $rolls a cada 24 h
 const DAY_MS = 24 * 3600_000;
-const CRYSTAL = { common: 50, rare: 100, epic: 200, legendary: 400 };
 const WISH_LIMIT = 10;
 // Trocas: ficam abertas 5 min depois da última mudança, com até 20 cartas de cada lado.
 const TRADE_TTL = 5 * 60_000;
@@ -171,7 +170,6 @@ function createMudae({ catalog, now = Date.now, random = Math.random, refSize = 
   const claimResetIn = () => CLAIM_RESET_MS - (now() % CLAIM_RESET_MS);
   // Quanto falta para algo que tem espera (0 = já pode).
   const waitFor = (last, ms) => (last && now() - last < ms ? ms - (now() - last) : 0);
-  const sameWindow = (t) => !!t && Math.floor(t / ROLL_RESET_MS) === Math.floor(now() / ROLL_RESET_MS);
   const recentBuys = (u) => (u.buys || []).filter((t) => now() - t < DAY_MS);
 
   // ---------- kakera ----------
@@ -191,8 +189,7 @@ function createMudae({ catalog, now = Date.now, random = Math.random, refSize = 
     return { rollsLeft: rollsLeft(u, perks), rollsMax: rollsMaxOf(u, perks), wishMax: WISH_LIMIT + perks.wishSlots,
       reserveReady: reserveReady(u, perks), reserveIn: perks.reserveEveryMs > 0 ? waitFor(u.reserveAt, perks.reserveEveryMs) : 0, rollResetIn: rollResetIn(), claimReady: claimReady(u), claimResetIn: claimResetIn(),
       kakera: kakeraOf(store, accountId), dailyIn: waitFor(u.daily, DAILY_MS), dkIn: waitFor(u.dk, DAILY_MS), dkAmount: DK_AMOUNT,
-      buysLeft: ROLLS_BUYS - buys.length, buysMax: ROLLS_BUYS, buysIn: buys.length >= ROLLS_BUYS ? DAY_MS - (now() - buys[0]) : 0, rollsPrice: ROLLS_PRICE,
-      crystalReady: !sameWindow(u.lastCrystal) };
+      buysLeft: ROLLS_BUYS - buys.length, buysMax: ROLLS_BUYS, buysIn: buys.length >= ROLLS_BUYS ? DAY_MS - (now() - buys[0]) : 0, rollsPrice: ROLLS_PRICE };
   }
 
   // A reserva da Esmeralda: no máximo 1 guardado, pronto de novo depois de reserveEveryMs.
@@ -255,23 +252,6 @@ function createMudae({ catalog, now = Date.now, random = Math.random, refSize = 
     return { amount: n, kakera: kakeraOf(store, from) };
   }
 
-  // Cristal de kakera: aparece quando sai um personagem que já tem dono. O primeiro que clicar leva
-  // (quem rodou tem a mesma prioridade do casamento) e cada pessoa pega um a cada 30 min.
-  const crystalOf = (rarity) => CRYSTAL[rarity] ?? CRYSTAL.common;
-  function crystal(store, accountId, { amount, takenBy = null, revealAt, rollerId = null, priority = 0 }) {
-    const t = now();
-    if (!amount) throw new Error('Esse roll não tem kakera.');
-    if (takenBy) throw new Error('Alguém já pegou esse kakera.');
-    if (t < revealAt) throw new Error('Calma, a roleta ainda está girando!');
-    if (t - revealAt > CLAIM_WINDOW_MS) throw new Error('Tarde demais: o kakera sumiu.');
-    if (rollerId && accountId !== rollerId && t < revealAt + priority) throw new Error('Quem rodou ainda tem prioridade. Espere um instante!');
-    const u = usageOf(store, accountId);
-    if (sameWindow(u.lastCrystal)) throw new Error(`Você já pegou kakera nesta janela. Dá para pegar de novo em ${minutes(rollResetIn())}.`);
-    u.lastCrystal = t;
-    bump(store, accountId, 'crystals');
-    return { amount, kakera: addKakera(store, accountId, amount) };
-  }
-
   // Rubi: com a chance da medalha (um random a mais, só para quem tem Rubi), o roll vira um desejo da pessoa
   // que esteja na lista que o roll sortearia e não tenha dono. Sem nenhum assim, volta null e o sorteio segue normal.
   function wishedPick(store, accountId, list, perks) {
@@ -298,7 +278,7 @@ function createMudae({ catalog, now = Date.now, random = Math.random, refSize = 
     bump(store, accountId, 'rolls');
     const decoys = Array.from({ length: DECOYS }, () => thumbOf(pick(list)));
     const ownerId = store.claims[c.id]?.ownerId || null;
-    return { card: card(c), ownerId, rollsLeft: left - 1, decoys, crystal: ownerId ? crystalOf(rarityOf(c.eq)) : 0 };
+    return { card: card(c), ownerId, rollsLeft: left - 1, decoys };
   }
 
   // Fotos para o navegador já deixar carregadas ao abrir o Salão: a roleta nunca gira vazia,
@@ -755,10 +735,10 @@ function createMudae({ catalog, now = Date.now, random = Math.random, refSize = 
   const sources = Object.fromEntries([...bySource.keys()].map((s) => [s, pools['m' + s].length]).filter(([, n]) => n));
 
   return { size: ativos.length, sources, parse, status, roll, warmup, claim, harem, album, summary, setFavorite, ranking, info, divorce, divorceId,
-    kakeraOf, addKakera, countCrystal: (store, accountId) => bump(store, accountId, 'crystals'), stats, daily, dailyKakera, buyRolls, giveKakera, crystal, wish, wishToggle, unwish, wishlist, wishersOf, give, firstMarry, topFilter, list,
+    kakeraOf, addKakera, countCrystal: (store, accountId) => bump(store, accountId, 'crystals'), stats, daily, dailyKakera, buyRolls, giveKakera, wish, wishToggle, unwish, wishlist, wishersOf, give, firstMarry, topFilter, list,
     tradeOpen, tradeOffer, tradeConfirm, tradeCancel, tradeExpire, tradeOf, tradeView, otherSide, sweepTrades: sweep,
     card: (id) => (lookup(id) ? card(lookup(id)) : null) };
 }
 
 module.exports = { createMudae, parse, isRoll, valueOf, rarityOf, normalize, SOURCES, ROLLS_PER_HOUR, ROLL_RESET_MS, CLAIM_RESET_MS, CLAIM_WINDOW_MS, REVEAL_MS, revealDelay, PRIORITY_MS,
-  DAILY_MS, DK_AMOUNT, ROLLS_PRICE, ROLLS_BUYS, CRYSTAL, WISH_LIMIT, TRADE_TTL, TRADE_MAX, LIST_PAGE, TOP_LIMIT };
+  DAILY_MS, DK_AMOUNT, ROLLS_PRICE, ROLLS_BUYS, WISH_LIMIT, TRADE_TTL, TRADE_MAX, LIST_PAGE, TOP_LIMIT };

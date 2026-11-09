@@ -646,16 +646,7 @@
   .salon-float { opacity: 0; }
 }
 
-/* ---------- comandos novos no Salão: cristal, aba Personagens, desejos e trocas ---------- */
-.salon-crystal {
-  display: inline-flex; align-items: center; gap: 8px; height: 38px; margin-top: 8px; padding: 0 16px; border: 0; border-radius: 10px;
-  background: var(--brand); color: #fff; font: inherit; font-size: 14px; font-weight: 700; cursor: pointer; transition: none;
-}
-.salon-crystal:hover:not(:disabled) { background: var(--brand-hover); }
-.salon-crystal:disabled { opacity: .55; cursor: not-allowed; }
-.salon-crystal:focus-visible { outline: 2px solid var(--link); outline-offset: 2px; }
-.salon-crystal.taken { background: color-mix(in srgb, var(--brand) 16%, transparent); color: var(--text); cursor: default; }
-.salon-crystal.taken svg { color: var(--brand); }
+/* ---------- comandos novos no Salão: aba Personagens, desejos e trocas ---------- */
 .salon-album-links { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; margin-top: 6px; }
 .salon-album-links .salon-link { margin-top: 0; }
 .salon-trade-btn {

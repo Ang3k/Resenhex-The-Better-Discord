@@ -151,28 +151,6 @@ window.MudaeUI = function ({ state, el, Icon, call, member, avatar, nameColor, F
     return btn;
   }
 
-  // Cristal de kakera de um roll de quem já tem dono: quem rodou pega primeiro, depois qualquer um.
-  function crystalButton(msg, d) {
-    if (d.crystalBy) return el('div', { class: 'mudae-footer crystal' }, Icon('gem', 14), el('span', {}, strongName(d.crystalBy), ` pegou ${num(d.crystal)} kakera`));
-    const left = d.expires - serverNow();
-    if (left <= 0) return null;
-    const btn = el('button', { type: 'button', class: 'mudae-crystal', ariaLabel: `Pegar ${d.crystal} kakera` }, Icon('gem', 16), el('span', { textContent: `Pegar ${num(d.crystal)} kakera` }));
-    const update = () => {
-      const t = serverNow();
-      const wait = t < (d.revealAt ?? msg.ts) || (msg.by !== state.me.accountId && d.priorityUntil && t < d.priorityUntil);
-      if (!btn.classList.contains('pending')) btn.disabled = !!wait;
-    };
-    update();
-    watch({ node: btn, expires: d.expires, update, expire: () => btn.remove() });
-    btn.onclick = async () => {
-      btn.classList.add('pending');
-      btn.disabled = true;
-      const res = await call('mudae:kakera', { channel: state.textChannel, id: msg.id });
-      if (!res && btn.isConnected) { btn.classList.remove('pending'); btn.disabled = false; }
-    };
-    return btn;
-  }
-
   // Card de personagem (roll e $im): nome, obra, valor, foto e, embaixo, de quem ele é.
   function characterCard(msg, d) {
     const { card } = d;
@@ -191,7 +169,6 @@ window.MudaeUI = function ({ state, el, Icon, call, member, avatar, nameColor, F
       d.kind === 'info' && d.ownerId && d.since
         ? el('div', { class: 'mudae-footer', textContent: `${VIA[d.via] ? (VIA[d.via][0].toUpperCase() + VIA[d.via].slice(1)) : 'Casou'} ${since(d.since)} · ${d.owners > 1 ? `já teve ${d.owners} donos` : 'primeiro dono'}` }) : null,
       wishers.length ? el('div', { class: 'mudae-footer wish' }, Icon('star', 14), el('span', { textContent: (roll ? 'Desejado por ' : 'Na lista de desejos de ') + names(wishers) })) : null,
-      roll && d.ownerId && d.crystal ? crystalButton(msg, d) : null,
       roll && msg.by === state.me.accountId && d.rollsLeft <= 2
         ? el('div', { class: 'mudae-footer warn' }, Icon('alert', 14), el('span', { textContent: d.rollsLeft ? `${d.rollsLeft} ${d.rollsLeft === 1 ? 'roll restante' : 'rolls restantes'}` : 'Esse foi seu último roll desta hora' }))
         : null);
@@ -353,7 +330,7 @@ window.MudaeUI = function ({ state, el, Icon, call, member, avatar, nameColor, F
       el('div', {}, d.claimReady
         ? ['Você ', el('strong', { class: 'mudae-ok', textContent: 'pode casar' }), ' agora!']
         : ['Você já casou. Dá para casar de novo em ', el('strong', { textContent: minutes(d.claimResetIn) }), '.']),
-      d.kakera !== undefined ? el('div', {}, 'Você tem ', el('strong', { textContent: num(d.kakera) }), ' kakera.', d.crystalReady === false ? ' Já pegou um cristal nesta janela.' : '') : null,
+      d.kakera !== undefined ? el('div', {}, 'Você tem ', el('strong', { textContent: num(d.kakera) }), ' kakera.') : null,
       d.dailyIn !== undefined ? el('div', {}, d.dailyIn ? ['O $daily volta em ', el('strong', { textContent: minutes(d.dailyIn) }), '.'] : ['O ', el('strong', { class: 'mudae-ok', textContent: '$daily' }), ' está pronto: os rolls voltam na hora.']) : null,
       d.dkIn !== undefined ? el('div', {}, d.dkIn ? ['O $dk volta em ', el('strong', { textContent: minutes(d.dkIn) }), '.'] : ['O ', el('strong', { class: 'mudae-ok', textContent: '$dk' }), ` está pronto: +${num(d.dkAmount)} kakera.`]) : null,
       d.buysLeft !== undefined ? el('div', {}, d.buysLeft

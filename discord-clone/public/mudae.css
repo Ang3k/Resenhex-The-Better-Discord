@@ -125,20 +125,7 @@
 .mudae-progress { height: 6px; margin-top: 6px; border-radius: 999px; background: var(--bg-input); overflow: hidden; }
 .mudae-progress span { display: block; height: 100%; border-radius: inherit; background: var(--brand); }
 .mudae-footer.wish { color: var(--yellow); }
-.mudae-footer.wish svg, .mudae-footer.crystal svg { fill: currentColor; }
-.mudae-footer.crystal { color: var(--brand); }
-
-/* Cristal de kakera num roll de quem já tem dono. */
-.mudae-crystal {
-  display: inline-flex; align-items: center; gap: 6px; width: fit-content; height: 32px; margin-top: 8px; padding: 0 12px;
-  border: 1px solid color-mix(in srgb, var(--brand) 35%, transparent); border-radius: 8px; background: color-mix(in srgb, var(--brand) 14%, var(--bg-input));
-  color: var(--text-strong); font: inherit; font-size: 13px; font-weight: 600; cursor: pointer; transition: none;
-}
-.mudae-crystal svg { color: var(--brand); }
-.mudae-crystal:hover:not(:disabled) { background: var(--brand); color: #fff; }
-.mudae-crystal:hover:not(:disabled) svg { color: #fff; }
-.mudae-crystal:disabled { opacity: .55; cursor: not-allowed; }
-.mudae-crystal:focus-visible { outline: 2px solid var(--link); outline-offset: 2px; }
+.mudae-footer.wish svg { fill: currentColor; }
 
 /* Troca no chat: aberta com o botão, ou o que cada um deu. */
 .mudae-card.trade { border-left-color: var(--brand); }
