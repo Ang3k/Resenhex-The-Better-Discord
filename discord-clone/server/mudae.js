@@ -392,6 +392,9 @@ function createMudae({ catalog, now = Date.now, random = Math.random, refSize = 
       ...(second ? { second: { card: card(second), ownerId: store.claims[second.id]?.ownerId || null } } : {}) };
   }
 
+  // Fotos soltas para a roleta girar (o Eco não sorteia, só repete uma carta).
+  const spin = () => Array.from({ length: DECOYS }, () => thumbOf(pick(pools.m)));
+
   // Fotos para o navegador já deixar carregadas ao abrir o Salão: a roleta nunca gira vazia,
   // mesmo quando as fotos sorteadas no roll (wikis, Comic Vine) demoram a chegar.
   // Separadas por fonte, para um roll de jogos girar fotos de jogos.
@@ -399,20 +402,28 @@ function createMudae({ catalog, now = Date.now, random = Math.random, refSize = 
     return Object.fromEntries(Object.keys(sources).map((s) => [s, Array.from({ length: perSource }, () => thumbOf(pick(pools['m' + s])))]));
   }
 
+  // Por que esta pessoa não pode casar agora (texto), ou null se pode: a janela normal ou a reserva da Esmeralda.
+  function claimError(store, accountId) {
+    if (claimReady(usageOf(store, accountId)) || reserveReady(usageOf(store, accountId), perksOf(store, accountId))) return null;
+    return `Você já casou nesta janela. Dá para casar de novo em ${minutes(claimResetIn())}.`;
+  }
+
   // Casar com o personagem de um roll. Quem chamar primeiro leva (o servidor processa um de cada vez).
-  // revealAt: quando o card aparece. Antes dele, ninguém; nos PRIORITY_MS seguintes, só quem rodou.
-  function claim(store, accountId, charId, { revealAt, rollerId = null, priority = 0 }) {
+  // revealAt: quando o card aparece. Antes dele, ninguém; nos PRIORITY_MS seguintes, só quem rodou
+  // (o Laço, lasso: true, ignora essa prioridade). lockedBy: carta trancada pelo Cadeado, só essa pessoa casa.
+  function claim(store, accountId, charId, { revealAt, rollerId = null, priority = 0, lockedBy = null, lasso = false }) {
     if (!lookup(charId)) throw new Error('Personagem desconhecido.');
     if (store.claims[charId]) throw new Error('Esse personagem já tem dono.');
     const t = now();
     if (t < revealAt) throw new Error('Calma, a roleta ainda está girando!');
     if (t - revealAt > CLAIM_WINDOW_MS) throw new Error('Tarde demais: o tempo para casar com esse personagem acabou.');
-    if (rollerId && accountId !== rollerId && t < revealAt + priority) throw new Error('Quem rodou ainda tem prioridade. Espere um instante!');
+    if (lockedBy && accountId !== lockedBy) throw new Error('Essa carta está trancada.');
+    if (!lasso && rollerId && accountId !== rollerId && t < revealAt + priority) throw new Error('Quem rodou ainda tem prioridade. Espere um instante!');
     const u = usageOf(store, accountId);
     // Janela de casamento já gasta: a reserva da Esmeralda, se estiver pronta, casa no lugar.
-    const perks = perksOf(store, accountId);
+    const blocked = claimError(store, accountId);
+    if (blocked) throw new Error(blocked);
     const reserve = !claimReady(u);
-    if (reserve && !reserveReady(u, perks)) throw new Error(`Você já casou nesta janela. Dá para casar de novo em ${minutes(claimResetIn())}.`);
     if (reserve) u.reserveAt = t;
     else u.lastClaim = t;
     stats(store, accountId);
@@ -845,7 +856,7 @@ function createMudae({ catalog, now = Date.now, random = Math.random, refSize = 
   // Quantos personagens há em cada fonte na roleta (a tela mostra só os filtros que existem).
   const sources = Object.fromEntries([...bySource.keys()].map((s) => [s, pools['m' + s].length]).filter(([, n]) => n));
 
-  return { size: ativos.length, sources, parse, status, roll, foresee, arm, warmup, claim, harem, album, summary, setFavorite, ranking, info, divorce, divorceId,
+  return { size: ativos.length, sources, parse, status, roll, foresee, arm, warmup, spin, claim, claimError, harem, album, summary, setFavorite, ranking, info, divorce, divorceId,
     kakeraOf, addKakera, countCrystal: (store, accountId) => bump(store, accountId, 'crystals'), stats, daily, dailyKakera, buyRolls, giveKakera, wish, wishToggle, unwish, wishlist, wishersOf, give, firstMarry, topFilter, list,
     tradeOpen, tradeOffer, tradeConfirm, tradeCancel, tradeExpire, tradeOf, tradeView, otherSide, sweepTrades: sweep,
     card: (id) => (lookup(id) ? card(lookup(id)) : null) };

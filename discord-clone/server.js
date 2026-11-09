@@ -20,7 +20,7 @@ const { createDj } = require('./server/dj');
 const { createMudae, CLAIM_WINDOW_MS, revealDelay, PRIORITY_MS, isRoll } = require('./server/mudae');
 const { createForja, perksOf, forgedCount, levelOf, atLeast } = require('./server/mudae-forja');
 const { createPoderes } = require('./server/mudae-poderes');
-const { MEDAL_KEYS, MEDALS, priceOf, CRYSTAL } = require('./server/mudae-regras');
+const { MEDAL_KEYS, MEDALS, priceOf, CRYSTAL, ECO } = require('./server/mudae-regras');
 const { createCrystals } = require('./server/mudae-cristal');
 const { youtubeSearch } = require('./server/youtube');
 const { createDmCalls } = require('./server/dm-calls');
@@ -2382,7 +2382,14 @@ io.on('connection', (socket) => {
     const d = msg.mudae;
     // Escolha dupla: esta carta só fica livre quando quem rodou casa com a outra, e aí ela é dos outros.
     if (d.pairFree && acc.id === msg.by) fail('Você já ficou com uma das cartas da Escolha dupla.');
-    mudae.claim(mudaeStore(), acc.id, d.card.id, { revealAt: d.revealAt ?? msg.ts, rollerId: msg.by, priority: d.pairFree ? 0 : d.priorityUntil ? PRIORITY_MS : 0 });
+    mudae.claim(mudaeStore(), acc.id, d.card.id, { revealAt: d.revealAt ?? msg.ts, rollerId: msg.by, priority: d.pairFree ? 0 : d.priorityUntil ? PRIORITY_MS : 0, lockedBy: d.lockedBy || null });
+    marryRoll(acc, c, list, msg);
+  });
+
+  // Depois que o casamento deu certo: marca o roll, avisa o chat e solta a outra carta da Escolha dupla.
+  // lasso: o casamento veio do Laço (a mensagem "married" leva essa marca).
+  function marryRoll(acc, c, list, msg, lasso = false) {
+    const d = msg.mudae;
     d.ownerId = acc.id;
     save(chunk.message(c.id, msg.id));
     emitToChat(c, 'chat:update', { channel: c.id, msg });
@@ -2401,10 +2408,10 @@ io.on('connection', (socket) => {
       }
     }
     // Casar com o roll de outra pessoa é um roubo, e o chat conta isso.
-    postMudae(c, acc, null, { kind: 'married', card: d.card, ownerId: acc.id, from: msg.by && msg.by !== acc.id ? msg.by : null });
+    postMudae(c, acc, null, { kind: 'married', card: d.card, ownerId: acc.id, from: msg.by && msg.by !== acc.id ? msg.by : null, ...(lasso ? { lasso: true } : {}) });
     if (c.mudae) pushSalon(communities.currentId(), c.id);
     afterProgress(acc, c);
-  });
+  }
 
   // Entrar ou sair da tela de um Salão (channel: null ao sair).
   on('mudae:presence', (acc, { channel }) => { // simple: true (modo simplificado) conta igual ao Salão completo
@@ -2541,25 +2548,96 @@ io.on('connection', (socket) => {
   });
   // Usar um poder. Se o efeito der erro, a carga fica. A Vidência é só de quem usou (volta a previsão,
   // sem aviso e sem linha); os que mudam o próximo roll são públicos: aviso para todos os Salões e uma linha no chat.
+  // Os poderes da mesa (Cadeado, Laço, Eco, Chuva) recebem o Salão e os dados do pedido e devolvem
+  // { extra, line, reply, after }: extra vai no aviso e na linha, line só na linha, reply é a resposta
+  // e after roda depois de gastar a carga.
+  const rollOf = (c, id) => {
+    const msg = (db.messages[c.id] || []).find((m) => m.id === id);
+    return msg?.bot === 'mudae' && msg.mudae?.kind === 'roll' ? msg : null;
+  };
+  // Personagens que passaram por este canal sem dono nos últimos minutos (até ECO.recent, o mais recente primeiro).
+  const ecoCards = (c, store) => {
+    const t = Date.now();
+    const seen = new Set();
+    const cards = [];
+    for (const m of [...(db.messages[c.id] || [])].reverse()) {
+      const d = m.bot === 'mudae' && m.mudae?.kind === 'roll' ? m.mudae : null;
+      if (!d || d.ownerId || !d.expires || t <= d.expires || t - d.expires > ECO.withinMs) continue;
+      if (store.claims[d.card.id] || seen.has(d.card.id)) continue;
+      seen.add(d.card.id);
+      cards.push(d.card);
+      if (cards.length >= ECO.recent) break;
+    }
+    return cards;
+  };
   const POWER_EFFECTS = {
     videncia: (store, id) => mudae.foresee(store, id),
     amuleto: (store, id) => mudae.arm(store, id, 'amuleto'),
     desejo: (store, id) => mudae.arm(store, id, 'desejo'),
     dupla: (store, id) => mudae.arm(store, id, 'dupla'),
+    // Cadeado: tranca o seu roll enquanto a cápsula gira; vale até o fim dos 45 s.
+    cadeado: (store, accId, { c, id }) => {
+      const msg = rollOf(c, id);
+      if (!msg || msg.by !== accId || Date.now() >= msg.mudae.revealAt) fail('O Cadeado só funciona no seu roll, enquanto a cápsula gira.');
+      msg.mudae.lockedBy = accId;
+      return { extra: { id }, reply: { armed: 'cadeado' }, after: () => {
+        save(chunk.message(c.id, msg.id));
+        emitToChat(c, 'chat:update', { channel: c.id, msg });
+      } };
+    },
+    // Laço: casa com o roll de outra pessoa nos 3 s dela. Se a carta está trancada, o Laço é gasto e bate no cadeado.
+    laco: (store, accId, { c, id }) => {
+      const msg = rollOf(c, id);
+      const d = msg?.mudae;
+      const t = Date.now();
+      if (!d || !msg.by || msg.by === accId || d.ownerId || d.pairFree || !(d.revealAt <= t && t < d.priorityUntil)) fail('O Laço só funciona nos 3 s de quem rodou.');
+      const blocked = mudae.claimError(store, accId);
+      if (blocked) fail(blocked);
+      if (d.lockedBy) return { extra: { id, bounced: true }, line: { card: d.card }, reply: { bounced: true } };
+      mudae.claim(store, accId, d.card.id, { revealAt: d.revealAt, rollerId: msg.by, priority: PRIORITY_MS, lasso: true });
+      return { extra: { id }, reply: { lasso: true }, after: (acc) => marryRoll(acc, c, db.messages[c.id], msg, true) };
+    },
+    // Eco: traz de volta um personagem que passou sem dono. Não gasta roll, nem entra na conta de rolls.
+    eco: (store, accId, { c, charId }) => {
+      const card = ecoCards(c, store).find((x) => String(x.id) === String(charId));
+      if (!card) fail('Esse personagem não passou por aqui agora há pouco.');
+      return { reply: { armed: 'eco' }, after: (acc) => {
+        const revealAt = Date.now() + revealDelay(card.rarity);
+        const wishedBy = mudae.wishersOf(store, card.id, mudaeMember);
+        postMudae(c, acc, null, { kind: 'roll', card, ownerId: null, revealAt, priorityUntil: revealAt + PRIORITY_MS, expires: revealAt + CLAIM_WINDOW_MS,
+          rollsLeft: mudae.status(store, accId).rollsLeft, eco: true, ...(wishedBy.length ? { wishedBy } : {}) }, { decoys: mudae.spin() });
+        pushSalon(communities.currentId(), c.id);
+      } };
+    },
+    chuva: (store, accId) => {
+      const serverId = communities.currentId();
+      return { reply: { armed: 'chuva' }, after: () => crystalToSalons(serverId, 'mudae:crystal', crystals.view(crystals.spawn(serverId, { kind: 'storm', by: accId }))) };
+    },
   };
-  on('mudae:power:use', (acc, { channel, power }) => {
+  const TABLE_POWERS = ['cadeado', 'laco', 'eco', 'chuva'];
+  on('mudae:power:use', (acc, { channel, power, id, charId }) => {
     mudaeAllowed(acc);
     if (!allow('mudae-power:' + acc.id, 6, 5000)) fail('Calma! Cliques rápidos demais.');
     const c = salonOf(acc, channel);
     const key = String(power);
     const effect = Object.hasOwn(POWER_EFFECTS, key) ? POWER_EFFECTS[key] : fail('Poder inválido.');
     const store = mudaeStore();
-    const r = poderes.use(store, acc.id, key, perksOf(store, acc.id), () => effect(store, acc.id));
+    const r = poderes.use(store, acc.id, key, perksOf(store, acc.id), () => effect(store, acc.id, { c, id: typeof id === 'string' ? id : '', charId }));
     save(chunk.server());
     if (key === 'videncia') return { future: r.future, wish: r.wish };
-    deliver(salonSocketsOf(communities.currentId()).map(([sid]) => sid), 'mudae:power', { channel: c.id, by: acc.id, power: key });
-    postMudae(c, acc, null, { kind: 'power', ownerId: acc.id, power: key });
-    return { armed: key, future: r.future, wish: r.wish };
+    const table = TABLE_POWERS.includes(key);
+    deliver(salonSocketsOf(communities.currentId()).map(([sid]) => sid), 'mudae:power', { channel: c.id, by: acc.id, power: key, ...(table ? r.extra : {}) });
+    postMudae(c, acc, null, { kind: 'power', ownerId: acc.id, power: key, ...(table ? { ...r.extra, ...r.line } : {}) });
+    if (!table) return { armed: key, future: r.future, wish: r.wish };
+    r.after?.(acc);
+    return r.reply;
+  });
+
+  // Eco: os personagens que passaram sem dono neste Salão e podem voltar.
+  on('mudae:eco:list', (acc, { channel }) => {
+    mudaeAllowed(acc);
+    if (!allow('mudae-eco:' + acc.id, 12, 5000)) fail('Calma! Cliques rápidos demais.');
+    return { cards: ecoCards(salonOf(acc, channel), mudaeStore()) };
   });
 
   const findMessage = (acc, channel, id) => {
