@@ -755,7 +755,7 @@ function createMudae({ catalog, now = Date.now, random = Math.random, refSize = 
   const sources = Object.fromEntries([...bySource.keys()].map((s) => [s, pools['m' + s].length]).filter(([, n]) => n));
 
   return { size: ativos.length, sources, parse, status, roll, warmup, claim, harem, album, summary, setFavorite, ranking, info, divorce, divorceId,
-    kakeraOf, addKakera, stats, daily, dailyKakera, buyRolls, giveKakera, crystal, wish, wishToggle, unwish, wishlist, wishersOf, give, firstMarry, topFilter, list,
+    kakeraOf, addKakera, countCrystal: (store, accountId) => bump(store, accountId, 'crystals'), stats, daily, dailyKakera, buyRolls, giveKakera, crystal, wish, wishToggle, unwish, wishlist, wishersOf, give, firstMarry, topFilter, list,
     tradeOpen, tradeOffer, tradeConfirm, tradeCancel, tradeExpire, tradeOf, tradeView, otherSide, sweepTrades: sweep,
     card: (id) => (lookup(id) ? card(lookup(id)) : null) };
 }
