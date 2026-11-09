@@ -18,6 +18,8 @@ const { downloadRoutes } = require('./server/downloads');
 const { feedbackRoutes } = require('./server/feedback');
 const { createDj } = require('./server/dj');
 const { createMudae, CLAIM_WINDOW_MS, revealDelay, PRIORITY_MS, isRoll } = require('./server/mudae');
+const { createForja, perksOf } = require('./server/mudae-forja');
+const { MEDAL_KEYS, MEDALS, priceOf } = require('./server/mudae-regras');
 const { youtubeSearch } = require('./server/youtube');
 const { createDmCalls } = require('./server/dm-calls');
 const { cleanGif } = require('./server/gifs');
@@ -930,6 +932,7 @@ const dj = createDj({ newId, onChange: (key) => notifyMusic(key) });
 // Catálogo do Mudae: lido uma vez. Sem o arquivo, os comandos só avisam que não tem personagens.
 const MUDAE_CATALOG = process.env.MUDAE_CATALOG || path.join(__dirname, 'server', 'mudae-catalogo.json');
 const mudae = createMudae({ catalog: fs.existsSync(MUDAE_CATALOG) ? JSON.parse(fs.readFileSync(MUDAE_CATALOG, 'utf8')) : [] });
+const forja = createForja({ now: Date.now, random: Math.random });
 const MUDAE_REACTIONS = ['😱', '🔥', '💖', '😂', '💀'];
 
 // Quem está com um Salão do Mudae aberto (salon na sessão do socket), para a aba "No salão":
@@ -2388,6 +2391,51 @@ io.on('connection', (socket) => {
     const c = salonOf(acc, channel);
     const card = mudae.divorceId(mudaeStore(), acc.id, charKey(charId));
     postMudae(c, acc, null, { kind: 'divorce', card, ownerId: acc.id, refund: card.refund, capped: card.capped, refundIn: card.refundIn });
+  });
+
+  // Forja: medalhas que dão vantagens. O nível IV vira uma linha no Salão aberto e um aviso ao vivo para todos os Salões.
+  const forgeView = (acc) => {
+    const store = mudaeStore();
+    const medals = forja.medalsOf(store, acc.id);
+    const prices = Object.fromEntries(MEDAL_KEYS.map((m) => [m, medals[m].level >= 4 ? null : priceOf(m, medals[m].level + 1)]));
+    return { medals, kakera: mudae.kakeraOf(store, acc.id), perks: perksOf(store, acc.id), prices };
+  };
+  const forgeMedal = (medal) => (MEDALS[medal] ? medal : fail('Medalha inválida.'));
+  const forgeGuard = (acc) => {
+    mudaeAllowed(acc);
+    if (!allow('mudae-forja:' + acc.id, 12, 5000)) fail('Calma! Cliques rápidos demais na Forja.');
+  };
+  on('mudae:forja:get', (acc) => {
+    mudaeAllowed(acc);
+    if (!allow('mudae-forja-get:' + acc.id, 20, 5000)) fail('Calma! Cliques rápidos demais na Forja.');
+    return forgeView(acc);
+  });
+  on('mudae:forja:forge', (acc, { medal }) => {
+    forgeGuard(acc);
+    const r = forja.forge(mudaeStore(), acc.id, forgeMedal(medal));
+    save(chunk.server());
+    const serverId = communities.currentId();
+    const s = online.get(socket.id);
+    if (r.level === 4) {
+      const c = s.salon && s.salonServerId === serverId ? db.channels.find((ch) => ch.id === s.salon && ch.mudae) : null;
+      if (c) postMudae(c, acc, null, { kind: 'medal', ownerId: acc.id, medal: r.medal, level: 4, finish: r.finish });
+      const rooms = new Set(sessionsOf(online.viewers(serverId)).filter(([, o]) => o.salonServerId === serverId && o.salon).map(([sid]) => sid));
+      deliver([...rooms], 'mudae:forge', { by: acc.id, medal: r.medal, level: 4, finish: r.finish });
+    }
+    if (s.salon && s.salonServerId === serverId) pushSalon(serverId, s.salon);
+    return r;
+  });
+  on('mudae:forja:finish', (acc, { medal, pick }) => {
+    forgeGuard(acc);
+    const r = forja.chooseFinish(mudaeStore(), acc.id, forgeMedal(medal), pick);
+    save(chunk.server());
+    return r;
+  });
+  on('mudae:forja:reforge', (acc, { medal }) => {
+    forgeGuard(acc);
+    const r = forja.reforge(mudaeStore(), acc.id, forgeMedal(medal));
+    save(chunk.server());
+    return r;
   });
 
   const findMessage = (acc, channel, id) => {
