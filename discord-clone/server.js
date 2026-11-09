@@ -2204,7 +2204,7 @@ io.on('connection', (socket) => {
       if (!arg) return error('Diga o nome do personagem: **$divorce Gojo**');
       const card = mudae.divorce(store, acc.id, arg);
       if (!card) return error(`Você não tem ninguém chamado **${short(arg)}** no seu harem.`);
-      postMudae(c, acc, command, { kind: 'divorce', card, ownerId: acc.id, refund: card.value });
+      postMudae(c, acc, command, { kind: 'divorce', card, ownerId: acc.id, refund: card.refund, capped: card.capped, refundIn: card.refundIn });
     } else if (cmd === 'tu') {
       return only({ kind: 'status', ...mudae.status(store, acc.id) });
     } else if (cmd === 'k') {
@@ -2387,7 +2387,7 @@ io.on('connection', (socket) => {
     mudaeAllowed(acc);
     const c = salonOf(acc, channel);
     const card = mudae.divorceId(mudaeStore(), acc.id, charKey(charId));
-    postMudae(c, acc, null, { kind: 'divorce', card, ownerId: acc.id, refund: card.value });
+    postMudae(c, acc, null, { kind: 'divorce', card, ownerId: acc.id, refund: card.refund, capped: card.capped, refundIn: card.refundIn });
   });
 
   const findMessage = (acc, channel, id) => {

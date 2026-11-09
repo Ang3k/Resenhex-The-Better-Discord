@@ -429,7 +429,8 @@ window.MudaeUI = function ({ state, el, Icon, call, member, avatar, nameColor, F
     } else if (d.kind === 'redirect') content = redirect(d);
     else if (d.kind === 'divorce') {
       content = line('divorce', '💔 ', el('strong', { textContent: whoName(d.ownerId) }), ' e ', el('strong', { textContent: d.card.name }), ' se divorciaram.',
-        d.refund ? ` (+${num(d.refund)} kakera)` : '');
+        d.refund ? ` (+${num(d.refund)} kakera)` : '',
+        d.capped ? ` O divórcio já devolveu 500 de kakera hoje; o próximo devolve em ${minutes(d.refundIn)}.` : '');
     } else if (d.kind === 'status') content = statusLines(d);
     else if (d.kind === 'error') content = el('div', { class: 'msg-text' }, Format.render(d.text || '', fmtCtx));
     else content = el('div', { class: 'mudae-hint', textContent: 'Resposta do Mudae.' });

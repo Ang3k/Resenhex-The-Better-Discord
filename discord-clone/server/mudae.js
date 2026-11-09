@@ -4,6 +4,8 @@
 // IGDB, Comic Vine, TMDB e wikis do Fandom) e ficam na memória: um roll é só um sorteio, sem rede.
 // As fotos vão direto do site de cada fonte para o navegador. Cada comunidade guarda
 // { claims, usage, favorites } e os limites são contados pelo relógio, sem nenhum timer rodando.
+const { kakeraOf, addKakera, statsOf, bumpStat, refundOf } = require('./mudae-conta');
+
 const ROLLS_PER_HOUR = 10;
 const ROLL_RESET_MS = 30 * 60_000;
 const CLAIM_RESET_MS = 30 * 60_000;
@@ -162,13 +164,14 @@ function createMudae({ catalog, now = Date.now, random = Math.random, refSize = 
   const recentBuys = (u) => (u.buys || []).filter((t) => now() - t < DAY_MS);
 
   // ---------- kakera ----------
-  const kakeraOf = (store, accountId) => store.kakera?.[accountId] || 0;
-  function addKakera(store, accountId, amount) {
-    const total = kakeraOf(store, accountId) + amount;
-    if (total) (store.kakera ||= {})[accountId] = total;
-    else if (store.kakera) delete store.kakera[accountId];
-    return total;
-  }
+  // (kakeraOf e addKakera vêm de mudae-conta.js.)
+  // Contadores: na primeira leitura, o harém de hoje vira o crédito de casamentos e lendários.
+  // Por isso toda mudança no harém lê os contadores antes (veja claim, transfer e release).
+  const stats = (store, accountId) => statsOf(store, accountId, () => {
+    const mine = owned(store, accountId);
+    return { claims: mine.length, legendary: mine.filter((c) => rarityOf(c.eq) === 'legendary').length };
+  });
+  const bump = (store, accountId, key) => { stats(store, accountId); bumpStat(store, accountId, key); };
 
   function status(store, accountId) {
     const u = usageOf(store, accountId);
@@ -243,6 +246,7 @@ function createMudae({ catalog, now = Date.now, random = Math.random, refSize = 
     const u = usageOf(store, accountId);
     if (sameWindow(u.lastCrystal)) throw new Error(`Você já pegou kakera nesta janela. Dá para pegar de novo em ${minutes(rollResetIn())}.`);
     u.lastCrystal = t;
+    bump(store, accountId, 'crystals');
     return { amount, kakera: addKakera(store, accountId, amount) };
   }
 
@@ -259,6 +263,7 @@ function createMudae({ catalog, now = Date.now, random = Math.random, refSize = 
     const windowId = Math.floor(now() / ROLL_RESET_MS);
     if (u.rollWindow !== windowId) { u.rollWindow = windowId; u.rolls = 0; }
     u.rolls++;
+    bump(store, accountId, 'rolls');
     const decoys = Array.from({ length: DECOYS }, () => thumbOf(pick(list)));
     const ownerId = store.claims[c.id]?.ownerId || null;
     return { card: card(c), ownerId, rollsLeft: left - 1, decoys, crystal: ownerId ? crystalOf(rarityOf(c.eq)) : 0 };
@@ -283,9 +288,12 @@ function createMudae({ catalog, now = Date.now, random = Math.random, refSize = 
     const u = usageOf(store, accountId);
     if (!claimReady(u)) throw new Error(`Você já casou nesta janela. Dá para casar de novo em ${minutes(claimResetIn())}.`);
     u.lastClaim = t;
+    stats(store, accountId);
     store.claims[charId] = { ownerId: accountId, at: t };
     note(store, charId, accountId, 'claim');
     dropWish(store, accountId, charId);
+    bumpStat(store, accountId, 'claims');
+    if (rarityOf(lookup(charId).eq) === 'legendary') bumpStat(store, accountId, 'legendary');
   }
 
   // Histórico de cada personagem: quantos donos já teve e os últimos (quem, como, quando).
@@ -299,6 +307,9 @@ function createMudae({ catalog, now = Date.now, random = Math.random, refSize = 
 
   // Passa um personagem de uma pessoa para outra (presente ou troca).
   function transfer(store, c, from, to, how) {
+    // Presente e troca não contam como casamento: os contadores de quem dá e de quem recebe nascem antes.
+    stats(store, from);
+    stats(store, to);
     const old = store.claims[c.id];
     // Casamentos de antes do histórico entram nele como o primeiro dono.
     if (old && !store.hist?.[c.id]) ((store.hist ||= {})[c.id] = { n: 1, last: [[old.ownerId, 'claim', old.at]] });
@@ -409,13 +420,15 @@ function createMudae({ catalog, now = Date.now, random = Math.random, refSize = 
     };
   }
 
-  // Divorciar devolve o valor da carta em kakera, como no Mudae do Discord.
+  // Divorciar devolve o valor da carta em kakera (até DIVORCE_CAP por dia).
   function release(store, accountId, c) {
+    stats(store, accountId);
     delete store.claims[c.id];
     if (sameId(store.favorites?.[accountId], c.id)) delete store.favorites[accountId];
     const out = card(c);
-    addKakera(store, accountId, out.value);
-    return out;
+    const r = refundOf(store, accountId, out.value, now());
+    addKakera(store, accountId, r.refund);
+    return { ...out, ...r };
   }
 
   function divorce(store, accountId, query) {
@@ -704,7 +717,7 @@ function createMudae({ catalog, now = Date.now, random = Math.random, refSize = 
   const sources = Object.fromEntries([...bySource.keys()].map((s) => [s, pools['m' + s].length]).filter(([, n]) => n));
 
   return { size: ativos.length, sources, parse, status, roll, warmup, claim, harem, album, summary, setFavorite, ranking, info, divorce, divorceId,
-    kakeraOf, daily, dailyKakera, buyRolls, giveKakera, crystal, wish, wishToggle, unwish, wishlist, wishersOf, give, firstMarry, topFilter, list,
+    kakeraOf, addKakera, stats, daily, dailyKakera, buyRolls, giveKakera, crystal, wish, wishToggle, unwish, wishlist, wishersOf, give, firstMarry, topFilter, list,
     tradeOpen, tradeOffer, tradeConfirm, tradeCancel, tradeExpire, tradeOf, tradeView, otherSide, sweepTrades: sweep,
     card: (id) => (lookup(id) ? card(lookup(id)) : null) };
 }

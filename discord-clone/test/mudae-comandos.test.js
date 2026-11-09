@@ -95,10 +95,13 @@ test('divórcio devolve o valor da carta em kakera', () => {
   const { mudae, store, marry } = setup();
   marry('a', 3);
   marry('a', 1);
-  assert.equal(mudae.divorce(store, 'a', 'zero').value, mudae.card(3).value);
-  assert.equal(mudae.kakeraOf(store, 'a'), mudae.card(3).value);
-  mudae.divorceId(store, 'a', 1);
-  assert.equal(mudae.kakeraOf(store, 'a'), mudae.card(3).value + mudae.card(1).value);
+  const first = mudae.divorce(store, 'a', 'zero');
+  assert.equal(first.value, mudae.card(3).value);
+  assert.equal(first.refund, Math.min(mudae.card(3).value, 500));
+  assert.equal(mudae.kakeraOf(store, 'a'), first.refund);
+  const second = mudae.divorceId(store, 'a', 1);
+  assert.equal(second.refund, Math.min(mudae.card(1).value, 500 - first.refund));
+  assert.equal(mudae.kakeraOf(store, 'a'), first.refund + second.refund);
 });
 
 test('cristal de kakera: só em quem já tem dono, por raridade, prioridade de quem rodou e um por janela', () => {
