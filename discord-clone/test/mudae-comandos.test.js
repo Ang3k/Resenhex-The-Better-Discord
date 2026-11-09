@@ -333,3 +333,11 @@ test('troca: vence 5 min depois da última mudança, cancela por quem está nela
   advance(TRADE_TTL + 1);
   assert.deepEqual(mudae.sweepTrades().map((x) => x.id), [t3.id], 'a varredura acha as vencidas');
 });
+
+test('parse: comandos da Forja e dos poderes', () => {
+  for (const [text, cmd, arg] of [['$forja', 'forja', ''], ['$badges', 'forja', ''], ['$FORJA', 'forja', ''], ['$forjar bronze', 'forjar', 'bronze'],
+    ['$forjar Diamante', 'forjar', 'Diamante'], ['$poderes', 'poderes', ''], ['$poder cadeado', 'poder', 'cadeado'], ['$poder laço', 'poder', 'laço']]) {
+    assert.deepEqual(parse(text), { cmd, arg }, text);
+  }
+  assert.ok(!isRoll('forja') && !isRoll('poder'));
+});

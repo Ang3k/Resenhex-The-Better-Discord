@@ -60,6 +60,8 @@ const COMMANDS = {
   k: 'k', kakera: 'k', dk: 'dk', dailykakera: 'dk', daily: 'daily', rolls: 'rolls',
   fm: 'fm', favorito: 'fm',
   trade: 'trade', trocar: 'trade', troca: 'trade',
+  // Forja de medalhas e superpoderes.
+  forja: 'forja', badges: 'forja', forjar: 'forjar', poderes: 'poderes', poder: 'poder',
 };
 for (const s of Object.keys(SOURCES)) for (const kind of ['w', 'h', 'm']) COMMANDS[kind + s] = kind + s;
 // Os comandos que rodam um personagem ($w, $h, $m e os de fonte, como $wg).

@@ -17,10 +17,10 @@ const { communityStore } = require('./server/communities');
 const { downloadRoutes } = require('./server/downloads');
 const { feedbackRoutes } = require('./server/feedback');
 const { createDj } = require('./server/dj');
-const { createMudae, CLAIM_WINDOW_MS, revealDelay, PRIORITY_MS, isRoll } = require('./server/mudae');
+const { createMudae, CLAIM_WINDOW_MS, revealDelay, PRIORITY_MS, isRoll, normalize: mudaeNormalize } = require('./server/mudae');
 const { createForja, perksOf, forgedCount, levelOf, atLeast } = require('./server/mudae-forja');
 const { createPoderes } = require('./server/mudae-poderes');
-const { MEDAL_KEYS, MEDALS, priceOf, CRYSTAL, ECO } = require('./server/mudae-regras');
+const { MEDAL_KEYS, MEDALS, priceOf, CRYSTAL, ECO, POWERS } = require('./server/mudae-regras');
 const { createCrystals } = require('./server/mudae-cristal');
 const { youtubeSearch } = require('./server/youtube');
 const { createDmCalls } = require('./server/dm-calls');
@@ -2246,7 +2246,8 @@ io.on('connection', (socket) => {
       if (!card) return error(`Você não tem ninguém chamado **${short(arg)}** no seu harem.`);
       postMudae(c, acc, command, { kind: 'divorce', card, ownerId: acc.id, refund: card.refund, capped: card.capped, refundIn: card.refundIn });
     } else if (cmd === 'tu') {
-      return only({ kind: 'status', ...mudae.status(store, acc.id) });
+      const powers = powersView(acc);
+      return only({ kind: 'status', ...mudae.status(store, acc.id), powersReady: powers.slots.filter((key) => key && !powers.readyIn[key]) });
     } else if (cmd === 'k') {
       return only({ kind: 'kakera', kakera: mudae.kakeraOf(store, acc.id) });
     } else if (cmd === 'dk') {
@@ -2295,6 +2296,40 @@ io.on('connection', (socket) => {
     } else if (cmd === 'trade') {
       if (!target) return error('Diga com quem: **$trade @pessoa**');
       openTrade(acc, c, target, command);
+    } else if (cmd === 'forja') {
+      const { medals, kakera, prices } = forgeView(acc);
+      return only({ kind: 'forja', medals, kakera, prices, powers: powersView(acc) });
+    } else if (cmd === 'forjar') {
+      if (!arg) return error('Diga a medalha: **$forjar bronze**');
+      const name = mudaeNormalize(arg);
+      const medal = MEDAL_KEYS.find((key) => key === name || mudaeNormalize(MEDALS[key].name) === name);
+      if (!medal) return error(`Não existe a medalha **${short(arg)}**. As medalhas são ${MEDAL_KEYS.map((key) => MEDALS[key].name).join(', ')}.`);
+      try { return only({ kind: 'medal', ownerId: acc.id, ...forgeNow(acc, medal) }); } catch (e) { return error(e.message); }
+    } else if (cmd === 'poderes') {
+      afterProgress(acc, c);
+      return only({ kind: 'powers', ...powersView(acc) });
+    } else if (cmd === 'poder') {
+      if (!arg) return error('Diga o poder: **$poder cadeado**');
+      const name = mudaeNormalize(arg);
+      // Aceita a chave ("laco"), o nome ("Escolha dupla") ou só a primeira palavra do nome ("escolha", "chuva").
+      const power = POWERS.find((p) => p.key === name || mudaeNormalize(p.name) === name) || POWERS.find((p) => mudaeNormalize(p.name).split(' ')[0] === name);
+      if (!power) return error(`Não existe o poder **${short(arg)}**. Os poderes são ${POWERS.map((p) => p.name).join(', ')}.`);
+      try {
+        if (power.key === 'eco') {
+          const cards = ecoCards(c, store);
+          if (!cards.length) fail('Nenhum personagem sem dono passou por aqui nos últimos minutos.');
+          return only({ kind: 'eco', cards });
+        }
+        // Cadeado e Laço miram o roll mais recente deste canal em que o poder vale agora; sem nenhum, o poder dá o seu erro.
+        const t = Date.now();
+        const valid = {
+          cadeado: (m) => m.by === acc.id && t < m.mudae.revealAt && !m.mudae.ownerId && !m.mudae.pairFree,
+          laco: (m) => m.by && m.by !== acc.id && !m.mudae.ownerId && !m.mudae.pairFree && m.mudae.revealAt <= t && t < m.mudae.priorityUntil,
+        }[power.key];
+        const aim = valid && [...(db.messages[c.id] || [])].reverse().find((m) => m.bot === 'mudae' && m.mudae?.kind === 'roll' && valid(m));
+        const r = usePower(acc, c, { power: power.key, id: aim?.id || '' });
+        if (power.key === 'videncia') return only({ kind: 'foresee', future: r.future, wish: r.wish });
+      } catch (e) { return error(e.message); }
     }
     return { ok: true };
   }
@@ -2473,7 +2508,8 @@ io.on('connection', (socket) => {
     if (!allow('mudae-forja-get:' + acc.id, 20, 5000)) fail('Calma! Cliques rápidos demais na Forja.');
     return forgeView(acc);
   });
-  on('mudae:forja:forge', (acc, { medal }) => {
+  // Forjar um nível: o botão da Forja e o $forjar passam por aqui.
+  function forgeNow(acc, medal) {
     forgeGuard(acc);
     const r = forja.forge(mudaeStore(), acc.id, forgeMedal(medal));
     save(chunk.server());
@@ -2486,7 +2522,8 @@ io.on('connection', (socket) => {
     if (s.salon && s.salonServerId === serverId) pushSalon(serverId, s.salon);
     afterProgress(acc, null);
     return r;
-  });
+  }
+  on('mudae:forja:forge', (acc, { medal }) => forgeNow(acc, medal));
   on('mudae:forja:finish', (acc, { medal, pick }) => {
     forgeGuard(acc);
     const r = forja.chooseFinish(mudaeStore(), acc.id, forgeMedal(medal), pick);
@@ -2618,10 +2655,11 @@ io.on('connection', (socket) => {
     },
   };
   const TABLE_POWERS = ['cadeado', 'laco', 'eco', 'chuva'];
-  on('mudae:power:use', (acc, { channel, power, id, charId }) => {
+  on('mudae:power:use', (acc, { channel, power, id, charId }) => usePower(acc, salonOf(acc, channel), { power, id, charId }));
+  // Usar um poder no Salão c: o botão do palco e o $poder passam por aqui.
+  function usePower(acc, c, { power, id, charId }) {
     mudaeAllowed(acc);
     if (!allow('mudae-power:' + acc.id, 6, 5000)) fail('Calma! Cliques rápidos demais.');
-    const c = salonOf(acc, channel);
     const key = String(power);
     const effect = Object.hasOwn(POWER_EFFECTS, key) ? POWER_EFFECTS[key] : fail('Poder inválido.');
     const store = mudaeStore();
@@ -2635,7 +2673,7 @@ io.on('connection', (socket) => {
     if (!table) return { armed: key, future: r.future, wish: r.wish };
     r.after?.(acc);
     return r.reply;
-  });
+  }
 
   // Eco: os personagens que passaram sem dono neste Salão e podem voltar.
   on('mudae:eco:list', (acc, { channel }) => {

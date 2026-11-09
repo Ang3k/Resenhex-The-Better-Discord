@@ -280,3 +280,36 @@ test('cenas longas: Cadeado com o casamento gasto e Eco', { concurrency: true },
     }),
   ]);
 });
+
+test('$poder, $poderes, $forja e $forjar usam o mesmo caminho dos botões', async (t) => {
+  const s = await scene(t, { anaPowers: ['cadeado', 'eco'], betoPowers: ['laco'] });
+  // O servidor aceita 8 comandos a cada 5 s por pessoa: um espaço entre eles.
+  const say = async (who, text) => { await wait(700); return who.call('chat:send', { channel: s.channel, text }); };
+  // Sem roll girando, o Cadeado dá o mesmo erro do botão e não gasta.
+  assert.match((await say(s.ana, '$poder cadeado')).ephemeral.text, /enquanto a cápsula gira/);
+  assert.equal(await s.readyIn(s.ana, 'cadeado'), 0);
+  const roll = await s.rollAna();
+  assert.ok(!(await say(s.ana, '$poder Cadeado')).ephemeral, 'mira o roll que está girando');
+  await eventually(() => assert.equal(s.lines(s.beto).length, 1));
+  assert.equal(s.lines(s.beto)[0].mudae.power, 'cadeado');
+  assert.equal(await s.readyIn(s.ana, 'cadeado') > 0, true);
+  // Laço sem roll nos 3 s: o erro do botão.
+  assert.match((await say(s.beto, '$poder laço')).ephemeral.text, /Laço só funciona/);
+  // Eco: sem personagens, erro; nome errado, erro.
+  assert.match((await say(s.ana, '$poder eco')).ephemeral.text, /Nenhum personagem/);
+  assert.match((await say(s.ana, '$poder xis')).ephemeral.text, /Não existe o poder/);
+  const list = await say(s.ana, '$poderes');
+  assert.equal(list.ephemeral.kind, 'powers');
+  assert.deepEqual(list.ephemeral.slots.slice(0, 2), ['cadeado', 'eco']);
+  const tu = await say(s.ana, '$tu');
+  assert.deepEqual(tu.ephemeral.powersReady, ['eco']);
+  // Forja: sem kakera o erro vem como resposta; a lista traz as 7 medalhas.
+  const forja = (await say(s.ana, '$badges')).ephemeral;
+  assert.equal(forja.kind, 'forja');
+  assert.equal(Object.keys(forja.medals).length, 7);
+  assert.equal(forja.powers.slots[0], 'cadeado');
+  const forjar = (await say(s.ana, '$forjar Bronze')).ephemeral;
+  assert.match(forjar.text, /Faltam/, JSON.stringify(forjar));
+  assert.match((await say(s.ana, '$forjar xis')).ephemeral.text, /Não existe a medalha/);
+  assert.ok(roll.id);
+});

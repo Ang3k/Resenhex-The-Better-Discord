@@ -1,7 +1,7 @@
 /* Mudae: os cards de personagem que o bot posta no chat ($w/$h/$m), o harem ($mm), o $im, o $tu,
    o botão de casar, o cristal de kakera, os rankings ($top, $obra, $topserv), os desejos e as trocas. O servidor decide tudo (sorteio, limites, quem casou primeiro); aqui só desenhamos
    as respostas. As fotos vêm direto do CDN do AniList. */
-window.MudaeUI = function ({ state, el, Icon, call, member, avatar, nameColor, Format, fmtCtx, openProfile, openImage, openChannel, renderMessages, keepBottom, openTrade = () => {} }) {
+window.MudaeUI = function ({ state, el, Icon, call, member, avatar, nameColor, Format, fmtCtx, openProfile, openImage, openChannel, renderMessages, keepBottom, openTrade = () => {}, openForja = () => {} }) {
   const COMMANDS = [
     { name: 'w', note: 'roda uma waifu' },
     { name: 'h', note: 'roda um husbando' },
@@ -26,7 +26,11 @@ window.MudaeUI = function ({ state, el, Icon, call, member, avatar, nameColor, F
     { name: 'rolls', note: 'compra os rolls de volta com kakera' },
     { name: 'fm', args: true, hint: 'nome', note: 'escolhe o favorito do harem' },
     { name: 'divorce', args: true, hint: 'nome', note: 'solta um personagem e devolve o valor em kakera' },
-    { name: 'tu', note: 'rolls, casamento, kakera e o que já dá para usar' },
+    { name: 'tu', note: 'rolls, casamento, kakera, reserva e poderes prontos' },
+    { name: 'forja', note: 'suas medalhas da Forja (também $badges)' },
+    { name: 'forjar', args: true, hint: 'medalha', note: 'forja o próximo nível de uma medalha' },
+    { name: 'poderes', note: 'seus poderes, as cargas e o que falta para abrir cada um' },
+    { name: 'poder', args: true, hint: 'cadeado · laço · eco…', note: 'usa um poder' },
   ];
   // Fontes de personagens: a letra filtra o roll ($wg = waifu de jogo), como no Mudae do Discord.
   const SOURCES = {
@@ -322,6 +326,132 @@ window.MudaeUI = function ({ state, el, Icon, call, member, avatar, nameColor, F
       gave(d.a), gave(d.b));
   }
 
+  // ---------- Forja, poderes e cristais ----------
+  const MEDALS = { bronze: 'Bronze', prata: 'Prata', ouro: 'Ouro', safira: 'Safira', rubi: 'Rubi', esmeralda: 'Esmeralda', diamante: 'Diamante' };
+  const MEDAL_ICON = { bronze: '🥉', prata: '🥈', ouro: '🥇', safira: '🔷', rubi: '♦️', esmeralda: '🟩', diamante: '💠' };
+  const FINISHES = { metal: 'Metal', esmalte: 'Esmalte', holo: 'Holográfico', galaxia: 'Galáxia' };
+  const ROMAN = ['', 'I', 'II', 'III', 'IV'];
+  const finishName = (key) => FINISHES[key] || key;
+  // Os poderes (nome, ícone, frase da linha pública e o que falta para abrir). Tem que bater com POWERS em server/mudae-regras.js.
+  const POWER = {
+    videncia: { name: 'Vidência', icon: '🔮', goal: 'Medalhas forjadas' },
+    cadeado: { name: 'Cadeado', icon: '🔒', goal: 'Casamentos', said: ' trancou o roll.' },
+    amuleto: { name: 'Amuleto', icon: '🍀', goal: 'Lendários no harém', said: ' usou o Amuleto: o próximo roll tem mais chance de ser épico ou lendário.' },
+    chuva: { name: 'Chuva de cristais', icon: '🌧️', goal: 'Cristais pegos', said: ' chamou uma chuva de cristais!' },
+    desejo: { name: 'Chamar desejo', icon: '💫', goal: 'Nível da Bronze', said: ' chamou um desejo para o próximo roll.' },
+    eco: { name: 'Eco', icon: '🔁', goal: 'Casamentos' },
+    dupla: { name: 'Escolha dupla', icon: '🃏', goal: 'Rolls', said: ' vai abrir duas cartas no próximo roll.' },
+    laco: { name: 'Laço', icon: '🪢', goal: 'Medalhas no nível II' },
+  };
+  const powerOf = (key) => POWER[key] || { name: key, icon: '✦', goal: '' };
+
+  function powerLine(d) {
+    const p = powerOf(d.power);
+    if (d.power === 'laco' && d.bounced) return line('power', '🪢 ', strongName(d.ownerId), ' tentou laçar ', el('strong', { textContent: d.card?.name || 'o personagem' }), ', mas bateu no cadeado!');
+    return line('power', p.icon + ' ', strongName(d.ownerId), p.said || ` usou ${p.name}.`);
+  }
+
+  // Medalha: a linha salva do nível IV, o resultado de um $forjar e a escolha do acabamento (quando o nível II ou mais sorteia outro).
+  function medalCard(d) {
+    const title = `${MEDALS[d.medal] || d.medal} ${ROMAN[d.level] || ''}`.trim();
+    if (d.price === undefined) {
+      return line('medal', '🏅 ', strongName(d.ownerId), ' forjou a ', el('strong', { textContent: title }), ` (${finishName(d.finish).toLowerCase()})!`);
+    }
+    const cost = `por ${num(d.price)} kakera. Agora você tem ${num(d.kakera)}.`;
+    if (!d.offer) return line('medal', '🏅 Você forjou a ', el('strong', { textContent: title }), ` (${finishName(d.finish).toLowerCase()}) ${cost}`);
+    const node = el('div', { class: 'mudae-card medal' });
+    const pick = async (choice) => {
+      node.classList.add('pending');
+      const res = await call('mudae:forja:finish', { medal: d.medal, pick: choice });
+      if (!res) { node.classList.remove('pending'); return; }
+      node.replaceChildren(line('medal', '🏅 A ', el('strong', { textContent: title }), ` ficou com o acabamento ${finishName(res.finish ?? (choice === 'new' ? d.offer : d.finish)).toLowerCase()}.`));
+    };
+    node.append(line('medal', '🏅 Você forjou a ', el('strong', { textContent: title }), ` ${cost}`),
+      el('div', { class: 'mudae-hint', textContent: `Saiu o acabamento ${finishName(d.offer)} e a medalha está com ${finishName(d.finish)}. Qual fica?` }),
+      el('div', { class: 'mudae-actions' },
+        el('button', { type: 'button', class: 'mudae-go', textContent: 'Ficar com ' + finishName(d.finish), onclick: () => pick('old') }),
+        el('button', { type: 'button', class: 'mudae-go', textContent: 'Ficar com ' + finishName(d.offer), onclick: () => pick('new') })));
+    return node;
+  }
+
+  const chargeText = (ms) => (ms > 0 ? `volta em ${minutes(ms)}` : 'pronto');
+  // Os poderes no palco, um por espaço.
+  function stageList(d) {
+    return el('ul', { class: 'mudae-powers' }, d.slots.map((key) => el('li', { class: key ? 'slot' : 'slot empty' },
+      key ? [powerOf(key).icon + ' ', el('strong', { textContent: powerOf(key).name }), el('span', { class: 'mudae-muted', textContent: ' · ' + chargeText(d.readyIn?.[key] || 0) })]
+        : el('span', { class: 'mudae-muted', textContent: 'espaço vazio' }))));
+  }
+
+  function forjaCard(d) {
+    return el('div', { class: 'mudae-card forja' },
+      el('div', { class: 'mudae-name', textContent: '🏅 Sua Forja' }),
+      el('div', { class: 'mudae-value' }, 'Você tem ', el('strong', { textContent: num(d.kakera) }), kakera()),
+      el('ul', { class: 'mudae-medals' }, Object.keys(MEDALS).map((key) => {
+        const m = d.medals?.[key] || { level: 0 };
+        const price = d.prices?.[key];
+        return el('li', { class: 'mudae-medal l' + m.level, title: price ? `Próximo nível: ${num(price)} kakera` : 'No nível máximo' },
+          MEDAL_ICON[key] + ' ', el('strong', { textContent: MEDALS[key] }), el('span', { class: 'mudae-medal-level', textContent: ' ' + (ROMAN[m.level] || '—') }),
+          el('span', { class: 'mudae-muted', textContent: m.level ? ' · ' + finishName(m.finish) : price ? ` · ${num(price)}` : '' }));
+      })),
+      d.powers ? stageList(d.powers) : null,
+      el('div', { class: 'mudae-actions' }, el('button', { type: 'button', class: 'mudae-go', onclick: () => openForja() }, 'Abrir a Forja')));
+  }
+
+  function powersCard(d) {
+    const locked = Object.keys(POWER).filter((key) => !d.unlocked.includes(key));
+    const benched = d.unlocked.filter((key) => !d.slots.includes(key));
+    return el('div', { class: 'mudae-card forja' },
+      el('div', { class: 'mudae-name', textContent: '⚡ Seus poderes' }),
+      stageList(d),
+      d.rechargeMs ? el('div', { class: 'mudae-hint', textContent: `Cada poder recarrega em ${minutes(d.rechargeMs)}. Use com $poder nome.` }) : null,
+      benched.length ? el('div', { class: 'mudae-hint', textContent: 'Fora do palco: ' + benched.map((key) => powerOf(key).icon + ' ' + powerOf(key).name).join(', ') + '.' }) : null,
+      locked.length ? el('ul', { class: 'mudae-powers locked' }, locked.map((key) => {
+        const have = d.progress?.[key];
+        return el('li', {}, powerOf(key).icon + ' ', el('strong', { textContent: powerOf(key).name }),
+          el('span', { class: 'mudae-muted', textContent: have ? ` · ${powerOf(key).goal}: ${num(have.have)} de ${num(have.need)}` : '' }));
+      })) : null);
+  }
+
+  // $poder eco: um botão por personagem que passou sem dono.
+  function ecoCard(d) {
+    const node = el('div', { class: 'mudae-card forja' }, el('div', { class: 'mudae-name', textContent: '🔁 Qual personagem volta?' }));
+    node.append(el('div', { class: 'mudae-actions' }, (d.cards || []).slice(0, 5).map((card) => el('button', { type: 'button', class: 'mudae-go', textContent: card.name, onclick: async () => {
+      node.classList.add('pending');
+      const res = await call('mudae:power:use', { channel: state.textChannel, power: 'eco', charId: card.id });
+      node.classList.remove('pending');
+      if (res) node.replaceChildren(line('power', '🔁 ', el('strong', { textContent: card.name }), ' voltou para a mesa.'));
+    } }))));
+    return node;
+  }
+
+  // Cristal que apareceu (só ao vivo): o botão pega o primeiro cristal, até acabar a vida dele.
+  function crystalLine(d) {
+    const v = d.crystal || d;
+    const label = el('span', { textContent: '💎 Pegar' });
+    const btn = el('button', { type: 'button', class: 'mudae-go mudae-crystal-take' }, label);
+    const until = v.appearAt + v.life;
+    const update = () => { if (!btn.classList.contains('done')) btn.disabled = serverNow() < v.appearAt; };
+    const expire = () => { btn.disabled = true; if (!btn.classList.contains('done')) label.textContent = 'Sumiu'; };
+    if (serverNow() >= until) expire(); else { update(); watch({ node: btn, expires: until, update, expire }); }
+    btn.onclick = async () => {
+      if (btn.disabled) return;
+      btn.disabled = true;
+      const res = await call('mudae:crystal:take', { id: v.id, gem: 0 });
+      if (res?.ok) { btn.classList.add('done'); label.textContent = `💎 +${num(res.amount)}`; } else if (btn.isConnected && serverNow() < until) btn.disabled = false;
+    };
+    return [line('crystal', v.kind === 'storm' ? `✦ Uma chuva de cristais ${v.colorKey} começou!` : `✦ Um cristal ${v.colorKey} apareceu!`), el('div', { class: 'mudae-actions' }, btn)];
+  }
+
+  // Cristal que acabou (só ao vivo): quem pegou, com no máximo dois nomes e "mais N" no resto.
+  function crystalEndLine(d) {
+    const v = d.crystal || d;
+    const ids = (v.takers || []).map((t) => t.id);
+    if (!ids.length) return line('crystal', `O cristal ${v.colorKey} sumiu. Ninguém pegou.`);
+    const [a, b, c] = ids.map(strongName);
+    const who = ids.length === 1 ? [a] : ids.length === 2 ? [a, ' e ', b] : ids.length === 3 ? [a, ', ', b, ' e ', c] : [a, ', ', b, ` e mais ${ids.length - 2}`];
+    return line('crystal', '💎 ', ...who, ` ${ids.length === 1 ? 'pegou' : 'pegaram'} o cristal ${v.colorKey}`);
+  }
+
   function statusLines(d) {
     return el('div', { class: 'mudae-status' },
       el('div', {}, d.rollsLeft
@@ -330,6 +460,9 @@ window.MudaeUI = function ({ state, el, Icon, call, member, avatar, nameColor, F
       el('div', {}, d.claimReady
         ? ['Você ', el('strong', { class: 'mudae-ok', textContent: 'pode casar' }), ' agora!']
         : ['Você já casou. Dá para casar de novo em ', el('strong', { textContent: minutes(d.claimResetIn) }), '.']),
+      d.reserveReady ? el('div', {}, 'Você tem ', el('strong', { class: 'mudae-ok', textContent: 'um casamento de reserva' }), ' guardado.')
+        : d.reserveIn ? el('div', {}, 'Seu casamento de reserva volta em ', el('strong', { textContent: minutes(d.reserveIn) }), '.') : null,
+      d.powersReady?.length ? el('div', {}, 'Poderes prontos: ', el('strong', { class: 'mudae-ok', textContent: d.powersReady.map((key) => powerOf(key).icon + ' ' + powerOf(key).name).join(', ') }), '.') : null,
       d.kakera !== undefined ? el('div', {}, 'Você tem ', el('strong', { textContent: num(d.kakera) }), ' kakera.') : null,
       d.dailyIn !== undefined ? el('div', {}, d.dailyIn ? ['O $daily volta em ', el('strong', { textContent: minutes(d.dailyIn) }), '.'] : ['O ', el('strong', { class: 'mudae-ok', textContent: '$daily' }), ' está pronto: os rolls voltam na hora.']) : null,
       d.dkIn !== undefined ? el('div', {}, d.dkIn ? ['O $dk volta em ', el('strong', { textContent: minutes(d.dkIn) }), '.'] : ['O ', el('strong', { class: 'mudae-ok', textContent: '$dk' }), ` está pronto: +${num(d.dkAmount)} kakera.`]) : null,
@@ -400,10 +533,20 @@ window.MudaeUI = function ({ state, el, Icon, call, member, avatar, nameColor, F
     } else if (d.kind === 'unwish') content = el('div', { class: 'msg-text' }, '⭐ ', el('strong', { textContent: d.card.name }), ` saiu da sua lista de desejos (${d.total}/${d.max}).`);
     else if (d.kind === 'fm') content = el('div', { class: 'msg-text' }, '⭐ ', el('strong', { textContent: d.card.name }), ' agora é o seu favorito.');
     else if (d.kind === 'married' && d.from) {
-      content = line('married stolen', '😈 ', strongName(d.ownerId), ' roubou ', el('strong', { textContent: d.card.name }), ' do roll de ', strongName(d.from), '!');
+      content = line('married stolen', '😈 ', strongName(d.ownerId), ' roubou ', el('strong', { textContent: d.card.name }), ' do roll de ', strongName(d.from), '!', d.lasso ? ' 🪢 com o Laço' : '');
     } else if (d.kind === 'married') {
-      content = line('married', '💖 ', strongName(d.ownerId), ' e ', el('strong', { textContent: d.card.name }), ' agora são casados! 💖');
-    } else if (d.kind === 'redirect') content = redirect(d);
+      content = line('married', '💖 ', strongName(d.ownerId), ' e ', el('strong', { textContent: d.card.name }), ' agora são casados! 💖', d.lasso ? ' 🪢 com o Laço' : '');
+    } else if (d.kind === 'forja') content = forjaCard(d);
+    else if (d.kind === 'medal') content = medalCard(d);
+    else if (d.kind === 'powers') content = powersCard(d);
+    else if (d.kind === 'power') content = powerLine(d);
+    else if (d.kind === 'eco') content = ecoCard(d);
+    else if (d.kind === 'foresee') {
+      content = line('power', '🔮 Vidência: os próximos rolls serão ', d.future?.map((r) => RARITY[r] || r).join(', ') || 'um mistério', '.', d.wish ? ' O próximo traz um desejo.' : '');
+    } else if (d.kind === 'unlock') content = line('unlock', '✨ ', strongName(d.ownerId), ` ganhou um poder: ${powerOf(d.power).name}!`);
+    else if (d.kind === 'crystal') content = crystalLine(d);
+    else if (d.kind === 'crystalEnd') content = crystalEndLine(d);
+    else if (d.kind === 'redirect') content = redirect(d);
     else if (d.kind === 'divorce') {
       content = line('divorce', '💔 ', el('strong', { textContent: whoName(d.ownerId) }), ' e ', el('strong', { textContent: d.card.name }), ' se divorciaram.',
         d.refund ? ` (+${num(d.refund)} kakera)` : '',
@@ -451,7 +594,7 @@ window.MudaeUI = function ({ state, el, Icon, call, member, avatar, nameColor, F
 
   // ---------- comandos ----------
   const ALIASES = 'w|waifu|h|husbando|m|marry|mm|mma|mms|mmr|harem|im|info|divorce|divorciar|tu|top|topserv|obra|give|dar|givek|givekakera|wish|desejar'
-    + '|wl|wishlist|wr|wishremove|k|kakera|dk|dailykakera|daily|rolls|fm|favorito|trade|trocar|troca|[whm][agcds]';
+    + '|wl|wishlist|wr|wishremove|k|kakera|dk|dailykakera|daily|rolls|fm|favorito|trade|trocar|troca|forja|badges|forjar|poderes|poder|[whm][agcds]';
   const COMMAND_RE = new RegExp(`^\\$(${ALIASES})(\\s|$)`, 'i');
   const isCommand = (text) => COMMAND_RE.test(text.trim());
   const divorceTarget = (text) => /^\$(?:divorce|divorciar)\s+([\s\S]+)$/i.exec(text.trim())?.[1].trim() || null;

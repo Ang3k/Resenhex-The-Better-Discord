@@ -34,6 +34,8 @@ window.MudaeSalon = function ({ state, el, Icon, call, onSocket, member, avatar,
   };
   const nodes = {};
   let ticker = null;
+  // Aba pedida de fora do Salão (o botão "Abrir a Forja" no modo simplificado): vale quando ele montar.
+  let wantTab = null;
   let activeSpin = null;
   let stageArt = null;
   const REEL_CELLS = 11;
@@ -181,6 +183,7 @@ window.MudaeSalon = function ({ state, el, Icon, call, onSocket, member, avatar,
     renderBody();
     updateStatus();
     pickInitialStage();
+    if (wantTab) { const tab = wantTab; wantTab = null; setTab(tab); }
     call('mudae:presence', { channel: channel.id }).then((res) => {
       if (!res || S.channel !== channel.id) return;
       setStatus(res);
@@ -1079,6 +1082,8 @@ window.MudaeSalon = function ({ state, el, Icon, call, onSocket, member, avatar,
   }
 
   const api = { sync, onMessage, onUpdate, onHistory, show: (id) => { if (!S.channel) return; if (S.tab !== 'mesa') setTab('mesa'); S.stage = id; renderStage(); renderLive(); toggleSide(false); },
-    openHarem, openChars, openRanking: () => { toggleSide(false); setTab('ranking'); }, profileSection, get channel() { return S.channel; } };
+    openHarem, openChars, openRanking: () => { toggleSide(false); setTab('ranking'); },
+    // Abre o Salão na aba Forja (a aba chega na tarefa da Forja). No modo simplificado, sai dele e abre quando o Salão montar.
+    openForja: () => { if (S.channel) { toggleSide(false); setTab('forja'); } else { wantTab = 'forja'; setSimple(false); } }, profileSection, get channel() { return S.channel; } };
   return api;
 };

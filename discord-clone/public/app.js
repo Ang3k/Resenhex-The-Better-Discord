@@ -505,7 +505,7 @@
   // Mudae (mudae.js): cards de personagem, harem e o botão de casar nas respostas do bot.
   const mudae = MudaeUI({ state, el, Icon, call, member, avatar, nameColor, Format, fmtCtx, openProfile: (id, anchor) => openProfile(id, anchor),
     openImage: (url) => openLightbox({ url }), openChannel: (id) => openTextChannel(id), renderMessages: (end) => renderMessages(end), keepBottom: () => keepBottom(),
-    openTrade: (id) => mudaeTrade.open(id) });
+    openTrade: (id) => mudaeTrade.open(id), openForja: () => salon.openForja() });
   // Trocas do Mudae (mudae-troca.js): o painel que as duas pessoas veem e os avisos com botão.
   const mudaeTrade = MudaeTrade({ state, el, Icon, call, onSocket: (event, handler) => socket.on(event, handler), member, avatar, nameColor, toast, ui: mudae, Sounds });
   // Salão do Mudae (mudae-salao.js): a tela própria dos canais com mudae: true. Quem prefere o Mudae
