@@ -2207,20 +2207,27 @@ io.on('connection', (socket) => {
     if (isRoll(cmd)) {
       const r = mudae.roll(store, acc.id, cmd);
       if (r.error) return error(r.error);
-      const revealAt = Date.now() + revealDelay(r.card.rarity);
-      // Quem tem o personagem na lista de desejos aparece no card e recebe um aviso (menos quem rodou).
-      const wishedBy = mudae.wishersOf(store, r.card.id, mudaeMember);
-      const msg = postMudae(c, acc, command, { kind: 'roll', card: r.card, ownerId: r.ownerId, revealAt, priorityUntil: revealAt + PRIORITY_MS,
-        expires: revealAt + CLAIM_WINDOW_MS, rollsLeft: r.rollsLeft, ...(wishedBy.length ? { wishedBy } : {}) }, { decoys: r.decoys });
+      // Escolha dupla: duas cartas ligadas pelo mesmo "pair", as duas com a prioridade de quem rodou.
+      const pair = r.second ? newId() : null;
+      const posted = [r, r.second].filter(Boolean).map(({ card, ownerId }) => {
+        const revealAt = Date.now() + revealDelay(card.rarity);
+        // Quem tem o personagem na lista de desejos aparece no card e recebe um aviso (menos quem rodou).
+        const wishedBy = mudae.wishersOf(store, card.id, mudaeMember);
+        const msg = postMudae(c, acc, command, { kind: 'roll', card, ownerId, revealAt, priorityUntil: revealAt + PRIORITY_MS,
+          expires: revealAt + CLAIM_WINDOW_MS, rollsLeft: r.rollsLeft, ...(pair ? { pair } : {}), ...(wishedBy.length ? { wishedBy } : {}) }, { decoys: r.decoys });
+        return { msg, card, ownerId, revealAt, wishedBy };
+      });
       pushSalon(communities.currentId(), c.id);
       afterProgress(acc, c);
-      // Personagem que já tem dono: o cristal nasce da carta quando a roleta para.
-      if (r.ownerId) {
-        const spawned = crystals.spawn(communities.currentId(), { appearAt: revealAt, from: { channel: c.id, msgId: msg.id }, by: acc.id });
-        crystalToSalons(spawned.serverId, 'mudae:crystal', crystals.view(spawned));
-      }
-      for (const id of wishedBy) {
-        if (id !== acc.id) for (const s of socketsOf(id, true)) s.emit('mudae:wish', { channel: c.id, id: msg.id, card: r.card, by: acc.id, revealAt, ownerId: r.ownerId });
+      for (const { msg, card, ownerId, revealAt, wishedBy } of posted) {
+        // Personagem que já tem dono: o cristal nasce da carta quando a roleta para.
+        if (ownerId) {
+          const spawned = crystals.spawn(communities.currentId(), { appearAt: revealAt, from: { channel: c.id, msgId: msg.id }, by: acc.id });
+          crystalToSalons(spawned.serverId, 'mudae:crystal', crystals.view(spawned));
+        }
+        for (const id of wishedBy) {
+          if (id !== acc.id) for (const s of socketsOf(id, true)) s.emit('mudae:wish', { channel: c.id, id: msg.id, card, by: acc.id, revealAt, ownerId });
+        }
       }
     } else if (cmd === 'mm' || HAREM_SORT[cmd]) {
       const ownerId = target || acc.id;
@@ -2368,15 +2375,28 @@ io.on('connection', (socket) => {
   });
 
   on('mudae:claim', (acc, { channel, id }) => {
-    const { c, msg } = findMessage(acc, channel, id);
+    const { c, list, msg } = findMessage(acc, channel, id);
     if (c.dm || msg.bot !== 'mudae' || msg.mudae?.kind !== 'roll') fail('Isso não é um roll do Mudae.');
     mudaeAllowed(acc);
     if (!allow('mudae-claim:' + acc.id, 6, 5000)) fail('Calma! Cliques rápidos demais.');
     const d = msg.mudae;
-    mudae.claim(mudaeStore(), acc.id, d.card.id, { revealAt: d.revealAt ?? msg.ts, rollerId: msg.by, priority: d.priorityUntil ? PRIORITY_MS : 0 });
+    mudae.claim(mudaeStore(), acc.id, d.card.id, { revealAt: d.revealAt ?? msg.ts, rollerId: msg.by, priority: d.pairFree ? 0 : d.priorityUntil ? PRIORITY_MS : 0 });
     d.ownerId = acc.id;
     save(chunk.message(c.id, msg.id));
     emitToChat(c, 'chat:update', { channel: c.id, msg });
+    // Escolha dupla: quem rodou casou com uma carta, e a outra fica livre na hora para quem casar primeiro.
+    if (d.pair && acc.id === msg.by) {
+      for (let i = list.length - 1; i >= 0; i--) {
+        const other = list[i];
+        if (other === msg || other.mudae?.pair !== d.pair) continue;
+        if (!other.mudae.ownerId && !other.mudae.pairFree) {
+          Object.assign(other.mudae, { priorityUntil: Date.now(), pairFree: true });
+          save(chunk.message(c.id, other.id));
+          emitToChat(c, 'chat:update', { channel: c.id, msg: other });
+        }
+        break;
+      }
+    }
     // Casar com o roll de outra pessoa é um roubo, e o chat conta isso.
     postMudae(c, acc, null, { kind: 'married', card: d.card, ownerId: acc.id, from: msg.by && msg.by !== acc.id ? msg.by : null });
     if (c.mudae) pushSalon(communities.currentId(), c.id);
@@ -2515,6 +2535,28 @@ io.on('connection', (socket) => {
     poderes.equip(store, acc.id, slot, power === null ? null : String(power), perksOf(store, acc.id));
     save(chunk.server());
     return powersView(acc);
+  });
+  // Usar um poder. Se o efeito der erro, a carga fica. A Vidência é só de quem usou (volta a previsão,
+  // sem aviso e sem linha); os que mudam o próximo roll são públicos: aviso para todos os Salões e uma linha no chat.
+  const POWER_EFFECTS = {
+    videncia: (store, id) => mudae.foresee(store, id),
+    amuleto: (store, id) => mudae.arm(store, id, 'amuleto'),
+    desejo: (store, id) => mudae.arm(store, id, 'desejo'),
+    dupla: (store, id) => mudae.arm(store, id, 'dupla'),
+  };
+  on('mudae:power:use', (acc, { channel, power }) => {
+    mudaeAllowed(acc);
+    if (!allow('mudae-power:' + acc.id, 6, 5000)) fail('Calma! Cliques rápidos demais.');
+    const c = salonOf(acc, channel);
+    const key = String(power);
+    const effect = Object.hasOwn(POWER_EFFECTS, key) ? POWER_EFFECTS[key] : fail('Poder inválido.');
+    const store = mudaeStore();
+    const r = poderes.use(store, acc.id, key, perksOf(store, acc.id), () => effect(store, acc.id));
+    save(chunk.server());
+    if (key === 'videncia') return { future: r.future, wish: r.wish };
+    deliver(salonSocketsOf(communities.currentId()).map(([sid]) => sid), 'mudae:power', { channel: c.id, by: acc.id, power: key });
+    postMudae(c, acc, null, { kind: 'power', ownerId: acc.id, power: key });
+    return { armed: key, future: r.future, wish: r.wish };
   });
 
   const findMessage = (acc, channel, id) => {

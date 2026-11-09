@@ -6,6 +6,7 @@
 // { claims, usage, favorites } e os limites são contados pelo relógio, sem nenhum timer rodando.
 const { kakeraOf, addKakera, statsOf, bumpStat, refundOf } = require('./mudae-conta');
 const { perksOf } = require('./mudae-forja');
+const { POWERS, AMULETO, DESEJO_CHANCE } = require('./mudae-regras');
 
 const ROLLS_PER_HOUR = 10;
 const ROLL_RESET_MS = 30 * 60_000;
@@ -68,6 +69,12 @@ const isRoll = (cmd) => new RegExp(`^[whm][${Object.keys(SOURCES).join('')}]?$`)
 const valueOf = (rank) => Math.max(30, Math.round(1200 / (1 + rank / 250) ** 0.8));
 // Raridade pela posição (1 = mais popular): lendário 1–100, épico até 1000, raro até 5000.
 const rarityOf = (position) => (position <= 100 ? 'legendary' : position <= 1000 ? 'epic' : position <= 5000 ? 'rare' : 'common');
+// As mesmas faixas, da mais comum para a mais rara: até que posição vai cada raridade.
+const RARITIES = ['common', 'rare', 'epic', 'legendary'];
+const RARITY_TOP = { legendary: 100, epic: 1000, rare: 5000, common: Infinity };
+// Os poderes que mudam o próximo roll e ficam armados até ele (a Vidência só olha).
+const ARMABLE = ['amuleto', 'desejo', 'dupla'];
+const PREVIEW = 3; // quantos rolls a Vidência mostra
 const normalize = (s) => String(s || '').normalize('NFD').replace(/\p{M}/gu, '').toLowerCase().replace(/[^\p{L}\p{N}]+/gu, ' ').trim();
 
 // Palavras do $top: gênero e fonte se combinam ("$top waifus anime"); qualquer outra coisa é o nome de uma obra.
@@ -252,17 +259,116 @@ function createMudae({ catalog, now = Date.now, random = Math.random, refSize = 
     return { amount: n, kakera: kakeraOf(store, from) };
   }
 
+  // Desejos da pessoa sem dono que estão na lista do roll (e na raridade, se vier uma).
+  const freeWishes = (store, accountId, list, rarity = null) => wishesOf(store, accountId).map(lookup)
+    .filter((c) => c && !store.claims[c.id] && list.includes(c) && (!rarity || rarityOf(c.eq) === rarity));
+
   // Rubi: com a chance da medalha (um random a mais, só para quem tem Rubi), o roll vira um desejo da pessoa
   // que esteja na lista que o roll sortearia e não tenha dono. Sem nenhum assim, volta null e o sorteio segue normal.
-  function wishedPick(store, accountId, list, perks) {
+  // Com a previsão da Vidência, só vale um desejo da raridade prevista, para a previsão se cumprir.
+  function wishedPick(store, accountId, list, perks, rarity = null) {
     if (!(perks.wishChance > 0) || random() >= perks.wishChance) return null;
-    const fits = wishesOf(store, accountId).map(lookup).filter((c) => c && !store.claims[c.id] && list.includes(c));
+    const fits = freeWishes(store, accountId, list, rarity);
     return fits.length ? pick(fits) : null;
+  }
+
+  // ---------- sorteio por raridade (Vidência, Amuleto, Chamar desejo, Escolha dupla) ----------
+  // As listas vêm ordenadas pela posição na escala, então cada raridade é um trecho seguido da lista.
+  // above: o primeiro da lista que passa da posição x (busca binária).
+  function above(list, x) {
+    let lo = 0;
+    let hi = list.length;
+    while (lo < hi) {
+      const mid = (lo + hi) >> 1;
+      if (list[mid].eq <= x) lo = mid + 1;
+      else hi = mid;
+    }
+    return lo;
+  }
+  // O trecho [início, fim) da lista com aquela raridade.
+  function rangeOf(list, rarity) {
+    const i = RARITIES.indexOf(rarity);
+    const start = i === RARITIES.length - 1 ? 0 : above(list, RARITY_TOP[RARITIES[i + 1]]);
+    return [start, above(list, RARITY_TOP[rarity])];
+  }
+  // Um personagem daquela raridade. Se a lista não tem nenhum, vale a raridade mais próxima que tiver
+  // (no empate, a mais rara).
+  function pickInRarity(list, rarity) {
+    const i = RARITIES.indexOf(rarity);
+    for (let d = 0; d < RARITIES.length; d++) {
+      for (const j of d ? [i + d, i - d] : [i]) {
+        if (j < 0 || j >= RARITIES.length) continue;
+        const [start, end] = rangeOf(list, RARITIES[j]);
+        if (end > start) return list[start + Math.floor(random() * (end - start))];
+      }
+    }
+    return pick(list);
+  }
+  // Sorteia a raridade pelo tanto de personagens de cada uma na lista. O Amuleto multiplica o peso
+  // do lendário e do épico (AMULETO). Vai do mais raro para o mais comum.
+  function drawRarity(list, amuleto = false) {
+    const weights = RARITIES.map((r) => { const [start, end] = rangeOf(list, r); return (end - start) * (amuleto ? AMULETO[r] || 1 : 1); });
+    let x = random() * weights.reduce((a, b) => a + b, 0);
+    let last = 'common';
+    for (let i = RARITIES.length - 1; i >= 0; i--) {
+      if (!weights[i]) continue;
+      if (x < weights[i]) return RARITIES[i];
+      x -= weights[i];
+      last = RARITIES[i];
+    }
+    return last;
+  }
+  const nameOf = (power) => POWERS.find((p) => p.key === power)?.name || power;
+
+  // Vidência: completa a previsão até 3 rolls, sorteada pela lista $m (com o Amuleto armado, ele pesa no 1º).
+  // A previsão guarda só a raridade; o personagem sai na hora do roll, dentro dela, em qualquer comando.
+  function foresee(store, accountId) {
+    const u = usageOf(store, accountId);
+    const future = (u.future ||= []);
+    while (future.length < PREVIEW) future.push(drawRarity(pools.m, !future.length && !!u.armed?.amuleto));
+    return { future: [...future], wish: !!u.armed?.desejo?.hit };
+  }
+
+  // Arma um poder para o próximo roll. O Chamar desejo sorteia os 40% agora, para a Vidência já mostrar o resultado;
+  // o Amuleto com uma previsão pendente sorteia de novo o 1º item dela, com os pesos dele.
+  function arm(store, accountId, effect) {
+    if (!ARMABLE.includes(effect)) throw new Error('Esse poder não muda o roll.');
+    const u = usageOf(store, accountId);
+    if (u.armed?.[effect]) throw new Error(`${nameOf(effect)} já está ativo para o próximo roll.`);
+    if (effect === 'desejo' && !wishesOf(store, accountId).length) throw new Error('Sua lista de desejos está vazia.');
+    u.armed = { ...u.armed, [effect]: effect === 'desejo' ? { hit: random() < DESEJO_CHANCE } : true };
+    if (effect === 'amuleto' && u.future?.length) u.future[0] = drawRarity(pools.m, true);
+    return { future: u.future?.length ? [...u.future] : null, wish: !!u.armed.desejo?.hit };
+  }
+
+  // O personagem do roll. Sem previsão e sem poder armado, é o sorteio de sempre (Rubi ou qualquer um da lista).
+  // Com efeito: o desejo chamado, se acertou e algum cabe na lista; senão a raridade prevista (ou sorteada,
+  // com o Amuleto se ele estiver armado) e um personagem dentro dela. Gasta os efeitos e um item da previsão.
+  // A Escolha dupla traz uma segunda carta, outra da mesma lista, sem efeito nenhum.
+  function drawFor(store, accountId, list, perks) {
+    const u = usageOf(store, accountId);
+    const armed = u.armed;
+    if (!u.future?.length && !armed) return { c: wishedPick(store, accountId, list, perks) || pick(list) };
+    const predicted = u.future?.shift() || null;
+    if (u.future && !u.future.length) delete u.future;
+    delete u.armed;
+    const called = armed?.desejo?.hit ? freeWishes(store, accountId, list) : [];
+    const c = (called.length ? pick(called) : null)
+      || wishedPick(store, accountId, list, perks, predicted)
+      || pickInRarity(list, predicted || drawRarity(list, !!armed?.amuleto));
+    return { c, second: armed?.dupla ? another(list, c) : null };
+  }
+  function another(list, c) {
+    if (list.length < 2) return null;
+    let d = c;
+    for (let tries = 0; tries < 5 && d === c; tries++) d = pickInRarity(list, drawRarity(list));
+    return d === c ? list[(list.indexOf(c) + 1) % list.length] : d;
   }
 
   // Sorteia um personagem. kind: w/h/m, com ou sem a letra da fonte ($wg = waifu de jogo).
   // Erro (sem rolls) volta como texto para mostrar só a quem pediu.
   // "decoys" são fotos aleatórias para a roleta girar antes de parar no resultado.
+  // "second" é a segunda carta da Escolha dupla.
   function roll(store, accountId, kind) {
     const u = usageOf(store, accountId);
     const perks = perksOf(store, accountId);
@@ -271,14 +377,15 @@ function createMudae({ catalog, now = Date.now, random = Math.random, refSize = 
     if (!left) return { error: `A roleta é limitada a ${window.max} rolls a cada 30 minutos. Os rolls voltam em **${minutes(rollResetIn())}**.` };
     // Sem ninguém daquele gênero, a fonte pedida vale mais que o gênero ($ha sem husbando: qualquer anime).
     const list = [kind, 'm' + (kind?.[1] || ''), kind?.[0], 'm'].map((k) => pools[k]).find((l) => l?.length);
-    const c = wishedPick(store, accountId, list, perks) || pick(list);
+    const { c, second } = drawFor(store, accountId, list, perks);
     const windowId = Math.floor(now() / ROLL_RESET_MS);
     if (u.rollWindow !== windowId) { u.rollWindow = windowId; u.rolls = 0; u.carry = window.carry; }
     u.rolls++;
     bump(store, accountId, 'rolls');
     const decoys = Array.from({ length: DECOYS }, () => thumbOf(pick(list)));
     const ownerId = store.claims[c.id]?.ownerId || null;
-    return { card: card(c), ownerId, rollsLeft: left - 1, decoys };
+    return { card: card(c), ownerId, rollsLeft: left - 1, decoys,
+      ...(second ? { second: { card: card(second), ownerId: store.claims[second.id]?.ownerId || null } } : {}) };
   }
 
   // Fotos para o navegador já deixar carregadas ao abrir o Salão: a roleta nunca gira vazia,
@@ -734,7 +841,7 @@ function createMudae({ catalog, now = Date.now, random = Math.random, refSize = 
   // Quantos personagens há em cada fonte na roleta (a tela mostra só os filtros que existem).
   const sources = Object.fromEntries([...bySource.keys()].map((s) => [s, pools['m' + s].length]).filter(([, n]) => n));
 
-  return { size: ativos.length, sources, parse, status, roll, warmup, claim, harem, album, summary, setFavorite, ranking, info, divorce, divorceId,
+  return { size: ativos.length, sources, parse, status, roll, foresee, arm, warmup, claim, harem, album, summary, setFavorite, ranking, info, divorce, divorceId,
     kakeraOf, addKakera, countCrystal: (store, accountId) => bump(store, accountId, 'crystals'), stats, daily, dailyKakera, buyRolls, giveKakera, wish, wishToggle, unwish, wishlist, wishersOf, give, firstMarry, topFilter, list,
     tradeOpen, tradeOffer, tradeConfirm, tradeCancel, tradeExpire, tradeOf, tradeView, otherSide, sweepTrades: sweep,
     card: (id) => (lookup(id) ? card(lookup(id)) : null) };
