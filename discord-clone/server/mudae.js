@@ -330,14 +330,18 @@ function createMudae({ catalog, now = Date.now, random = Math.random, refSize = 
   }
 
   // Arma um poder para o próximo roll. O Chamar desejo sorteia os 40% agora, para a Vidência já mostrar o resultado;
-  // o Amuleto com uma previsão pendente sorteia de novo o 1º item dela, com os pesos dele.
+  // o Amuleto com uma previsão pendente sorteia de novo o 1º item dela, com os pesos dele, e fica com o mais raro
+  // dos dois (o Amuleto só ajuda: um épico previsto nunca vira raro).
   function arm(store, accountId, effect) {
     if (!ARMABLE.includes(effect)) throw new Error('Esse poder não muda o roll.');
     const u = usageOf(store, accountId);
-    if (u.armed?.[effect]) throw new Error(`${nameOf(effect)} já está ativo para o próximo roll.`);
+    if (u.armed?.[effect]) throw new Error(`O poder ${nameOf(effect)} já está ativo para o próximo roll.`);
     if (effect === 'desejo' && !wishesOf(store, accountId).length) throw new Error('Sua lista de desejos está vazia.');
     u.armed = { ...u.armed, [effect]: effect === 'desejo' ? { hit: random() < DESEJO_CHANCE } : true };
-    if (effect === 'amuleto' && u.future?.length) u.future[0] = drawRarity(pools.m, true);
+    if (effect === 'amuleto' && u.future?.length) {
+      const again = drawRarity(pools.m, true);
+      if (RARITIES.indexOf(again) > RARITIES.indexOf(u.future[0])) u.future[0] = again;
+    }
     return { future: u.future?.length ? [...u.future] : null, wish: !!u.armed.desejo?.hit };
   }
 

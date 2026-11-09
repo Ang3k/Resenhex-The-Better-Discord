@@ -2380,6 +2380,8 @@ io.on('connection', (socket) => {
     mudaeAllowed(acc);
     if (!allow('mudae-claim:' + acc.id, 6, 5000)) fail('Calma! Cliques rápidos demais.');
     const d = msg.mudae;
+    // Escolha dupla: esta carta só fica livre quando quem rodou casa com a outra, e aí ela é dos outros.
+    if (d.pairFree && acc.id === msg.by) fail('Você já ficou com uma das cartas da Escolha dupla.');
     mudae.claim(mudaeStore(), acc.id, d.card.id, { revealAt: d.revealAt ?? msg.ts, rollerId: msg.by, priority: d.pairFree ? 0 : d.priorityUntil ? PRIORITY_MS : 0 });
     d.ownerId = acc.id;
     save(chunk.message(c.id, msg.id));
@@ -2390,7 +2392,8 @@ io.on('connection', (socket) => {
         const other = list[i];
         if (other === msg || other.mudae?.pair !== d.pair) continue;
         if (!other.mudae.ownerId && !other.mudae.pairFree) {
-          Object.assign(other.mudae, { priorityUntil: Date.now(), pairFree: true });
+          // Se ela ainda está girando, fica livre só quando abrir.
+          Object.assign(other.mudae, { priorityUntil: Math.max(Date.now(), other.mudae.revealAt ?? 0), pairFree: true });
           save(chunk.message(c.id, other.id));
           emitToChat(c, 'chat:update', { channel: c.id, msg: other });
         }

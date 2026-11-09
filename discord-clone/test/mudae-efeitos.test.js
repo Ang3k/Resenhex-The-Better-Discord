@@ -117,7 +117,7 @@ test('Amuleto depois da Vidência muda a previsão e devolve a nova', () => {
   state.next = [0.05]; // com o Amuleto, 0.05 é lendário
   assert.deepEqual(mudae.arm(store, 'a', 'amuleto'), { future: ['legendary', 'common', 'rare'], wish: false });
   assert.deepEqual(mudae.foresee(store, 'a').future, ['legendary', 'common', 'rare']);
-  assert.throws(() => mudae.arm(store, 'a', 'amuleto'), /^Error: Amuleto já está ativo para o próximo roll\.$/);
+  assert.throws(() => mudae.arm(store, 'a', 'amuleto'), /^Error: O poder Amuleto já está ativo para o próximo roll\.$/);
   assert.equal(rarityOfCard(mudae.roll(store, 'a', 'h')), 'legendary');
 
   // E na outra ordem: o Amuleto armado pesa no 1º item que a Vidência sortear.
@@ -125,6 +125,53 @@ test('Amuleto depois da Vidência muda a previsão e devolve a nova', () => {
   assert.deepEqual(other.mudae.arm(other.store, 'a', 'amuleto'), { future: null, wish: false });
   other.state.next = [0.05, 0.05, 0.05];
   assert.deepEqual(other.mudae.foresee(other.store, 'a').future, ['legendary', 'epic', 'epic']);
+});
+
+test('Amuleto depois da Vidência só melhora: fica com o mais raro dos dois', () => {
+  // Épico previsto: o sorteio novo do Amuleto nunca derruba para raro ou comum.
+  for (const [r, expected] of [[0.01, 'legendary'], [0.2, 'epic'], [0.5, 'epic'], [0.9, 'epic'], [0.999, 'epic']]) {
+    const { mudae, store, state } = setup();
+    state.next = [0.1, 0.9, 0.9];
+    assert.deepEqual(mudae.foresee(store, 'a').future, ['epic', 'common', 'common']);
+    state.next = [r];
+    assert.deepEqual(mudae.arm(store, 'a', 'amuleto').future, [expected, 'common', 'common'], `épico com ${r}`);
+  }
+  // Comum previsto: pode melhorar.
+  for (const [r, expected] of [[0.2, 'epic'], [0.5, 'rare'], [0.9, 'common']]) {
+    const { mudae, store, state } = setup();
+    state.next = [0.9, 0.9, 0.9];
+    assert.deepEqual(mudae.foresee(store, 'a').future, ['common', 'common', 'common']);
+    state.next = [r];
+    assert.deepEqual(mudae.arm(store, 'a', 'amuleto').future, [expected, 'common', 'common'], `comum com ${r}`);
+  }
+});
+
+test('Rubi com a Vidência: só vale um desejo da raridade prevista', () => {
+  // Rubi IV (2%). Desejos: o 1 (lendário) e o 9 (épico), as duas mulheres de anime.
+  const withRubi = () => {
+    const s = setup();
+    s.store.medals = { a: { rubi: { level: 4, finish: 'metal' } } };
+    s.store.wishes = { a: [1, 9] };
+    return s;
+  };
+  // Sem previsão, o Rubi pega qualquer desejo: o primeiro da fila é o lendário.
+  let s = withRubi();
+  s.state.next = [0.01, 0];
+  assert.equal(s.mudae.roll(s.store, 'a', 'w').card.id, 1);
+  // Com épico previsto, o lendário não serve: vem o 9.
+  s = withRubi();
+  s.state.next = [0.1, 0.9, 0.9];
+  assert.equal(s.mudae.foresee(s.store, 'a').future[0], 'epic');
+  s.state.next = [0.01, 0];
+  assert.equal(s.mudae.roll(s.store, 'a', 'w').card.id, 9);
+  // Com comum previsto, nenhum desejo serve: sai um comum, e a previsão se cumpre.
+  s = withRubi();
+  s.state.next = [0.9, 0.9, 0.9];
+  s.mudae.foresee(s.store, 'a');
+  s.state.next = [0.01, 0];
+  const got = s.mudae.roll(s.store, 'a', 'w').card;
+  assert.equal(got.rarity, 'common');
+  assert.ok(![1, 9].includes(got.id));
 });
 
 test('Chamar desejo: 40% de chance; sem desejo, recusa sem gastar', () => {
@@ -148,7 +195,7 @@ test('Chamar desejo: 40% de chance; sem desejo, recusa sem gastar', () => {
   assert.deepEqual(use(), { future: null, wish: true });
   assert.equal(readyIn(), POWER_RECHARGE_MS);
   assert.deepEqual(store.usage.a.armed, { desejo: { hit: true } });
-  assert.throws(() => mudae.arm(store, 'a', 'desejo'), /^Error: Chamar desejo já está ativo para o próximo roll\.$/);
+  assert.throws(() => mudae.arm(store, 'a', 'desejo'), /^Error: O poder Chamar desejo já está ativo para o próximo roll\.$/);
   state.next = [0.01]; // sem o desejo, 0.01 seria um lendário
   assert.equal(mudae.roll(store, 'a', 'm').card.id, 119);
   assert.equal(store.usage.a.armed, undefined);
@@ -189,7 +236,7 @@ test('Escolha dupla: duas cartas diferentes num roll só', () => {
   const { mudae, store, state } = setup();
   store.claims[2] = { ownerId: 'b', at: 1 };
   assert.deepEqual(mudae.arm(store, 'a', 'dupla'), { future: null, wish: false });
-  assert.throws(() => mudae.arm(store, 'a', 'dupla'), /^Error: Escolha dupla já está ativo para o próximo roll\.$/);
+  assert.throws(() => mudae.arm(store, 'a', 'dupla'), /^Error: O poder Escolha dupla já está ativo para o próximo roll\.$/);
   state.r = 0.5; // o mesmo random para tudo: a segunda carta não pode repetir a primeira
   const got = mudae.roll(store, 'a', 'w');
   assert.ok(got.second, 'veio a segunda carta');
@@ -284,7 +331,8 @@ test('Escolha dupla pelo socket: duas cartas, casar numa libera a outra', async 
   let server = await startServer(dir, clients);
   t.after(async () => { await server.stop(); fs.rmSync(dir, { recursive: true, force: true }); });
 
-  // Primeira rodada: só cria a conta da Ana. Com ela gravada, o servidor para e a Ana ganha a Escolha dupla e a Vidência no palco.
+  // Primeira rodada: só cria a conta da Ana. Com ela gravada, o servidor para e a Ana ganha a Escolha dupla e a Vidência
+  // no palco, a Esmeralda (um casamento de reserva) e uma Escolha dupla já armada de antes (o efeito sobrevive ao reinício).
   const first = await server.connect('Ana');
   const anaId = first.auth.accountId;
   const dbFile = path.join(dir, 'data.db');
@@ -293,20 +341,39 @@ test('Escolha dupla pelo socket: duas cartas, casar numa libera a outra', async 
   await server.stop();
   const root = saved();
   const community = Object.values(root.servers).find((x) => x.ownerId === anaId);
-  (community.mudae ||= { claims: {}, usage: {} }).powers = { [anaId]: { unlocked: ['videncia', 'dupla'], slots: ['dupla', 'videncia', null], readyAt: {} } };
+  const seed = (community.mudae ||= { claims: {}, usage: {} });
+  seed.powers = { [anaId]: { unlocked: ['videncia', 'dupla'], slots: ['dupla', 'videncia', null], readyAt: {} } };
+  seed.medals = { [anaId]: { esmeralda: { level: 1, finish: 'metal' } } };
+  seed.usage = { ...seed.usage, [anaId]: { armed: { dupla: true } } };
   writeRoot(dbFile, root);
 
   server = await startServer(dir, clients);
   const ana = await server.connect('Ana', 'login');
   const invite = await ana.call('server:invite');
   const beto = await server.connect('Beto');
-  assert.ok(!(await beto.call('server:join', { code: invite.code })).error);
+  const caio = await server.connect('Caio');
+  for (const s of [beto, caio]) assert.ok(!(await s.call('server:join', { code: invite.code })).error);
   const created = await ana.call('channel', { action: 'create', type: 'mudae', name: 'Salão Mudae' });
   assert.ok(!created.error, created.error);
-  await eventually(() => assert.ok(beto.last.channels.find((c) => c.id === created.id)));
-  assert.ok((await ana.call('mudae:presence', { channel: created.id })).ok);
-  assert.ok((await beto.call('mudae:presence', { channel: created.id })).ok);
+  await eventually(() => assert.ok(beto.last.channels.find((c) => c.id === created.id) && caio.last.channels.find((c) => c.id === created.id)));
+  for (const s of [ana, beto, caio]) assert.ok((await s.call('mudae:presence', { channel: created.id })).ok);
   const lines = (s) => s.messages.filter((m) => m.mudae?.kind === 'power');
+  const rollsOf = (s) => s.messages.filter((m) => m.mudae?.kind === 'roll');
+
+  // A dupla armada de antes: um $h (homens, para não cruzar com o $w de depois) abre duas cartas. Passados os 3 s da Ana,
+  // o Caio casa com uma, e a outra não muda: só quem rodou libera a outra carta.
+  assert.ok(!(await ana.call('chat:send', { channel: created.id, text: '$h' })).error);
+  const [p1, p2] = await eventually(() => { const r = rollsOf(beto); assert.equal(r.length, 2); return r; });
+  assert.equal(p1.mudae.pair, p2.mudae.pair);
+  await wait(Math.max(p1.mudae.priorityUntil, p2.mudae.priorityUntil) - Date.now() + 80);
+  assert.ok(!(await caio.call('mudae:claim', { channel: created.id, id: p1.id })).error);
+  await eventually(() => assert.ok(beto.updates.some((x) => x.id === p1.id)));
+  await wait(150);
+  assert.ok(!beto.updates.some((x) => x.id === p2.id), 'a outra carta não recebeu nada');
+  const untouched = (await beto.call('chat:history', { channel: created.id })).messages.find((m) => m.id === p2.id);
+  assert.equal(untouched.mudae.pairFree, undefined);
+  assert.equal(untouched.mudae.priorityUntil, p2.mudae.priorityUntil);
+  assert.equal(untouched.mudae.ownerId, null);
 
   // Vidência: só a Ana vê, sem aviso e sem linha.
   const seen = await ana.call('mudae:power:use', { channel: created.id, power: 'videncia' });
@@ -328,8 +395,9 @@ test('Escolha dupla pelo socket: duas cartas, casar numa libera a outra', async 
 
   // Um $w, duas cartas com o mesmo par, as duas com a prioridade da Ana.
   assert.ok(!(await ana.call('chat:send', { channel: created.id, text: '$w' })).error);
-  const rolls = await eventually(() => { const r = beto.messages.filter((m) => m.mudae?.kind === 'roll'); assert.equal(r.length, 2); return r; });
+  const rolls = await eventually(() => { const r = rollsOf(beto); assert.equal(r.length, 4); return r.slice(2); });
   const [a, b] = rolls;
+  assert.notEqual(a.mudae.pair, p1.mudae.pair);
   assert.ok(a.mudae.pair);
   assert.equal(a.mudae.pair, b.mudae.pair);
   assert.notEqual(a.mudae.card.id, b.mudae.card.id);
@@ -347,8 +415,13 @@ test('Escolha dupla pelo socket: duas cartas, casar numa libera a outra', async 
   const freed = await eventually(() => { const m = beto.updates.find((x) => x.id === b.id); assert.ok(m); return m; });
   assert.equal(freed.mudae.pairFree, true);
   assert.ok(freed.mudae.priorityUntil <= Date.now());
+  assert.ok(freed.mudae.priorityUntil >= b.mudae.revealAt, 'livre só depois de abrir');
   assert.ok(Date.now() < b.mudae.priorityUntil, 'ainda dentro dos 3 s da Ana');
+  // A Ana tem a reserva da Esmeralda, mas já ficou com uma carta do par: a outra é dos outros, e a reserva não é gasta.
+  assert.equal((await ana.call('mudae:status')).reserveReady, true);
+  assert.equal((await ana.call('mudae:claim', { channel: created.id, id: b.id })).error, 'Você já ficou com uma das cartas da Escolha dupla.');
+  assert.equal((await ana.call('mudae:status')).reserveReady, true);
   assert.ok(!(await beto.call('mudae:claim', { channel: created.id, id: b.id })).error);
-  const married = await eventually(() => { const m = ana.messages.filter((x) => x.mudae?.kind === 'married'); assert.equal(m.length, 2); return m; });
-  assert.equal(married[1].mudae.ownerId, beto.auth.accountId);
+  const married = await eventually(() => { const m = ana.messages.filter((x) => x.mudae?.kind === 'married'); assert.equal(m.length, 3); return m; });
+  assert.deepEqual(married.map((m) => m.mudae.ownerId), [caio.auth.accountId, anaId, beto.auth.accountId]);
 });
