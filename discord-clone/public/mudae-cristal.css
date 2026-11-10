@@ -1,0 +1,105 @@
+/* Cristal errante do Mudae: a camada por cima do Salão, o cristal, a chuva, os efeitos do clique e o botão
+   "💎 Pegar" do modo simplificado. A cor de cada cristal vem do servidor (--c); o resto usa o tema. */
+
+.mudae-crystal-layer { position: absolute; inset: 0; z-index: 6; overflow: hidden; pointer-events: none; }
+
+/* O alvo do clique é maior que o desenho: 60 px no cristal e 44 px na gota da chuva. */
+.mudae-crystal {
+  --c: var(--brand);
+  position: absolute; left: 0; top: 0; display: grid; place-items: center; width: 60px; height: 60px; padding: 0;
+  border: 0; border-radius: 50%; background: none; cursor: pointer; pointer-events: auto; will-change: transform, opacity;
+  touch-action: manipulation; -webkit-tap-highlight-color: transparent; user-select: none;
+}
+.mudae-crystal.drop { width: 44px; height: 44px; }
+.mudae-crystal:focus-visible { outline: 2px solid var(--c); outline-offset: 2px; }
+.mudae-crystal > span { grid-area: 1 / 1; }
+.mudae-crystal-glow {
+  width: 100%; height: 100%; border-radius: 50%; pointer-events: none; transform: scale(1.5);
+  background: radial-gradient(circle, color-mix(in srgb, var(--c) 62%, transparent) 0%, color-mix(in srgb, var(--c) 20%, transparent) 42%, transparent 68%);
+  animation: mudae-crystal-halo 1.6s ease-in-out infinite;
+}
+.mudae-crystal-body { display: block; width: 46px; height: 46px; transition: transform var(--motion-fast) var(--spring-snappy); }
+.mudae-crystal.drop .mudae-crystal-body { width: 28px; height: 28px; }
+html:not(.touch) .mudae-crystal:hover .mudae-crystal-body { transform: scale(1.14); }
+.mudae-crystal.pending .mudae-crystal-body { transform: scale(.86); }
+
+/* O desenho: corpo na cor do cristal, faces mais claras e mais escuras e um brilho que pisca. */
+.mudae-crystal-gem {
+  display: block; width: 100%; height: 100%; overflow: visible;
+  filter: drop-shadow(0 0 9px color-mix(in srgb, var(--c) 85%, transparent)) drop-shadow(0 2px 3px rgba(0, 0, 0, .4));
+  animation: mudae-crystal-pulse 1.1s ease-in-out infinite;
+}
+.mudae-crystal.drop .mudae-crystal-gem { animation-duration: .8s; filter: drop-shadow(0 0 6px color-mix(in srgb, var(--c) 85%, transparent)); }
+.mudae-crystal-gem .g-body { fill: var(--c); stroke: color-mix(in srgb, var(--c), black 32%); stroke-width: 1.5; stroke-linejoin: round; }
+.mudae-crystal-gem .g-light { fill: color-mix(in srgb, var(--c), white 55%); opacity: .55; }
+.mudae-crystal-gem .g-left { fill: color-mix(in srgb, var(--c), black 18%); opacity: .7; }
+.mudae-crystal-gem .g-right { fill: color-mix(in srgb, var(--c), black 40%); opacity: .75; }
+.mudae-crystal-gem .g-top { fill: color-mix(in srgb, var(--c), white 72%); opacity: .75; }
+.mudae-crystal-gem .g-shine { fill: color-mix(in srgb, var(--c), white 88%); transform-box: fill-box; transform-origin: center; animation: mudae-crystal-twinkle 1.8s ease-in-out infinite; }
+
+/* Corrente: o degrau embaixo do cristal. */
+.mudae-crystal-step {
+  align-self: end; justify-self: center; margin-bottom: -12px; padding: 1px 7px; border-radius: 999px; white-space: nowrap; pointer-events: none;
+  background: color-mix(in srgb, var(--c) 30%, var(--bg-floating)); color: var(--text-strong); font-size: 11px; font-weight: 800;
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--c) 65%, transparent);
+}
+
+/* ---------- efeitos (o JavaScript tira cada um da tela no fim) ---------- */
+.mudae-crystal-spark { position: absolute; width: 5px; height: 5px; margin: -2.5px 0 0 -2.5px; border-radius: 50%; background: var(--c); box-shadow: 0 0 6px var(--c); pointer-events: none; }
+.mudae-crystal-shard {
+  position: absolute; width: 10px; height: 10px; background: var(--c); pointer-events: none; transform: translate(-50%, -50%);
+  clip-path: polygon(50% 0, 100% 40%, 70% 100%, 0 70%); filter: drop-shadow(0 0 4px var(--c));
+}
+.mudae-crystal-ring { position: absolute; width: 56px; height: 56px; border: 3px solid var(--c); border-radius: 50%; pointer-events: none; opacity: 0; transform: translate(-50%, -50%); }
+.mudae-crystal-pop {
+  position: absolute; display: flex; flex-direction: column; align-items: center; pointer-events: none; white-space: nowrap; transform: translate(-50%, -110%);
+  color: color-mix(in srgb, var(--c), white 30%); text-shadow: 0 2px 8px rgba(0, 0, 0, .75), 0 0 16px color-mix(in srgb, var(--c) 55%, transparent);
+}
+.mudae-crystal-pop strong { font-size: 24px; font-weight: 800; line-height: 1.1; font-variant-numeric: tabular-nums; }
+.mudae-crystal-pop small { font-size: 12px; font-weight: 700; }
+
+/* Faixa da chuva e da corrente, no alto da área do Salão. */
+.mudae-crystal-banner {
+  position: absolute; z-index: 1; width: max-content; max-width: calc(100vw - 32px); pointer-events: none; transform: translateX(-50%);
+  animation: mudae-crystal-banner 2.6s var(--ease-enter) both;
+}
+.mudae-crystal-banner span {
+  display: block; padding: 7px 16px; border-radius: 999px; color: var(--text-strong); font-size: 14px; font-weight: 800; letter-spacing: .02em; text-align: center;
+  background: color-mix(in srgb, var(--c) 30%, var(--bg-floating));
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--c) 70%, transparent), 0 0 26px color-mix(in srgb, var(--c) 45%, transparent), var(--shadow-float);
+}
+
+/* O saldo do Salão pula quando um cristal paga. Fora do pulo o número é texto comum, para a faixa apertada
+   cortar o fim dele como sempre cortou (um bloco sumiria inteiro atrás das reticências). */
+.salon-status-pill.bump { animation: mudae-crystal-pill .7s var(--ease-enter); }
+.salon-status-pill.bump > span { overflow: visible; }
+.salon-status-pill.bump .salon-status-kakera { display: inline-block; animation: mudae-crystal-bump .45s var(--spring-pop); }
+
+/* Modo simplificado: o botão "💎 Pegar" na linha do bot. */
+.mudae-go.mudae-crystal-take { display: inline-flex; align-items: center; height: 36px; }
+html.touch .mudae-go.mudae-crystal-take { height: 44px; padding: 0 18px; }
+.mudae-go.mudae-crystal-take:disabled { cursor: default; opacity: .6; }
+.mudae-go.mudae-crystal-take:disabled:hover { background: var(--brand); }
+.mudae-go.mudae-crystal-take.done, .mudae-go.mudae-crystal-take.done:hover {
+  opacity: 1; background: color-mix(in srgb, var(--green) 18%, transparent); color: var(--green); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--green) 45%, transparent);
+}
+
+/* Animações reduzidas no sistema (a opção do app já para tudo no experience.css): o cristal fica parado, só com fade. */
+@media (prefers-reduced-motion: reduce) {
+  .mudae-crystal-glow, .mudae-crystal-gem, .mudae-crystal-gem .g-shine, .mudae-crystal-banner,
+  .salon-status-pill.bump, .salon-status-pill.bump .salon-status-kakera { animation: none !important; }
+  .mudae-crystal-body { transition: none; }
+}
+
+@keyframes mudae-crystal-pulse { 0%, 100% { transform: scale(1) rotate(-5deg); } 50% { transform: scale(1.12) rotate(5deg); } }
+@keyframes mudae-crystal-halo { 0%, 100% { transform: scale(1.35); opacity: .5; } 50% { transform: scale(1.7); opacity: .85; } }
+@keyframes mudae-crystal-twinkle { 0%, 100% { opacity: .15; transform: scale(.5); } 50% { opacity: 1; transform: scale(1.15); } }
+@keyframes mudae-crystal-banner {
+  0% { opacity: 0; transform: translate(-50%, -8px) scale(.85); }
+  12% { opacity: 1; transform: translate(-50%, 0) scale(1.04); }
+  20% { transform: translate(-50%, 0) scale(1); }
+  82% { opacity: 1; }
+  100% { opacity: 0; transform: translate(-50%, 0); }
+}
+@keyframes mudae-crystal-bump { 45% { transform: scale(1.3); color: var(--yellow); } }
+@keyframes mudae-crystal-pill { from { box-shadow: 0 0 0 0 color-mix(in srgb, var(--yellow) 55%, transparent); } to { box-shadow: 0 0 0 9px transparent; } }

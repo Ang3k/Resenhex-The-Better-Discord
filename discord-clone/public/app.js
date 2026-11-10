@@ -518,9 +518,39 @@
   }
   let simpleFallback = null;
   const salonMode = () => !(simpleFallback ?? mudaeSimple());
+  // Cristal errante (mudae-cristal.js): voa por cima do Salão; no modo simplificado vira uma linha com "💎 Pegar".
+  const mudaeCrystals = MudaeCrystals({ el, call, onSocket: (event, handler) => socket.on(event, handler), Sounds, ui: mudae, member,
+    reducedMotion: () => reducedMotion(), addLiveLine: (channel, data) => addLiveLine(channel, data) });
   const salon = MudaeSalon({ state, el, Icon, call, onSocket: (event, handler) => socket.on(event, handler), member, avatar, nameColor, toast,
     confirmDialog: (opts) => confirmDialog(opts), openProfile: (id, anchor) => openProfile(id, anchor), openImage: (url) => openLightbox({ url }),
-    openChannel: (id) => openTextChannel(id), closeProfile: () => closeProfile(), setSimple: (on) => setMudaeSimple(on), ui: mudae, Sounds, trade: mudaeTrade });
+    openChannel: (id) => openTextChannel(id), closeProfile: () => closeProfile(), setSimple: (on) => setMudaeSimple(on), ui: mudae, Sounds, trade: mudaeTrade,
+    crystals: mudaeCrystals });
+  // Linha ao vivo do Mudae (o cristal): entra no chat de quem está no Salão e não é gravada no servidor.
+  // A linha do fim troca a do cristal (mesmo id); um chat:history novo do canal apaga as duas.
+  function addLiveLine(channel, data) {
+    const list = state.messages[channel];
+    if (!list) return;
+    const msg = { id: 'live-' + data.crystal.id, authorId: null, bot: 'mudae', ts: Date.now(), live: true, mudae: data };
+    const i = list.findIndex((m) => m.id === msg.id);
+    if (i >= 0) list[i] = { ...msg, ts: list[i].ts };
+    else list.push(msg);
+    if (channel === state.textChannel) renderMessages();
+  }
+  // No modo simplificado, quem está com o canal do Salão aberto também está "no Salão" (o cristal chega para ela).
+  // Sair vem antes de entrar: o servidor recebe na ordem e não pode tirar a pessoa do Salão que ela acabou de abrir.
+  let simpleSalon = null;
+  function leaveSimpleSalon(next) {
+    if (!simpleSalon || simpleSalon === next) return;
+    simpleSalon = null;
+    mudaeCrystals.detach();
+    call('mudae:presence', { channel: null });
+  }
+  function joinSimpleSalon(id) {
+    if (!id || simpleSalon === id) return;
+    simpleSalon = id;
+    mudaeCrystals.attach(null, id);
+    call('mudae:presence', { channel: id, simple: true });
+  }
 
   function mentionsMe(msg) {
     const m = msg.mentions;
@@ -678,6 +708,8 @@
         $('#messages').dataset.channel = '';
         setConnBanner(null, true); // "Conectado de novo" no lugar do aviso de queda (antes: um aviso embaixo)
         resumeCall();
+        // A sessão nova não sabe que a pessoa está no Salão simplificado (o cristal só chega para quem está).
+        if (simpleSalon) call('mudae:presence', { channel: simpleSalon, simple: true });
       }
       call('chat:unread').then((r) => {
         if (!r) return;
@@ -1642,6 +1674,7 @@
       $('#btn-salon').classList.add('hidden');
       $('#main').classList.remove('salon-mode');
       $('#salon-view').classList.add('hidden');
+      leaveSimpleSalon(null);
       salon.sync(null);
     }
     if (friendsPage) {
@@ -1658,10 +1691,13 @@
     }
     const c = channelById(state.textChannel);
     const salonChannel = !inVoiceView && !friendsPage && c?.mudae && salonMode() ? c : null;
+    const simpleChannel = !inVoiceView && !friendsPage && c?.mudae && !salonChannel ? c : null;
     $('#btn-salon').classList.toggle('hidden', !c?.mudae || !!salonChannel || inVoiceView || friendsPage);
     $('#main').classList.toggle('salon-mode', !!salonChannel);
     $('#salon-view').classList.toggle('hidden', !salonChannel);
+    leaveSimpleSalon(simpleChannel?.id || null);
     salon.sync(salonChannel);
+    joinSimpleSalon(simpleChannel?.id || null);
     if (!c) return $('#header-title').replaceChildren();
     if (inVoiceView) { /* o cabeçalho continua sendo o da chamada */ }
     else if (c.type === 'dm') {
@@ -1877,7 +1913,8 @@
         canWrite() ? el('button', { class: 'reaction add', tip: 'Adicionar reação', ariaLabel: 'Adicionar reação', onclick: (e) => openEmojiPicker(e.currentTarget, (em) => react(msg.id, em)) }, Icon('smilePlus', 16)) : null));
     }
     row.append(body);
-    if (msg.ephemeral) return row;
+    // Só para quem pediu ou só ao vivo (o cristal): não existe no servidor, então não dá para responder, reagir ou apagar.
+    if (msg.ephemeral || msg.live) return row;
 
     const actions = el('div', { class: 'msg-actions' });
     const action = (label, icon, onclick, cls = '') => el('button', { class: cls, tip: label, ariaLabel: label, onclick }, Icon(icon, 20));

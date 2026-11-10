@@ -29,6 +29,8 @@ window.Sounds = (() => {
     mudaeEpic: [[523, 0, 0.09], [659, 0.07, 0.09], [784, 0.14, 0.09], [1047, 0.21, 0.3]],
     mudaeLegendary: [[523, 0, 0.11], [659, 0.1, 0.11], [784, 0.2, 0.11], [1047, 0.3, 0.16], [784, 0.47, 0.09], [1047, 0.56, 0.55], [1319, 0.56, 0.55], [1568, 0.7, 0.45]],
     mudaeClaim: [[880, 0, 0.08], [1175, 0.08, 0.08], [1760, 0.16, 0.26]],
+    // Cristal errante: um brilho curto e agudo quando ele aparece no Salão.
+    mudaeCrystal: [[1319, 0, 0.06], [1976, 0.055, 0.06], [2637, 0.11, 0.2]],
     // Gacha 3D: o botão da máquina, a cápsula quicando, balançando, travando (lendário) e abrindo.
     gachaClack: [[196, 0, 0.035], [147, 0.12, 0.035], [196, 0.24, 0.035], [147, 0.36, 0.035]],
     gachaBounce: [[262, 0, 0.06]],

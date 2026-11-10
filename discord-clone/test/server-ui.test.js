@@ -87,7 +87,7 @@ async function ui(t, invited = false, options = {}) {
   let copied = '';
   Object.defineProperty(w.navigator, 'clipboard', { value: { writeText: async (text) => { copied = text; } } });
   options.setup?.(w);
-  for (const file of ['compat.js', 'motion.js', 'icons.js', 'format.js', 'sounds.js', 'media-policy.js', 'keybinds.js', 'settings.js', 'site-calls.js', 'site-health.js', 'photo-editor.js', 'media-session.js', 'media-sfu.js', 'stream-preview.js', 'mobile-stream.js', 'android-screen.js', 'stream-zoom.js', 'changelog.js', 'confetti.js', 'channel-navigation.js', 'music.js', 'mudae.js', 'mudae-troca.js', 'mudae-salao.js', 'dm-call.js', 'state-patch.js', 'voice-message.js', 'poll.js', 'gif-picker.js', 'emoji-picker.js', 'lightbox.js', 'voice-fx.js', 'feedback.js', 'clip-model.js', 'clip-buffer.js', 'clip-screen.js', 'clip-render.js', 'clip-ui.js', 'sound-trimmer.js', 'app.js', 'landing.js']) w.eval(fs.readFileSync(path.join(publicDir, file), 'utf8'));
+  for (const file of ['compat.js', 'motion.js', 'icons.js', 'format.js', 'sounds.js', 'media-policy.js', 'keybinds.js', 'settings.js', 'site-calls.js', 'site-health.js', 'photo-editor.js', 'media-session.js', 'media-sfu.js', 'stream-preview.js', 'mobile-stream.js', 'android-screen.js', 'stream-zoom.js', 'changelog.js', 'confetti.js', 'channel-navigation.js', 'music.js', 'mudae.js', 'mudae-troca.js', 'mudae-cristal.js', 'mudae-salao.js', 'dm-call.js', 'state-patch.js', 'voice-message.js', 'poll.js', 'gif-picker.js', 'emoji-picker.js', 'lightbox.js', 'voice-fx.js', 'feedback.js', 'clip-model.js', 'clip-buffer.js', 'clip-screen.js', 'clip-render.js', 'clip-ui.js', 'sound-trimmer.js', 'app.js', 'landing.js']) w.eval(fs.readFileSync(path.join(publicDir, file), 'utf8'));
   w.localStorage.setItem('seenVersion', w.APP_VERSION);
   t.after(() => { dom.window.close(); assert.deepEqual(errors.map((e) => e.message), []); });
   await settle();
@@ -1395,7 +1395,8 @@ test('Mudae no modo simplificado: o Salão vira chat com cards completos que esp
   [...app.d.querySelectorAll('.channel-entry')].find((b) => b.textContent.includes('salão-mudae')).click(); await settle();
   assert.equal(app.d.querySelector('#salon-view').classList.contains('hidden'), true, 'sem a tela do Salão');
   assert.equal(app.d.querySelector('#btn-salon').classList.contains('hidden'), false, 'com o botão para voltar ao Salão');
-  assert.equal(app.events.some((e) => e.event === 'mudae:presence'), false);
+  // Continua contando como estar no Salão: é assim que o cristal chega no modo simplificado.
+  assert.deepEqual(JSON.parse(JSON.stringify(app.events.filter((e) => e.event === 'mudae:presence').map((e) => e.payload))), [{ channel: 'server-1-salon', simple: true }]);
 
   const now = Date.now();
   const card = { id: 'g1', name: 'Geralt of Rivia', series: 'The Witcher', image: 'https://images.igdb.com/x.jpg', value: 900, rank: 4, rarity: 'legendary', source: 'g' };

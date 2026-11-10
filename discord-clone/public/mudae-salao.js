@@ -3,7 +3,7 @@
    harem, o ranking de personagens (Personagens) e o dos haréns (Ranking). À direita, o chat do canal e quem está no Salão. O servidor sorteia e decide
    quem casa; aqui o navegador só faz o giro (até o revealAt que veio do servidor) e desenha. */
 window.MudaeSalon = function ({ state, el, Icon, call, onSocket, member, avatar, nameColor, toast, confirmDialog, openProfile, openImage, openChannel, closeProfile, setSimple, ui, Sounds,
-  trade = { start() {}, notice() {} } }) {
+  trade = { start() {}, notice() {} }, crystals = null }) {
   const $ = (sel) => document.querySelector(sel);
   const root = $('#salon-view');
   const LIVE = 12;
@@ -178,6 +178,8 @@ window.MudaeSalon = function ({ state, el, Icon, call, onSocket, member, avatar,
     const simple = el('button', { type: 'button', class: 'salon-simple', title: 'Ver este canal como chat, com os cards no chat (o Mudae original). Dá para voltar pelo botão "Abrir o Salão".',
       onclick: () => setSimple(true) }, Icon('message', 16), el('span', { textContent: 'Modo simplificado' }));
     root.replaceChildren(el('div', { class: 'salon-top' }, nodes.tabs, el('div', { class: 'salon-top-right' }, nodes.status, simple)), nodes.body, nodes.sideToggle);
+    // O cristal errante voa por cima da área das abas, em qualquer aba.
+    crystals?.attach(root, channel.id, { area: () => nodes.body, origin: crystalOrigin, onKakera: showKakera });
     mountSide();
     renderTabs();
     renderBody();
@@ -197,6 +199,7 @@ window.MudaeSalon = function ({ state, el, Icon, call, onSocket, member, avatar,
   function unmount() {
     if (!S.channel) return;
     stopSpin();
+    crystals?.detach();
     call('mudae:presence', { channel: null });
     S.channel = null;
     clearInterval(ticker);
@@ -302,12 +305,39 @@ window.MudaeSalon = function ({ state, el, Icon, call, onSocket, member, avatar,
     const gem = s.kakera !== undefined ? ` · 💎 ${num(s.kakera)}` : '';
     const text = `${rolls} · ${claim}${gem}`;
     // Versão curta para quando a faixa de cima aperta (o CSS escolhe qual aparece).
-    const short = `🎲 ${s.rollsLeft ? `${s.rollsLeft}/${s.rollsMax}` : minutes(s.rollResetIn - passed)} · 💍${s.claimReady ? '' : ' ' + minutes(s.claimResetIn - passed)}${gem}`;
+    const short = `🎲 ${s.rollsLeft ? `${s.rollsLeft}/${s.rollsMax}` : minutes(s.rollResetIn - passed)} · 💍${s.claimReady ? '' : ' ' + minutes(s.claimResetIn - passed)}`;
+    // O saldo fica num pedaço à parte, para pular quando um cristal paga.
+    const kak = () => (s.kakera !== undefined ? [' · 💎 ', el('span', { class: 'salon-status-kakera', textContent: num(s.kakera) })] : []);
     if (nodes.status.title !== text) {
       nodes.status.title = text;
       nodes.status.replaceChildren(el('span', { class: 'salon-status-pill' + (s.rollsLeft ? '' : ' empty') },
-        el('span', { class: 'salon-status-full', textContent: text }), el('span', { class: 'salon-status-short', ariaHidden: 'true', textContent: short })));
+        el('span', { class: 'salon-status-full' }, `${rolls} · ${claim}`, ...kak()), el('span', { class: 'salon-status-short', ariaHidden: 'true' }, short, ...kak())));
     }
+  }
+
+  // Um cristal pagou: o saldo da faixa de cima muda e pula.
+  let bumpTimer = 0;
+  function showKakera(kakera) {
+    if (!S.status || kakera === undefined) return;
+    S.status = { ...S.status, kakera };
+    updateStatus();
+    const pill = nodes.status?.querySelector('.salon-status-pill');
+    if (!pill) return;
+    pill.classList.remove('bump');
+    void pill.offsetWidth;
+    pill.classList.add('bump');
+    // Pelo relógio (e não pelo fim da animação): o número acaba antes da faixa, e com "Reduzir animações" não há animação.
+    clearTimeout(bumpTimer);
+    bumpTimer = setTimeout(() => pill.classList.remove('bump'), 700);
+  }
+
+  // De onde sai o cristal que nasce de um roll: a carta no palco ou, se ela não está lá, a da Mesa ao vivo.
+  function crystalOrigin(id) {
+    if (S.tab !== 'mesa') return null;
+    // O cristal nasce na hora em que a roleta para. Se o giro ainda não abriu a carta, abre agora, para ele sair da carta e não da roleta.
+    if (S.spinning === id) activeSpin?.done?.();
+    if (S.stage === id && nodes.cardSlot?.isConnected) return nodes.cardSlot.querySelector('.salon-card.big');
+    return [...(nodes.live?.querySelectorAll('.salon-card.live') || [])].find((node) => node.dataset.id === id) || null;
   }
 
   // ---------- Mesa ----------
@@ -585,6 +615,7 @@ window.MudaeSalon = function ({ state, el, Icon, call, onSocket, member, avatar,
       renderRollBar();
       reveal(m, !document.hidden);
     };
+    run.done = done;
     // A rede nunca prolonga o giro nem consome a janela de prioridade do servidor.
     later(done, duration);
     await Promise.race([
