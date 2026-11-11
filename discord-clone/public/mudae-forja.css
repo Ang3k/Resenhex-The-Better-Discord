@@ -16,7 +16,14 @@
 }
 .forja-kakera .mudae-kakera { color: var(--rarity-epic); }
 
-.forja-main { display: grid; grid-template-columns: minmax(0, 1.3fr) minmax(320px, 1fr); gap: 18px; align-items: start; }
+/* Parede e poderes à esquerda, o painel à direita ocupando as duas linhas e acompanhando a rolagem. */
+.forja-main {
+  display: grid; grid-template-columns: minmax(0, 1.3fr) minmax(320px, 1fr); grid-template-rows: auto 1fr;
+  grid-template-areas: "wall panel" "powers panel"; gap: 18px; align-items: start;
+}
+.forja-main > .forja-wall { grid-area: wall; }
+.forja-main > .forja-panel { grid-area: panel; position: sticky; top: 12px; }
+.forja-main > .forja-powers { grid-area: powers; }
 
 /* ---------- a parede ---------- */
 .forja-wall {
@@ -311,6 +318,11 @@ html:not(.touch) .forja-choose:not(:disabled):hover { filter: brightness(1.12); 
   background: var(--bg-panel); color: var(--text-strong); font-size: 14px; box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--brand) 40%, transparent);
 }
 .forja-stage-slot strong { overflow: hidden; text-overflow: ellipsis; }
+/* Na coluna estreita ao lado do painel, o estado ("pronto", "volta em…") desce para baixo do nome. */
+.forja-stage-slot:not(.empty) { display: grid; grid-template-columns: auto auto minmax(0, 1fr); align-items: center; column-gap: 6px; padding-block: 5px; }
+.forja-stage-slot:not(.empty) > :not(strong, .forja-muted) { grid-row: span 2; }
+.forja-stage-slot:not(.empty) > :is(strong, .forja-muted) { grid-column: 3; overflow: hidden; text-overflow: ellipsis; line-height: 1.25; }
+.forja-stage-slot:not(.empty) > .forja-muted { font-size: 12px; }
 .forja-stage-slot.empty { background: transparent; box-shadow: inset 0 0 0 1.5px var(--divider); border: 0; }
 .forja-stage-n { display: inline-grid; place-items: center; flex-shrink: 0; width: 20px; height: 20px; border-radius: 50%; background: var(--bg-input); color: var(--text-muted); font-size: 11px; font-weight: 800; }
 .forja-power-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 8px; margin: 0; padding: 0; list-style: none; }
@@ -361,7 +373,8 @@ html:not(.touch) .forja-slot-pick:hover { background: var(--brand); color: #fff;
 
 /* ---------- larguras (pela largura da aba, que muda com o chat aberto ao lado) ---------- */
 @container forja (max-width: 1000px) {
-  .forja-main { grid-template-columns: minmax(0, 1fr); }
+  .forja-main { grid-template-columns: minmax(0, 1fr); grid-template-rows: none; grid-template-areas: "wall" "panel" "powers"; }
+  .forja-main > .forja-panel { position: static; }
   .forja-wall { --cols: 7; }
   .forja-slot > svg.forja-medal { max-width: 92px; }
   .forja-panel { display: grid; grid-template-columns: minmax(240px, 1fr) minmax(0, 1.25fr); }

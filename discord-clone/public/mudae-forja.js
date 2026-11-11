@@ -115,8 +115,8 @@ window.MudaeForge = function ({ el, call, onSocket, ui, Sounds, reducedMotion = 
         el('div', {}, el('h2', { class: 'forja-title', textContent: 'Forja' }),
           el('p', { class: 'forja-sub', textContent: 'Forje medalhas com kakera. Cada nível dá uma vantagem e sorteia um acabamento.' })),
         el('div', { class: 'forja-kakera', title: 'Seu kakera' }, kakera(), el('strong', { class: 'forja-kakera-value', textContent: num(view.kakera) }))),
-      el('div', { class: 'forja-main' }, wall(), panel()),
-      powersSection());
+      // Os poderes ficam embaixo da parede, na mesma coluna: assim não sobra vão ao lado do painel (que cresce na escolha do acabamento).
+      el('div', { class: 'forja-main' }, wall(), panel(), powersSection()));
   }
 
   function wall() {
