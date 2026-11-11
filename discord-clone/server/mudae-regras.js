@@ -36,8 +36,8 @@ const FINISHES = [
 ];
 const REFORGE_PRICE = 500; // kakera para sortear o acabamento de novo
 
-// Divórcio devolve o valor da carta, mas no máximo 500 de kakera a cada 24 h.
-const DIVORCE_CAP = 500;
+// Divórcio devolve o valor da carta, mas no máximo 200 de kakera a cada 24 h (era 500; baixado em 11/11, ver o plano).
+const DIVORCE_CAP = 200;
 const DIVORCE_CAP_MS = 24 * HOUR;
 // O "dia" do jogo vira à meia-noite de Brasília (UTC-3).
 const DAY_MS = 24 * HOUR;

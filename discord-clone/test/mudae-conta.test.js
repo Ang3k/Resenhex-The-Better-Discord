@@ -58,7 +58,7 @@ test('roll soma rolls', () => {
   assert.equal(mudae.stats(store, 'a').rolls, 2);
 });
 
-test('divórcio devolve até 500 de kakera por dia', () => {
+test('divórcio devolve até 200 de kakera por dia', () => {
   const { mudae, store, marry, advance } = setup();
   for (const id of [1, 2, 3, 4]) marry('a', id);
   assert.ok(mudae.card(1).value > DIVORCE_CAP, 'o teste precisa de cartas que passam do teto');
@@ -76,8 +76,8 @@ test('divórcio devolve até 500 de kakera por dia', () => {
 test('divórcio com parte da cota usada devolve só o que falta', () => {
   const { mudae, store, marry, now } = setup();
   marry('a', 1);
-  store.usage.a.refunds = [[now(), 300]];
+  store.usage.a.refunds = [[now(), DIVORCE_CAP - 50]];
   const d = mudae.divorceId(store, 'a', 1);
-  assert.equal(d.refund, 200);
+  assert.equal(d.refund, 50);
   assert.equal(d.capped, true);
 });

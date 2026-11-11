@@ -2247,7 +2247,7 @@ io.on('connection', (socket) => {
       if (!arg) return error('Diga o nome do personagem: **$divorce Gojo**');
       const card = mudae.divorce(store, acc.id, arg);
       if (!card) return error(`Você não tem ninguém chamado **${short(arg)}** no seu harem.`);
-      postMudae(c, acc, command, { kind: 'divorce', card, ownerId: acc.id, refund: card.refund, capped: card.capped, refundIn: card.refundIn });
+      postMudae(c, acc, command, { kind: 'divorce', card, ownerId: acc.id, refund: card.refund, capped: card.capped, refundIn: card.refundIn, cap: card.cap });
     } else if (cmd === 'tu') {
       const powers = powersView(acc);
       return only({ kind: 'status', ...mudae.status(store, acc.id), powersReady: powers.slots.filter((key) => key && !powers.readyIn[key]) });
@@ -2488,7 +2488,7 @@ io.on('connection', (socket) => {
     mudaeAllowed(acc);
     const c = salonOf(acc, channel);
     const card = mudae.divorceId(mudaeStore(), acc.id, charKey(charId));
-    postMudae(c, acc, null, { kind: 'divorce', card, ownerId: acc.id, refund: card.refund, capped: card.capped, refundIn: card.refundIn });
+    postMudae(c, acc, null, { kind: 'divorce', card, ownerId: acc.id, refund: card.refund, capped: card.capped, refundIn: card.refundIn, cap: card.cap });
   });
 
   // Forja: medalhas que dão vantagens. O nível IV vira uma linha no Salão aberto e um aviso ao vivo para todos os Salões.

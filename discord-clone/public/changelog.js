@@ -30,7 +30,7 @@ window.CHANGELOG = [
         'Tudo também tem comando, com botões na resposta do bot: $forja, $forjar bronze, $poderes e $poder cadeado.',
       ] },
       { kind: 'improved', items: [
-        'O divórcio agora tem teto: ele continua devolvendo o valor do personagem em kakera, mas no máximo 500 a cada 24 horas. Passando disso, dá para divorciar normalmente, só não volta kakera, e a mensagem do bot avisa quando volta. O motivo: com medalhas para comprar, casar e divorciar sem parar virava uma fábrica de kakera, e quem tem um harém grande compraria a Forja inteira no primeiro dia. O kakera que você já tem continua valendo.',
+        'O divórcio agora tem teto: ele continua devolvendo o valor do personagem em kakera, mas no máximo 200 a cada 24 horas. Passando disso, dá para divorciar normalmente, só não volta kakera, e a mensagem do bot avisa quando volta. O motivo: com medalhas para comprar, casar e divorciar sem parar virava uma fábrica de kakera, e quem tem um harém grande compraria a Forja inteira no primeiro dia. O kakera que você já tem continua valendo.',
         'Os cristais rendem o valor inteiro nos 15 primeiros que você pega no dia (o dia vira à meia-noite de Brasília). Depois disso eles continuam aparecendo e dando para quebrar, mas rendem 10%. Uma chuva conta como um cristal só. Assim, quem deixa o Salão aberto o dia todo não passa muito na frente de quem joga um pouco.',
       ] },
     ],

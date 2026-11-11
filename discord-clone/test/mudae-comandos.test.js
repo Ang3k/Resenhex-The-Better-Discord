@@ -4,6 +4,7 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const { createMudae, parse, isRoll, ROLL_RESET_MS, CLAIM_RESET_MS, CLAIM_WINDOW_MS, PRIORITY_MS, DAILY_MS, DK_AMOUNT, ROLLS_PRICE, ROLLS_BUYS,
   WISH_LIMIT, TRADE_TTL, TRADE_MAX, LIST_PAGE, TOP_LIMIT } = require('../server/mudae');
+const { DIVORCE_CAP } = require('../server/mudae-regras');
 
 const CATALOG = [
   [1, 'Satoru Gojou', 'Jujutsu Kaisen', 'b1-a.png', 'M', 900],
@@ -97,10 +98,10 @@ test('divórcio devolve o valor da carta em kakera', () => {
   marry('a', 1);
   const first = mudae.divorce(store, 'a', 'zero');
   assert.equal(first.value, mudae.card(3).value);
-  assert.equal(first.refund, Math.min(mudae.card(3).value, 500));
+  assert.equal(first.refund, Math.min(mudae.card(3).value, DIVORCE_CAP));
   assert.equal(mudae.kakeraOf(store, 'a'), first.refund);
   const second = mudae.divorceId(store, 'a', 1);
-  assert.equal(second.refund, Math.min(mudae.card(1).value, 500 - first.refund));
+  assert.equal(second.refund, Math.min(mudae.card(1).value, DIVORCE_CAP - first.refund));
   assert.equal(mudae.kakeraOf(store, 'a'), first.refund + second.refund);
 });
 

@@ -25,7 +25,7 @@ test('regras batem com a spec', () => {
   assert.deepEqual(R.FINISHES.map((f) => f.weight), [60, 28, 10, 2]);
   assert.deepEqual(R.FINISHES.map((f) => f.rarity), ['common', 'rare', 'epic', 'legendary']);
   assert.equal(R.REFORGE_PRICE, 500);
-  assert.equal(R.DIVORCE_CAP, 500);
+  assert.equal(R.DIVORCE_CAP, 200);
   assert.equal(R.DIVORCE_CAP_MS, 24 * HOUR);
   assert.equal(R.DAY_MS, 24 * HOUR);
   assert.equal(R.DAY_OFFSET_MS, 3 * HOUR);

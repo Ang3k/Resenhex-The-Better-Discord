@@ -40,7 +40,7 @@ function refundOf(store, accountId, value, t) {
   // Quando o reembolso mais antigo sair da janela de 24 h, abre espaço de novo.
   const capped = refund < value;
   const refundIn = capped && recent.length ? Math.max(1, recent[0][0] + DIVORCE_CAP_MS - t) : 0;
-  return { refund, capped, refundIn };
+  return { refund, capped, refundIn, cap: DIVORCE_CAP };
 }
 
 module.exports = { kakeraOf, addKakera, dayOf, statsOf, bumpStat, refundOf };
