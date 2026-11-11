@@ -27,6 +27,8 @@ window.MudaeForge = function ({ el, call, onSocket, ui, Sounds, reducedMotion = 
   const ANVIL = ['#101216', '#22262c', '#383e47', '#59616c', '#9aa3ae', '#e2e8ef'];
   const FIRE = ['#fff6d6', '#ffd36b', '#ff9a2e', '#e2531a', '#8a1f0a', '#2a0904'];
   const COAL = ['#0d0806', '#1e110b'];
+  // A madeira do toco e do cabo da marreta (da casca escura ao topo cortado).
+  const WOOD = ['#1f1109', '#3a2112', '#5a3519', '#7a4b26', '#9a6538'];
 
 
   // O holográfico segue o ponteiro, como nas cartas do Salão; no celular ele anda sozinho (CSS).
@@ -242,77 +244,238 @@ window.MudaeForge = function ({ el, call, onSocket, ui, Sounds, reducedMotion = 
     draw();
   }
 
-  // ---------- a cena: fornalha, bigorna e a medalha por cima ----------
-  // Peças de cenário em SVG leve (só degradês, sem filtros). Pedra e chão usam o tema (CSS); aqui só metal e fogo.
+  // ---------- a cena: parede, fornalha, bigorna e a medalha por cima ----------
+  // Peças de cenário em SVG leve (só degradês, sem filtros). Tijolo, pedra e chão usam o tema (CSS); aqui só metal, madeira e fogo.
   const rad = (deg) => deg * Math.PI / 180;
 
-  // A boca da fornalha: um arco de pedras baixo, com o fundo em brasa e carvões no chão.
-  function furnaceSvg() {
-    const id = 'ff' + (++seq) + '-';
+  // Um pedaço irregular (carvão), sempre o mesmo para o mesmo i.
+  const lump = (x, y, r, i) => rounded(Array.from({ length: 7 }, (_, k) => {
+    const a = (k / 7) * Math.PI * 2 + i, rr = r * (0.74 + ((i * 3 + k * 5) % 5) * 0.08);
+    return [x + rr * Math.cos(a), y + rr * 0.66 * Math.sin(a)];
+  }), Math.max(1.2, r * 0.35));
+
+  // A parede do fundo: tijolos do tema, escurecendo para os cantos de cima; o fogo acende a parte de baixo.
+  function wallSvg() {
+    const id = 'fw' + (++seq) + '-';
     const defs = s('defs');
-    const cx = 180, cy = 150, outer = [150, 124], inner = [116, 90];
-    const at = ([rx, ry], deg) => [cx + rx * Math.cos(rad(deg)), cy - ry * Math.sin(rad(deg))];
-    const arc = ([rx, ry], sweep) => `A${rx} ${ry} 0 0 ${sweep} `;
-    const mouth = `M${cx - inner[0]} ${cy}${arc(inner, 1)}${cx + inner[0]} ${cy}Z`;
-    const band = `M${cx - outer[0]} ${cy}${arc(outer, 1)}${cx + outer[0]} ${cy}L${cx + inner[0]} ${cy}${arc(inner, 0)}${cx - inner[0]} ${cy}Z`;
-    defs.append(s('clipPath', { id: id + 'm' }, s('path', { d: mouth })));
-    const deep = grad(defs, id + 'd', [[0, FIRE[1]], [0.28, FIRE[2]], [0.55, FIRE[3]], [0.8, FIRE[4]], [1, FIRE[5]]], { cx: 0.5, cy: 1, r: 1 }, 'radialGradient');
-    const heat = grad(defs, id + 'h', [[0, FIRE[0], 0.95], [0.4, FIRE[1], 0.55], [1, FIRE[2], 0]], {}, 'radialGradient');
-    const ember = grad(defs, id + 'e', [[0, FIRE[1]], [0.3, FIRE[3]], [0.75, FIRE[4]], [1, COAL[1]]], { x1: 0, y1: 0, x2: 0, y2: 1 });
-    const shade = grad(defs, id + 's', [[0.72, '#000', 0], [1, '#000', 0.55]], { cx: 0.5, cy: 1, r: 0.5 }, 'radialGradient');
-    const warm = grad(defs, id + 'w', [[0.7, FIRE[2], 0.6], [0.86, FIRE[3], 0]], { cx: 0.5, cy: 1, r: 0.5 }, 'radialGradient');
-    // Carvões: duas fileiras de pedaços irregulares (sempre os mesmos).
-    let coals = '';
-    for (let i = 0; i < 17; i++) {
-      const back = i % 2 === 0;
-      const x = 66 + i * 14 + (back ? 0 : 3), y = back ? 141 : 150, r = (back ? 8 : 11) + ((i * 7) % 4);
-      coals += rounded(Array.from({ length: 7 }, (_, k) => { const a = (k / 7) * Math.PI * 2 + i, rr = r * (0.78 + ((i * 3 + k * 5) % 5) * 0.07); return [x + rr * Math.cos(a), y + rr * 0.7 * Math.sin(a)]; }), 3);
+    const bricks = s('pattern', { id: id + 'p', width: 72, height: 24, patternUnits: 'userSpaceOnUse' }, s('rect', { class: 'fw-mortar', width: 72, height: 24 }));
+    // Quatro fileiras de 6 de altura, as ímpares deslocadas meio tijolo; três tons espalhados.
+    for (let row = 0; row < 4; row++) {
+      for (let col = -1; col < 3; col++) {
+        const x = col * 24 + (row % 2 ? 12 : 0), tone = (row * 5 + col * 7 + 9) % 3;
+        bricks.append(s('rect', { class: 'fw-brick t' + tone, x: x + 0.6, y: row * 6 + 0.6, width: 22.8, height: 4.8, rx: 0.8 }));
+      }
     }
-    const stones = s('g', { class: 'ff-stones' });
-    const n = 11;
-    for (let i = 0; i < n; i++) {
-      const a0 = i * 180 / n + 0.8, a1 = (i + 1) * 180 / n - 0.8, keystone = i === (n - 1) / 2;
-      const o = keystone ? [outer[0] + 5, outer[1] + 9] : outer;
-      stones.append(s('path', { class: 'ff-stone' + (i % 3 === 1 ? ' alt' : ''), d: poly([at(inner, a0), at(o, a0), at(o, (a0 + a1) / 2), at(o, a1), at(inner, a1)]) }));
-    }
-    return s('svg', { class: 'forja-furnace', viewBox: '0 0 360 150', 'aria-hidden': 'true' }, defs,
-      s('path', { d: mouth, fill: COAL[0] }),
-      s('path', { class: 'ff-fire', d: mouth, fill: deep }),
-      s('g', { 'clip-path': `url(#${id}m)` },
-        s('ellipse', { class: 'ff-heat', cx, cy: cy - 4, rx: 104, ry: 46, fill: heat }),
-        s('path', { d: coals, fill: COAL[1] }),
-        s('path', { class: 'ff-fire', d: coals, fill: ember, stroke: FIRE[4], 'stroke-width': 0.6 })),
-      stones,
-      s('path', { d: band, fill: shade }),
-      s('path', { class: 'ff-warm', d: band, fill: warm }));
+    defs.append(bricks);
+    const glow = grad(defs, id + 'g', [[0, FIRE[2], 0.55], [0.45, FIRE[3], 0.18], [1, FIRE[3], 0]], { cx: 0.5, cy: 1, r: 0.75 }, 'radialGradient');
+    const dark = grad(defs, id + 'd', [[0.3, '#000', 0], [1, '#000', 0.72]], { cx: 0.5, cy: 0.8, r: 0.85 }, 'radialGradient');
+    return s('svg', { class: 'forja-backwall', viewBox: '0 0 400 300', preserveAspectRatio: 'xMidYMax slice', 'aria-hidden': 'true' }, defs,
+      s('rect', { width: 400, height: 300, fill: `url(#${id}p)` }),
+      s('rect', { class: 'fw-glow', width: 400, height: 300, fill: glow }),
+      s('rect', { width: 400, height: 300, fill: dark }));
   }
 
-  // A bigorna: chifre à esquerda, face polida com borda clara, cintura e pés; a luz do fogo bate na borda de trás.
+  // As ferramentas penduradas na parede: a tenaz à esquerda e a marreta à direita. O fogo fica do lado de dentro,
+  // então a borda acesa (ft-rim) é a que olha para o meio.
+  function toolSvg(kind) {
+    const inward = kind === 'tongs' ? 0.9 : -0.9;
+    const rim = (d, w) => s('path', { class: 'ft-rim', d, fill: 'none', stroke: FIRE[2], 'stroke-width': w, 'stroke-linecap': 'round', transform: `translate(${inward} 0)` });
+    const iron = (d, w) => s('path', { d, fill: 'none', stroke: ANVIL[1], 'stroke-width': w, 'stroke-linecap': 'round' });
+    const peg = [s('circle', { cx: 15, cy: 4, r: 3, fill: ANVIL[0] }), s('circle', { cx: 14.3, cy: 3.3, r: 1, fill: ANVIL[3] })];
+    if (kind === 'tongs') {
+      const a = 'M12.6 13Q9.6 48 13.6 82Q18.6 92 17.4 105', b = 'M17.4 13Q20.4 48 16.4 82Q11.4 92 12.6 105';
+      return s('svg', { class: 'forja-tool tongs', viewBox: '0 0 30 112', 'aria-hidden': 'true' },
+        rim('M15 4A5 5 0 1 1 14.9 4', 1.4), rim(a, 2.4), rim(b, 2.4),
+        s('circle', { cx: 15, cy: 9, r: 5, fill: 'none', stroke: ANVIL[2], 'stroke-width': 1.5 }),
+        iron(a, 2.4), iron(b, 2.4),
+        s('path', { d: 'M12.6 13Q9.6 48 13.6 82', fill: 'none', stroke: ANVIL[3], 'stroke-width': 0.6, 'stroke-opacity': 0.7 }),
+        s('circle', { cx: 15, cy: 82.4, r: 2.4, fill: ANVIL[2], stroke: ANVIL[0], 'stroke-width': 0.6 }), peg);
+    }
+    const id = 'ft' + (++seq) + '-';
+    const defs = s('defs');
+    const wood = grad(defs, id + 'w', [[0, WOOD[1]], [0.45, WOOD[3]], [1, WOOD[0]]], { x1: 0, y1: 0, x2: 1, y2: 0 });
+    const head = grad(defs, id + 'h', [[0, ANVIL[4]], [0.35, ANVIL[2]], [1, ANVIL[0]]], { x1: 0, y1: 0, x2: 0, y2: 1 });
+    return s('svg', { class: 'forja-tool hammer', viewBox: '0 0 30 112', 'aria-hidden': 'true' }, defs,
+      rim('M13 18L13 104', 4), rim('M3.5 7L3.5 17', 1.6),
+      s('rect', { x: 12.6, y: 16, width: 4.8, height: 89, rx: 2.2, fill: wood }),
+      s('rect', { x: 12.2, y: 90, width: 5.6, height: 14, rx: 2, fill: WOOD[0] }),
+      s('path', { d: 'M12.4 93H17.6M12.4 96.5H17.6M12.4 100H17.6', stroke: WOOD[2], 'stroke-width': 0.6 }),
+      s('rect', { x: 3, y: 5, width: 24, height: 12, rx: 1.6, fill: head, stroke: ANVIL[0], 'stroke-width': 0.6 }),
+      s('rect', { x: 3, y: 5, width: 3, height: 12, rx: 1.2, fill: ANVIL[4], 'fill-opacity': 0.55 }),
+      s('rect', { x: 24, y: 5, width: 3, height: 12, rx: 1.2, fill: ANVIL[3], 'fill-opacity': 0.55 }),
+      s('circle', { cx: 6, cy: 19.5, r: 2.2, fill: ANVIL[0] }), s('circle', { cx: 24, cy: 19.5, r: 2.2, fill: ANVIL[0] }));
+  }
+
+  // A fornalha de tijolos: base, boca em arco com aduelas, soleira e um tampo de pedra. Dentro, o fundo em brasa,
+  // as chamas (mexem só pelo CSS) e um monte de carvão com as beiradas acesas.
+  function hearthSvg() {
+    const id = 'fh' + (++seq) + '-';
+    const defs = s('defs');
+    const W = 320, H = 170, cx = 160, spring = 92, sill = 136;
+    const inner = [110, 52], outer = [128, 68];
+    const at = ([rx, ry], deg) => [cx + rx * Math.cos(rad(deg)), spring - ry * Math.sin(rad(deg))];
+    const mouth = `M${cx - inner[0]} ${sill}L${cx - inner[0]} ${spring}A${inner[0]} ${inner[1]} 0 0 1 ${cx + inner[0]} ${spring}L${cx + inner[0]} ${sill}Z`;
+    const bricks = s('pattern', { id: id + 'p', width: 90, height: 40, patternUnits: 'userSpaceOnUse' }, s('rect', { class: 'fh-mortar', width: 90, height: 40 }));
+    for (let row = 0; row < 4; row++) {
+      for (let col = -1; col < 4; col++) {
+        const x = col * 30 + (row % 2 ? 15 : 0), tone = (row * 2 + col * 5 + 7) % 3;
+        bricks.append(s('rect', { class: 'fh-brick t' + tone, x: x + 0.9, y: row * 10 + 0.9, width: 28.2, height: 8.2, rx: 1.2 }));
+      }
+    }
+    defs.append(bricks, s('clipPath', { id: id + 'm' }, s('path', { d: mouth })));
+    const deep = grad(defs, id + 'd', [[0, FIRE[1]], [0.25, FIRE[2]], [0.55, FIRE[3]], [0.85, FIRE[4]], [1, FIRE[5]]], { cx: 0.5, cy: 1, r: 0.95 }, 'radialGradient');
+    const heat = grad(defs, id + 'h', [[0, FIRE[0], 0.9], [0.4, FIRE[1], 0.5], [1, FIRE[2], 0]], {}, 'radialGradient');
+    const flame = grad(defs, id + 'f', [[0, FIRE[1]], [0.3, FIRE[2], 0.95], [0.7, FIRE[3], 0.6], [1, FIRE[3], 0]], { x1: 0, y1: 1, x2: 0, y2: 0 });
+    const core = grad(defs, id + 'k', [[0, '#fff', 0.95], [0.35, FIRE[0], 0.9], [1, FIRE[1], 0]], { x1: 0, y1: 1, x2: 0, y2: 0 });
+    const coal = grad(defs, id + 'c', [[0, COAL[1]], [1, COAL[0]]], { x1: 0, y1: 0, x2: 0, y2: 1 });
+    const ember = grad(defs, id + 'e', [[0, FIRE[1]], [0.35, FIRE[2]], [0.8, FIRE[3]], [1, FIRE[4]]], { cx: 0.45, cy: 0.35, r: 0.7 }, 'radialGradient');
+    const warm = grad(defs, id + 'w', [[0.25, FIRE[2], 0.5], [0.6, FIRE[3], 0.16], [1, FIRE[3], 0]], { cx: 0.5, cy: 0.78, r: 0.6 }, 'radialGradient');
+    const sides = grad(defs, id + 's', [[0, '#000', 0.6], [0.16, '#000', 0], [0.84, '#000', 0], [1, '#000', 0.6]], { x1: 0, y1: 0, x2: 1, y2: 0 });
+    const foot = grad(defs, id + 'b', [[0.7, '#000', 0], [1, '#000', 0.45]], { x1: 0, y1: 0, x2: 0, y2: 1 });
+
+    // As chamas: duas camadas (as de fora, laranja; os miolos, quase brancos), cada uma no seu ritmo.
+    const tongue = (x, w, h, lean) => `M${f(x - w / 2)} ${sill}C${f(x - w / 2)} ${f(sill - h * 0.45)} ${f(x - w * 0.15 + lean)} ${f(sill - h * 0.62)} ${f(x + lean)} ${f(sill - h)}C${f(x + w * 0.22 + lean)} ${f(sill - h * 0.6)} ${f(x + w / 2)} ${f(sill - h * 0.4)} ${f(x + w / 2)} ${sill}Z`;
+    const flames = s('g', { class: 'ff-flames' });
+    const outerFlames = [[-96, 22, 40, -3], [-70, 28, 58, 2], [-42, 26, 50, -2], [-14, 30, 64, 3], [14, 28, 56, -3], [42, 30, 66, 2], [70, 26, 52, -2], [96, 22, 42, 3]];
+    outerFlames.forEach(([dx, w, h, lean], i) => flames.append(s('path', { class: 'ff-flame', d: tongue(cx + dx, w, h, lean), fill: flame,
+      style: `animation-duration:${(0.9 + (i % 3) * 0.22).toFixed(2)}s;animation-delay:-${(i * 0.37).toFixed(2)}s` })));
+    outerFlames.forEach(([dx, w, h, lean], i) => flames.append(s('path', { class: 'ff-flame', d: tongue(cx + dx + lean, w * 0.45, h * 0.55, -lean), fill: core,
+      style: `animation-duration:${(0.7 + (i % 2) * 0.25).toFixed(2)}s;animation-delay:-${(i * 0.29).toFixed(2)}s` })));
+
+    // O monte de carvão: fileiras de trás (mais altas e estreitas) primeiro; em cima, metade em brasa; embaixo, um em três.
+    let dark = '', glowing = '';
+    let n = 0;
+    for (let row = 3; row >= 0; row--) {
+      const count = 16 - row * 3, half = 106 - row * 22, y = sill - 2 - row * 6.5, r = 7.5 - row * 0.8;
+      for (let i = 0; i < count; i++) {
+        const x = cx - half + (2 * half * (i + 0.5)) / count + ((n * 7) % 5) - 2;
+        const d = lump(x, y + ((n * 3) % 3), r + ((n * 5) % 3) * 0.6, n);
+        if (row >= 2 ? n % 2 === 0 : n % 3 === 1) glowing += d; else dark += d;
+        n++;
+      }
+    }
+
+    const stones = s('g');
+    const count = 11;
+    for (let i = 0; i < count; i++) {
+      const a0 = i * 180 / count + 0.7, a1 = (i + 1) * 180 / count - 0.7, keystone = i === (count - 1) / 2;
+      const o = keystone ? [outer[0] + 4, outer[1] + 8] : outer;
+      stones.append(s('path', { class: 'ff-stone' + (i % 3 === 1 ? ' alt' : ''), d: poly([at(inner, a0), at(o, a0), at(o, (a0 + a1) / 2), at(o, a1), at(inner, a1)]) }));
+    }
+    // As ombreiras: dois blocos de cada lado da boca, da nascença do arco até a soleira.
+    for (const side of [-1, 1]) {
+      const x0 = side < 0 ? cx - outer[0] : cx + inner[0] + 0.7, x1 = side < 0 ? cx - inner[0] - 0.7 : cx + outer[0];
+      stones.append(s('path', { class: 'ff-stone alt', d: poly([[x0, spring + 0.7], [x1, spring + 0.7], [x1, 113.3], [x0, 113.3]]) }),
+        s('path', { class: 'ff-stone', d: poly([[x0, 114.7], [x1, 114.7], [x1, sill], [x0, sill]]) }));
+    }
+
+    return s('svg', { class: 'forja-hearth', viewBox: `0 0 ${W} ${H}`, 'aria-hidden': 'true' }, defs,
+      // O corpo de tijolos, com as laterais e o pé mais escuros.
+      s('rect', { x: 8, y: 22, width: 304, height: H - 22, fill: `url(#${id}p)` }),
+      s('rect', { x: 8, y: 22, width: 304, height: H - 22, fill: sides }),
+      s('rect', { x: 8, y: 22, width: 304, height: H - 22, fill: foot }),
+      // Dentro da boca.
+      s('path', { d: mouth, fill: COAL[0] }),
+      s('g', { 'clip-path': `url(#${id}m)` },
+        s('ellipse', { class: 'ff-fire', cx, cy: sill, rx: 130, ry: 96, fill: deep }),
+        s('ellipse', { class: 'ff-heat', cx, cy: sill - 8, rx: 100, ry: 40, fill: heat }),
+        flames,
+        s('path', { d: dark, fill: coal }),
+        s('path', { class: 'ff-fire', d: dark, fill: 'none', stroke: FIRE[3], 'stroke-width': 0.9 }),
+        s('path', { class: 'ff-fire', d: glowing, fill: ember, stroke: FIRE[1], 'stroke-width': 0.5 }),
+        s('path', { d: mouth, fill: 'none', stroke: '#000', 'stroke-opacity': 0.55, 'stroke-width': 9 })),
+      stones,
+      // A soleira, um pouco para fora, e o tampo de pedra visto um pouco de cima.
+      s('path', { class: 'fh-sill', d: poly([[cx - inner[0] - 10, sill], [cx + inner[0] + 10, sill], [cx + inner[0] + 13, sill + 7], [cx - inner[0] - 13, sill + 7]]) }),
+      s('path', { class: 'fh-sill-top', d: `M${cx - inner[0] - 10} ${sill + 0.4}L${cx + inner[0] + 10} ${sill + 0.4}` }),
+      s('path', { class: 'fh-cap', d: poly([[2, 14], [318, 14], [318, 24], [2, 24]]) }),
+      s('path', { class: 'fh-cap-top', d: poly([[7, 8.5], [313, 8.5], [318, 14], [2, 14]]) }),
+      s('path', { class: 'ff-warm', d: `M8 24H312V${H}H8Z`, fill: warm }));
+  }
+
+  // O chão de lajes em perspectiva: as juntas apontam para o meio do fundo.
+  function floorSvg() {
+    const id = 'fl' + (++seq) + '-';
+    const defs = s('defs');
+    const mid = 11.5;
+    const xAt = (x, y) => 300 + (x - 300) * (0.6 + 0.4 * y / 30);
+    let seams = `M0 ${mid}L600 ${mid}`;
+    for (let x = -360; x <= 960; x += 60) {
+      seams += `M${f(xAt(x, 0))} 0L${f(xAt(x, mid))} ${mid}`;
+      seams += `M${f(xAt(x + 30, mid))} ${mid}L${x + 30} 30`;
+    }
+    const glow = grad(defs, id + 'g', [[0, FIRE[2], 0.42], [1, FIRE[3], 0]], { cx: 0.5, cy: 0, r: 0.42 }, 'radialGradient');
+    const shade = grad(defs, id + 's', [[0, '#000', 0.35], [0.5, '#000', 0], [1, '#000', 0.3]], { x1: 0, y1: 0, x2: 0, y2: 1 });
+    return s('svg', { class: 'forja-floor', viewBox: '0 0 600 30', preserveAspectRatio: 'xMidYMin slice', 'aria-hidden': 'true' }, defs,
+      s('rect', { class: 'fl-stone', width: 600, height: 30 }),
+      s('path', { class: 'fl-seam', d: seams }),
+      s('rect', { class: 'fl-glow', width: 600, height: 30, fill: glow }),
+      s('rect', { width: 600, height: 30, fill: shade }),
+      s('path', { class: 'fl-edge', d: 'M0 0.5H600' }));
+  }
+
+  // A bigorna em cima do toco: chifre à esquerda, mesa de corte, a face de aço vista um pouco de cima (com o
+  // furo quadrado e o redondo), cintura e pés. O fogo atrás acende as bordas (fa-rim); a face fica a 0,41 da
+  // largura acima do pé do toco e o meio dela em x = 132 (o CSS conta com isso).
   function anvilSvg() {
     const id = 'fa' + (++seq) + '-';
     const defs = s('defs');
-    // Face de 72 a 192, o degrau (mesa de corte) e o chifre afinando até a ponta, à esquerda.
-    const body = 'M72 12L187 12Q192 12 192 17L192 27Q192 31 187 31L164 31Q136 34 131 52Q129 64 150 72L158 78Q161 85 154 85L46 85Q39 85 42 78L50 72Q71 64 69 52Q67 42 60 38Q34 33 7 23Q3 21 6 19Q30 15.5 58 15L70 15L72 12Z';
-    const top = 'M6 19Q30 13 58 12.4L72 12.4L72 12L74 9L187 9Q191 9 192 12L72 12L72 15L58 15Q30 15.5 6 19Z';
-    const steel = grad(defs, id + 'b', [[0, ANVIL[3]], [0.18, ANVIL[2]], [0.55, ANVIL[1]], [1, ANVIL[0]]], { x1: 0, y1: 0, x2: 0, y2: 1 });
-    const side = grad(defs, id + 's', [[0, '#fff', 0.1], [0.45, '#fff', 0], [1, '#000', 0.4]], { x1: 0, y1: 0, x2: 1, y2: 0 });
-    const face = grad(defs, id + 'f', [[0, ANVIL[3]], [1, ANVIL[4]]], { x1: 0, y1: 0, x2: 0, y2: 1 });
-    const warm = grad(defs, id + 'w', [[0, FIRE[2], 0.7], [0.3, FIRE[3], 0.22], [1, FIRE[3], 0]], { x1: 0, y1: 0, x2: 0, y2: 1 });
-    const contact = grad(defs, id + 'c', [[0, '#000', 0.65], [0.55, '#000', 0.3], [1, '#000', 0]], {}, 'radialGradient');
+    const body = 'M16 16.5Q40 13.6 64 13L78 13L78 10L193 10Q196 10 196 13L196 21Q196 23 193 23.5Q176 25 166 32Q156 38 154 46Q154 55 166 60L176 62.5Q180 63.5 179 66L178 67L86 67L85 66Q84 63.5 88 62.5L98 60Q110 55 110 46Q108 36 94 32Q76 28 60 27Q34 24 18 19.4Q12 18 16 16.5Z';
+    defs.append(s('clipPath', { id: id + 'c' }, s('path', { d: body })));
+    const steel = grad(defs, id + 'b', [[0, ANVIL[3]], [0.2, ANVIL[2]], [0.6, ANVIL[1]], [1, ANVIL[0]]], { x1: 0, y1: 0, x2: 0, y2: 1 });
+    const waist = grad(defs, id + 'r', [[0, '#000', 0.5], [0.32, '#fff', 0.07], [0.5, '#fff', 0.13], [1, '#000', 0.55]], { x1: 86, y1: 0, x2: 180, y2: 0, gradientUnits: 'userSpaceOnUse' });
+    const under = grad(defs, id + 'u', [[0, '#000', 0.6], [1, '#000', 0]], { x1: 0, y1: 0, x2: 0, y2: 1 });
+    const plate = grad(defs, id + 'p', [[0, ANVIL[4]], [0.25, ANVIL[3]], [1, ANVIL[1]]], { x1: 0, y1: 0, x2: 0, y2: 1 });
+    const horn = grad(defs, id + 'h', [[0, ANVIL[4]], [0.3, ANVIL[3]], [0.7, ANVIL[1]], [1, ANVIL[0]]], { x1: 0, y1: 0, x2: 0, y2: 1 });
+    const top = grad(defs, id + 't', [[0, ANVIL[3]], [0.6, ANVIL[4]], [1, ANVIL[5]]], { x1: 0, y1: 0, x2: 0, y2: 1 });
+    const polish = grad(defs, id + 'o', [[0, '#fff', 0], [0.5, '#fff', 0.35], [1, '#fff', 0]], { x1: 0, y1: 0, x2: 1, y2: 0 });
+    const warm = grad(defs, id + 'w', [[0, FIRE[2], 0.6], [0.3, FIRE[3], 0.2], [1, FIRE[3], 0]], { x1: 0, y1: 0, x2: 0, y2: 1 });
+    const trunk = grad(defs, id + 'k', [[0, WOOD[0]], [0.22, WOOD[2]], [0.42, WOOD[3]], [0.72, WOOD[2]], [1, WOOD[0]]], { x1: 80, y1: 0, x2: 184, y2: 0, gradientUnits: 'userSpaceOnUse' });
+    const trunkShade = grad(defs, id + 'q', [[0, '#000', 0.1], [1, '#000', 0.5]], { x1: 0, y1: 0, x2: 0, y2: 1 });
+    const band = grad(defs, id + 'a', [[0, ANVIL[4]], [0.4, ANVIL[2]], [1, ANVIL[0]]], { x1: 0, y1: 0, x2: 0, y2: 1 });
+    const ground = grad(defs, id + 'g', [[0, '#000', 0.7], [0.6, '#000', 0.3], [1, '#000', 0]], {}, 'radialGradient');
+    const rimLine = (d, w, color = FIRE[1], extra = {}) => s('path', { class: 'fa-rim', d, fill: 'none', stroke: color, 'stroke-width': w, 'stroke-linecap': 'round', 'stroke-linejoin': 'round', ...extra });
+    const stump = 'M84 66.5L180 66.5Q181.5 79 184 92L80 92Q82.5 79 84 66.5Z';
+
     return s('svg', { class: 'forja-anvil', viewBox: '0 0 200 92', 'aria-hidden': 'true' }, defs,
-      s('ellipse', { cx: 100, cy: 86, rx: 80, ry: 6, fill: contact }),
-      s('path', { d: body, fill: steel, stroke: ANVIL[0], 'stroke-width': 1, 'stroke-linejoin': 'round' }),
-      s('path', { d: body, fill: side }),
-      s('path', { class: 'fa-warm', d: body, fill: warm }),
-      // A ponte entre os pés e a divisa da face com a cintura.
-      s('path', { d: 'M82 85Q100 75 118 85Z', fill: ANVIL[0] }),
-      s('path', { d: 'M62 38.5Q100 30 164 31', fill: 'none', stroke: ANVIL[0], 'stroke-opacity': 0.7, 'stroke-width': 1.2 }),
-      s('path', { d: 'M61 39Q67 42 69.5 52Q71 64 51 72', fill: 'none', stroke: '#fff', 'stroke-opacity': 0.12, 'stroke-width': 1 }),
-      // A face e o chifre vistos um pouco de cima, com a borda da frente clara.
-      s('path', { d: top, fill: face }),
-      s('path', { d: 'M6 19Q30 15.5 58 15L70 15L72 12L192 12', fill: 'none', stroke: ANVIL[5], 'stroke-opacity': 0.85, 'stroke-width': 0.9, 'stroke-linejoin': 'round' }),
-      s('path', { d: 'M72 12.6L192 12.6L192 15.4L72 15.4Z', fill: '#fff', 'fill-opacity': 0.06 }),
-      s('path', { class: 'fa-rim', d: 'M6 19Q30 13 58 12.4L72 12.4L74 9L187 9Q191 9 192 12', fill: 'none', stroke: FIRE[1], 'stroke-width': 1.3, 'stroke-linecap': 'round', 'stroke-linejoin': 'round' }));
+      s('ellipse', { cx: 132, cy: 91.5, rx: 62, ry: 3.5, fill: ground }),
+      // O toco: madeira com veios, um aro de ferro com rebites e o topo cortado.
+      s('path', { d: stump, fill: trunk }),
+      s('path', { d: stump, fill: trunkShade }),
+      s('path', { d: 'M95 68Q93.5 80 91.5 91M108 68Q108.6 80 107 91M121 68Q120 79 121.5 91M141 68Q142 80 140.5 91M156 68Q157.6 79 157 91M170 68Q171.5 80 173 91', fill: 'none', stroke: WOOD[0], 'stroke-opacity': 0.55, 'stroke-width': 0.7 }),
+      s('path', { d: 'M82.7 76.4L181.3 76.4L181.8 80.9L82.2 80.9Z', fill: band, stroke: ANVIL[0], 'stroke-width': 0.4 }),
+      [92, 112, 132, 152, 172].map((x) => s('circle', { cx: x, cy: 78.65, r: 0.9, fill: ANVIL[4] })),
+      s('ellipse', { cx: 132, cy: 66.6, rx: 48, ry: 2.3, fill: WOOD[4] }),
+      s('ellipse', { cx: 132, cy: 66.6, rx: 40, ry: 1.6, fill: 'none', stroke: WOOD[2], 'stroke-width': 0.4 }),
+      rimLine('M84 66.5Q82.5 79 80 92', 0.9, FIRE[2]), rimLine('M180 66.5Q181.5 79 184 92', 0.9, FIRE[2]),
+      s('ellipse', { cx: 132, cy: 67, rx: 47, ry: 1.7, fill: '#000', 'fill-opacity': 0.6 }),
+      // O corpo de aço, com a cintura arredondada e a sombra embaixo da face.
+      s('path', { d: body, fill: steel, stroke: ANVIL[0], 'stroke-width': 0.8, 'stroke-linejoin': 'round' }),
+      s('g', { 'clip-path': `url(#${id}c)` },
+        s('rect', { x: 84, y: 19, width: 98, height: 50, fill: waist }),
+        s('rect', { x: 60, y: 23.5, width: 140, height: 9, fill: under }),
+        s('rect', { class: 'fa-warm', x: 0, y: 0, width: 200, height: 70, fill: warm })),
+      s('path', { d: 'M118 67Q132 58.5 146 67Z', fill: ANVIL[0] }),
+      s('path', { d: 'M88.5 62.6L175.5 62.6', stroke: ANVIL[3], 'stroke-opacity': 0.5, 'stroke-width': 0.6 }),
+      // O chifre (um cone, com o brilho em cima), a mesa e a placa da face, de frente.
+      s('path', { d: 'M16 16.5Q40 13.6 64 13L64 27Q34 24 18 19.4Q12 18 16 16.5Z', fill: horn }),
+      s('path', { d: 'M22 16.4Q42 14.9 62 14.5', fill: 'none', stroke: ANVIL[5], 'stroke-opacity': 0.55, 'stroke-width': 0.8, 'stroke-linecap': 'round' }),
+      s('path', { d: 'M64 13L78 13L78 23.5L64 24.5Z', fill: plate }),
+      s('path', { d: 'M78 10L193 10Q196 10 196 13L196 21Q196 23 193 23.5L78 23.5Z', fill: plate }),
+      s('path', { d: 'M78 23.5L193 23.5M64 24.5L78 23.5', fill: 'none', stroke: ANVIL[0], 'stroke-width': 0.8 }),
+      // Os tampos vistos de cima: chifre, mesa e a face polida, com os dois furos perto do calcanhar.
+      s('path', { d: 'M16 16.5Q40 11.8 66.5 8.5L64 13Q40 13.6 16 16.5Z', fill: top }),
+      s('path', { d: 'M64 13L66.5 8.5L80.5 8.5L78 13Z', fill: top }),
+      s('path', { d: 'M78 10L80.5 5.5L189 5.5Q194 5.5 196 10Z', fill: top }),
+      s('path', { d: 'M96 9.6L98 6L168 6L168 9.6Z', fill: polish }),
+      s('path', { d: 'M172 6.4L178.6 6.4L179.3 8.9L172.5 8.9Z', fill: ANVIL[0] }),
+      s('ellipse', { cx: 162.5, cy: 7.7, rx: 1.5, ry: 0.8, fill: ANVIL[0] }),
+      s('path', { d: 'M78 10L196 10', stroke: ANVIL[5], 'stroke-width': 0.8 }),
+      s('path', { d: 'M16 16.5Q40 13.6 64 13L78 13', fill: 'none', stroke: ANVIL[5], 'stroke-opacity': 0.5, 'stroke-width': 0.6 }),
+      // A luz do fogo, de trás: a borda de trás dos tampos e o contorno da cintura.
+      rimLine('M16 16.5Q40 11.8 66.5 8.5L80.5 8.5L80.5 5.5L189 5.5Q194 5.5 196 10', 1.1),
+      rimLine('M193 23.5Q176 25 166 32Q156 38 154 46Q154 55 166 60', 0.9, FIRE[2], { 'stroke-opacity': 0.7 }),
+      rimLine('M18 19.4Q34 24 60 27Q76 28 94 32Q108 36 110 46Q110 55 98 60', 0.9, FIRE[2], { 'stroke-opacity': 0.7 }));
   }
 
   // O halo de raios atrás da medalha (e a explosão da revelação), na cor do material.
@@ -370,7 +533,7 @@ window.MudaeForge = function ({ el, call, onSocket, ui, Sounds, reducedMotion = 
     const cinders = Array.from({ length: 7 }, (_, i) => el('span', { class: 'forja-cinder',
       style: { left: (24 + ((i * 41) % 54)) + '%', animationDelay: (-(i * 0.83)).toFixed(2) + 's', animationDuration: (3.8 + (i % 3) * 0.8).toFixed(1) + 's' } }));
     const set = el('div', { class: 'forja-set', ariaHidden: 'true' },
-      el('div', { class: 'forja-fire' }), furnaceSvg(), el('div', { class: 'forja-floor' }), cinders,
+      wallSvg(), toolSvg('tongs'), toolSvg('hammer'), el('div', { class: 'forja-fire' }), hearthSvg(), floorSvg(), cinders,
       el('div', { class: 'forja-beam' }), anvilSvg(), el('div', { class: 'forja-medal-shadow' }));
     const float = el('div', { class: 'forja-float' },
       el('div', { class: 'forja-heat', ariaHidden: 'true' }),
