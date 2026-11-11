@@ -295,6 +295,10 @@ window.MudaeSalon = function ({ state, el, Icon, call, onSocket, member, avatar,
   }
 
   // ---------- status (rolls e casamento) ----------
+  // O servidor aceita o casamento pela janela normal ou pela reserva da Esmeralda (sem status ainda: deixa tentar).
+  const canClaim = (s) => !s || !!s.claimReady || !!s.reserveReady;
+  // Já casou nesta janela, mas a reserva está pronta: o próximo casamento usa ela.
+  const usesReserve = (s) => !!s && !s.claimReady && !!s.reserveReady;
   function setStatus(s) {
     if (s?.sources) S.sources = s.sources;
     if (!s || s.rollsLeft === undefined) return;
@@ -514,8 +518,9 @@ window.MudaeSalon = function ({ state, el, Icon, call, onSocket, member, avatar,
         slot.append(el('div', { class: 'poder-lock', data: { for: node.dataset.roll, side }, title: who === me() ? 'Trancado: só você pode casar' : 'Trancado por ' + whoName(who), textContent: '🔒' }));
       }
     }
-    // claimAt: quando o meu casamento volta (0 se já posso casar); o Laço espera por ele, como o botão de casar.
-    const claimAt = S.status && !S.status.claimReady ? S.statusAt + S.status.claimResetIn : 0;
+    // claimAt: quando o meu casamento volta (0 se já posso casar, pela janela ou pela reserva da Esmeralda);
+    // o Laço espera por ele, como o botão de casar.
+    const claimAt = canClaim(S.status) ? 0 : S.statusAt + S.status.claimResetIn;
     powers?.rail(nodes.stage, { channel: S.channel, msg: m || null, phase: m ? phase(m) : 'idle', mine: !!m && m.by === me(), claimAt });
   }
 
@@ -597,7 +602,7 @@ window.MudaeSalon = function ({ state, el, Icon, call, onSocket, member, avatar,
     const s = S.status;
     // Carta trancada pelo Cadeado: só quem trancou casa.
     const lockedOut = !!m.mudae.lockedBy && m.mudae.lockedBy !== me();
-    const blocked = (s && !s.claimReady) || lockedOut;
+    const blocked = !canClaim(s) || lockedOut;
     const total = (m.mudae.expires ?? m.ts + 45_000) - (m.mudae.revealAt ?? m.ts);
     const elapsed = total - Math.max(0, (m.mudae.expires ?? m.ts + 45_000) - now());
     const ring = el('span', { class: 'salon-ring' });
@@ -620,8 +625,9 @@ window.MudaeSalon = function ({ state, el, Icon, call, onSocket, member, avatar,
     const lockedBy = m.mudae.lockedBy;
     let text = '';
     if (lockedBy && lockedBy !== me()) text = `🔒 Trancado por ${whoName(lockedBy)}`;
-    else if (s && !s.claimReady) text = `Você casa de novo em ${minutes(s.claimResetIn - (Date.now() - S.statusAt))}`;
+    else if (!canClaim(s)) text = `Você casa de novo em ${minutes(s.claimResetIn - (Date.now() - S.statusAt))}`;
     else if (p === 'priority') text = `prioridade de ${whoName(m.by)} · ${pr}s`;
+    else if (usesReserve(s)) text = '💚 Vai usar a reserva da Esmeralda';
     else if (lockedBy) text = '🔒 Trancado: só você pode casar';
     else if (pr > 0 && m.by === me()) text = `só você pode casar · ${pr}s`;
     else if (m.mudae.pairFree) text = 'Livre para casar: quem for mais rápido leva!';

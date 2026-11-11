@@ -533,6 +533,47 @@ test('o trilho só acende o que o servidor deixa: ativo depois de recarregar, La
   assert.equal(app.orb('desejo').disabled, true);
 });
 
+test('a reserva da Esmeralda conta: o Laço liga e o botão Casar vale, menos na outra carta da própria dupla', async (t) => {
+  // Já casei nesta janela, mas a reserva da Esmeralda está pronta: o servidor aceita o casamento.
+  const reserve = () => ({ ok: true, rollsLeft: 9, rollsMax: 10, rollResetIn: 1, claimReady: false, claimResetIn: 2 * HOUR, reserveReady: true, kakera: 1200 });
+  const app = stage(t, { powers: powersView(['laco', null, null]), replies: { 'mudae:presence': reserve, 'mudae:power:use': () => ({ lasso: true }) } });
+  await app.flush();
+  const dela = app.roll('dela', { by: 'ana', name: 'Levi' });
+  await app.advance(2000);
+  assert.ok(app.slot('laco').classList.contains('ready'), 'o Laço liga nos 3 s da Ana');
+  await app.use('laco');
+  assert.deepEqual(app.sent('mudae:power:use'), [{ channel: 'room', power: 'laco', id: 'dela' }]);
+  // Passou a prioridade: o botão Casar vale e avisa que vai usar a reserva.
+  await app.advance(3500);
+  assert.equal(app.$('.salon-claim.primary').disabled, false);
+  assert.match(app.text(app.$('.salon-claim-caption')), /reserva da Esmeralda/);
+  app.$('.salon-claim.primary').click();
+  await app.flush();
+  assert.deepEqual(app.sent('mudae:claim'), [{ channel: 'room', id: 'dela' }]);
+  assert.ok(dela);
+
+  // Sem casamento e sem reserva: o botão continua travado, como antes.
+  const none = stage(t, { powers: powersView([null, null, null]),
+    replies: { 'mudae:presence': () => ({ ...reserve(), reserveReady: false }) } });
+  await none.flush();
+  none.roll('dela', { by: 'ana' });
+  await none.advance(5500);
+  assert.equal(none.$('.salon-claim.primary').disabled, true);
+  assert.match(none.text(none.$('.salon-claim-caption')), /^Você casa de novo em 2h00$/);
+
+  // Escolha dupla: quem rodou fica com uma; a outra é dos outros, mesmo com a reserva pronta.
+  const pair = stage(t, { powers: powersView([null, null, null]), replies: { 'mudae:presence': reserve } });
+  await pair.flush();
+  const a = pair.roll('levi', { name: 'Levi', pair: 'par3' });
+  const b = pair.roll('mikasa', { name: 'Mikasa', pair: 'par3' });
+  await pair.advance(2000);
+  pair.update(a, { ownerId: 'me' });
+  pair.update(b, { pairFree: true, priorityUntil: pair.time });
+  pair.$$('.salon-pair .salon-card.big')[1].querySelector('.salon-card-art').click();
+  assert.equal(pair.$('.salon-claim.primary'), null, 'a outra carta do par não é oferecida');
+  assert.match(pair.text(pair.$('.salon-actions')), /livre para os outros/);
+});
+
 test('redesenhar o palco não tira a escolha do Eco nem a faixa do lugar', async (t) => {
   const cards = [{ id: 27, name: 'Killua', image: 'k.jpg', rarity: 'epic', series: 'Hunter x Hunter', value: 530, source: 'a' }];
   const app = stage(t, { powers: powersView(['eco', null, null]), replies: { 'mudae:eco:list': () => ({ cards }) } });
