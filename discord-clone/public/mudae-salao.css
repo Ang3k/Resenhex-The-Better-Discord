@@ -589,6 +589,7 @@
   background: var(--bg-floating); box-shadow: 0 0 0 1px var(--frame); color: var(--text); font: inherit; text-align: left; cursor: pointer;
 }
 .pc-mudae:disabled { cursor: default; }
+.pc-medals { display: flex; flex-wrap: wrap; gap: 4px; margin-bottom: 8px; }
 .pc-mudae img { width: 40px; height: 60px; flex-shrink: 0; border-radius: 6px; object-fit: cover; }
 .pc-mudae > div { min-width: 0; }
 .pc-mudae strong { display: block; overflow: hidden; color: var(--text-strong); text-overflow: ellipsis; white-space: nowrap; }

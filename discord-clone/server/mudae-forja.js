@@ -95,7 +95,25 @@ function createForja({ random = Math.random } = {}) {
     return { price: REFORGE_PRICE, finish: e.finish, offer: e.offer, kakera: kakeraOf(store, accountId) };
   }
 
-  return { medalsOf, forge, chooseFinish, reforge };
+  // Medalhas no perfil: a lista escolhida (store.medalsShown[conta]) ou, sem escolha, as forjadas da mais alta para a mais baixa.
+  function shownOf(store, accountId) {
+    const chosen = store.medalsShown?.[accountId];
+    const list = chosen ? chosen.filter((m) => levelOf(store, accountId, m) >= 1)
+      : MEDAL_KEYS.filter((m) => levelOf(store, accountId, m) >= 1).sort((a, b) => levelOf(store, accountId, b) - levelOf(store, accountId, a));
+    return list.map((medal) => ({ medal, level: levelOf(store, accountId, medal), finish: entryOf(store, accountId, medal).finish || null }));
+  }
+
+  function setShown(store, accountId, medals) {
+    if (!Array.isArray(medals) || medals.length > MEDAL_KEYS.length) throw new Error('Escolha inválida.');
+    for (const medal of medals) {
+      checkMedal(medal);
+      if (levelOf(store, accountId, medal) < 1) throw new Error(`Forje a ${MEDALS[medal].name} antes.`);
+    }
+    if (new Set(medals).size !== medals.length) throw new Error('Medalha repetida.');
+    (store.medalsShown ||= {})[accountId] = [...medals];
+  }
+
+  return { medalsOf, forge, chooseFinish, reforge, shownOf, setShown };
 }
 
 module.exports = { createForja, perksOf, levelOf, forgedCount, atLeast };

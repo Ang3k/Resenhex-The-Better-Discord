@@ -93,7 +93,7 @@ function forja(t, { reduced = false, view = forjaView(1200), powers = powersView
   const text = (node) => node.textContent.replace(/\s+/g, ' ').trim();
   const tab = (label) => $$('.salon-tab').find((b) => b.textContent === label);
   const sent = (name) => calls.filter((c) => c.name === name).map((c) => c.payload);
-  return { w, d, $, $$, text, tab, sent, ui, forge, salon, sounds, animations, seen, advance, flush,
+  return { w, d, $, $$, text, tab, sent, ui, forge, salon, state, sounds, animations, seen, advance, flush,
     deliver: (event, payload) => handlers.get(event)(payload),
     open: async () => { tab('Forja').click(); await flush(); },
     pick: async (medal) => { $(`.forja-slot[data-medal="${medal}"]`).click(); await flush(); },
@@ -151,6 +151,55 @@ test('a parede mostra as 7 medalhas com nível e preço', async (t) => {
   await app.pick('esmeralda');
   assert.equal(app.$('.forja-forge'), null, 'no nível IV não há mais Forjar');
   assert.match(app.text(app.$('.forja-reforge')), /^Reforjar acabamento · 500$/);
+});
+
+test('o cartão de perfil desenha a fileira de medalhas', async (t) => {
+  let summary = { total: 0, value: 0, favorite: null,
+    medals: [{ medal: 'ouro', level: 4, finish: 'galaxia' }, { medal: 'rubi', level: 3, finish: 'holo' }, { medal: 'bronze', level: 1, finish: 'metal' }] };
+  const app = forja(t, { replies: { 'mudae:profile': () => ({ summary }) } });
+  app.state.server = { serverId: 's', channels: [] };
+  let rerenders = 0;
+  assert.equal(app.salon.profileSection('ana', () => rerenders++), null, 'primeiro busca no servidor');
+  await app.flush();
+  assert.equal(rerenders, 1);
+  // Sem favorito, a seção aparece só com as medalhas, na ordem do servidor e a 28 px.
+  const node = app.salon.profileSection('ana', () => {});
+  const medals = [...node.querySelectorAll('.pc-medals svg.forja-medal')];
+  assert.deepEqual(medals.map((m) => [m.getAttribute('data-medal'), m.getAttribute('data-level'), m.getAttribute('data-finish')]),
+    [['ouro', '4', 'galaxia'], ['rubi', '3', 'holo'], ['bronze', '1', 'metal']]);
+  assert.ok(medals.every((m) => m.getAttribute('width') === '28'));
+  assert.equal(node.querySelector('.pc-mudae'), null);
+  // Pequena, o nível III ganha um raminho simples no lugar dos louros, e o IV mantém a coroa.
+  assert.ok(medals[1].querySelector('.fm-laurel.tiny'));
+  assert.ok(medals[0].querySelector('.fm-crown'));
+  assert.ok(!app.forge.medalSvg('rubi', 3, 'holo', 96).querySelector('.fm-laurel.tiny'));
+
+  // Com favorito: as medalhas ficam acima dele.
+  summary = { ...summary, total: 1, value: 900, favorite: { name: 'Gojou', image: 'g.png', rarity: 'rare', chosen: true } };
+  app.state.server.serverId = 's2';
+  app.salon.profileSection('ana', () => {});
+  await app.flush();
+  const both = app.salon.profileSection('ana', () => {});
+  assert.deepEqual([...both.children].map((c) => c.className.split(' ')[0]), ['pc-label', 'pc-medals', 'pc-mudae']);
+});
+
+test('mostrar no perfil manda a lista inteira', async (t) => {
+  const app = forja(t, { view: { ...forjaView(1200, { bronze: [2, 'esmalte'], ouro: [1, 'metal'] }), shown: ['ouro'] },
+    replies: { 'mudae:forja:show': () => ({ ok: true }) } });
+  await app.open();
+  await app.pick('prata');
+  assert.equal(app.$('.forja-show'), null, 'medalha apagada não vai para o perfil');
+  await app.pick('bronze');
+  const box = app.$('.forja-show input');
+  assert.equal(box.checked, false);
+  box.click();
+  await app.flush();
+  assert.deepEqual(app.sent('mudae:forja:show'), [{ medals: ['ouro', 'bronze'] }]);
+  await app.pick('ouro');
+  assert.equal(app.$('.forja-show input').checked, true);
+  app.$('.forja-show input').click();
+  await app.flush();
+  assert.deepEqual(app.sent('mudae:forja:show').at(-1), { medals: ['bronze'] });
 });
 
 test('Forjar chama mudae:forja:forge e, com oferta, mostra a escolha', async (t) => {

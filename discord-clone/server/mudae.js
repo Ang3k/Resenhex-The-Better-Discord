@@ -505,9 +505,10 @@ function createMudae({ catalog, now = Date.now, random = Math.random, refSize = 
     };
   }
 
-  function summary(store, accountId) {
+  // medals: as medalhas que a pessoa mostra no perfil (já na ordem). Com medalha, o resumo sai mesmo sem personagem.
+  function summary(store, accountId, medals = []) {
     const list = owned(store, accountId);
-    return list.length ? { total: list.length, value: sum(list), favorite: favoriteOf(store, accountId, list) } : null;
+    return list.length || medals.length ? { total: list.length, value: sum(list), favorite: favoriteOf(store, accountId, list), medals } : null;
   }
 
   function setFavorite(store, accountId, charId) {

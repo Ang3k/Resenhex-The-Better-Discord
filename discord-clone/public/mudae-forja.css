@@ -149,6 +149,7 @@ svg.forja-medal .fm-glint { transform-box: fill-box; transform-origin: center; a
 .forja-perk.now .forja-perk-level { color: var(--yellow); }
 
 .forja-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.forja-show { display: flex; align-items: center; gap: 8px; margin-bottom: 12px; color: var(--text-strong); font-size: 14px; cursor: pointer; }
 .forja-forge, .forja-reforge, .forja-choose, .forja-power-equip, .forja-slot-pick, .forja-slot-cancel {
   display: inline-flex; align-items: center; justify-content: center; gap: 5px; min-height: 40px; padding: 0 16px; border: 0; border-radius: 8px;
   font: inherit; font-size: 14px; font-weight: 700; cursor: pointer; transition: background-color var(--motion-fast) var(--ease-enter), filter var(--motion-fast) var(--ease-enter);

@@ -191,12 +191,12 @@ window.MudaeForge = function ({ el, call, onSocket, ui, Sounds, reducedMotion = 
   }
 
   // Fita do nível II: duas pontas de tecido saindo de trás da medalha, com a ponta em V.
-  function ribbon(defs, id, mat) {
+  function ribbon(defs, id, mat, tiny) {
     const [cloth, stripe] = mat.ribbon;
     const fill = grad(defs, id + 'rb', [[0, cloth], [0.55, cloth], [1, '#000', 1]], { x1: 0, y1: 0, x2: 0, y2: 1 });
     const g = s('g', { class: 'fm-ribbon' });
     for (const side of [-1, 1]) {
-      const sx = CX + side * 7, sy = CY + 6, ex = CX + side * 27, ey = CY + R + 22;
+      const sx = CX + side * 7, sy = CY + 6, ex = CX + side * (tiny ? 20 : 27), ey = CY + R + (tiny ? 10 : 22);
       const dx = ex - sx, dy = ey - sy, len = Math.hypot(dx, dy), nx = -dy / len, ny = dx / len, w = 9;
       const notch = [ex - dx / len * 7, ey - dy / len * 7];
       g.append(s('path', { d: poly([[sx + nx * w, sy + ny * w], [ex + nx * w, ey + ny * w], notch, [ex - nx * w, ey - ny * w], [sx - nx * w, sy - ny * w]]), fill, stroke: '#000', 'stroke-opacity': 0.35, 'stroke-width': 0.6 }));
@@ -207,11 +207,20 @@ window.MudaeForge = function ({ el, call, onSocket, ui, Sounds, reducedMotion = 
   }
 
   // Louros do nível III: dois ramos subindo pelos lados, no metal da medalha.
-  function laurel(fill, dark, rich) {
-    const g = s('g', { class: 'fm-laurel' });
+  function laurel(fill, dark, rich, tiny) {
+    const g = s('g', { class: 'fm-laurel' + (tiny ? ' tiny' : '') });
     const leaves = rich ? 7 : 4, rl = R + 7;
     // Folha pontuda, deitada no eixo x a partir do cabo (0, 0).
     const leafPath = (L, W) => `M0 0Q${f(L * 0.4)} ${f(-W)} ${f(L)} 0Q${f(L * 0.4)} ${f(W)} 0 0Z`;
+    // Bem pequena (perfil, 28 px): só um raminho de 3 folhas grandes de cada lado, embaixo.
+    if (tiny) {
+      for (const side of [-1, 1]) for (const from of [128, 152, 176]) {
+        const a = side < 0 ? from : 180 - from;
+        const [x, y] = polar(rl - 2, a);
+        g.append(s('path', { d: leafPath(16, 7), transform: `translate(${f(x)} ${f(y)}) rotate(${f(a - 90 * side + 38 * side)})`, fill, stroke: dark, 'stroke-width': 0.8 }));
+      }
+      return g;
+    }
     for (const side of [-1, 1]) {
       const from = 116, to = 238;
       const at = (t) => (side < 0 ? from + (to - from) * t : 180 - (from + (to - from) * t));
@@ -337,8 +346,10 @@ window.MudaeForge = function ({ el, call, onSocket, ui, Sounds, reducedMotion = 
       }
       svg.append(shine);
     }
-    if (level >= 2) svg.append(ribbon(defs, id, mat));
-    if (level >= 3) svg.append(laurel(leaf, rimMetal[0], rich));
+    // Abaixo de 40 px os louros viram pontinhos e a fita parece duas pernas: raminho simples e fita curta.
+    const tiny = size < 40;
+    if (level >= 2) svg.append(ribbon(defs, id, mat, tiny));
+    if (level >= 3) svg.append(laurel(leaf, rimMetal[0], rich, tiny));
 
     // Sombra de contato, aro, chanfro e campo.
     if (rich) svg.append(s('path', { d: shape.d, transform: 'translate(0 2.4)', fill: '#000', 'fill-opacity': 0.35 }));
@@ -533,7 +544,19 @@ window.MudaeForge = function ({ el, call, onSocket, ui, Sounds, reducedMotion = 
           n <= m.level ? el('span', { class: 'forja-perk-price got', textContent: '✓' })
             : el('span', { class: 'forja-perk-price' }, base ? num(base * n) : '', base ? kakera() : null)))),
         m.offer && !animating ? choice(key, m) : null,
+        m.level >= 1 ? el('label', { class: 'forja-show' },
+          el('input', { type: 'checkbox', checked: shown().includes(key), disabled: busy, onchange: (e) => showNow(key, e.target.checked) }), 'Mostrar no perfil') : null,
         actions));
+  }
+
+  // Medalhas no cartão de perfil: o servidor manda a lista atual (ou a padrão); aqui troca uma e manda a lista inteira.
+  const shown = () => view?.shown || [];
+  async function showNow(key, on) {
+    const before = shown();
+    const next = on ? [...before.filter((k) => k !== key), key] : before.filter((k) => k !== key);
+    view.shown = next;
+    const res = await call('mudae:forja:show', { medals: next });
+    if (!res) { view.shown = before; draw(); }
   }
 
   // As duas medalhas lado a lado: a de agora e a com o acabamento novo.

@@ -2472,7 +2472,7 @@ io.on('connection', (socket) => {
 
   on('mudae:harem', (acc, { ownerId }) => mudae.album(mudaeStore(), memberId(ownerId) || acc.id, mudaeMember));
   on('mudae:ranking', () => mudae.ranking(mudaeStore(), (id) => communities.joined(id)));
-  on('mudae:profile', (acc, { accountId }) => ({ summary: memberId(accountId) ? mudae.summary(mudaeStore(), accountId) : null }));
+  on('mudae:profile', (acc, { accountId }) => ({ summary: memberId(accountId) ? mudae.summary(mudaeStore(), accountId, forja.shownOf(mudaeStore(), accountId)) : null }));
 
   on('mudae:favorite', (acc, { charId }) => {
     mudaeAllowed(acc);
@@ -2493,7 +2493,7 @@ io.on('connection', (socket) => {
     const store = mudaeStore();
     const medals = forja.medalsOf(store, acc.id);
     const prices = Object.fromEntries(MEDAL_KEYS.map((m) => [m, medals[m].level >= 4 ? null : priceOf(m, medals[m].level + 1)]));
-    return { medals, kakera: mudae.kakeraOf(store, acc.id), perks: perksOf(store, acc.id), prices };
+    return { medals, kakera: mudae.kakeraOf(store, acc.id), perks: perksOf(store, acc.id), prices, shown: forja.shownOf(store, acc.id).map((m) => m.medal) };
   };
   const forgeMedal = (medal) => (MEDALS[medal] ? medal : fail('Medalha inválida.'));
   const forgeGuard = (acc) => {
@@ -2537,6 +2537,14 @@ io.on('connection', (socket) => {
     const r = forja.reforge(mudaeStore(), acc.id, forgeMedal(medal));
     save(chunk.server());
     return r;
+  });
+  // Quais medalhas aparecem no cartão de perfil (a lista inteira, na ordem).
+  on('mudae:forja:show', (acc, { medals }) => {
+    mudaeAllowed(acc);
+    if (!allow('mudae-forja-show:' + acc.id, 12, 5000)) fail('Calma! Cliques rápidos demais na Forja.');
+    forja.setShown(mudaeStore(), acc.id, medals);
+    save(chunk.server());
+    return { ok: true };
   });
 
   // Poderes: abrem com conquistas (casar, rodar, pegar cristal, forjar). O poder novo vira uma linha no Salão

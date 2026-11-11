@@ -1237,11 +1237,13 @@ window.MudaeSalon = function ({ state, el, Icon, call, onSocket, member, avatar,
       if (!hit?.summary) return null;
     }
     const s = profiles.get(key).summary;
-    if (!s?.favorite) return null;
+    // A fileira de medalhas aparece mesmo sem favorito.
+    const medals = forge && s?.medals?.length ? el('div', { class: 'pc-medals' }, s.medals.map((m) => forge.medalSvg(m.medal, m.level, m.finish, 28))) : null;
+    if (!s?.favorite) return medals && el('div', { class: 'pc-section' }, el('div', { class: 'pc-label', textContent: 'MUDAE' }), medals);
     const salon = state.server.channels.find((c) => c.mudae);
     const f = s.favorite;
     return el('div', { class: 'pc-section' },
-      el('div', { class: 'pc-label', textContent: 'MUDAE' }),
+      el('div', { class: 'pc-label', textContent: 'MUDAE' }), medals,
       el('button', { type: 'button', class: 'pc-mudae r-' + f.rarity, disabled: !salon, title: salon ? 'Ver o harem' : '',
         onclick: () => { closeProfile(); openChannel(salon.id); setTimeout(() => openHarem(accountId)); } },
         el('img', { src: f.image, alt: f.name, loading: 'lazy', decoding: 'async' }),

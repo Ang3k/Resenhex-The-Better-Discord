@@ -105,6 +105,51 @@ test('perksOf soma as medalhas', () => {
   assert.deepEqual(perksOf(store, 'a'), { wishSlots: 2, carry: 0, crystalBonus: 0.3, dkDouble: true, extraRolls: 0, wishChance: 0, reserveEveryMs: 0, rechargeMs: 20 * 3600_000 });
 });
 
+// Medalhas no perfil: bronze I, ouro III, rubi II forjadas; a Ana tem um personagem.
+function profileSetup() {
+  const mudae = createMudae({ catalog: [[1, 'Satoru Gojou', 'Jujutsu Kaisen', 'b1-a.png', 'M', 900]], now: () => 1000, random: () => 0, refSize: 1 });
+  const forja = createForja({ random: () => 0 });
+  const store = { claims: { 1: { ownerId: 'a', at: 0 } }, usage: {},
+    medals: { a: { bronze: { level: 1, finish: 'metal' }, ouro: { level: 3, finish: 'holo' }, rubi: { level: 2, finish: 'esmalte' } } } };
+  return { mudae, forja, store };
+}
+
+test('perfil mostra as medalhas escolhidas, na ordem escolhida', () => {
+  const { mudae, forja, store } = profileSetup();
+  forja.setShown(store, 'a', ['rubi', 'bronze']);
+  assert.deepEqual(store.medalsShown.a, ['rubi', 'bronze']);
+  const s = mudae.summary(store, 'a', forja.shownOf(store, 'a'));
+  assert.deepEqual(s.medals, [{ medal: 'rubi', level: 2, finish: 'esmalte' }, { medal: 'bronze', level: 1, finish: 'metal' }]);
+  assert.equal(s.favorite.name, 'Satoru Gojou');
+  // Tirar todas: o perfil fica sem medalhas (não volta para o padrão).
+  forja.setShown(store, 'a', []);
+  assert.deepEqual(forja.shownOf(store, 'a'), []);
+});
+
+test('sem escolha, mostra as forjadas da mais alta para a mais baixa', () => {
+  const { mudae, forja, store } = profileSetup();
+  assert.deepEqual(forja.shownOf(store, 'a').map((m) => m.medal), ['ouro', 'rubi', 'bronze']);
+  assert.deepEqual(forja.shownOf(store, 'b'), []);
+  // Sem personagem, o resumo ainda sai se houver medalha.
+  delete store.claims[1];
+  const s = mudae.summary(store, 'a', forja.shownOf(store, 'a'));
+  assert.equal(s.favorite, null);
+  assert.deepEqual(s.medals[0], { medal: 'ouro', level: 3, finish: 'holo' });
+  assert.equal(mudae.summary(store, 'b', forja.shownOf(store, 'b')), null);
+});
+
+test('não dá para mostrar medalha que não foi forjada', () => {
+  const { forja, store } = profileSetup();
+  assert.throws(() => forja.setShown(store, 'a', ['ouro', 'prata']), /Forje a Prata antes/);
+  assert.throws(() => forja.setShown(store, 'a', ['nada']), /Medalha inválida/);
+  assert.throws(() => forja.setShown(store, 'a', ['ouro', 'ouro']), /repetida/);
+  assert.throws(() => forja.setShown(store, 'a', 'ouro'), /Escolha inválida/);
+  assert.equal(store.medalsShown, undefined);
+  // Se a escolha guardada tiver algo apagado, ele some do perfil.
+  store.medalsShown = { a: ['prata', 'ouro'] };
+  assert.deepEqual(forja.shownOf(store, 'a').map((m) => m.medal), ['ouro']);
+});
+
 test('forjar com kakera oferecido numa troca cancela a troca na confirmação', () => {
   const catalog = [[1, 'Satoru Gojou', 'Jujutsu Kaisen', 'b1-a.png', 'M', 900]];
   const mudae = createMudae({ catalog, now: () => 1000, random: () => 0, refSize: 1 });
@@ -237,4 +282,12 @@ test('Forja pelo socket: forjar, nível IV vira linha e aviso para todos', async
   assert.equal(after.kakera, 6000 - 500 - 1000 - 1500 - 2000 - 500);
   assert.equal(after.prices.bronze, null);
   assert.equal(after.medals.bronze.level, 4);
+  assert.deepEqual(after.shown, ['bronze']);
+
+  // Medalhas no perfil: a Ana escolhe e o Beto vê no cartão dela (mesmo sem personagem).
+  assert.match((await ana.call('mudae:forja:show', { medals: ['prata'] })).error, /Forje a Prata antes/);
+  assert.ok(!(await ana.call('mudae:forja:show', { medals: ['bronze'] })).error);
+  const profile = await beto.call('mudae:profile', { accountId: anaId });
+  assert.deepEqual(profile.summary.medals, [{ medal: 'bronze', level: 4, finish: after.medals.bronze.finish }]);
+  assert.equal(profile.summary.favorite, null);
 });
