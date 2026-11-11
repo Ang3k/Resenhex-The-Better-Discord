@@ -32,10 +32,14 @@ test('nasce entre 5 e 15 min com alguém no Salão, e não nasce sem ninguém', 
   assert.equal(spawned.length, 1);
   assert.equal(spawned[0].serverId, 's1');
   assert.equal(spawned[0].kind, 'drifter');
-  // quem sai do Salão perde o horário: ao voltar, começa de novo
+  // o Salão esvazia com 10 min faltando (random 0.5): na volta, a espera continua dali, não do zero
   crystals.tick([]);
   advance(CRYSTAL.everyMaxMs * 2);
   assert.equal(crystals.tick(['s1']).spawned.length, 0);
+  advance(10 * 60_000 - 1);
+  assert.equal(crystals.tick(['s1']).spawned.length, 0);
+  advance(1);
+  assert.equal(crystals.tick(['s1']).spawned.length, 1);
   // o horário nunca vai para o navegador
   assert.equal('nextAt' in crystals.view(spawned[0]), false);
 });
@@ -65,7 +69,7 @@ test('fora do tempo: antes de aparecer e depois de sumir', () => {
   assert.match(crystals.take(store, 's1', early.id, 'b').error, /Tarde demais/);
 });
 
-test('teto do dia: os 15 primeiros valem inteiro, depois 10%', () => {
+test('teto do dia: os 15 primeiros valem inteiro, depois quase nada', () => {
   const { crystals, store, advance, now } = setup();
   for (let i = 0; i < CRYSTAL.dailyFull; i++) {
     const c = crystals.spawn('s1');
@@ -91,7 +95,15 @@ test('Ouro aumenta só o que a pessoa ganha', () => {
   assert.equal(crystals.take(store, 's1', c.id, 'sem').amount, c.value);
 });
 
-test('chuva: cada gota uma vez por pessoa, conta como 1 cristal', () => {
+test('chuva do poder: cada gota vale menos que a da chuva que nasce sozinha', () => {
+  const { crystals, store } = setup();
+  const own = crystals.spawn('s1', { kind: 'storm' });
+  const called = crystals.spawn('s1', { kind: 'storm', by: 'dono', called: true });
+  assert.equal(crystals.take(store, 's1', own.id, 'a').amount, Math.max(1, Math.round(own.value * CRYSTAL.storm.valueFactor)));
+  assert.equal(crystals.take(store, 's1', called.id, 'a').amount, Math.max(1, Math.round(called.value * CRYSTAL.storm.calledFactor)));
+});
+
+test('chuva: cada gota uma vez por pessoa, conta como 1 cristal e gasta 2 do teto', () => {
   const { crystals, store, mudae } = setup();
   const c = crystals.spawn('s1', { kind: 'storm', by: 'dono' });
   const each = Math.max(1, Math.round(c.value * CRYSTAL.storm.valueFactor));
@@ -101,7 +113,7 @@ test('chuva: cada gota uma vez por pessoa, conta como 1 cristal', () => {
   assert.equal(crystals.take(store, 's1', c.id, 'b', { gem: 2 }).amount, each);
   assert.ok(crystals.take(store, 's1', c.id, 'a', { gem: 99 }).error);
   assert.equal(mudae.stats(store, 'a').crystals, 1);
-  assert.equal(store.usage.a.crystalDay[1], 1);
+  assert.equal(store.usage.a.crystalDay[1], CRYSTAL.storm.capCost);
 });
 
 test('corrente: o próximo nasce se alguém pegar, e para no último', () => {

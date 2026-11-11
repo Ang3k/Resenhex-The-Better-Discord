@@ -362,6 +362,9 @@ function createMudae({ catalog, now = Date.now, random = Math.random, refSize = 
     if (u.future && !u.future.length) delete u.future;
     delete u.armed;
     const called = armed?.desejo?.hit ? freeWishes(store, accountId, list) : [];
+    // O desejo acertou, mas nenhum cabe neste comando (ex.: $wg com desejos só de anime): o Chamar desejo
+    // continua ativo para o próximo roll, em vez de ser gasto à toa.
+    if (armed?.desejo?.hit && !called.length && freeWishes(store, accountId, pools.m).length) u.armed = { desejo: armed.desejo };
     const c = (called.length ? pick(called) : null)
       || wishedPick(store, accountId, list, perks, predicted)
       || pickInRarity(list, predicted || drawRarity(list, !!armed?.amuleto));

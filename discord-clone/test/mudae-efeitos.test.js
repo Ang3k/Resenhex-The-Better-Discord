@@ -229,7 +229,10 @@ test('Chamar desejo com Vidência: wish aparece na previsão e se cumpre', () =>
   const got = mudae.roll(store, 'a', 'h');
   assert.equal(got.card.rarity, 'epic');
   assert.notEqual(got.card.id, 119);
-  assert.equal(store.usage.a.armed, undefined, 'o desejo foi gasto mesmo sem caber');
+  // O desejo não cabia nesse comando: ele continua ativo e vem no próximo roll em que couber.
+  assert.deepEqual(store.usage.a.armed, { desejo: { hit: true } }, 'o desejo não é gasto à toa');
+  assert.equal(mudae.roll(store, 'a', 'w').card.id, 119);
+  assert.equal(store.usage.a.armed, undefined);
 });
 
 test('Escolha dupla: duas cartas diferentes num roll só', () => {

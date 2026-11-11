@@ -7,7 +7,8 @@ const CHAIN_COLORS = ['roxo', 'ciano', 'amarelo', 'laranja', 'vermelho']; // cor
 
 function createCrystals({ now, random, rules = CRYSTAL, countCrystal = () => {} }) {
   const crystals = new Map(); // id -> cristal
-  const nextAt = new Map(); // serverId -> quando nasce o próximo (nunca sai daqui)
+  const nextAt = new Map(); // serverId -> quando nasce o próximo, enquanto tem gente no Salão
+  const paused = new Map(); // serverId -> quanto faltava quando o Salão esvaziou (continua dali na volta)
   let counter = 0;
 
   const between = (min, max) => min + Math.floor(random() * (max - min + 1));
@@ -22,7 +23,7 @@ function createCrystals({ now, random, rules = CRYSTAL, countCrystal = () => {} 
 
   const endOf = (c) => c.appearAt + c.life + rules.graceMs;
 
-  function spawn(serverId, { kind = 'drifter', appearAt = now(), from = null, by = null, step = 1 } = {}) {
+  function spawn(serverId, { kind = 'drifter', appearAt = now(), from = null, by = null, step = 1, called = false } = {}) {
     const color = kind === 'chain' ? colorOf(CHAIN_COLORS[step - 1]) : pickColor();
     const c = {
       id: `${(++counter).toString(36)}${now().toString(36)}`,
@@ -32,6 +33,8 @@ function createCrystals({ now, random, rules = CRYSTAL, countCrystal = () => {} 
       life: kind === 'storm' ? rules.storm.lifeMs : kind === 'chain' ? rules.chain.lifeMs : rules.lifeMs,
       seed: Math.floor(random() * 2 ** 31), // o navegador usa para desenhar o caminho do voo
       gems: kind === 'storm' ? rules.storm.gems : 1,
+      // Quanto vale cada gota: a chuva do poder rende menos que a que nasce sozinha.
+      factor: kind === 'storm' ? (called ? rules.storm.calledFactor : rules.storm.valueFactor) : 1,
       step: kind === 'chain' ? step : 1,
       from, by,
       takers: new Map(), // accountId -> total ganho
@@ -50,10 +53,15 @@ function createCrystals({ now, random, rules = CRYSTAL, countCrystal = () => {} 
   function tick(presentServerIds) {
     const t = now();
     const present = new Set(presentServerIds);
-    for (const id of [...nextAt.keys()]) if (!present.has(id)) nextAt.delete(id);
+    // O Salão esvaziou: guarda quanto faltava, para a próxima visita não começar a espera do zero.
+    for (const [id, at] of [...nextAt]) if (!present.has(id)) { paused.set(id, Math.max(0, at - t)); nextAt.delete(id); }
     const spawned = [];
     for (const id of present) {
-      if (!nextAt.has(id)) { nextAt.set(id, t + between(rules.everyMinMs, rules.everyMaxMs)); continue; }
+      if (!nextAt.has(id)) {
+        nextAt.set(id, t + (paused.has(id) ? paused.get(id) : between(rules.everyMinMs, rules.everyMaxMs)));
+        paused.delete(id);
+        continue;
+      }
       if (nextAt.get(id) > t) continue;
       const r = random();
       const kind = r < rules.storm.chance ? 'storm' : r < rules.storm.chance + rules.chain.chance ? 'chain' : 'drifter';
@@ -81,17 +89,17 @@ function createCrystals({ now, random, rules = CRYSTAL, countCrystal = () => {} 
     const key = `${accountId}:${slot}`;
     if (c.gemTakers.has(key)) return { error: 'Você já pegou esse cristal.' };
 
-    // A chuva conta como 1 cristal (teto do dia e contador) já na primeira gota da pessoa.
+    // A chuva conta como 1 cristal pego, mas gasta capCost do teto do dia, já na primeira gota da pessoa.
     if (!c.fullFor.has(accountId)) {
       const u = ((store.usage ||= {})[accountId] ||= {});
       if (!Array.isArray(u.crystalDay) || u.crystalDay[0] !== dayOf(t)) u.crystalDay = [dayOf(t), 0];
       c.fullFor.set(accountId, u.crystalDay[1] < rules.dailyFull);
-      u.crystalDay[1]++;
+      u.crystalDay[1] += c.kind === 'storm' ? rules.storm.capCost : 1;
       countCrystal(store, accountId);
     }
     const full = c.fullFor.get(accountId);
 
-    const base = c.kind === 'storm' ? c.value * rules.storm.valueFactor : c.value;
+    const base = c.value * c.factor;
     let amount = Math.max(1, Math.round(base * (1 + (perks?.crystalBonus || 0))));
     if (!full) amount = Math.max(1, Math.round(amount * rules.afterCap));
 

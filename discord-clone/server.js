@@ -2190,13 +2190,16 @@ io.on('connection', (socket) => {
 
   // Posta um roll (do $m, da Escolha dupla ou do Eco): a mensagem com a roleta, o cristal que nasce de um
   // personagem que já tem dono e o aviso a quem tem o personagem na lista de desejos (menos quem rodou).
+  const cardCrystalAt = new Map(); // accountId -> quando o roll dessa pessoa soltou o último cristal de carta
   const postRoll = (c, acc, command, { card, ownerId, rollsLeft, pair = null, eco = false, decoys }) => {
     const revealAt = Date.now() + revealDelay(card.rarity);
     const wishedBy = mudae.wishersOf(mudaeStore(), card.id, mudaeMember);
     const msg = postMudae(c, acc, command, { kind: 'roll', card, ownerId, revealAt, priorityUntil: revealAt + PRIORITY_MS,
       expires: revealAt + CLAIM_WINDOW_MS, rollsLeft, ...(pair ? { pair } : {}), ...(eco ? { eco: true } : {}), ...(wishedBy.length ? { wishedBy } : {}) }, { decoys });
-    // Personagem que já tem dono: o cristal nasce da carta quando a roleta para.
-    if (ownerId) {
+    // Personagem que já tem dono: o cristal nasce da carta quando a roleta para (no máximo 1 a cada 30 min por
+    // quem rodou, senão quem casa muito com uma lista pequena faz chover cristal a cada roll).
+    if (ownerId && Date.now() - (cardCrystalAt.get(acc.id) || 0) >= CRYSTAL.cardEveryMs) {
+      cardCrystalAt.set(acc.id, Date.now());
       const spawned = crystals.spawn(communities.currentId(), { appearAt: revealAt, from: { channel: c.id, msgId: msg.id }, by: acc.id });
       crystalToSalons(spawned.serverId, 'mudae:crystal', crystals.view(spawned));
     }
@@ -2667,7 +2670,7 @@ io.on('connection', (socket) => {
     },
     chuva: (store, accId) => {
       const serverId = communities.currentId();
-      return { reply: { armed: 'chuva' }, after: () => crystalToSalons(serverId, 'mudae:crystal', crystals.view(crystals.spawn(serverId, { kind: 'storm', by: accId }))) };
+      return { reply: { armed: 'chuva' }, after: () => crystalToSalons(serverId, 'mudae:crystal', crystals.view(crystals.spawn(serverId, { kind: 'storm', by: accId, called: true }))) };
     },
   };
   const TABLE_POWERS = ['cadeado', 'laco', 'eco', 'chuva'];

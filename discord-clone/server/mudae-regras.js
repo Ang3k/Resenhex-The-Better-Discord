@@ -51,7 +51,8 @@ const CRYSTAL = {
   graceMs: 1500, // folga para a internet lenta
   tickMs: 5000, // de quanto em quanto tempo o servidor olha se é hora de nascer um
   dailyFull: 15, // os 15 primeiros do dia rendem o valor inteiro
-  afterCap: 0.1, // depois disso rendem 10%
+  afterCap: 0.02, // depois disso rendem 2% (quem fica o dia todo, ou um robô, não dispara na frente)
+  cardEveryMs: 30 * MIN, // o cristal que sai da carta com dono: no máximo 1 a cada 30 min por quem rodou
   colors: [
     { key: 'roxo', value: 75, weight: 30, hex: '#a35bff' },
     { key: 'azul', value: 100, weight: 28, hex: '#3b82f6' },
@@ -61,8 +62,9 @@ const CRYSTAL = {
     { key: 'laranja', value: 340, weight: 3.5, hex: '#fb923c' },
     { key: 'vermelho', value: 560, weight: 1.5, hex: '#ef4444' },
   ],
-  // Chuva: muitos cristais pequenos; cada um vale valueFactor do valor da cor.
-  storm: { chance: 0.04, gems: 16, lifeMs: 7000, valueFactor: 0.25 },
+  // Chuva: muitos cristais pequenos; cada um vale valueFactor do valor da cor (a que nasce sozinha, rara) ou
+  // calledFactor (a do poder Chuva, uma por dia: ~210 se pegar todas). Conta capCost no teto do dia.
+  storm: { chance: 0.04, gems: 16, lifeMs: 7000, valueFactor: 0.25, calledFactor: 0.1, capCost: 2 },
   // Corrente: pegar um cristal faz nascer outro, valendo mais, enquanto alguém pegar o anterior.
   chain: { chance: 0.04, values: [40, 75, 140, 280, 560], gapMs: 1200, lifeMs: 6000 },
 };
