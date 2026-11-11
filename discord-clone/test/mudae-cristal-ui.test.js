@@ -334,9 +334,14 @@ test('fim do cristal vira linha ao vivo, que não fica no histórico', async (t)
   assert.equal(app.d.querySelector('#messages [data-id="live-k1"]'), null, 'o histórico novo não traz a linha');
 
   // Quem entrou no Salão com o cristal já voando não viu ele, mas fica sabendo quem pegou.
+  app.deliver('mudae:crystal:end', { id: 'k8', kind: 'drifter', colorKey: 'verde', color: '#22c55e', takers: [{ id: meId, amount: 175 }] });
+  await settle();
+  assert.match(app.d.querySelector('#messages [data-id="live-k8"]').textContent, /pegou o cristal verde/);
+
+  // Ninguém pegou: nada entra no chat (com um cristal a cada 5–15 min, o chat encheria).
   app.deliver('mudae:crystal:end', { id: 'k9', kind: 'drifter', colorKey: 'roxo', color: '#a35bff', takers: [] });
   await settle();
-  assert.match(app.d.querySelector('#messages [data-id="live-k9"]').textContent, /O cristal roxo sumiu/);
+  assert.equal(app.d.querySelector('#messages [data-id="live-k9"]'), null);
 });
 
 test('modo simplificado recebe a linha com o botão Pegar', async (t) => {

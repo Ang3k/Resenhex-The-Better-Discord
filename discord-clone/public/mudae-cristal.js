@@ -309,6 +309,8 @@ window.MudaeCrystals = function ({ el, call, onSocket, Sounds, ui, member, reduc
     // Quem entrou no Salão com o cristal já voando não tem o registro dele, mas a linha de quem pegou vale igual.
     const c = crystals.get(e.id);
     if (c) forget(c);
+    // Ninguém pegou: nada no chat (com um cristal a cada 5–15 min, o Salão aberto e vazio encheria o chat dessas linhas).
+    if (!e.takers?.length) return;
     addLiveLine(host.channel, { kind: 'crystalEnd', crystal: e });
   });
 

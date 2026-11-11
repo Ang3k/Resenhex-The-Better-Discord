@@ -1253,7 +1253,13 @@ window.MudaeSalon = function ({ state, el, Icon, call, onSocket, member, avatar,
     }
     const s = profiles.get(key).summary;
     // A fileira de medalhas aparece mesmo sem favorito.
-    const medals = forge && s?.medals?.length ? el('div', { class: 'pc-medals' }, s.medals.map((m) => forge.medalSvg(m.medal, m.level, m.finish, 28))) : null;
+    // Passar o mouse diz qual é a medalha ("Bronze I · Esmalte"), com a dica do app.
+    const medals = forge && s?.medals?.length ? el('div', { class: 'pc-medals' }, s.medals.map((m) => {
+      const svg = forge.medalSvg(m.medal, m.level, m.finish, 28);
+      const name = svg.getAttribute('aria-label');
+      if (name) svg.dataset.tip = name;
+      return svg;
+    })) : null;
     if (!s?.favorite) return medals && el('div', { class: 'pc-section' }, el('div', { class: 'pc-label', textContent: 'MUDAE' }), medals);
     const salon = state.server.channels.find((c) => c.mudae);
     const f = s.favorite;

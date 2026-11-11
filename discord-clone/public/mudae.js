@@ -408,8 +408,10 @@ window.MudaeUI = function ({ state, el, Icon, call, member, avatar, nameColor, F
         const m = d.medals?.[key] || { level: 0 };
         const price = d.prices?.[key];
         return el('li', { class: 'mudae-medal l' + m.level, title: price ? `Próximo nível: ${num(price)} kakera` : 'No nível máximo' },
-          medalSvg ? medalSvg(key, m.level, m.finish, 28) : ico('medal'), el('strong', { textContent: MEDALS[key] }), el('span', { class: 'mudae-medal-level', textContent: ' ' + (ROMAN[m.level] || '—') }),
-          el('span', { class: 'mudae-muted', textContent: m.level ? ' · ' + finishName(m.finish) : price ? ` · ${num(price)}` : '' }));
+          medalSvg ? medalSvg(key, m.level, m.finish, 28) : ico('medal'), el('strong', { textContent: MEDALS[key] }),
+          m.level ? el('span', { class: 'mudae-medal-level', textContent: ' ' + ROMAN[m.level] }) : null,
+          // À direita, sem quebrar: o acabamento da forjada ou o preço da que falta.
+          el('span', { class: 'mudae-muted mudae-medal-info' }, m.level ? finishName(m.finish) : price ? [num(price), kakera()] : ''));
       })),
       d.powers ? stageList(d.powers) : null,
       el('div', { class: 'mudae-actions' }, el('button', { type: 'button', class: 'mudae-go', onclick: () => openForja() }, 'Abrir a Forja')));
@@ -642,7 +644,7 @@ window.MudaeUI = function ({ state, el, Icon, call, member, avatar, nameColor, F
     const q = typed.toLowerCase();
     // Sem nada digitado, só os comandos principais; com "$w", aparecem também $wa, $wg…
     return COMMANDS.filter((c) => c.name.startsWith(q) && (q || !/^[whm][agcds]$/.test(c.name)))
-      .map((c) => ({ command: true, icon: 'heart', insert: '$' + c.name, label: '$' + c.name + (c.args ? ' ' : ''), hint: c.args ? c.hint : '', note: c.note }));
+      .map((c) => ({ command: true, icon: 'heart', insert: '$' + c.name, label: '$' + c.name + (c.args ? ' ' : ''), hint: c.args ? c.hint : '', note: c.note, args: !!c.args }));
   }
 
   return { body, invocation, botAvatar, ephemeral, sync, serverNow, suggestions, isCommand, divorceTarget, confirmFor, kakera, num, minutes, RARITY, SOURCES, seriesLine, sourceIcon, ownerTag,

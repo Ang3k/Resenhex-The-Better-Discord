@@ -2490,9 +2490,14 @@
         ac.index = (ac.index + (e.key === 'ArrowDown' ? 1 : -1) + ac.items.length) % ac.items.length;
         return renderAutocomplete();
       }
-      if (e.key === 'Enter' || e.key === 'Tab') {
+      // Com o comando do Mudae já inteiro na caixa ("$w", "$dk") e sem nada a completar, o Enter envia direto;
+      // o Tab continua completando.
+      const item = ac.items[ac.index];
+      const whole = e.key === 'Enter' && item?.command && item.args === false && e.target.value.trim().toLowerCase() === item.insert;
+      if (whole) closeAutocomplete();
+      else if (e.key === 'Enter' || e.key === 'Tab') {
         e.preventDefault();
-        return applyAutocomplete(ac.items[ac.index]);
+        return applyAutocomplete(item);
       }
       if (e.key === 'Escape') return closeAutocomplete();
     }
