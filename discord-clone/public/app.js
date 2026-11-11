@@ -81,6 +81,9 @@
     outputVolume: Math.min(100, Math.max(0, Number(localStorage.getItem('outputVolume') ?? 100))),
     shareAudio: localStorage.getItem('shareAudio') !== 'false',
     cameraPreview: localStorage.getItem('cameraPreview') !== 'false', // prévia local antes de ligar a câmera
+    // Espelho só na própria tela (como um espelho de verdade); quem está na chamada sempre vê sem espelho.
+    // Desligar ajuda quem mostra jogo, papel ou texto pela câmera.
+    mirrorCamera: localStorage.getItem('mirrorCamera') !== 'false',
     showStreamStats: localStorage.getItem('showStreamStatsDefault') !== 'visible-v2' || localStorage.getItem('showStreamStats') !== 'false',
     theme: ['dark', 'midnight', 'contrast'].includes(appearance.theme) ? appearance.theme : 'dark',
     density: appearance.density === 'compact' ? 'compact' : 'comfortable',
@@ -6973,6 +6976,7 @@
     const status = el('div', { class: 'campv-status' }, el('span', { class: 'campv-spinner' }), el('span', { textContent: 'Abrindo a câmera…' }));
     const select = el('select', { class: 'campv-select', ariaLabel: 'Câmera' });
     const always = el('input', { type: 'checkbox', checked: state.cameraPreview });
+    const mirror = el('input', { type: 'checkbox', checked: state.mirrorCamera });
     const start = el('button', { type: 'button', class: 'btn-primary', disabled: true }, Icon('camera', 18), 'Ligar câmera');
     const stop = () => { stream?.getTracks().forEach((t) => t.stop()); stream = null; video.srcObject = null; };
     const close = (keep = false) => {
@@ -7005,6 +7009,10 @@
     }
     select.onchange = () => { state.cameraDeviceId = select.value; localStorage.setItem('cameraDeviceId', select.value); open(select.value); };
     always.onchange = () => { state.cameraPreview = always.checked; localStorage.setItem('cameraPreview', always.checked); };
+    mirror.onchange = () => {
+      state.mirrorCamera = mirror.checked; localStorage.setItem('mirrorCamera', mirror.checked);
+      document.documentElement.dataset.mirrorCamera = String(mirror.checked);
+    };
     start.onclick = () => {
       const captured = stream;
       if (!captured) return;
@@ -7017,6 +7025,7 @@
         el('button', { type: 'button', class: 'campv-close', ariaLabel: 'Fechar', onclick: () => close() }, Icon('x', 20))),
       el('div', { class: 'campv-stage' }, video, status, el('span', { class: 'campv-badge' }, el('span', { class: 'campv-dot' }), 'Só você vê')),
       el('label', { class: 'campv-device hidden' }, Icon('camera', 16), select),
+      el('label', { class: 'campv-always' }, mirror, el('span', { textContent: 'Espelhar a imagem para mim (os outros sempre veem sem espelho)' })),
       el('label', { class: 'campv-always' }, always, el('span', { textContent: 'Sempre mostrar esta prévia antes de ligar a câmera' })),
       el('div', { class: 'confirm-actions' }, el('button', { type: 'button', class: 'btn-ghost', textContent: 'Cancelar', onclick: () => close() }), start));
     const overlay = el('div', { class: 'confirm-overlay campv-overlay', onmousedown: (e) => { if (e.target === overlay) close(); } }, card);
@@ -7295,7 +7304,7 @@
     'camera-select': 'cameraDeviceId', 'noise-mode': 'noiseMode', 'echo-toggle': 'echoCancellation', 'voice-fx': 'voiceFx',
     'sens-auto': 'sensAuto', 'sens-range': 'sensThreshold', 'input-mode': 'inputMode',
     'ptt-code': 'pttCode', 'ptt-label': 'pttLabel', 'keybinds-data': 'keybinds', 'upload-select': 'uploadMbps',
-    'share-preset': 'sharePreset', 'share-audio': 'shareAudio', 'allow-clips': 'allowClips', 'call-pip-toggle': 'callPip', 'stream-stats': 'showStreamStats', 'camera-preview-toggle': 'cameraPreview',
+    'share-preset': 'sharePreset', 'share-audio': 'shareAudio', 'allow-clips': 'allowClips', 'call-pip-toggle': 'callPip', 'stream-stats': 'showStreamStats', 'camera-preview-toggle': 'cameraPreview', 'camera-mirror-toggle': 'mirrorCamera',
     'sounds-toggle': 'sounds', 'notify-toggle': 'notify', 'sb-toggle': 'soundboard', 'sb-volume': 'sbVolume',
     'output-volume': 'outputVolume', 'theme-select': 'theme', 'density-select': 'density',
     'font-size': 'fontSize', 'reduce-motion': 'reduceMotion', 'overlay-toggle': 'overlayEnabled', 'overlay-x': 'overlayX', 'overlay-y': 'overlayY',
@@ -7480,7 +7489,7 @@
       keybinds: JSON.stringify(state.keybinds) };
   }
   function previewAppearance(values) {
-    Object.assign(document.documentElement.dataset, { theme: values.theme, density: values.density, reduceMotion: String(values.reduceMotion), streamStats: String(values.showStreamStats) });
+    Object.assign(document.documentElement.dataset, { theme: values.theme, density: values.density, reduceMotion: String(values.reduceMotion), streamStats: String(values.showStreamStats), mirrorCamera: String(values.mirrorCamera !== false) });
     document.documentElement.style.setProperty('--chat-size', values.fontSize + 'px');
     if (values.voiceFx !== undefined) renderVoiceFxGrid(values.voiceFx);
     if (values.avatar !== undefined) {
@@ -7617,7 +7626,7 @@
         throw error;
       }
     }
-    for (const key of ['micDeviceId', 'speakerDeviceId', 'cameraDeviceId', 'noiseMode', 'echoCancellation', 'voiceFx', 'sensAuto', 'sensThreshold', 'uploadMbps', 'shareAudio', 'showStreamStats', 'cameraPreview', 'outputVolume', 'notify']) {
+    for (const key of ['micDeviceId', 'speakerDeviceId', 'cameraDeviceId', 'noiseMode', 'echoCancellation', 'voiceFx', 'sensAuto', 'sensThreshold', 'uploadMbps', 'shareAudio', 'showStreamStats', 'cameraPreview', 'mirrorCamera', 'outputVolume', 'notify']) {
       state[key] = values[key]; localStorage.setItem(key, state[key]);
     }
     localStorage.setItem('showStreamStatsDefault', 'visible-v2');

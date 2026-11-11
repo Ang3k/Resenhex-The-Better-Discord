@@ -456,6 +456,8 @@ blockquote { margin: 2px 0; padding: 0 8px 0 12px; border-left: 4px solid color-
 .tile .avatar { width: 80px; height: 80px; font-size: 30px; }
 .tile video.cam { width: 100%; height: 100%; object-fit: cover; cursor: default; }
 .tile video.cam.mirror { transform: scaleX(-1); }
+/* "Espelhar minha câmera" desligado: a própria imagem aparece como os outros veem (bloco, prévia e teste). */
+html[data-mirror-camera="false"] :is(.tile video.cam.mirror, .campv-video, .camera-preview) { transform: none; }
 .tile .hidden { display: none; }
 .tile video { width: 100%; height: 100%; object-fit: contain; background: #000; cursor: zoom-in; }
 .tile .label {
