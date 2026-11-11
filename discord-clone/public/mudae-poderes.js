@@ -58,6 +58,9 @@ window.MudaePowers = function ({ el, call, onSocket, ui, Sounds, reducedMotion =
       if (res && n === asked) {
         view = res;
         viewAt = Date.now();
+        // O que vale para o próximo roll vem do servidor: sobrevive a recarregar a página e ao $poder fora da Mesa.
+        armed.clear();
+        for (const key of res.armed || []) armed.add(key);
         update();
       }
       if (loading === request) loading = null;
@@ -77,8 +80,12 @@ window.MudaePowers = function ({ el, call, onSocket, ui, Sounds, reducedMotion =
     if (armed.has(key)) return { cls: 'armed', text: 'ativo no próximo roll', off: true, p: 1 };
     const left = leftOf(key);
     if (left > 0) return { cls: 'charging', text: 'volta em ' + minutes(left), off: true, p: view.rechargeMs ? Math.max(0, 1 - left / view.rechargeMs) : 0 };
-    const { msg, phase, mine } = host?.ctx || {};
+    const { msg, phase, mine, claimAt = 0 } = host?.ctx || {};
     const d = msg?.mudae;
+    // O Chamar desejo precisa de alguém na lista de desejos.
+    if (key === 'desejo' && view.wishes === 0) return { cls: 'waiting', text: 'lista de desejos vazia', off: true, p: 1 };
+    // O Laço é um casamento: enquanto o seu casamento não volta, o servidor recusa.
+    if (key === 'laco' && claimAt > Date.now()) return { cls: 'waiting', text: 'casa de novo em ' + minutes(claimAt - Date.now()), off: true, p: 1 };
     // O Cadeado só no meu roll enquanto a cápsula gira (carta com dono ou já trancada não serve).
     if (key === 'cadeado' && !(d && mine && phase === 'spinning' && !d.ownerId && !d.pairFree && !d.lockedBy)) return { cls: 'waiting', text: WHEN.cadeado, off: true, p: 1 };
     // O Laço só no roll de outra pessoa, nos 3 s dela.
@@ -186,10 +193,10 @@ window.MudaePowers = function ({ el, call, onSocket, ui, Sounds, reducedMotion =
     const payload = { channel, power: key };
     if (WHEN[key]) payload.id = msg.id;
     busy = true;
-    fire(key);
     const res = await call('mudae:power:use', payload);
     busy = false;
     if (!res) return update();
+    fire(key);
     spend(key);
     if (key === 'videncia') {
       Sounds.play('mudaePower');

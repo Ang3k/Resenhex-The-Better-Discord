@@ -302,6 +302,8 @@ window.MudaeSalon = function ({ state, el, Icon, call, onSocket, member, avatar,
     S.statusAt = Date.now();
     updateStatus();
     renderRollBar();
+    // O Laço depende de o casamento estar disponível.
+    if (nodes.stage?.isConnected) stagePowers(S.stage && byId(S.stage));
   }
   function updateStatus() {
     const s = S.status;
@@ -409,7 +411,14 @@ window.MudaeSalon = function ({ state, el, Icon, call, onSocket, member, avatar,
     nodes.floats = el('div', { class: 'salon-floats', ariaHidden: 'true' });
     nodes.backdrop = el('div', { class: 'salon-showcase', ariaHidden: 'true' });
     nodes.stage.dataset.showcase = 'neutral';
-    nodes.stage.replaceChildren(nodes.backdrop, nodes.banner, nodes.cardSlot, nodes.actions, reactionBar(), nodes.floats);
+    // Troca só as peças do Salão. As dos poderes (trilho, Vidência, efeitos, faixa, escolha do Eco) ficam onde estão:
+    // tirar e pôr de volta reiniciaria as animações delas e tiraria o foco da escolha do Eco.
+    const kept = [...nodes.stage.children].filter((n) => [...n.classList].some((c) => c.startsWith('poder-')));
+    for (const n of [...nodes.stage.children]) if (!kept.includes(n)) n.remove();
+    nodes.stage.prepend(nodes.backdrop, nodes.banner);
+    const rail = kept.find((n) => n.classList.contains('poder-rail'));
+    if (rail) { rail.before(nodes.cardSlot); rail.after(nodes.actions, reactionBar(), nodes.floats); }
+    else nodes.stage.append(nodes.cardSlot, nodes.actions, reactionBar(), nodes.floats);
     const spinning = S.spinning && byId(S.spinning);
     if (spinning) {
       spinningLayout(spinning);
@@ -505,7 +514,9 @@ window.MudaeSalon = function ({ state, el, Icon, call, onSocket, member, avatar,
         slot.append(el('div', { class: 'poder-lock', data: { for: node.dataset.roll, side }, title: who === me() ? 'Trancado: só você pode casar' : 'Trancado por ' + whoName(who), textContent: '🔒' }));
       }
     }
-    powers?.rail(nodes.stage, { channel: S.channel, msg: m || null, phase: m ? phase(m) : 'idle', mine: !!m && m.by === me() });
+    // claimAt: quando o meu casamento volta (0 se já posso casar); o Laço espera por ele, como o botão de casar.
+    const claimAt = S.status && !S.status.claimReady ? S.statusAt + S.status.claimResetIn : 0;
+    powers?.rail(nodes.stage, { channel: S.channel, msg: m || null, phase: m ? phase(m) : 'idle', mine: !!m && m.by === me(), claimAt });
   }
 
   function resetBackdrop() {

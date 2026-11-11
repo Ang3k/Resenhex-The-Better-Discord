@@ -2546,7 +2546,7 @@ io.on('connection', (socket) => {
   });
   const powersView = (acc) => {
     const store = mudaeStore();
-    return poderes.powersOf(store, acc.id, powerCtx(store, acc.id), perksOf(store, acc.id));
+    return { ...poderes.powersOf(store, acc.id, powerCtx(store, acc.id), perksOf(store, acc.id)), ...mudae.armedView(store, acc.id) };
   };
   function afterProgress(acc, c) {
     const store = mudaeStore();

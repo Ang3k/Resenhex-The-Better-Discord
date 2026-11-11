@@ -359,6 +359,12 @@ test('Escolha dupla pelo socket: duas cartas, casar numa libera a outra', async 
   for (const s of [ana, beto, caio]) assert.ok((await s.call('mudae:presence', { channel: created.id })).ok);
   const lines = (s) => s.messages.filter((m) => m.mudae?.kind === 'power');
   const rollsOf = (s) => s.messages.filter((m) => m.mudae?.kind === 'roll');
+  // O palco lê do servidor o que está ativo para o próximo roll e quantos desejos a pessoa tem (vale depois de recarregar).
+  const view = await ana.call('mudae:powers:get');
+  assert.deepEqual([view.armed, view.wishes], [['dupla'], 0]);
+  const equipped = await ana.call('mudae:powers:equip', { slot: 2, power: null });
+  assert.deepEqual([equipped.armed, equipped.wishes], [['dupla'], 0]);
+  assert.deepEqual((await beto.call('mudae:powers:get')).armed, [], 'cada um vê só o seu');
 
   // A dupla armada de antes: um $h (homens, para não cruzar com o $w de depois) abre duas cartas. Passados os 3 s da Ana,
   // o Caio casa com uma, e a outra não muda: só quem rodou libera a outra carta.
@@ -374,6 +380,7 @@ test('Escolha dupla pelo socket: duas cartas, casar numa libera a outra', async 
   assert.equal(untouched.mudae.pairFree, undefined);
   assert.equal(untouched.mudae.priorityUntil, p2.mudae.priorityUntil);
   assert.equal(untouched.mudae.ownerId, null);
+  assert.deepEqual((await ana.call('mudae:powers:get')).armed, [], 'o roll gastou a dupla');
 
   // Vidência: só a Ana vê, sem aviso e sem linha.
   const seen = await ana.call('mudae:power:use', { channel: created.id, power: 'videncia' });
@@ -387,6 +394,7 @@ test('Escolha dupla pelo socket: duas cartas, casar numa libera a outra', async 
   const armed = await ana.call('mudae:power:use', { channel: created.id, power: 'dupla' });
   assert.ok(!armed.error, armed.error);
   assert.deepEqual(armed, { armed: 'dupla', future: seen.future, wish: false });
+  assert.deepEqual((await ana.call('mudae:powers:get')).armed, ['dupla']);
   const aviso = await eventually(() => { assert.equal(beto.powers.length, 1); return beto.powers[0]; });
   assert.deepEqual(aviso, { channel: created.id, by: anaId, power: 'dupla' });
   const line = await eventually(() => { assert.equal(lines(beto).length, 1); return lines(beto)[0]; });

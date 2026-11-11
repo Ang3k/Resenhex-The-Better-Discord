@@ -347,6 +347,9 @@ function createMudae({ catalog, now = Date.now, random = Math.random, refSize = 
     return { future: u.future?.length ? [...u.future] : null, wish: !!u.armed.desejo?.hit };
   }
 
+  // Para o palco: os poderes ativos para o próximo roll e quantos desejos a pessoa tem (o Chamar desejo precisa de um).
+  const armedView = (store, accountId) => ({ armed: Object.keys(store.usage[accountId]?.armed || {}), wishes: wishesOf(store, accountId).length });
+
   // O personagem do roll. Sem previsão e sem poder armado, é o sorteio de sempre (Rubi ou qualquer um da lista).
   // Com efeito: o desejo chamado, se acertou e algum cabe na lista; senão a raridade prevista (ou sorteada,
   // com o Amuleto se ele estiver armado) e um personagem dentro dela. Gasta os efeitos e um item da previsão.
@@ -858,7 +861,7 @@ function createMudae({ catalog, now = Date.now, random = Math.random, refSize = 
   // Quantos personagens há em cada fonte na roleta (a tela mostra só os filtros que existem).
   const sources = Object.fromEntries([...bySource.keys()].map((s) => [s, pools['m' + s].length]).filter(([, n]) => n));
 
-  return { size: ativos.length, sources, parse, status, roll, foresee, arm, warmup, spin, claim, claimError, harem, album, summary, setFavorite, ranking, info, divorce, divorceId,
+  return { size: ativos.length, sources, parse, status, roll, foresee, arm, armedView, warmup, spin, claim, claimError, harem, album, summary, setFavorite, ranking, info, divorce, divorceId,
     kakeraOf, addKakera, countCrystal: (store, accountId) => bump(store, accountId, 'crystals'), stats, daily, dailyKakera, buyRolls, giveKakera, wish, wishToggle, unwish, wishlist, wishersOf, give, firstMarry, topFilter, list,
     tradeOpen, tradeOffer, tradeConfirm, tradeCancel, tradeExpire, tradeOf, tradeView, otherSide, sweepTrades: sweep,
     card: (id) => (lookup(id) ? card(lookup(id)) : null) };

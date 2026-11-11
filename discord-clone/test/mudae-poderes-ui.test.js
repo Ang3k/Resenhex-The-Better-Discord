@@ -14,7 +14,7 @@ const HOUR = 3600_000;
 function powersView(slots = ['cadeado', 'videncia', null], over = {}) {
   const keys = ['videncia', 'cadeado', 'amuleto', 'chuva', 'desejo', 'eco', 'dupla', 'laco'];
   return { unlocked: slots.filter(Boolean), slots, readyIn: Object.fromEntries(slots.filter(Boolean).map((k) => [k, 0])),
-    progress: Object.fromEntries(keys.map((k) => [k, { have: 0, need: 1 }])), rechargeMs: 24 * HOUR, ...over };
+    progress: Object.fromEntries(keys.map((k) => [k, { have: 0, need: 1 }])), rechargeMs: 24 * HOUR, armed: [], wishes: 1, ...over };
 }
 
 function stage(t, { reduced = false, powers = powersView(), replies = {} } = {}) {
@@ -222,7 +222,8 @@ test('Vidência mostra 3 raridades só para quem usou', async (t) => {
   assert.deepEqual(caps().map((c) => c.dataset.rarity), ['rare', 'common', 'legendary']);
   assert.ok(app.sounds.includes('mudaePower'));
 
-  // O Amuleto usado depois muda a previsão, e a Vidência mostra isso.
+  // O Amuleto usado depois muda a previsão, e a Vidência mostra isso. O servidor passa a dizer que ele está ativo.
+  app.setPowers(powersView(['videncia', 'amuleto', null], { readyIn: { videncia: 24 * HOUR, amuleto: 24 * HOUR }, armed: ['amuleto'] }));
   await app.use('amuleto');
   assert.deepEqual(caps().map((c) => app.text(c)), ['1º · Épico', '2º · Comum', '3º · Lendário']);
   assert.ok(app.slot('amuleto').classList.contains('armed'));
@@ -232,6 +233,7 @@ test('Vidência mostra 3 raridades só para quem usou', async (t) => {
   app.roll('dela', { by: 'ana' });
   await app.flush();
   assert.equal(caps().length, 3);
+  app.setPowers(powersView(['videncia', 'amuleto', null], { readyIn: { videncia: 24 * HOUR, amuleto: 24 * HOUR } }));
   app.roll('meu');
   await app.flush();
   assert.deepEqual(caps().map((c) => app.text(c)), ['1º · Comum', '2º · Lendário']);
@@ -490,7 +492,7 @@ test('o $poder do chat também acende o espaço com "ativo no próximo roll"', a
   const app = stage(t, { powers: powersView(['amuleto', 'desejo', null]) });
   await app.flush();
   // Usei o Amuleto pelo chat: o servidor avisa o Salão, e o meu trilho acende como se fosse o botão.
-  app.setPowers(powersView(['amuleto', 'desejo', null], { readyIn: { amuleto: 24 * HOUR, desejo: 0 } }));
+  app.setPowers(powersView(['amuleto', 'desejo', null], { readyIn: { amuleto: 24 * HOUR, desejo: 0 }, armed: ['amuleto'] }));
   app.deliver('mudae:power', { channel: 'room', by: 'me', power: 'amuleto' });
   await app.flush();
   assert.ok(app.slot('amuleto').classList.contains('armed'));
@@ -503,6 +505,61 @@ test('o $poder do chat também acende o espaço com "ativo no próximo roll"', a
   app.roll('meu');
   await app.flush();
   assert.equal(app.slot('amuleto').classList.contains('armed'), false);
+});
+
+test('o trilho só acende o que o servidor deixa: ativo depois de recarregar, Laço sem casamento, desejo sem lista', async (t) => {
+  // Recarregou a página com o Amuleto já ativo: o servidor diz, e o espaço acende.
+  const reload = stage(t, { powers: powersView(['amuleto', 'dupla', null], { readyIn: { amuleto: 23 * HOUR, dupla: 0 }, armed: ['amuleto'] }) });
+  await reload.flush();
+  assert.ok(reload.slot('amuleto').classList.contains('armed'));
+  assert.match(reload.text(reload.slot('amuleto').querySelector('.poder-state')), /^ativo no próximo roll$/);
+  assert.ok(reload.slot('dupla').classList.contains('ready'));
+
+  // Casei há pouco: o Laço não liga nos 3 s da Ana e diz quando volta, como o botão de casar.
+  const app = stage(t, { powers: powersView(['laco', 'desejo', null], { wishes: 0 }),
+    replies: { 'mudae:presence': () => ({ ok: true, rollsLeft: 9, rollsMax: 10, rollResetIn: 1, claimReady: false, claimResetIn: 2 * HOUR, kakera: 1200 }) } });
+  await app.flush();
+  app.roll('dela', { by: 'ana' });
+  await app.advance(2000);
+  assert.ok(app.slot('laco').classList.contains('waiting'));
+  assert.equal(app.slot('laco').classList.contains('ready'), false);
+  assert.match(app.text(app.slot('laco').querySelector('.poder-state')), /^casa de novo em 2h00$/);
+  app.orb('laco').click();
+  await app.flush();
+  assert.deepEqual(app.sent('mudae:power:use'), [], 'não manda o que o servidor recusaria');
+  // Lista de desejos vazia: o Chamar desejo fica apagado e diz por quê.
+  assert.ok(app.slot('desejo').classList.contains('waiting'));
+  assert.match(app.text(app.slot('desejo').querySelector('.poder-state')), /^lista de desejos vazia$/);
+  assert.equal(app.orb('desejo').disabled, true);
+});
+
+test('redesenhar o palco não tira a escolha do Eco nem a faixa do lugar', async (t) => {
+  const cards = [{ id: 27, name: 'Killua', image: 'k.jpg', rarity: 'epic', series: 'Hunter x Hunter', value: 530, source: 'a' }];
+  const app = stage(t, { powers: powersView(['eco', null, null]), replies: { 'mudae:eco:list': () => ({ cards }) } });
+  await app.flush();
+  await app.use('eco');
+  const picker = app.$('.poder-eco');
+  const focused = app.d.activeElement;
+  assert.ok(focused.classList.contains('poder-eco-card'), 'o foco vai para a primeira carta');
+  app.deliver('mudae:power', { channel: 'room', by: 'ana', power: 'laco', id: 'nada' });
+  const banner = app.$('.poder-banner');
+  assert.ok(banner);
+  // A mesa está movimentada: chega um roll da Ana e o palco é redesenhado.
+  let moved = 0;
+  new app.w.MutationObserver((list) => { for (const m of list) for (const n of m.removedNodes) if (n === picker || n === banner) moved++; })
+    .observe(app.$('.salon-stage'), { childList: true });
+  app.roll('dela', { by: 'ana' });
+  await app.advance(2000);
+  app.salon.onHistory('room');
+  await app.flush();
+  assert.equal(moved, 0, 'nem a escolha do Eco nem a faixa saíram do palco');
+  assert.equal(app.$('.poder-eco'), picker);
+  assert.equal(app.d.activeElement, focused, 'o foco continua na carta');
+  assert.ok(app.$('.salon-stage .salon-card-slot'), 'o resto do palco foi redesenhado');
+  // A ordem do celular continua: a carta, o trilho e o botão de casar.
+  const order = [...app.$('.salon-stage').children].map((n) => n.className.split(' ')[0]);
+  assert.equal(order.indexOf('poder-rail'), order.indexOf('salon-card-slot') + 1);
+  assert.equal(order.indexOf('salon-actions'), order.indexOf('poder-rail') + 1);
 });
 
 test('com "Reduzir animações": sem voo, só troca de estado', async (t) => {
