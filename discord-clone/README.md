@@ -436,7 +436,8 @@ discord-clone/
 │   ├── mudae.js         # respostas do Mudae no chat: cards, linhas compactas do Salão, $im e $tu
 │   ├── mudae-troca.js   # janela de troca de cartas do Mudae e os avisos (desejo, troca)
 │   ├── mudae-cristal.js # cristal errante voando pelo Salão: chuva, corrente e o "+valor"
-│   ├── mudae-forja.js   # aba Forja: parede de medalhas, forja animada, acabamentos e o desenho das medalhas
+│   ├── mudae-medalhas.js # o desenho das 7 medalhas (relevo, pedras, fita, louros e a coroa de cada uma)
+│   ├── mudae-forja.js   # aba Forja: parede de medalhas, forja animada e acabamentos
 │   ├── mudae-poderes.js # superpoderes no palco: os 3 espaços, recarga, faixas e efeitos
 │   └── mudae-salao.js   # tela do Salão do Mudae: roleta, Mesa ao vivo, álbum, ranking e presença
 ├── desktop/             # app para Windows (Electron, package.json próprio): janela, bandeja, push-to-talk global, atualização

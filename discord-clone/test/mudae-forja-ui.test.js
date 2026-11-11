@@ -81,7 +81,7 @@ function forja(t, { reduced = false, view = forjaView(1200), powers = powersView
   const member = (id) => (people[id] ? { id, name: people[id] } : null);
   const Sounds = { play: (name) => sounds.push(name) };
   const state = { me: { accountId: 'me' }, messages: { room: [] }, textChannel: 'room' };
-  for (const file of ['mudae.js', 'mudae-icones.js', 'mudae-forja.js', 'mudae-salao.js']) w.eval(read(file));
+  for (const file of ['mudae.js', 'mudae-icones.js', 'mudae-medalhas.js', 'mudae-forja.js', 'mudae-salao.js']) w.eval(read(file));
   let forge = null;
   const ui = w.MudaeUI({ state, el, Icon: () => el('i'), call, member, avatar: () => el('span'), nameColor: () => '', Format: { render: (text) => text }, fmtCtx: {},
     openProfile() {}, openImage() {}, openChannel() {}, renderMessages() {}, keepBottom() {}, medalSvg: (...args) => forge.medalSvg(...args) });
@@ -438,6 +438,95 @@ test('medalSvg: desenho próprio por medalha, enfeites por nível e ids que não
   assert.equal(small.getAttribute('width'), '28');
   assert.ok(small.querySelectorAll('*').length < one('diamante', 4, 'holo', 120).querySelectorAll('*').length);
   assert.ok(has(small, 'fm-crown'));
+});
+
+test('medalSvg: o desenho mora em mudae-medalhas.js e a Forja continua entregando', async (t) => {
+  const app = forja(t);
+  assert.equal(typeof app.w.MudaeMedals, 'function');
+  const own = app.w.MudaeMedals(app.ui).medalSvg('ouro', 2, 'metal', 64);
+  assert.equal(own.getAttribute('data-medal'), 'ouro');
+  assert.equal(app.forge.medalSvg('ouro', 2, 'metal', 64).getAttribute('class'), own.getAttribute('class'));
+  // No index.html: depois do mudae.js e antes da Forja e do Salão.
+  const html = read('index.html');
+  const at = (file) => html.indexOf(`"${file}"`);
+  assert.ok(at('mudae-medalhas.js') > at('mudae.js'));
+  assert.ok(at('mudae-medalhas.js') < at('mudae-forja.js') && at('mudae-medalhas.js') < at('mudae-salao.js'));
+});
+
+test('medalSvg: no nível IV cada medalha tem a sua coroa', async (t) => {
+  const app = forja(t);
+  const { medalSvg } = app.forge;
+  const crownOf = (medal, size = 120) => medalSvg(medal, 4, 'metal', size).querySelector('.fm-crown');
+  // O desenho da coroa sem os ids (que mudam a cada medalha).
+  const look = (node) => node.outerHTML.replace(/fm\d+-/g, '');
+  for (const size of [120, 28]) {
+    const crowns = KEYS.map((medal) => crownOf(medal, size));
+    assert.ok(crowns.every(Boolean), 'toda medalha IV tem coroa, até pequena');
+    assert.equal(new Set(crowns.map(look)).size, 7, `coroas diferentes a ${size} px`);
+  }
+  // O jeito de cada uma, como o dono pediu.
+  assert.deepEqual(KEYS.map((medal) => crownOf(medal).getAttribute('data-crown')),
+    ['pontas', 'perolas', 'alta', 'gema-azul', 'cruz', 'pontas-verdes', 'cristal']);
+  const has = (medal, sel) => !!crownOf(medal).querySelector(sel);
+  assert.ok(has('prata', '.fm-pearls'), 'a Prata tem pérolas');
+  assert.ok(!has('bronze', '.fm-pearls'), 'o Bronze é só de pontas');
+  assert.ok(has('safira', '.fm-crown-gem'), 'a Safira tem a gema no alto');
+  assert.ok(has('rubi', '.fm-cross'), 'o Rubi tem a cruz');
+  assert.ok(has('diamante', '.fm-crystal'), 'o Diamante é de cristal');
+});
+
+test('medalSvg: relevo do metal, fita com dobra e louros cheios no tamanho grande', async (t) => {
+  const app = forja(t);
+  const { medalSvg } = app.forge;
+  for (const medal of KEYS) {
+    const big = medalSvg(medal, 4, 'metal', 120);
+    assert.ok(big.querySelector('.fm-brush'), `${medal}: textura fina no aro`);
+    assert.ok(big.querySelector('.fm-edge-run'), `${medal}: brilho que corre na borda`);
+    assert.ok(big.querySelector('.fm-ribbon .fm-ribbon-back'), `${medal}: fita com o avesso depois da dobra`);
+    assert.ok(big.querySelector('.fm-laurel .fm-leaves'), `${medal}: louros com folhas`);
+    assert.ok(big.querySelector('.fm-laurel .fm-veins'), `${medal}: folhas com nervura`);
+    assert.ok(big.querySelector('.fm-rays') && big.querySelector('.fm-aura .fm-glint'), `${medal}: raios e estrelas no IV`);
+  }
+  // Não forjada: nada de brilho correndo.
+  assert.equal(medalSvg('ouro', 0, null, 120).querySelector('.fm-edge-run'), null);
+});
+
+test('medalSvg: abaixo de 40 px não sai louro detalhado, estrela nem raio, e a fita é curta', async (t) => {
+  const app = forja(t);
+  const { medalSvg } = app.forge;
+  for (const size of [20, 28, 39]) {
+    for (const medal of KEYS) {
+      for (const [level, finish] of [[2, 'metal'], [3, 'holo'], [4, 'metal'], [4, 'galaxia']]) {
+        const svg = medalSvg(medal, level, finish, size);
+        const what = `${medal} ${level} ${finish} a ${size} px`;
+        assert.ok(svg.querySelector('.fm-ribbon.short'), `${what}: fita curta`);
+        if (level >= 3) assert.ok(svg.querySelector('.fm-laurel.tiny'), `${what}: no máximo um arco`);
+        for (const sel of ['.fm-leaves', '.fm-veins', '.fm-star', '.fm-glint', '.fm-aura', '.fm-rays', '.fm-edge-run']) {
+          assert.equal(svg.querySelector(sel), null, `${what}: sem ${sel}`);
+        }
+      }
+    }
+  }
+  // A partir de 40 px os louros voltam a ter folhas e a fita, o comprimento normal.
+  const mid = medalSvg('ouro', 3, 'metal', 40);
+  assert.ok(mid.querySelector('.fm-laurel .fm-leaves'));
+  assert.equal(mid.querySelector('.fm-ribbon.short'), null);
+  assert.ok(medalSvg('prata', 1, 'galaxia', 40).querySelector('.fm-star'), 'a galáxia volta a ter estrelas que piscam');
+});
+
+test('as animações novas das medalhas param com Reduzir animações e com a janela escondida', () => {
+  const css = read('mudae-forja.css');
+  const motion = read('motion.css');
+  const animated = [...css.matchAll(/svg\.forja-medal (\.fm-[a-z-]+)[^{]*\{[^}]*animation:\s*forja-/g)].map((m) => m[1]);
+  assert.ok(animated.includes('.fm-edge-run'), 'o brilho da borda anda');
+  const reduce = css.match(/:root\[data-reduce-motion=true\] svg\.forja-medal :is\(([^)]*)\)/)[1];
+  const media = css.match(/@media \(prefers-reduced-motion: reduce\) \{\s*([^}]*)\{ animation: none; \}/)[1];
+  const paused = motion.match(/\.bg-window :is\(([^)]*)\)/)[1];
+  for (const cls of animated) {
+    assert.ok(reduce.includes(cls), `${cls} para com Reduzir animações`);
+    assert.ok(media.includes(cls), `${cls} para com o sistema pedindo menos movimento`);
+    assert.ok(paused.includes('.forja-medal ' + cls), `${cls} pausa com a janela escondida`);
+  }
 });
 
 test('o $forja do chat desenha as medalhas com o mesmo desenho', async (t) => {

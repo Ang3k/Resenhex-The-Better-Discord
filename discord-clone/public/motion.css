@@ -391,7 +391,7 @@ html:not(.touch) .tile.screen.has-preview:hover .stream-preview .sp-img { transf
   .dj-stage-badge .ico, .ico-disc, .dj-avatar .ico, .dj-eq i, .salon-reel, .salon-card, .salon-card-back, .salon-card-back svg,
   .voice-rec-dot, .typing-dots i, .boot-mark, .boot-glow, #conn-banner .ico,
   .mudae-crystal-glow, .mudae-crystal-gem, .mudae-crystal-gem .g-shine,
-  .forja-medal .fm-holo, .forja-medal .fm-star, .forja-medal .fm-rays, .forja-medal .fm-glint,
+  .forja-medal .fm-holo, .forja-medal .fm-star, .forja-medal .fm-rays, .forja-medal .fm-glint, .forja-medal .fm-edge-run,
   .forja-float, .forja-halo, .forja-cinder, .forja-medal-shadow, .forja-furnace .ff-heat,
   .poder-orb, .poder-capsule i, .mi .mi-spark, .mi .mi-key, .mi .mi-leaves, .mi .mi-drop, .mi .mi-star, .mi .mi-arrows, .mi .mi-front,
   .mi .mi-loop, .mi .mi-glint, .mi-flame) { animation-play-state: paused; }
