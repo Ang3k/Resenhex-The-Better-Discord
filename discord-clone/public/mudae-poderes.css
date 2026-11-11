@@ -1,0 +1,275 @@
+/* Superpoderes no palco do Salão: o trilho com os 3 espaços, a Vidência, a escolha do Eco, o cadeado na carta,
+   as duas cartas da Escolha dupla, os efeitos que todos veem e a faixa de poder ganho.
+   Cada poder tem a sua cor (--c). Cinco vêm do tema; Laço, Escolha dupla e Chamar desejo não têm cor no tema
+   e ficam declaradas aqui, uma vez só. As animações usam os tempos e as curvas do motion.css. */
+:root { --poder-laco: #f97316; --poder-dupla: #22d3ee; --poder-desejo: #f472b6; }
+[class^="poder-"][data-power=cadeado] { --c: var(--rarity-rare); }
+[class^="poder-"][data-power=videncia] { --c: var(--rarity-epic); }
+[class^="poder-"][data-power=amuleto] { --c: var(--rarity-legendary); }
+[class^="poder-"][data-power=chuva] { --c: var(--brand); }
+[class^="poder-"][data-power=eco] { --c: var(--green); }
+[class^="poder-"][data-power=laco] { --c: var(--poder-laco); }
+[class^="poder-"][data-power=dupla] { --c: var(--poder-dupla); }
+[class^="poder-"][data-power=desejo] { --c: var(--poder-desejo); }
+
+/* ---------- o trilho: 3 espaços à direita da carta ---------- */
+/* Fica acima das reações e abaixo do cristal errante, que voa por cima do Salão inteiro e continua clicável. */
+.poder-rail {
+  position: absolute; top: 8px; right: 12px; bottom: 50px; z-index: 3;
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px;
+}
+/* --rail-room: quanto do lado direito do palco é do trilho (as duas cartas da Escolha dupla contam com isso). */
+.salon-stage.has-poderes { --rail-room: 124px; }
+.poder-slot { --c: var(--brand); --orb: 56px; display: flex; flex-direction: column; align-items: center; gap: 2px; width: 112px; }
+.poder-orb {
+  --p: 1;
+  position: relative; display: grid; place-items: center; flex: none; width: var(--orb); height: var(--orb); margin-bottom: 2px; padding: 0;
+  border: 0; border-radius: 50%; cursor: pointer; font: inherit; touch-action: manipulation; -webkit-tap-highlight-color: transparent;
+  /* O anel de recarga: enche no sentido do relógio conforme a carga volta. */
+  background: conic-gradient(var(--c) calc(var(--p) * 360deg), color-mix(in srgb, var(--text-strong) 12%, transparent) 0);
+  box-shadow: 0 0 18px color-mix(in srgb, var(--c) 55%, transparent), 0 4px 12px rgba(0, 0, 0, .55);
+  transition: transform var(--motion-fast) var(--spring-snappy), box-shadow var(--motion-base) var(--ease-enter), filter var(--motion-base) var(--ease-enter), opacity var(--motion-base) var(--ease-enter);
+}
+.poder-orb::before {
+  content: ''; position: absolute; inset: 4px; border-radius: 50%;
+  background: radial-gradient(circle at 36% 30%, color-mix(in srgb, var(--c) 60%, white), color-mix(in srgb, var(--c) 45%, var(--bg-floating)) 48%, var(--bg-floating) 100%);
+  box-shadow: inset 0 -6px 12px rgba(0, 0, 0, .5), inset 0 2px 4px rgba(255, 255, 255, .25);
+}
+.poder-ico { position: relative; font-size: calc(var(--orb) * .43); line-height: 1; filter: drop-shadow(0 2px 4px rgba(0, 0, 0, .6)); }
+.poder-orb:focus-visible { outline: 2px solid var(--text-strong); outline-offset: 3px; }
+.poder-name { max-width: 100%; overflow: hidden; color: var(--text-strong); font-size: 11px; font-weight: 700; line-height: 1.2; text-align: center; text-overflow: ellipsis; text-shadow: 0 1px 3px #000; white-space: nowrap; }
+.poder-state { min-height: 12px; color: var(--text-muted); font-size: 10px; font-weight: 600; line-height: 1.2; text-align: center; text-shadow: 0 1px 3px #000; white-space: nowrap; font-variant-numeric: tabular-nums; }
+
+/* Pronto: aceso. No computador, sobe um pouco com o mouse em cima. */
+html:not(.touch) .poder-slot.ready .poder-orb:hover:not(:disabled) { transform: translateY(-2px) scale(1.07); box-shadow: 0 0 28px color-mix(in srgb, var(--c) 75%, transparent), 0 6px 14px rgba(0, 0, 0, .55); }
+.poder-slot.ready .poder-orb:active:not(:disabled) { transform: scale(var(--press-icon)); }
+.poder-slot.ready .poder-state { color: var(--text); }
+.poder-orb:disabled { cursor: default; }
+/* Recarregando: apagado, com o anel mostrando quanto falta. */
+.poder-slot.charging .poder-orb { filter: saturate(.45) brightness(.72); box-shadow: 0 4px 12px rgba(0, 0, 0, .55); }
+/* Cheio, mas fora da hora (o Cadeado sem um roll seu girando, o Laço sem os 3 s de alguém). */
+.poder-slot.waiting .poder-orb { filter: saturate(.7) brightness(.8); box-shadow: 0 0 10px color-mix(in srgb, var(--c) 30%, transparent), 0 4px 12px rgba(0, 0, 0, .55); }
+/* Ativo no próximo roll: respira na cor do poder. */
+.poder-slot.armed .poder-orb { animation: poder-armed 1.6s ease-in-out infinite; }
+.poder-slot.armed .poder-state { color: color-mix(in srgb, var(--c), white 35%); }
+/* O Cadeado e o Laço só valem por poucos segundos: quando ligam, chamam o olho até a hora passar. */
+.poder-slot.timed.ready .poder-orb { animation: poder-call .9s var(--ease-enter) infinite; }
+.poder-slot.timed.ready .poder-state { color: color-mix(in srgb, var(--c), white 35%); }
+.poder-slot.pulse:not(.timed) .poder-orb { animation: poder-ready .8s var(--ease-enter); }
+.poder-slot.fire .poder-orb { animation: poder-fire .55s var(--ease-enter); }
+/* O poder que acabou de ser ganho ainda está voando para cá. */
+.poder-slot.incoming > * { opacity: 0; }
+/* Espaço livre: só o contorno. */
+.poder-slot.empty .poder-orb { cursor: default; background: none; box-shadow: inset 0 0 0 2px color-mix(in srgb, var(--text-strong) 16%, transparent); }
+.poder-slot.empty .poder-orb::before { inset: 6px; background: color-mix(in srgb, var(--text-strong) 5%, transparent); box-shadow: none; }
+.poder-slot.empty .poder-name { color: var(--text-muted); font-weight: 600; }
+
+/* Palco mais baixo ou mais estreito: os espaços encolhem para não encostar na carta nem nas reações.
+   O alvo do clique nunca fica menor que 44 px. */
+@container (max-height: 470px) { .poder-slot { --orb: 48px; } .poder-rail { gap: 8px; } }
+@container (max-height: 330px) { .poder-slot { --orb: 44px; } .poder-rail { gap: 5px; } .poder-orb { margin-bottom: 1px; } }
+@container (max-height: 296px) { .poder-state { display: none; } }
+@container (max-height: 256px) { .poder-name { display: none; } .poder-slot { width: 44px; } .poder-rail { right: 10px; } }
+/* Estreito: só as bolinhas (o nome e o estado ficam na dica do botão). */
+@container ((max-width: 620px) and (max-height: 420px)) or (max-width: 520px) {
+  .poder-slot { --orb: 44px; width: 44px; }
+  .poder-rail { right: 10px; }
+  .poder-name, .poder-state { display: none; }
+  .salon-stage.has-poderes { --rail-room: 60px; }
+}
+
+/* Palco baixo e largo (o botão de casar fica ao lado da carta): a carta e o botão chegam para a esquerda,
+   para não entrar embaixo do trilho. */
+@container (max-height: 420px) and (min-width: 460px) {
+  .salon-stage.has-poderes { --rail-room: 132px; padding-right: var(--rail-room); }
+  .salon-stage.has-poderes:has(.salon-pair) { gap: 16px; }
+}
+@container (max-height: 420px) and (min-width: 460px) and (max-width: 620px) { .salon-stage.has-poderes { --rail-room: 60px; } }
+
+/* ---------- Vidência: as 3 cápsulas à esquerda (só quem usou vê) ---------- */
+.poder-future {
+  position: absolute; top: 10px; bottom: 10px; left: 14px; z-index: 3; width: 96px; pointer-events: none;
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 9px;
+}
+.poder-future-label { color: color-mix(in srgb, var(--c), white 45%); font-size: 10px; font-weight: 600; line-height: 1.25; text-align: center; text-shadow: 0 1px 3px #000; }
+.poder-future-label small { display: block; font-size: 10px; font-weight: 500; opacity: .85; }
+.poder-future-list { display: flex; flex-direction: column; align-items: center; gap: 9px; perspective: 600px; }
+.poder-capsule { --c: var(--rarity-common); display: flex; flex-direction: column; align-items: center; gap: 2px; }
+.poder-capsule.r-rare { --c: var(--rarity-rare); }
+.poder-capsule.r-epic { --c: var(--rarity-epic); }
+.poder-capsule.r-legendary { --c: var(--rarity-legendary); }
+.poder-capsule i {
+  display: grid; place-items: center; width: 34px; height: 34px; border-radius: 50%; font-size: 15px; font-style: normal;
+  background: radial-gradient(circle at 35% 30%, white, var(--c) 45%, color-mix(in srgb, var(--c) 50%, black)); box-shadow: 0 0 14px var(--c);
+}
+.poder-capsule.r-legendary i { animation: poder-throb 1s ease-in-out infinite; }
+.poder-capsule span { color: color-mix(in srgb, var(--c), white 25%); font-size: 10px; font-weight: 700; text-shadow: 0 1px 3px #000; white-space: nowrap; }
+/* Palco baixo e largo (a carta vai para a esquerda, com o botão de casar ao lado): não sobra lugar à esquerda.
+   As cápsulas sobem para o canto de cima, encostadas no trilho, fora do caminho da carta e do botão. */
+@container (max-height: 420px) and (min-width: 460px) {
+  .poder-future { top: 6px; right: 136px; bottom: auto; left: auto; width: auto; align-items: flex-end; gap: 4px; }
+  .poder-future-what, .poder-capsule-n { display: none; }
+  .poder-future-label small { display: inline; }
+  .poder-future-list { flex-direction: row; gap: 6px; }
+  .poder-capsule { width: 48px; gap: 1px; }
+  .poder-capsule i { width: 24px; height: 24px; font-size: 11px; }
+}
+@container (max-height: 420px) and (min-width: 460px) and (max-width: 620px) { .poder-future { right: 62px; } }
+@container (max-height: 256px) and (min-width: 460px) { .poder-future { right: 62px; } }
+@container (max-width: 459px) { .poder-future { left: 8px; width: 64px; } .poder-future-what { display: none; } }
+
+/* ---------- o cadeado na carta ---------- */
+.poder-lock {
+  position: absolute; top: 0; left: 50%; z-index: 4; font-size: 34px; line-height: 1; pointer-events: none; transform: translate(-50%, -50%);
+  filter: drop-shadow(0 0 12px color-mix(in srgb, var(--rarity-rare) 90%, transparent)) drop-shadow(0 3px 6px rgba(0, 0, 0, .6));
+}
+.poder-lock[data-side="0"] { left: calc((100% - 14px) / 4); }
+.poder-lock[data-side="1"] { left: calc(100% - (100% - 14px) / 4); }
+/* Enquanto o cadeado ainda está caindo, o fixo espera. */
+.salon-stage.poder-locking .poder-lock { opacity: 0; }
+.salon-stage .salon-card.locked { --glow: 0 0 0 3px var(--rarity-rare), 0 0 0 7px color-mix(in srgb, var(--rarity-rare) 25%, transparent), 0 0 34px color-mix(in srgb, var(--rarity-rare) 70%, transparent); }
+.salon-stage .salon-card.locked.placeholder, .salon-stage .salon-reel.locked {
+  box-shadow: 0 0 0 3px var(--rarity-rare), 0 0 0 7px color-mix(in srgb, var(--rarity-rare) 25%, transparent), 0 0 34px color-mix(in srgb, var(--rarity-rare) 70%, transparent);
+}
+
+/* ---------- Escolha dupla: duas cartas lado a lado ---------- */
+.salon-pair { display: flex; align-items: flex-start; gap: 14px; perspective: 800px; }
+/* As duas cabem entre a Vidência (à esquerda) e o trilho (à direita), sem entrar embaixo de nenhum dos dois. */
+.salon-stage .salon-pair .salon-card.big { width: clamp(84px, min(34cqw, calc((100cqw - 2 * var(--rail-room, 0px) - 30px) / 2), calc((100cqh - 130px) / 1.5)), 220px); cursor: pointer; transition: transform var(--motion-base) var(--spring-soft), filter var(--motion-base) var(--ease-enter); }
+.salon-pair .salon-card.big .salon-card-art { cursor: pointer; }
+/* A escolhida fica acesa e um pouco à frente; a outra recua. */
+.salon-pair .salon-card.big:not(.chosen) { filter: brightness(.78) saturate(.9); }
+.salon-pair .salon-card.big.chosen { --glow: 0 0 0 2px var(--text-strong), 0 0 30px color-mix(in srgb, var(--poder-dupla) 65%, transparent); transform: translateY(-4px); }
+.salon-pair .salon-card.big.freed { filter: none; }
+.salon-pair .salon-card.big.freed.chosen { --glow: 0 0 0 2px var(--green), 0 0 30px color-mix(in srgb, var(--green) 65%, transparent); }
+.salon-pair .salon-card.revealing:nth-child(2) { animation-delay: .14s; animation-fill-mode: backwards; }
+.poder-ribbon {
+  position: absolute; top: calc(var(--frame-y, 0px) + 8px); right: calc(var(--frame-x, 0px) + 6px); left: calc(var(--frame-x, 0px) + 6px); z-index: 3;
+  padding: 3px 4px; border-radius: 6px; color: #fff; font-size: 11px; font-weight: 800; line-height: 1.3; text-align: center; pointer-events: none;
+  background: linear-gradient(90deg, var(--green), color-mix(in srgb, var(--green), black 22%)); box-shadow: 0 2px 8px rgba(0, 0, 0, .5);
+  animation: poder-pop var(--spring-pop-dur) var(--spring-pop) both;
+}
+.poder-ribbon.taken { background: color-mix(in srgb, var(--bg-floating) 88%, transparent); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--red) 60%, transparent), 0 2px 8px rgba(0, 0, 0, .5); }
+/* Palco baixo e largo: as duas cartas, o botão de casar (180 px) e o trilho dividem a mesma linha. */
+@container (max-height: 420px) and (min-width: 460px) { .salon-stage .salon-pair .salon-card.big { width: clamp(84px, min(calc((100cqw - var(--rail-room, 0px) - 242px) / 2), calc((100cqh - 62px) / 1.5)), 220px); } }
+@container (max-height: 300px) and (min-width: 460px) { .salon-stage .salon-pair .salon-card.big { width: clamp(84px, min(calc((100cqw - var(--rail-room, 0px) - 242px) / 2), calc((100cqh - 34px) / 1.5)), 220px); } }
+
+/* ---------- efeitos (o JavaScript tira cada peça da tela no fim) ---------- */
+.poder-fx { position: absolute; inset: 0; z-index: 4; pointer-events: none; }
+.poder-fx > * { position: absolute; }
+.poder-fx-ring, .poder-fx-wave { width: 20px; height: 20px; border: 3px solid var(--c); border-radius: 50%; box-shadow: 0 0 14px var(--c); opacity: 0; }
+.poder-fx-wave { border-width: 2px; }
+.poder-fx-lock { font-size: 38px; line-height: 1; filter: drop-shadow(0 0 12px color-mix(in srgb, var(--c) 90%, transparent)) drop-shadow(0 3px 6px rgba(0, 0, 0, .6)); }
+.poder-fx-svg { inset: 0; width: 100%; height: 100%; overflow: visible; }
+.poder-rope { fill: none; stroke: var(--poder-laco); stroke-width: 4; stroke-linecap: round; filter: drop-shadow(0 0 6px color-mix(in srgb, var(--poder-laco) 85%, transparent)); }
+.poder-fx-mist { width: 60px; height: 60px; border-radius: 50%; background: radial-gradient(circle, color-mix(in srgb, var(--c) 70%, transparent), transparent 70%); opacity: 0; }
+.poder-fx-glow { width: 100%; height: 100%; background: radial-gradient(ellipse 60% 70% at 50% 45%, color-mix(in srgb, var(--c) 45%, transparent), transparent 70%); opacity: 0; }
+.poder-fx-clover { color: var(--c); font-size: 16px; line-height: 1; text-shadow: 0 0 8px var(--c); opacity: 0; }
+.poder-fx-star { color: var(--c); font-size: 28px; line-height: 1; text-shadow: 0 0 12px var(--c), 0 0 3px white; }
+.poder-fx-dot { width: 5px; height: 5px; border-radius: 50%; background: var(--c); box-shadow: 0 0 6px var(--c); opacity: 0; }
+.poder-fx-twin {
+  width: 70px; aspect-ratio: 2 / 3; border-radius: 9px; opacity: 0;
+  background: linear-gradient(160deg, color-mix(in srgb, var(--c) 35%, transparent), color-mix(in srgb, var(--c) 8%, transparent));
+  box-shadow: inset 0 0 0 2px var(--c), 0 0 22px color-mix(in srgb, var(--c) 60%, transparent);
+}
+/* A bolinha do poder ganho, voando do meio do palco para o espaço dela. */
+.poder-fly {
+  display: grid; place-items: center; width: 56px; height: 56px; border-radius: 50%; opacity: 0;
+  background: radial-gradient(circle at 36% 30%, color-mix(in srgb, var(--c) 60%, white), color-mix(in srgb, var(--c) 45%, var(--bg-floating)) 48%, var(--bg-floating) 100%);
+  box-shadow: 0 0 0 4px var(--c), 0 0 34px var(--c), 0 6px 16px rgba(0, 0, 0, .55);
+}
+.poder-fly .poder-ico { font-size: 24px; }
+
+/* ---------- faixas: poder ganho, o Laço que pegou e a batida no cadeado ---------- */
+.poder-banner {
+  position: absolute; top: 12px; left: 50%; z-index: 5; display: flex; flex-direction: column; align-items: center; gap: 2px;
+  width: max-content; max-width: calc(100% - 24px); padding: 7px 16px; border-radius: 10px; color: #fff; text-align: center; pointer-events: none;
+  background: linear-gradient(90deg, color-mix(in srgb, var(--c), black 22%), color-mix(in srgb, var(--c), var(--brand) 50%));
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--c), white 30%), 0 0 26px color-mix(in srgb, var(--c) 50%, transparent), var(--shadow-float);
+  transform: translateX(-50%); animation: poder-banner 2.6s var(--ease-enter) both;
+}
+.poder-banner strong { font-size: 14px; font-weight: 800; letter-spacing: .03em; text-shadow: 0 1px 3px rgba(0, 0, 0, .45); }
+.poder-banner small { font-size: 11px; font-weight: 600; opacity: .92; }
+/* Com a faixa do lendário na tela, a do poder desce um degrau. */
+.salon-banner.show ~ .poder-banner { top: 48px; }
+
+/* ---------- Eco: a escolha de até 5 cartas, por cima do palco ---------- */
+.poder-eco {
+  position: absolute; inset: 0; z-index: 6; display: grid; place-items: center; padding: 10px; border-radius: inherit;
+  background: color-mix(in srgb, var(--bg-floating) 78%, transparent); animation: poder-fade var(--motion-base) var(--ease-enter) both;
+}
+.poder-eco.pending { pointer-events: none; opacity: .7; }
+.poder-eco-box {
+  display: flex; flex-direction: column; align-items: center; gap: 6px; max-width: 100%; max-height: 100%; padding: 12px 14px; border-radius: 12px;
+  background: var(--bg-floating); box-shadow: 0 0 0 1px color-mix(in srgb, var(--c) 55%, transparent), 0 0 30px color-mix(in srgb, var(--c) 25%, transparent), var(--shadow-float);
+  animation: poder-pop var(--spring-soft-dur) var(--spring-soft) both;
+}
+.poder-eco-title { color: var(--text-strong); font-size: 15px; font-weight: 800; }
+.poder-eco-sub { color: var(--text-muted); font-size: 12px; text-align: center; }
+.poder-eco-list { display: flex; gap: 8px; max-width: 100%; padding: 6px 2px; overflow-x: auto; scrollbar-width: thin; }
+.poder-eco-card {
+  --frame: var(--rarity-common);
+  position: relative; flex: none; width: 88px; aspect-ratio: 2 / 3; padding: 0; overflow: hidden; border: 0; border-radius: 9px; cursor: pointer; font: inherit;
+  background: var(--bg-input); box-shadow: 0 0 0 2px var(--frame), 0 4px 12px rgba(0, 0, 0, .45);
+  transition: transform var(--motion-fast) var(--spring-snappy), box-shadow var(--motion-base) var(--ease-enter);
+}
+.poder-eco-card.r-rare { --frame: var(--rarity-rare); }
+.poder-eco-card.r-epic { --frame: var(--rarity-epic); }
+.poder-eco-card.r-legendary { --frame: var(--rarity-legendary); }
+.poder-eco-card img { display: block; width: 100%; height: 100%; object-fit: cover; }
+.poder-eco-info {
+  position: absolute; right: 0; bottom: 0; left: 0; display: flex; flex-direction: column; gap: 1px; padding: 18px 6px 5px; text-align: left;
+  background: linear-gradient(transparent, color-mix(in srgb, var(--bg-floating) 88%, transparent) 50%, var(--bg-floating));
+}
+.poder-eco-name { overflow: hidden; color: #fff; font-size: 11px; font-weight: 700; line-height: 1.15; text-overflow: ellipsis; white-space: nowrap; }
+.poder-eco-value { display: flex; align-items: center; gap: 3px; color: var(--text); font-size: 10px; }
+.poder-eco-value .mudae-kakera svg { width: 11px; height: 11px; }
+html:not(.touch) .poder-eco-card:hover { transform: translateY(-3px); box-shadow: 0 0 0 2px var(--frame), 0 0 20px color-mix(in srgb, var(--frame) 60%, transparent), 0 6px 14px rgba(0, 0, 0, .45); }
+.poder-eco-card:active { transform: scale(var(--press)); }
+.poder-eco-card:focus-visible, .poder-eco-cancel:focus-visible { outline: 2px solid var(--text-strong); outline-offset: 2px; }
+.poder-eco-cancel { min-height: 32px; padding: 0 16px; border: 0; border-radius: 8px; background: var(--bg-input); color: var(--text); font: inherit; font-size: 13px; font-weight: 600; cursor: pointer; }
+html:not(.touch) .poder-eco-cancel:hover { color: var(--text-strong); }
+html.touch .poder-eco-cancel { min-height: 44px; }
+@container (max-height: 330px) { .poder-eco-sub { display: none; } .poder-eco-card { width: 68px; } .poder-eco-box { padding: 8px 12px; gap: 4px; } }
+
+/* ---------- celular: os 3 poderes viram uma fileira embaixo da carta ---------- */
+@media (max-width: 640px) {
+  .poder-rail { position: static; flex-direction: row; align-items: flex-start; align-self: stretch; gap: 6px; }
+  .poder-slot { --orb: 48px; flex: 1 1 0; width: auto; min-width: 0; max-width: 112px; }
+  .poder-orb { width: 48px; height: 48px; }
+  .poder-name, .poder-state { display: block; }
+  /* "nos 3 s de outra pessoa" não cabe numa linha em telas estreitas. */
+  .poder-state { white-space: normal; }
+  /* A folga embaixo deixa o cadeado da carta trancada longe das cápsulas. */
+  .poder-future { position: static; flex-direction: row; width: auto; gap: 10px; margin-bottom: 8px; }
+  .poder-future-label { text-align: left; }
+  .poder-future-what, .poder-capsule-n { display: inline; }
+  .poder-future-list { flex-direction: row; gap: 10px; }
+  .poder-capsule i { width: 28px; height: 28px; font-size: 13px; }
+  .salon-stage .salon-pair .salon-card.big { width: min(150px, 39vw); }
+  .salon-pair { gap: 10px; }
+  .poder-lock[data-side="0"] { left: calc((100% - 10px) / 4); }
+  .poder-lock[data-side="1"] { left: calc(100% - (100% - 10px) / 4); }
+  .poder-banner strong { font-size: 13px; }
+  .poder-eco-card { width: 84px; }
+}
+
+/* Animações reduzidas no sistema (a opção do app já para tudo no experience.css): só a troca de estado. */
+@media (prefers-reduced-motion: reduce) {
+  .poder-orb, .poder-slot .poder-orb, .poder-capsule i, .poder-ribbon, .poder-banner, .poder-eco, .poder-eco-box, .poder-eco-card { animation: none !important; transition: none !important; }
+}
+
+@keyframes poder-fire { 0% { transform: scale(1); } 35% { transform: scale(1.28); box-shadow: 0 0 46px var(--c), 0 0 0 10px color-mix(in srgb, var(--c) 30%, transparent); } 100% { transform: scale(1); } }
+@keyframes poder-ready { 0% { box-shadow: 0 0 0 0 var(--c); } 60% { box-shadow: 0 0 30px var(--c), 0 0 0 12px transparent; } 100% { box-shadow: 0 0 18px color-mix(in srgb, var(--c) 55%, transparent), 0 4px 12px rgba(0, 0, 0, .55); } }
+@keyframes poder-call { 0% { box-shadow: 0 0 22px var(--c), 0 0 0 0 color-mix(in srgb, var(--c) 80%, transparent); transform: scale(1.06); } 100% { box-shadow: 0 0 22px var(--c), 0 0 0 14px transparent; transform: scale(1); } }
+@keyframes poder-armed { 0%, 100% { box-shadow: 0 0 14px color-mix(in srgb, var(--c) 55%, transparent), 0 0 0 2px color-mix(in srgb, var(--c) 45%, transparent); } 50% { box-shadow: 0 0 34px var(--c), 0 0 0 5px color-mix(in srgb, var(--c) 30%, transparent); } }
+@keyframes poder-throb { 50% { transform: scale(1.15); box-shadow: 0 0 24px var(--c); } }
+@keyframes poder-pop { from { transform: scale(.4); opacity: 0; } to { transform: none; opacity: 1; } }
+@keyframes poder-fade { from { opacity: 0; } to { opacity: 1; } }
+@keyframes poder-banner {
+  0% { opacity: 0; transform: translate(-50%, -8px) scale(.8); }
+  12% { opacity: 1; transform: translate(-50%, 0) scale(1.06); }
+  20% { transform: translate(-50%, 0) scale(1); }
+  82% { opacity: 1; }
+  100% { opacity: 0; transform: translate(-50%, 0); }
+}

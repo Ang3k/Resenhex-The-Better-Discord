@@ -34,6 +34,12 @@ window.Sounds = (() => {
     // Forja: o fogo subindo (notas graves que sobem) e a batida do martelo na bigorna (metal curto e agudo).
     mudaeForge: [[98, 0, 0.22], [131, 0.12, 0.24], [175, 0.26, 0.26], [262, 0.42, 0.32]],
     mudaeHammer: [[1760, 0, 0.03], [2489, 0, 0.05], [880, 0.01, 0.09]],
+    // Superpoderes: usar um poder (um brilho que sobe), o cadeado travando (clique e batida grave),
+    // a corda do Laço (subida rápida) e o poder ganho (fanfarra curta).
+    mudaePower: [[784, 0, 0.07], [1175, 0.06, 0.09], [1568, 0.13, 0.18]],
+    mudaeLock: [[1245, 0, 0.03], [311, 0.02, 0.07], [233, 0.07, 0.12]],
+    mudaeLasso: [[392, 0, 0.06], [587, 0.05, 0.06], [880, 0.1, 0.06], [1319, 0.15, 0.12]],
+    mudaeUnlock: [[659, 0, 0.1], [880, 0.09, 0.1], [1319, 0.18, 0.12], [1760, 0.3, 0.4], [1319, 0.3, 0.4]],
     // Gacha 3D: o botão da máquina, a cápsula quicando, balançando, travando (lendário) e abrindo.
     gachaClack: [[196, 0, 0.035], [147, 0.12, 0.035], [196, 0.24, 0.035], [147, 0.36, 0.035]],
     gachaBounce: [[262, 0, 0.06]],

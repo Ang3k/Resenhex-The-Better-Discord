@@ -249,7 +249,7 @@ const SNAPSHOT = { serverId: 'server-1', serverName: 'Turma', ownerId: meId, ser
 // Os mesmos arquivos do server-ui.test.js, na ordem do index.html.
 const SCRIPTS = ['compat.js', 'motion.js', 'icons.js', 'format.js', 'sounds.js', 'media-policy.js', 'keybinds.js', 'settings.js', 'site-calls.js', 'site-health.js',
   'photo-editor.js', 'media-session.js', 'media-sfu.js', 'stream-preview.js', 'mobile-stream.js', 'android-screen.js', 'stream-zoom.js', 'changelog.js', 'confetti.js',
-  'channel-navigation.js', 'music.js', 'mudae.js', 'mudae-troca.js', 'mudae-cristal.js', 'mudae-forja.js', 'mudae-salao.js', 'dm-call.js', 'state-patch.js', 'voice-message.js', 'poll.js',
+  'channel-navigation.js', 'music.js', 'mudae.js', 'mudae-troca.js', 'mudae-cristal.js', 'mudae-forja.js', 'mudae-poderes.js', 'mudae-salao.js', 'dm-call.js', 'state-patch.js', 'voice-message.js', 'poll.js',
   'gif-picker.js', 'emoji-picker.js', 'lightbox.js', 'voice-fx.js', 'feedback.js', 'clip-model.js', 'clip-buffer.js', 'clip-screen.js', 'clip-render.js', 'clip-ui.js',
   'sound-trimmer.js', 'app.js', 'landing.js'];
 

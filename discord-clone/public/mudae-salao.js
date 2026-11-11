@@ -18,6 +18,8 @@ window.MudaeSalon = function ({ state, el, Icon, call, onSocket, member, avatar,
   const now = () => ui.serverNow();
   const whoName = (id) => member(id)?.name || 'alguém que saiu';
   const plain = (text) => String(text || '').replace(/\*\*/g, '');
+  // Superpoderes no palco (mudae-poderes.js): o trilho com os 3 espaços, os efeitos e a faixa de poder ganho.
+  const powers = window.MudaePowers ? window.MudaePowers({ el, call, onSocket, ui, Sounds, reducedMotion, toast, member, me }) : null;
   // A fonte escolhida para os rolls fica guardada neste navegador.
   const savedSource = () => { try { return localStorage.getItem('mudaeSource') || ''; } catch { return ''; } };
   const saveSource = (value) => { try { localStorage.setItem('mudaeSource', value); } catch { /* sem armazenamento: só nesta sessão */ } };
@@ -43,6 +45,9 @@ window.MudaeSalon = function ({ state, el, Icon, call, onSocket, member, avatar,
   const msgs = () => state.messages[S.channel] || [];
   const rolls = () => msgs().filter((m) => m.bot === 'mudae' && m.mudae?.kind === 'roll' && m.mudae.card);
   const byId = (id) => msgs().find((m) => m.id === id);
+  // Escolha dupla: as cartas que saíram juntas (o mesmo "pair"), na ordem em que saíram.
+  const pairOf = (m) => (m?.mudae?.pair ? rolls().filter((x) => x.mudae.pair === m.mudae.pair) : []);
+  const rolledBy = (m) => (m.by === me() ? 'Você' : whoName(m.by));
 
   // Em que pé está um roll: girando, só quem rodou pode casar, aberto, com dono ou esgotado.
   function phase(m) {
@@ -200,6 +205,7 @@ window.MudaeSalon = function ({ state, el, Icon, call, onSocket, member, avatar,
     if (!S.channel) return;
     stopSpin();
     crystals?.detach();
+    powers?.rail(null);
     call('mudae:presence', { channel: null });
     S.channel = null;
     clearInterval(ticker);
@@ -350,6 +356,8 @@ window.MudaeSalon = function ({ state, el, Icon, call, onSocket, member, avatar,
     nodes.body.replaceChildren(el('div', { class: 'salon-mesa' },
       el('div', { class: 'salon-stage-box' }, nodes.stage), nodes.rollBar,
       el('section', { class: 'salon-live' }, el('h3', { textContent: 'Mesa ao vivo' }), nodes.live)));
+    // Ao voltar para a Mesa, os espaços podem ter mudado (a troca de poderes é feita na Forja).
+    powers?.refresh();
     renderStage();
     renderRollBar();
     renderLive();
@@ -408,12 +416,23 @@ window.MudaeSalon = function ({ state, el, Icon, call, onSocket, member, avatar,
       return renderBanner();
     }
     if (m) {
-      const owner = m.mudae.ownerId;
-      nodes.cardSlot.append(stageCard(m.mudae.card),
-        el('div', { class: 'salon-stage-caption' }, member(m.by) ? avatar(member(m.by), 'salon-chip-avatar') : null,
-          el('span', { textContent: (m.by === me() ? 'Você rodou' : whoName(m.by) + ' rodou') + ' · ' + RARITY[m.mudae.card.rarity || 'common']
-            + ' · ' + ui.SOURCES[m.mudae.card.source || 'a'].label })));
-      nodes.stage.dataset.rarity = m.mudae.card.rarity || 'common';
+      const d = m.mudae;
+      const owner = d.ownerId;
+      const mates = pairOf(m);
+      if (mates.length > 1) {
+        // Escolha dupla: as duas cartas lado a lado; tocar numa escolhe com qual casar.
+        nodes.cardSlot.append(el('div', { class: 'salon-pair' }, mates.map(pairCard)),
+          el('div', { class: 'salon-stage-caption' }, '🃏 ', el('span', { textContent: pairCaption(m, mates) })));
+      } else {
+        const locked = !!d.lockedBy && claimable(m);
+        const card = stageCard(d.card);
+        card.dataset.roll = m.id;
+        nodes.cardSlot.append(card,
+          el('div', { class: 'salon-stage-caption' }, locked ? '🔒 ' : d.eco ? '🔁 ' : null, member(m.by) ? avatar(member(m.by), 'salon-chip-avatar') : null,
+            el('span', { textContent: rolledBy(m) + (d.eco ? ' trouxe de volta' : ' rodou') + ' · ' + RARITY[d.card.rarity || 'common']
+              + ' · ' + ui.SOURCES[d.card.source || 'a'].label })));
+      }
+      nodes.stage.dataset.rarity = d.card.rarity || 'common';
       nodes.stage.classList.toggle('owned', !!owner);
     } else {
       idleStage();
@@ -428,6 +447,65 @@ window.MudaeSalon = function ({ state, el, Icon, call, onSocket, member, avatar,
     return cardNode(card, { size: 'big', onArtReady: (image) => {
       if (nodes.backdrop === backdrop && nodes.cardSlot?.contains(image)) updateBackdrop();
     } });
+  }
+
+  // Uma das duas cartas da Escolha dupla. A que sobrou depois que quem rodou casou leva a faixa "Livre para casar".
+  function pairCard(x) {
+    const d = x.mudae;
+    const ribbon = d.pairFree ? el('div', { class: 'poder-ribbon' + (d.ownerId ? ' taken' : ''), textContent: d.ownerId ? `💍 ${whoName(d.ownerId)} casou` : 'Livre para casar' }) : null;
+    const node = cardNode(d.card, { size: 'big', onclick: () => chooseCard(x.id), overlay: ribbon });
+    node.dataset.roll = x.id;
+    node.classList.toggle('chosen', x.id === S.stage);
+    node.classList.toggle('picked', !!d.ownerId && !d.pairFree);
+    node.classList.toggle('freed', !!d.pairFree && !d.ownerId);
+    return node;
+  }
+  function pairCaption(m, mates) {
+    // Outra pessoa levou uma das duas (Laço ou roubo) antes de quem rodou escolher: a outra continua de quem rodou.
+    const taken = mates.find((x) => x.mudae.ownerId && x.mudae.ownerId !== m.by && !x.mudae.pairFree);
+    if (taken) {
+      const rest = mates.find((x) => x !== taken);
+      const who = (id) => (id === me() ? 'Você' : whoName(id));
+      const first = `${who(taken.mudae.ownerId)} levou ${taken.mudae.card.name}.`;
+      if (rest.mudae.ownerId) return `${first} ${who(rest.mudae.ownerId)} casou com ${rest.mudae.card.name}.`;
+      if (phase(rest) === 'expired') return first;
+      return m.by === me() ? `${first} ${rest.mudae.card.name} ainda é sua.` : `${first} ${whoName(m.by)} ainda pode casar com ${rest.mudae.card.name}.`;
+    }
+    const kept = mates.find((x) => x.mudae.ownerId && !x.mudae.pairFree);
+    // A que sobrou já tem dono: a disputa acabou.
+    const taker = mates.find((x) => x.mudae.pairFree)?.mudae.ownerId;
+    if (kept && taker) return `${rolledBy(m)} ficou com ${kept.mudae.card.name}. ${taker === me() ? 'Você' : whoName(taker)} casou com a outra.`;
+    if (m.by === me()) return kept ? `Você ficou com ${kept.mudae.card.name}. A outra está livre para os outros.` : 'Escolha uma. A outra fica livre na mesa.';
+    return kept ? `${whoName(m.by)} ficou com ${kept.mudae.card.name}. A outra está livre: quem casar primeiro leva!` : `${whoName(m.by)} abriu duas cartas e vai ficar com uma.`;
+  }
+  // Troca a carta escolhida sem refazer o palco (as fotos não piscam).
+  function chooseCard(id) {
+    if (S.stage === id || S.spinning) return;
+    S.stage = id;
+    for (const node of nodes.cardSlot?.querySelectorAll('.salon-pair > .salon-card') || []) node.classList.toggle('chosen', node.dataset.roll === id);
+    renderActions();
+    renderLive();
+  }
+
+  // O cadeado nas cartas trancadas e o trilho dos poderes acompanham o roll que está no palco.
+  function stagePowers(m) {
+    const slot = nodes.cardSlot;
+    if (slot?.isConnected) {
+      const cards = [...slot.querySelectorAll('[data-roll]')];
+      const locked = cards.filter((node) => { const x = byId(node.dataset.roll); return !!x?.mudae.lockedBy && claimable(x); });
+      for (const node of cards) node.classList.toggle('locked', locked.includes(node));
+      slot.classList.toggle('locked', locked.length > 0);
+      const badges = [...slot.children].filter((n) => n.classList.contains('poder-lock'));
+      for (const badge of badges) if (!locked.some((node) => node.dataset.roll === badge.dataset.for)) badge.remove();
+      for (const node of locked) {
+        if (badges.some((b) => b.dataset.for === node.dataset.roll)) continue;
+        const who = byId(node.dataset.roll).mudae.lockedBy;
+        // Na Escolha dupla, o cadeado fica em cima da carta trancada (a da esquerda ou a da direita).
+        const side = cards.length > 1 ? String(cards.indexOf(node)) : '';
+        slot.append(el('div', { class: 'poder-lock', data: { for: node.dataset.roll, side }, title: who === me() ? 'Trancado: só você pode casar' : 'Trancado por ' + whoName(who), textContent: '🔒' }));
+      }
+    }
+    powers?.rail(nodes.stage, { channel: S.channel, msg: m || null, phase: m ? phase(m) : 'idle', mine: !!m && m.by === me() });
   }
 
   function resetBackdrop() {
@@ -493,6 +571,7 @@ window.MudaeSalon = function ({ state, el, Icon, call, onSocket, member, avatar,
     if (!nodes.actions) return;
     const m = S.stage && byId(S.stage);
     nodes.actions.dataset.phase = m ? phase(m) : 'idle';
+    stagePowers(m);
     if (!m) return nodes.actions.replaceChildren();
     const p = phase(m);
     if (p === 'spinning') return nodes.actions.replaceChildren(el('div', { class: 'salon-wait', textContent: 'Girando…' }));
@@ -502,8 +581,12 @@ window.MudaeSalon = function ({ state, el, Icon, call, onSocket, member, avatar,
         el('span', {}, 'Casado com ', el('strong', { textContent: whoName(m.mudae.ownerId), style: { color: nameColor(owner) || '' } })))].filter(Boolean));
     }
     if (p === 'expired') return nodes.actions.replaceChildren(el('button', { type: 'button', class: 'salon-claim', disabled: true }, Icon('heart', 20), 'Tempo esgotado'));
+    // Escolha dupla: quem rodou já ficou com uma carta; a que sobrou é dos outros.
+    if (m.mudae.pairFree && m.by === me()) return nodes.actions.replaceChildren(el('div', { class: 'salon-wait', textContent: 'Esta ficou livre para os outros.' }));
     const s = S.status;
-    const blocked = s && !s.claimReady;
+    // Carta trancada pelo Cadeado: só quem trancou casa.
+    const lockedOut = !!m.mudae.lockedBy && m.mudae.lockedBy !== me();
+    const blocked = (s && !s.claimReady) || lockedOut;
     const total = (m.mudae.expires ?? m.ts + 45_000) - (m.mudae.revealAt ?? m.ts);
     const elapsed = total - Math.max(0, (m.mudae.expires ?? m.ts + 45_000) - now());
     const ring = el('span', { class: 'salon-ring' });
@@ -523,10 +606,14 @@ window.MudaeSalon = function ({ state, el, Icon, call, onSocket, member, avatar,
     const p = phase(m);
     const s = S.status;
     const pr = Math.ceil(((m.mudae.priorityUntil || 0) - now()) / 1000);
+    const lockedBy = m.mudae.lockedBy;
     let text = '';
-    if (s && !s.claimReady) text = `Você casa de novo em ${minutes(s.claimResetIn - (Date.now() - S.statusAt))}`;
+    if (lockedBy && lockedBy !== me()) text = `🔒 Trancado por ${whoName(lockedBy)}`;
+    else if (s && !s.claimReady) text = `Você casa de novo em ${minutes(s.claimResetIn - (Date.now() - S.statusAt))}`;
     else if (p === 'priority') text = `prioridade de ${whoName(m.by)} · ${pr}s`;
+    else if (lockedBy) text = '🔒 Trancado: só você pode casar';
     else if (pr > 0 && m.by === me()) text = `só você pode casar · ${pr}s`;
+    else if (m.mudae.pairFree) text = 'Livre para casar: quem for mais rápido leva!';
     else if (m.by !== me()) text = 'Casar com o roll de outra pessoa é roubo 😈';
     if (caption.textContent !== text) caption.textContent = text;
   }
@@ -556,10 +643,17 @@ window.MudaeSalon = function ({ state, el, Icon, call, onSocket, member, avatar,
 
   // Ao voltar para a Mesa durante um giro, guarda o espaço até o horário da revelação.
   function spinningLayout(m) {
-    nodes.cardSlot.replaceChildren(el('div', { class: 'salon-card big placeholder' }, cardBack()),
-      el('div', { class: 'salon-stage-caption', textContent: (m.by === me() ? 'Você está' : whoName(m.by) + ' está') + ' rodando…' }));
+    nodes.cardSlot.replaceChildren(el('div', { class: 'salon-card big placeholder', data: { roll: m.id } }, cardBack()),
+      el('div', { class: 'salon-stage-caption', textContent: spinCaption(m) }));
     nodes.stage.dataset.rarity = 'spinning';
     renderActions();
+  }
+
+  // O que o palco diz enquanto a cápsula gira: um roll, a Escolha dupla ou a carta que volta com o Eco.
+  function spinCaption(m) {
+    if (m.mudae.eco) return `🔁 ${rolledBy(m)} está trazendo de volta…`;
+    if (m.mudae.pair) return `🃏 Escolha dupla: ${rolledBy(m).toLowerCase() === 'você' ? 'você abre' : rolledBy(m) + ' abre'} duas cartas…`;
+    return rolledBy(m) + ' está rodando…';
   }
 
   // A carta vira de frente ao revelar o resultado.
@@ -569,6 +663,9 @@ window.MudaeSalon = function ({ state, el, Icon, call, onSocket, member, avatar,
 
   // ---------- a roleta ----------
   function takeStage(m) {
+    // Escolha dupla: as duas cartas dividem o palco, e a roleta espera a que abre por último.
+    const mate = pairOf(m).find((x) => x.id !== m.id);
+    if (mate && (mate.mudae.revealAt ?? mate.ts) > (m.mudae.revealAt ?? m.ts)) m = mate;
     stopSpin();
     S.stage = m.id;
     S.arriving.delete(m.id);
@@ -606,8 +703,8 @@ window.MudaeSalon = function ({ state, el, Icon, call, onSocket, member, avatar,
     const source = d.card.source || 'a';
     const decoys = warmUp(source, d.decoys);
     const cover = el('div', { class: 'salon-reel-cover' }, cardBack());
-    const reel = el('div', { class: `salon-reel is-preparing r-${rarity}` }, cover, el('div', { class: 'salon-reel-shade' }));
-    nodes.cardSlot.replaceChildren(reel, el('div', { class: 'salon-stage-caption', textContent: (m.by === me() ? 'Você está' : whoName(m.by) + ' está') + ' rodando…' }));
+    const reel = el('div', { class: `salon-reel is-preparing r-${rarity}`, data: { roll: m.id } }, cover, el('div', { class: 'salon-reel-shade' }));
+    nodes.cardSlot.replaceChildren(reel, el('div', { class: 'salon-stage-caption', textContent: spinCaption(m) }));
     nodes.stage.dataset.rarity = 'spinning';
     renderActions();
     const done = () => {
@@ -655,8 +752,8 @@ window.MudaeSalon = function ({ state, el, Icon, call, onSocket, member, avatar,
 
   function reveal(m, animate) {
     const rarity = m.mudae.card.rarity || 'common';
-    const card = nodes.cardSlot?.querySelector('.salon-card');
-    if (animate && card) emerge(card, m.id);
+    // Na Escolha dupla, as duas cartas viram.
+    if (animate) for (const card of nodes.cardSlot?.querySelectorAll('.salon-card') || []) emerge(card, m.id);
     Sounds.play({ legendary: 'mudaeLegendary', epic: 'mudaeEpic', rare: 'mudaeRare', common: 'mudaeCommon' }[rarity]);
     if (rarity === 'legendary') {
       S.legendaryUntil = Date.now() + 5000;
@@ -683,7 +780,9 @@ window.MudaeSalon = function ({ state, el, Icon, call, onSocket, member, avatar,
     const p = phase(m);
     const d = m.mudae;
     const who = member(m.by);
-    const chip = el('div', { class: 'salon-chip' }, who ? avatar(who, 'salon-chip-avatar') : null, el('span', { textContent: whoName(m.by) }));
+    // Na Mesa ao vivo, a marca do poder vai na frente do nome: trancada, veio do Eco ou é da Escolha dupla.
+    const mark = d.lockedBy && claimable(m) ? '🔒 ' : d.eco ? '🔁 ' : d.pair ? '🃏 ' : '';
+    const chip = el('div', { class: 'salon-chip' }, who ? avatar(who, 'salon-chip-avatar') : null, el('span', { textContent: mark + whoName(m.by) }));
     const open = () => { S.stage = m.id; renderStage(); };
     let node;
     if (p === 'spinning') {
@@ -1026,7 +1125,10 @@ window.MudaeSalon = function ({ state, el, Icon, call, onSocket, member, avatar,
       const mine = m.by === me();
       const stageMsg = S.stage && byId(S.stage);
       const busy = S.spinning || (stageMsg && stageMsg.id !== m.id && claimable(stageMsg));
-      if (mine) takeStage(m);
+      // A segunda carta da Escolha dupla entra no palco junto com a primeira.
+      const paired = !!d.pair && stageMsg?.mudae?.pair === d.pair;
+      if (mine) { powers?.rolled(m); takeStage(m); }
+      else if (paired) takeStage(m);
       else if (d.card.rarity === 'legendary') {
         if (S.spinning && byId(S.spinning)?.by === me()) S.queue.push(m.id);
         else takeStage(m);
@@ -1055,7 +1157,18 @@ window.MudaeSalon = function ({ state, el, Icon, call, onSocket, member, avatar,
       if (S.tab === 'ranking') loadRanking();
       if ([d.a, d.b].includes(me())) refreshStatus();
     }
-    if (m.id === S.stage && !S.spinning) renderStage();
+    const staged = S.stage && byId(S.stage);
+    if (staged && (m.id === staged.id || (d.pair && staged.mudae?.pair === d.pair))) {
+      // A carta que sobrou da Escolha dupla ficou livre: para quem não rodou, é ela que interessa agora.
+      if (d.pairFree && !d.ownerId && m.by !== me() && staged.mudae.ownerId) S.stage = m.id;
+      // Outra pessoa levou a carta escolhida da dupla (Laço ou roubo): a que sobrou passa a ser a escolhida.
+      else if (d.pair && m.id === staged.id && d.ownerId && d.ownerId !== m.by) {
+        const rest = pairOf(m).find((x) => x.id !== m.id && !x.mudae.ownerId);
+        if (rest) S.stage = rest.id;
+      }
+      // Durante o giro, só os botões e o cadeado mudam; a roleta continua.
+      if (S.spinning) renderActions(); else renderStage();
+    }
     renderLive();
   }
 
@@ -1075,6 +1188,10 @@ window.MudaeSalon = function ({ state, el, Icon, call, onSocket, member, avatar,
   // Alguém chegou ao nível IV de uma medalha: a forja acende na tela de todo mundo no Salão, em qualquer aba.
   onSocket('mudae:forge', (data) => { if (S.channel && forge) forge.flare(data); });
   onSocket('mudae:reaction', (r) => { if (r.channel === S.channel) floatReaction(r); });
+  // Um poder usado neste Salão: o efeito aparece no palco de todo mundo que está na Mesa.
+  onSocket('mudae:power', (e) => { if (S.channel && e?.channel === S.channel) powers?.effect(e); });
+  // Poder ganho: quem ganhou vê a faixa e a bolinha voando para o espaço; os outros veem a linha no chat.
+  onSocket('mudae:unlock', (e) => powers?.effect({ ...e, kind: 'unlock' }));
   // Alguém rodou um personagem da minha lista de desejos (o aviso chega em qualquer canal do servidor).
   onSocket('mudae:wish', (w) => {
     Sounds.play('mudaeRare');
