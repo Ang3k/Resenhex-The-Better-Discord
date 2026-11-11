@@ -180,7 +180,7 @@ test('Chamar desejo: 40% de chance; sem desejo, recusa sem gastar', () => {
   const clock = { t: 1000 };
   const poderes = createPoderes({ now: () => clock.t });
   const perks = { rechargeMs: POWER_RECHARGE_MS };
-  poderes.refresh(store, 'a', { bronzeLevel: 3 });
+  poderes.refresh(store, 'a', { bronzeLevel: 2 });
   const use = () => poderes.use(store, 'a', 'desejo', perks, () => mudae.arm(store, 'a', 'desejo'));
   const readyIn = () => poderes.powersOf(store, 'a', {}, perks).readyIn.desejo;
 

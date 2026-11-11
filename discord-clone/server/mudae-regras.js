@@ -75,7 +75,7 @@ const POWERS = [
   { key: 'cadeado', name: 'Cadeado', count: 'claims', need: 20 },
   { key: 'amuleto', name: 'Amuleto', count: 'legendary', need: 1 },
   { key: 'chuva', name: 'Chuva de cristais', count: 'crystals', need: 40 },
-  { key: 'desejo', name: 'Chamar desejo', count: 'bronzeLevel', need: 3 },
+  { key: 'desejo', name: 'Chamar desejo', count: 'bronzeLevel', need: 2 },
   { key: 'eco', name: 'Eco', count: 'claims', need: 60 },
   { key: 'dupla', name: 'Escolha dupla', count: 'rolls', need: 500 },
   { key: 'laco', name: 'Laço', count: 'medalsAt2', need: 7 },
