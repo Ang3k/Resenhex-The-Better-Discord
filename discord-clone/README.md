@@ -162,7 +162,7 @@ Na chamada, o botão do disco abre o DJ: busque no YouTube ou cole um link (víd
 
 ## Mudae
 
-O Mudae mora no **Salão do Mudae**, um canal de texto com `mudae: true` (crie em **Criar canal → Salão do Mudae**). Ele abre uma tela própria: **Mesa** (palco com fundo preto em gradiente, roleta de fotos e botões de roll e a Mesa ao vivo com os rolls de todo mundo), **Meu harem** (álbum), **Personagens** (ranking do catálogo com o dono de cada um, filtros e lista de desejos) e **Ranking** (dos haréns). À direita ficam o chat do canal e a aba **No salão**.
+O Mudae mora no **Salão do Mudae**, um canal de texto com `mudae: true` (crie em **Criar canal → Salão do Mudae**). Ele abre uma tela própria: **Mesa** (palco com fundo preto em gradiente, roleta de fotos e botões de roll e a Mesa ao vivo com os rolls de todo mundo), **Meu harem** (álbum), **Personagens** (ranking do catálogo com o dono de cada um, filtros e lista de desejos), **Ranking** (dos haréns) e **Forja** (medalhas e o progresso dos poderes). À direita ficam o chat do canal e a aba **No salão**.
 
 | Comando | O que faz |
 |---|---|
@@ -177,7 +177,9 @@ O Mudae mora no **Salão do Mudae**, um canal de texto com `mudae: true` (crie e
 | `$trade @pessoa` | abre uma troca de personagens e kakera (veja **Trocas** abaixo) |
 | `$give @pessoa nome` / `$givek @pessoa 100` | dá um personagem ou kakera de presente (pedem confirmação) |
 | `$fm nome` | escolhe o favorito, a foto de capa do seu harem |
-| `$divorce nome` | solta um personagem do seu harem e devolve o valor dele em kakera (pede confirmação; também pelo álbum) |
+| `$divorce nome` | solta um personagem do seu harem e devolve o valor dele em kakera, no máximo 500 a cada 24 h (pede confirmação; também pelo álbum) |
+| `$forja` / `$forjar bronze` | mostra as medalhas, o kakera e os preços; forja o próximo nível de uma medalha |
+| `$poderes` / `$poder cadeado` | mostra os poderes (abertos, no palco, recarga e o que falta); usa um poder |
 | `$dk` / `$daily` / `$rolls` | 250 kakera a cada 20 h; os rolls de volta uma vez a cada 20 h; os rolls de volta por 500 kakera (até 3 vezes em 24 h) |
 | `$k` / `$tu` | o seu kakera; rolls, casamento, `$daily`, `$dk`, kakera e compras que sobram (só você vê) |
 
@@ -185,7 +187,10 @@ O Mudae mora no **Salão do Mudae**, um canal de texto com `mudae: true` (crie e
 - **Modo simplificado** (botão no topo do Salão, guardado no navegador de cada pessoa): o canal aparece como chat comum, com os cards completos e o botão Casar no chat, como no Mudae original. Os rolls, casamentos e limites são os mesmos de quem está na roleta; o botão do card espera o giro e a vez de quem rodou. **Abrir o Salão**, no topo, volta para a tela da roleta.
 - **Roleta de fotos:** o servidor sorteia na hora e manda o resultado com o `revealAt` (de 1,95 s no comum a 3,85 s no lendário, `REVEAL_MS` em `server/mudae.js`). O palco usa a roleta com 8 fotos-isca sobre um fundo preto em gradiente; ninguém casa antes da revelação. A cena 3D foi retirada do Salão e não carrega Three.js nem cria um contexto WebGL. O código anterior permanece separado em `public/gacha/` para referência.
 - **Regras:** 10 rolls e 1 casamento a cada 30 minutos por pessoa, contados pelo relógio (ambos renovam na hora cheia e aos 30 minutos). Depois que o card aparece, quem rodou tem 3 s de prioridade; depois, qualquer um casa (e o chat conta o roubo). A janela total é de 45 s. Cada personagem tem um só dono por servidor.
-- **Kakera:** além do `$dk`, quando sai um personagem que já tem dono aparece um cristal (50, 100, 200 ou 400 kakera, pela raridade), um por pessoa a cada 30 minutos, com a mesma prioridade de quem rodou. Fica em `db.mudae.kakera`.
+- **Kakera:** fica em `db.mudae.kakera`. Todos os números do cristal, da Forja e dos poderes ficam em `server/mudae-regras.js`; `node tools/mudae-economia.js` simula jogadores (pouco, normal e viciado, em servidores de 1, 5 e 20 pessoas) e termina com código 1 se os tempos saírem das faixas (primeira medalha no 1º dia, todas no IV em uns 4 meses, viciado no máximo uns 3 a 4× mais rápido).
+- **Cristal errante** (`server/mudae-cristal.js`; tela em `public/mudae-cristal.js`): com alguém no Salão, o servidor sorteia um cristal a cada 5 a 15 min (um relógio só para todas as comunidades, que olha a cada 5 s, sem timer por pessoa) e manda o mesmo para todos os Salões da comunidade. Vive 10 s (mais 1,5 s de folga); cada pessoa pega uma vez, e todos que pegam ganham. Cor sorteada (roxo 75 a vermelho 560), chuva (16 gotas por 7 s) e corrente (até 5 elos) raras. Roll de personagem com dono solta um cristal da carta. Os 15 primeiros do dia (meia-noite de Brasília) rendem inteiro, depois 10%. As linhas do cristal no chat são só ao vivo, não salvas. `MUDAE_CRYSTAL_MS=min,max` encurta o intervalo para testes locais.
+- **Forja** (`server/mudae-forja.js`; tela em `public/mudae-forja.js`): 7 medalhas com 4 níveis, preço = base × nível (Bronze 500 … Diamante 3.000), vantagens pequenas (desejos, rolls guardados, cristal e `$dk`, rolls extras, chance de desejo, casamento de reserva, recarga dos poderes) e acabamento sorteado (metal 60%, esmalte 28%, holográfico 10%, galáxia 2%); a cada nível ou reforja (500) a pessoa escolhe entre o antigo e o novo. O nível IV vira faixa ao vivo e linha salva no chat. A pessoa escolhe quais medalhas aparecem no cartão de perfil.
+- **Superpoderes** (`server/mudae-poderes.js`; tela em `public/mudae-poderes.js`): 8 poderes que abrem por conquista (casamentos, lendário, cristais, rolls, medalhas), 3 espaços no palco, recarga de 24 h (menos com a Diamante), e quem troca recebe o poder vazio. Os contadores ficam em `server/mudae-conta.js`; no primeiro acesso, o harém conta como casamentos (crédito do lançamento, sem anúncio no chat). O servidor confere tudo: Cadeado vale do roll até a carta abrir, Laço só depois, e o Laço bate no Cadeado.
 - **Trocas** (`server/mudae.js`, `tradeOpen`/`tradeOffer`/`tradeConfirm`; tela em `public/mudae-troca.js`): ficam só na memória do servidor, uma por pessoa, abertas por 5 minutos depois da última mudança. Cada lado oferece até 20 personagens do próprio harem e kakera que tem. Qualquer mudança na oferta desfaz as duas confirmações, e a confirmação manda a versão (`rev`) que a pessoa viu. Com as duas confirmações, o servidor confere tudo de novo (os dois ainda no servidor, cada carta ainda de quem ofereceu, kakera suficiente) e só então troca; se algo falhar, a troca é cancelada e nada muda. O chat mostra a troca aberta, feita ou cancelada.
 - **Raridade** pela posição dentro da própria fonte, em proporção: os 0,67% mais populares são lendários, até 6,7% épicos, até 33% raros, o resto comum (numa fonte de 15 mil: 1–100, até 1.000, até 5.000). Assim a chance de lendário não muda com o tamanho da fonte. Lendário toma o palco de todos, com banner, flash e fanfarra.
 - **Palco:** o seu roll sempre vai para o palco; o de um amigo só se o palco estiver livre (senão entra na Mesa ao vivo); lendário de qualquer um sempre.
@@ -416,6 +421,8 @@ discord-clone/
 │   ├── dj.js            # DJ de cada sala de voz: fila, música atual e o relógio que sincroniza todo mundo
 │   ├── youtube.js       # busca no YouTube para o DJ (o áudio toca no player oficial de cada pessoa)
 │   ├── mudae.js         # Mudae: sorteio, limites de rolls e casamentos, harem
+│   ├── mudae-regras.js  # números do Mudae: medalhas, acabamentos, cristal errante, poderes, teto do divórcio
+│   ├── mudae-cristal.js / mudae-forja.js / mudae-poderes.js / mudae-conta.js  # cristal errante, Forja, poderes, kakera e contadores
 │   ├── mudae-catalogo.json  # personagens do Mudae (~33 MB, gerado por tools/mudae-catalogo.js)
 │   ├── downloads.js     # /download: instalador e atualizações do app de Windows e o APK do Android
 │   ├── media-sfu.js     # integração com o LiveKit (SFU)
@@ -428,6 +435,9 @@ discord-clone/
 │   ├── music.js         # DJ na chamada: player do YouTube sincronizado, painel de busca e fila, comandos /play
 │   ├── mudae.js         # respostas do Mudae no chat: cards, linhas compactas do Salão, $im e $tu
 │   ├── mudae-troca.js   # janela de troca de cartas do Mudae e os avisos (desejo, troca)
+│   ├── mudae-cristal.js # cristal errante voando pelo Salão: chuva, corrente e o "+valor"
+│   ├── mudae-forja.js   # aba Forja: parede de medalhas, forja animada, acabamentos e o desenho das medalhas
+│   ├── mudae-poderes.js # superpoderes no palco: os 3 espaços, recarga, faixas e efeitos
 │   └── mudae-salao.js   # tela do Salão do Mudae: roleta, Mesa ao vivo, álbum, ranking e presença
 ├── desktop/             # app para Windows (Electron, package.json próprio): janela, bandeja, push-to-talk global, atualização
 ├── android/             # app para Android (WebView em Java)
