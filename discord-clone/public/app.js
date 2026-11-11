@@ -2142,7 +2142,9 @@
       input.placeholder = 'Você não tem permissão para enviar mensagens.';
     } else {
       input.disabled = false;
-      input.placeholder = (c?.type === 'voice' ? 'Conversar em ' : 'Conversar em #') + (c?.name || '');
+      // No canal do Mudae o chat também aceita os comandos do bot, como no Discord. Texto curto: cabe numa linha
+      // no chat estreito ao lado do Salão (o mesmo tamanho de "Conversar em #canal").
+      input.placeholder = c?.mudae ? 'Converse ou use $w, $h…' : (c?.type === 'voice' ? 'Conversar em ' : 'Conversar em #') + (c?.name || '');
     }
     $('#btn-attach').disabled = input.disabled;
     const attachLabel = !inDm() && c?.type === 'voice' ? 'Enviar arquivo ou criar enquete' : 'Enviar arquivo';
