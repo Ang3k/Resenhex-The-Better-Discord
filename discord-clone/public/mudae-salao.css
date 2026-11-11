@@ -610,11 +610,15 @@
   .salon-side-close { display: grid; }
   .salon-top { flex-wrap: wrap-reverse; padding: 0 12px; }
   .salon-top-right { padding-top: 8px; }
+  /* Com a aba Forja são 5 abas: na tela estreita a fileira rola de lado. */
+  .salon-tabs { max-width: 100%; overflow-x: auto; scrollbar-width: none; }
+  .salon-tabs::-webkit-scrollbar { display: none; }
   .salon-simple span { display: none; }
   .salon-mesa { padding: 12px 12px 72px; }
   .salon-album, .salon-ranking { padding-inline: 12px; }
 }
 @media (max-width: 640px) {
+  .salon-tab { padding-inline: 9px; font-size: 14px; }
   .salon-stage { padding-top: 44px; }
   /* No celular a página rola: a carta tem tamanho fixo e o palco cresce com ela. */
   .salon-stage-box { flex: none; min-height: 0; container-type: normal; }

@@ -1,0 +1,269 @@
+/* Forja do Salão (mudae-forja.js): a parede de medalhas, o detalhe, a forja animada, a escolha do acabamento,
+   os poderes e a faixa do nível IV. As cores do metal e das pedras moram dentro do desenho (MATERIALS no JS);
+   tudo em volta usa o tema e as cores de raridade. */
+
+.forja { display: flex; flex-direction: column; gap: 18px; max-width: 1180px; margin: 0 auto; padding: 20px 24px 32px; container: forja / inline-size; }
+.forja-loading { padding: 48px 24px; color: var(--text-muted); text-align: center; }
+.forja-muted { color: var(--text-muted); font-size: 13px; }
+
+.forja-head { display: flex; align-items: flex-end; justify-content: space-between; gap: 16px; }
+.forja-title { margin: 0; color: var(--text-strong); font-size: 22px; font-weight: 800; letter-spacing: -.01em; }
+.forja-sub { margin: 4px 0 0; color: var(--text-muted); font-size: 14px; }
+.forja-kakera {
+  display: inline-flex; flex-shrink: 0; align-items: center; gap: 6px; padding: 7px 14px; border-radius: 999px;
+  background: var(--bg-floating); color: var(--text-strong); font-size: 16px; font-variant-numeric: tabular-nums;
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--rarity-epic) 35%, transparent);
+}
+.forja-kakera .mudae-kakera { color: var(--rarity-epic); }
+
+.forja-main { display: grid; grid-template-columns: minmax(0, 1.3fr) minmax(320px, 1fr); gap: 18px; align-items: start; }
+
+/* ---------- a parede ---------- */
+.forja-wall {
+  --cols: 4;
+  position: relative; display: flex; flex-wrap: wrap; justify-content: center; gap: 6px; padding: 18px 14px 14px;
+  border-radius: 16px; overflow: hidden;
+  background:
+    radial-gradient(120% 60% at 50% 115%, color-mix(in srgb, var(--yellow) 13%, transparent), transparent 70%),
+    radial-gradient(80% 50% at 50% -10%, color-mix(in srgb, var(--text-strong) 5%, transparent), transparent 70%),
+    linear-gradient(180deg, var(--bg-floating), var(--bg-panel));
+  box-shadow: inset 0 1px 0 color-mix(in srgb, var(--text-strong) 6%, transparent), inset 0 0 0 1px var(--divider);
+}
+.forja-slot {
+  --mx: 50%; --my: 50%;
+  position: relative; display: flex; flex: 0 0 calc((100% - (var(--cols) - 1) * 6px) / var(--cols)); flex-direction: column; align-items: center; gap: 3px; min-width: 0; padding: 20px 6px 12px;
+  border: 0; border-radius: 12px; background: transparent; color: var(--text); font: inherit; cursor: pointer;
+  transition: background-color var(--motion-fast) var(--ease-enter), box-shadow var(--motion-fast) var(--ease-enter);
+  -webkit-tap-highlight-color: transparent;
+}
+html:not(.touch) .forja-slot:hover { background: var(--hover); }
+.forja-slot:focus-visible { outline: 2px solid var(--brand); outline-offset: 2px; }
+.forja-slot[aria-pressed="true"] { background: color-mix(in srgb, var(--brand) 13%, transparent); box-shadow: inset 0 0 0 2px color-mix(in srgb, var(--brand) 65%, transparent); }
+/* O prego e o cordão de onde a medalha pende. */
+.forja-hook {
+  position: absolute; top: 7px; left: 50%; width: 9px; height: 9px; margin-left: -4.5px; border-radius: 50%; pointer-events: none;
+  background: radial-gradient(circle at 35% 30%, var(--text-strong), var(--interactive) 35%, var(--bg-rail) 90%);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, .6);
+}
+.forja-hook::before, .forja-hook::after {
+  content: ""; position: absolute; top: 5px; left: 4px; width: 1.5px; height: 16px; border-radius: 1px;
+  background: color-mix(in srgb, var(--interactive) 55%, transparent); transform-origin: top center;
+}
+.forja-hook::before { transform: rotate(28deg); }
+.forja-hook::after { transform: rotate(-28deg); }
+.forja-slot > svg.forja-medal { width: 100%; max-width: 104px; height: auto; margin-top: 4px; transition: transform var(--motion-base) var(--ease-enter); }
+html:not(.touch) .forja-slot:hover > svg.forja-medal { transform: translateY(-2px) rotate(-2deg); }
+.forja-slot-name { margin-top: 2px; color: var(--text-strong); font-size: 14px; font-weight: 700; }
+.forja-slot.unforged .forja-slot-name { color: var(--text-muted); }
+.forja-pips { display: flex; gap: 4px; }
+.forja-pips i { width: 7px; height: 7px; border-radius: 50%; background: var(--bg-input); box-shadow: inset 0 0 0 1px var(--divider); }
+.forja-pips i.on { background: var(--yellow); box-shadow: 0 0 6px color-mix(in srgb, var(--yellow) 70%, transparent); }
+.forja-slot-price { display: inline-flex; align-items: center; gap: 3px; min-height: 18px; color: var(--text); font-size: 12px; font-weight: 600; font-variant-numeric: tabular-nums; }
+.forja-slot-price .mudae-kakera { color: var(--rarity-epic); }
+.forja-slot-price .mudae-kakera svg { width: 12px; height: 12px; }
+.forja-slot.short .forja-slot-price { color: var(--text-muted); font-weight: 500; }
+.forja-slot.offer .forja-slot-price { color: var(--yellow); }
+.forja-slot-price.done { color: var(--green); }
+
+/* ---------- as medalhas: brilho da raridade do acabamento ---------- */
+svg.forja-medal { display: inline-block; overflow: visible; filter: drop-shadow(0 4px 5px rgba(0, 0, 0, .45)); }
+svg.forja-medal.fin-metal { filter: drop-shadow(0 4px 5px rgba(0, 0, 0, .45)) drop-shadow(0 0 6px color-mix(in srgb, var(--rarity-common) 45%, transparent)); }
+svg.forja-medal.fin-esmalte { filter: drop-shadow(0 4px 5px rgba(0, 0, 0, .45)) drop-shadow(0 0 8px color-mix(in srgb, var(--rarity-rare) 70%, transparent)); }
+svg.forja-medal.fin-holo { filter: drop-shadow(0 4px 5px rgba(0, 0, 0, .45)) drop-shadow(0 0 9px color-mix(in srgb, var(--rarity-epic) 80%, transparent)); }
+svg.forja-medal.fin-galaxia { filter: drop-shadow(0 4px 5px rgba(0, 0, 0, .45)) drop-shadow(0 0 11px color-mix(in srgb, var(--rarity-legendary) 85%, transparent)); }
+svg.forja-medal.unforged { filter: drop-shadow(0 1px 0 color-mix(in srgb, var(--text-strong) 10%, transparent)); opacity: .8; }
+/* O arco-íris do holográfico anda com o ponteiro (--mx/--my, como nas cartas); no celular, sozinho. */
+svg.forja-medal .fm-holo {
+  transform-box: fill-box; mix-blend-mode: color; opacity: .85;
+  transform: translate(calc((50% - var(--mx, 50%)) * .5), calc((50% - var(--my, 50%)) * .4));
+  transition: transform var(--motion-base) var(--ease-enter);
+}
+svg.forja-medal .fm-holo-lines { mix-blend-mode: soft-light; opacity: 1; }
+html.touch svg.forja-medal .fm-holo { animation: forja-holo-sweep 7s ease-in-out infinite alternate; }
+@keyframes forja-holo-sweep { from { transform: translate(-18%, -10%); } to { transform: translate(18%, 10%); } }
+/* Galáxia: as estrelas piscam. Nível IV: os raios giram devagar e o brilho pulsa. */
+svg.forja-medal .fm-star { transform-box: fill-box; transform-origin: center; animation: forja-twinkle 2.4s ease-in-out infinite; }
+@keyframes forja-twinkle { 0%, 100% { opacity: .25; } 50% { opacity: 1; } }
+svg.forja-medal .fm-rays { transform-box: fill-box; transform-origin: center; animation: forja-rays 24s linear infinite; }
+@keyframes forja-rays { to { transform: rotate(360deg); } }
+svg.forja-medal .fm-glint { transform-box: fill-box; transform-origin: center; animation: forja-glint 3.2s ease-in-out infinite; }
+@keyframes forja-glint { 0%, 70%, 100% { opacity: .15; transform: scale(.5); } 80% { opacity: 1; transform: scale(1.1); } }
+@media (prefers-reduced-motion: reduce) {
+  svg.forja-medal .fm-holo, svg.forja-medal .fm-star, svg.forja-medal .fm-rays, svg.forja-medal .fm-glint { animation: none; }
+}
+:root[data-reduce-motion=true] svg.forja-medal :is(.fm-holo, .fm-star, .fm-rays, .fm-glint) { animation: none; }
+
+/* No chat ($forja), a medalha pequena entra na linha do texto. */
+.mudae-medal > svg.forja-medal { width: 24px; height: auto; margin-right: 6px; vertical-align: middle; filter: drop-shadow(0 1px 2px rgba(0, 0, 0, .5)); }
+
+/* ---------- o painel: a forja e o detalhe ---------- */
+.forja-panel { display: flex; flex-direction: column; min-width: 0; border-radius: 16px; overflow: hidden; background: var(--bg-sidebar); box-shadow: inset 0 0 0 1px var(--divider); }
+.forja-scene {
+  --mx: 50%; --my: 50%;
+  position: relative; display: grid; place-items: center; height: 262px; overflow: hidden;
+  background: radial-gradient(90% 70% at 50% 108%, color-mix(in srgb, var(--yellow) 16%, transparent), transparent 70%), var(--bg-floating);
+}
+.forja-fire {
+  position: absolute; left: 50%; bottom: -60px; width: 340px; height: 200px; margin-left: -170px; border-radius: 50%; pointer-events: none; opacity: .35;
+  background: radial-gradient(closest-side, color-mix(in srgb, var(--yellow) 75%, var(--red)), color-mix(in srgb, var(--red) 45%, transparent) 55%, transparent);
+  filter: blur(14px); transition: opacity var(--motion-large) var(--ease-enter), transform var(--motion-large) var(--ease-enter);
+}
+.forja-scene.cold .forja-fire { opacity: .18; }
+.forja-scene.hot .forja-fire { opacity: 1; transform: scale(1.25, 1.4); }
+.forja-anvil {
+  position: absolute; left: 50%; bottom: 16px; width: 176px; height: 34px; margin-left: -88px; pointer-events: none;
+  clip-path: polygon(0 0, 100% 0, 88% 45%, 72% 55%, 74% 100%, 26% 100%, 28% 55%, 12% 45%);
+  background: linear-gradient(180deg, var(--interactive), var(--bg-input) 30%, var(--bg-rail));
+}
+.forja-stage-medal { position: relative; z-index: 1; margin-bottom: 34px; }
+.forja-stage-medal > svg.forja-medal { width: 168px; height: auto; }
+.forja-scene.hot .forja-mold { filter: drop-shadow(0 0 14px color-mix(in srgb, var(--yellow) 80%, var(--red))) brightness(1.4); transition: filter var(--motion-large) var(--ease-enter); }
+.forja-fly { position: absolute; left: 50%; top: 50%; z-index: 3; margin: -11px 0 0 -11px; color: var(--rarity-epic); pointer-events: none; filter: drop-shadow(0 0 6px var(--rarity-epic)); }
+.forja-fly svg { width: 22px; height: 22px; }
+/* O martelo gira pelo fim do cabo (à direita) e a cabeça bate na face da medalha. */
+.forja-hammer { position: absolute; left: 38%; top: 3%; z-index: 4; width: 78%; pointer-events: none; transform: rotate(40deg); transform-origin: 96% 50%; filter: drop-shadow(0 5px 6px rgba(0, 0, 0, .6)); }
+.forja-hammer svg { display: block; width: 100%; height: auto; }
+.forja-spark {
+  position: absolute; left: 50%; top: 34%; z-index: 5; width: 8px; height: 2.5px; margin-top: -1.25px; border-radius: 2px; pointer-events: none; transform-origin: 0 50%;
+  background: linear-gradient(90deg, transparent, color-mix(in srgb, var(--yellow), white 55%)); box-shadow: 0 0 6px var(--yellow), 0 0 10px color-mix(in srgb, var(--red) 55%, transparent);
+}
+.forja-spark.long { width: 16px; }
+
+.forja-detail { display: flex; flex-direction: column; gap: 12px; padding: 16px 18px 18px; }
+.forja-detail-head { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.forja-detail-title { margin: 0; color: var(--text-strong); font-size: 20px; font-weight: 800; }
+.forja-finish-tag {
+  display: inline-flex; align-items: center; padding: 2px 9px; border-radius: 999px; font-size: 12px; font-weight: 700;
+  color: color-mix(in srgb, var(--frame), white 25%); background: color-mix(in srgb, var(--frame) 16%, transparent); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--frame) 55%, transparent);
+}
+.forja-what { margin: 0; color: var(--text); font-size: 14px; }
+.forja-perks { display: flex; flex-direction: column; gap: 2px; margin: 0; padding: 0; list-style: none; }
+.forja-perk { display: grid; grid-template-columns: 30px minmax(0, 1fr) auto; align-items: center; gap: 8px; padding: 7px 10px; border-radius: 8px; color: var(--text-muted); font-size: 14px; }
+.forja-perk-level { color: var(--text-muted); font-weight: 800; font-size: 13px; }
+.forja-perk-price { display: inline-flex; align-items: center; gap: 3px; font-size: 13px; font-variant-numeric: tabular-nums; }
+.forja-perk-price .mudae-kakera { color: var(--rarity-epic); }
+.forja-perk-price .mudae-kakera svg { width: 13px; height: 13px; }
+.forja-perk-price.got { color: var(--green); font-weight: 800; }
+.forja-perk.got { color: var(--text); }
+.forja-perk.now { background: color-mix(in srgb, var(--yellow) 12%, transparent); color: var(--text-strong); box-shadow: inset 3px 0 0 var(--yellow); }
+.forja-perk.now .forja-perk-level { color: var(--yellow); }
+
+.forja-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.forja-forge, .forja-reforge, .forja-choose, .forja-power-equip, .forja-slot-pick, .forja-slot-cancel {
+  display: inline-flex; align-items: center; justify-content: center; gap: 5px; min-height: 40px; padding: 0 16px; border: 0; border-radius: 8px;
+  font: inherit; font-size: 14px; font-weight: 700; cursor: pointer; transition: background-color var(--motion-fast) var(--ease-enter), filter var(--motion-fast) var(--ease-enter);
+}
+html.touch :is(.forja-forge, .forja-reforge, .forja-choose, .forja-power-equip, .forja-slot-pick, .forja-slot-cancel) { min-height: 44px; }
+.forja-forge {
+  flex: 1 1 180px; color: #fff; text-shadow: 0 1px 2px rgba(0, 0, 0, .35);
+  background: linear-gradient(135deg, color-mix(in srgb, var(--yellow) 85%, var(--red)), var(--red-dark));
+  box-shadow: 0 2px 10px color-mix(in srgb, var(--red) 35%, transparent);
+}
+.forja-forge .mudae-kakera, .forja-reforge .mudae-kakera { color: inherit; }
+html:not(.touch) .forja-forge:not(:disabled):hover { filter: brightness(1.1); }
+.forja-reforge { flex: 1 1 180px; background: var(--bg-input); color: var(--text-strong); }
+html:not(.touch) .forja-reforge:not(:disabled):hover { background: var(--hover-strong); }
+.forja-forge:disabled, .forja-reforge:disabled { background: var(--bg-input); color: var(--text-muted); text-shadow: none; box-shadow: none; cursor: not-allowed; }
+.forja-forge:focus-visible, .forja-reforge:focus-visible, .forja-choose:focus-visible { outline: 2px solid var(--brand); outline-offset: 2px; }
+
+/* A escolha do acabamento: as duas medalhas lado a lado. */
+.forja-choice { padding: 12px; border-radius: 12px; background: var(--bg-panel); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--yellow) 35%, transparent); }
+.forja-choice-q { margin: 0 0 8px; color: var(--text-strong); font-size: 14px; font-weight: 700; text-align: center; }
+.forja-choice-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.forja-choice-side { display: flex; flex-direction: column; align-items: center; gap: 6px; min-width: 0; }
+.forja-choice-medal { --mx: 50%; --my: 50%; }
+.forja-choice-medal > svg.forja-medal { width: 112px; height: auto; }
+.forja-choice-tag { color: var(--text-muted); font-size: 11px; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; }
+.forja-choose { width: 100%; padding: 0 8px; background: var(--bg-input); color: var(--text-strong); }
+.forja-choose.new { background: var(--brand); color: #fff; }
+html:not(.touch) .forja-choose:not(:disabled):hover { filter: brightness(1.12); }
+.forja-choose:disabled { opacity: .6; cursor: progress; }
+
+/* ---------- poderes ---------- */
+.forja-powers { display: flex; flex-direction: column; gap: 12px; padding: 16px 18px 18px; border-radius: 16px; background: var(--bg-sidebar); box-shadow: inset 0 0 0 1px var(--divider); }
+.forja-powers-head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+.forja-section-title { margin: 0; color: var(--text-strong); font-size: 17px; font-weight: 800; }
+.forja-stage-slots { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+.forja-stage-slot {
+  display: flex; align-items: center; gap: 4px; min-width: 0; min-height: 44px; padding: 6px 12px; border-radius: 10px; overflow: hidden; white-space: nowrap;
+  background: var(--bg-panel); color: var(--text-strong); font-size: 14px; box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--brand) 40%, transparent);
+}
+.forja-stage-slot strong { overflow: hidden; text-overflow: ellipsis; }
+.forja-stage-slot.empty { background: transparent; box-shadow: inset 0 0 0 1.5px var(--divider); border: 0; }
+.forja-stage-n { display: inline-grid; place-items: center; flex-shrink: 0; width: 20px; height: 20px; border-radius: 50%; background: var(--bg-input); color: var(--text-muted); font-size: 11px; font-weight: 800; }
+.forja-power-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 8px; margin: 0; padding: 0; list-style: none; }
+.forja-power { display: flex; gap: 12px; padding: 12px; border-radius: 12px; background: var(--bg-panel); }
+.forja-power.staged { box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--brand) 45%, transparent); }
+.forja-power-badge {
+  display: grid; place-items: center; flex-shrink: 0; width: 44px; height: 44px; border-radius: 50%; font-size: 22px;
+  background: radial-gradient(circle at 35% 30%, color-mix(in srgb, var(--rarity-epic) 45%, var(--bg-input)), var(--bg-floating));
+  box-shadow: inset 0 0 0 1.5px color-mix(in srgb, var(--rarity-epic) 60%, transparent), 0 0 12px color-mix(in srgb, var(--rarity-epic) 25%, transparent);
+}
+.forja-power.locked .forja-power-badge { background: var(--bg-input); box-shadow: inset 0 0 0 1.5px var(--divider); filter: grayscale(1); opacity: .55; }
+.forja-power-body { display: flex; flex-direction: column; gap: 4px; min-width: 0; flex: 1; }
+.forja-power-name { color: var(--text-strong); font-size: 14px; }
+.forja-power.locked .forja-power-name { color: var(--text); }
+.forja-power-does { color: var(--text-muted); font-size: 13px; line-height: 1.35; }
+.forja-power-goal { color: var(--text); font-size: 12px; font-weight: 600; font-variant-numeric: tabular-nums; }
+.forja-bar { display: block; height: 6px; border-radius: 3px; overflow: hidden; background: var(--bg-input); }
+.forja-bar i { display: block; height: 100%; border-radius: 3px; background: var(--brand-gradient); }
+.forja-power-state { color: var(--green); font-size: 12px; font-weight: 700; }
+.forja-power-equip { align-self: flex-start; min-height: 32px; padding: 0 12px; background: var(--brand); color: #fff; font-size: 13px; }
+html:not(.touch) .forja-power-equip:hover { background: var(--brand-hover); }
+.forja-slot-picks { display: grid; grid-template-columns: minmax(0, 1fr); gap: 6px; }
+.forja-slot-pick { justify-content: flex-start; min-height: 36px; padding: 0 10px; background: var(--bg-input); color: var(--text-strong); font-size: 13px; font-weight: 600; }
+html:not(.touch) .forja-slot-pick:hover { background: var(--brand); color: #fff; }
+.forja-slot-cancel { min-height: 34px; padding: 0 10px; background: transparent; color: var(--text-muted); font-size: 13px; }
+.forja-power-note { color: var(--yellow); font-size: 12px; }
+
+/* ---------- a faixa do nível IV, por cima do Salão ---------- */
+.forja-flare { position: absolute; inset: 0; z-index: 40; display: grid; place-content: center; justify-items: center; gap: 10px; overflow: hidden; pointer-events: none; }
+.forja-flare-glow {
+  position: absolute; inset: -20%;
+  background: radial-gradient(closest-side, color-mix(in srgb, var(--yellow) 42%, transparent), color-mix(in srgb, var(--red) 18%, transparent) 55%, transparent),
+    color-mix(in srgb, var(--bg-floating) 55%, transparent);
+}
+.forja-flare-medal { position: relative; }
+.forja-flare-medal > svg.forja-medal { width: 150px; height: auto; }
+.forja-flare-text {
+  position: relative; padding: 8px 22px; border-radius: 10px; color: #fff; font-size: 22px; font-weight: 900; letter-spacing: .04em; text-align: center;
+  text-shadow: 0 2px 6px rgba(0, 0, 0, .55);
+  background: linear-gradient(135deg, color-mix(in srgb, var(--yellow) 85%, var(--red)), var(--red-dark));
+  box-shadow: 0 6px 24px color-mix(in srgb, var(--red) 40%, transparent), inset 0 1px 0 color-mix(in srgb, white 35%, transparent);
+}
+.forja-ember {
+  position: absolute; bottom: 12%; width: 5px; height: 5px; border-radius: 50%;
+  background: color-mix(in srgb, var(--yellow), white 30%); box-shadow: 0 0 8px var(--yellow), 0 0 14px color-mix(in srgb, var(--red) 60%, transparent);
+}
+
+/* ---------- larguras (pela largura da aba, que muda com o chat aberto ao lado) ---------- */
+@container forja (max-width: 1000px) {
+  .forja-main { grid-template-columns: minmax(0, 1fr); }
+  .forja-wall { --cols: 7; }
+  .forja-slot > svg.forja-medal { max-width: 92px; }
+  .forja-panel { display: grid; grid-template-columns: minmax(240px, 1fr) minmax(0, 1.25fr); }
+  .forja-scene { height: auto; min-height: 280px; }
+}
+@container forja (max-width: 700px) {
+  .forja-sub { display: none; }
+  .forja-wall { --cols: 4; padding: 14px 6px 8px; }
+  .forja-slot { padding: 16px 2px 8px; }
+  .forja-slot > svg.forja-medal { max-width: 78px; }
+  .forja-slot-name { font-size: 12px; }
+  .forja-slot-price { font-size: 11px; text-align: center; }
+  .forja-panel { display: flex; }
+  .forja-scene { min-height: 0; height: 226px; }
+  .forja-stage-medal > svg.forja-medal { width: 140px; }
+}
+@container forja (max-width: 520px) {
+  .forja-stage-slots { grid-template-columns: minmax(0, 1fr); }
+}
+@media (max-width: 760px) {
+  .forja { gap: 14px; padding: 14px 12px 24px; }
+  .forja-head { align-items: center; }
+  .forja-flare-text { font-size: 17px; margin: 0 12px; }
+}
+/* No Salão estreito, o botão flutuante "Chat · No salão" fica por cima do fim da aba. */
+@media (max-width: 1000px) {
+  .forja { padding-bottom: 80px; }
+}

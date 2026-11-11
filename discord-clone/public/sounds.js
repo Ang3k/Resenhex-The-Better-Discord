@@ -31,6 +31,9 @@ window.Sounds = (() => {
     mudaeClaim: [[880, 0, 0.08], [1175, 0.08, 0.08], [1760, 0.16, 0.26]],
     // Cristal errante: um brilho curto e agudo quando ele aparece no Salão.
     mudaeCrystal: [[1319, 0, 0.06], [1976, 0.055, 0.06], [2637, 0.11, 0.2]],
+    // Forja: o fogo subindo (notas graves que sobem) e a batida do martelo na bigorna (metal curto e agudo).
+    mudaeForge: [[98, 0, 0.22], [131, 0.12, 0.24], [175, 0.26, 0.26], [262, 0.42, 0.32]],
+    mudaeHammer: [[1760, 0, 0.03], [2489, 0, 0.05], [880, 0.01, 0.09]],
     // Gacha 3D: o botão da máquina, a cápsula quicando, balançando, travando (lendário) e abrindo.
     gachaClack: [[196, 0, 0.035], [147, 0.12, 0.035], [196, 0.24, 0.035], [147, 0.36, 0.035]],
     gachaBounce: [[262, 0, 0.06]],

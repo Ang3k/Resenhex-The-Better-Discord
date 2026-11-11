@@ -1,7 +1,7 @@
 /* Mudae: os cards de personagem que o bot posta no chat ($w/$h/$m), o harem ($mm), o $im, o $tu,
    o botão de casar, o cristal de kakera, os rankings ($top, $obra, $topserv), os desejos e as trocas. O servidor decide tudo (sorteio, limites, quem casou primeiro); aqui só desenhamos
    as respostas. As fotos vêm direto do CDN do AniList. */
-window.MudaeUI = function ({ state, el, Icon, call, member, avatar, nameColor, Format, fmtCtx, openProfile, openImage, openChannel, renderMessages, keepBottom, openTrade = () => {}, openForja = () => {} }) {
+window.MudaeUI = function ({ state, el, Icon, call, member, avatar, nameColor, Format, fmtCtx, openProfile, openImage, openChannel, renderMessages, keepBottom, openTrade = () => {}, openForja = () => {}, medalSvg = null }) {
   const COMMANDS = [
     { name: 'w', note: 'roda uma waifu' },
     { name: 'h', note: 'roda um husbando' },
@@ -332,16 +332,16 @@ window.MudaeUI = function ({ state, el, Icon, call, member, avatar, nameColor, F
   const FINISHES = { metal: 'Metal', esmalte: 'Esmalte', holo: 'Holográfico', galaxia: 'Galáxia' };
   const ROMAN = ['', 'I', 'II', 'III', 'IV'];
   const finishName = (key) => FINISHES[key] || key;
-  // Os poderes (nome, ícone, frase da linha pública e o que falta para abrir). Tem que bater com POWERS em server/mudae-regras.js.
+  // Os poderes (nome, ícone, frase da linha pública, o que falta para abrir e o que cada um faz). Tem que bater com POWERS em server/mudae-regras.js.
   const POWER = {
-    videncia: { name: 'Vidência', icon: '🔮', goal: 'Medalhas forjadas' },
-    cadeado: { name: 'Cadeado', icon: '🔒', goal: 'Casamentos', said: ' trancou o roll.' },
-    amuleto: { name: 'Amuleto', icon: '🍀', goal: 'Lendários no harém', said: ' usou o Amuleto: o próximo roll tem mais chance de ser épico ou lendário.' },
-    chuva: { name: 'Chuva de cristais', icon: '🌧️', goal: 'Cristais pegos', said: ' chamou uma chuva de cristais!' },
-    desejo: { name: 'Chamar desejo', icon: '💫', goal: 'Nível da Bronze', said: ' chamou um desejo para o próximo roll.' },
-    eco: { name: 'Eco', icon: '🔁', goal: 'Casamentos' },
-    dupla: { name: 'Escolha dupla', icon: '🃏', goal: 'Rolls', said: ' vai abrir duas cartas no próximo roll.' },
-    laco: { name: 'Laço', icon: '🪢', goal: 'Medalhas no nível II' },
+    videncia: { name: 'Vidência', icon: '🔮', goal: 'Medalhas forjadas', does: 'Mostra a raridade dos seus 3 próximos rolls. Só você vê.' },
+    cadeado: { name: 'Cadeado', icon: '🔒', goal: 'Casamentos', said: ' trancou o roll.', does: 'Tranca o seu roll: ninguém mais casa com ele.' },
+    amuleto: { name: 'Amuleto', icon: '🍀', goal: 'Lendários no harém', said: ' usou o Amuleto: o próximo roll tem mais chance de ser épico ou lendário.', does: 'O próximo roll tem mais chance de sair épico ou lendário.' },
+    chuva: { name: 'Chuva de cristais', icon: '🌧️', goal: 'Cristais pegos', said: ' chamou uma chuva de cristais!', does: 'Chama uma chuva de cristais para todo mundo no Salão.' },
+    desejo: { name: 'Chamar desejo', icon: '💫', goal: 'Nível da Bronze', said: ' chamou um desejo para o próximo roll.', does: 'O próximo roll tem chance alta de ser um desejo seu.' },
+    eco: { name: 'Eco', icon: '🔁', goal: 'Casamentos', does: 'Traz de volta um personagem que passou sem dono há pouco.' },
+    dupla: { name: 'Escolha dupla', icon: '🃏', goal: 'Rolls', said: ' vai abrir duas cartas no próximo roll.', does: 'O próximo roll abre duas cartas, e você casa com uma.' },
+    laco: { name: 'Laço', icon: '🪢', goal: 'Medalhas no nível II', does: 'Casa na hora com o roll de outra pessoa. Perde para o Cadeado.' },
   };
   const powerOf = (key) => POWER[key] || { name: key, icon: '✦', goal: '' };
 
@@ -390,7 +390,7 @@ window.MudaeUI = function ({ state, el, Icon, call, member, avatar, nameColor, F
         const m = d.medals?.[key] || { level: 0 };
         const price = d.prices?.[key];
         return el('li', { class: 'mudae-medal l' + m.level, title: price ? `Próximo nível: ${num(price)} kakera` : 'No nível máximo' },
-          MEDAL_ICON[key] + ' ', el('strong', { textContent: MEDALS[key] }), el('span', { class: 'mudae-medal-level', textContent: ' ' + (ROMAN[m.level] || '—') }),
+          medalSvg ? medalSvg(key, m.level, m.finish, 28) : MEDAL_ICON[key] + ' ', el('strong', { textContent: MEDALS[key] }), el('span', { class: 'mudae-medal-level', textContent: ' ' + (ROMAN[m.level] || '—') }),
           el('span', { class: 'mudae-muted', textContent: m.level ? ' · ' + finishName(m.finish) : price ? ` · ${num(price)}` : '' }));
       })),
       d.powers ? stageList(d.powers) : null,
@@ -617,5 +617,6 @@ window.MudaeUI = function ({ state, el, Icon, call, member, avatar, nameColor, F
       .map((c) => ({ command: true, icon: 'heart', insert: '$' + c.name, label: '$' + c.name + (c.args ? ' ' : ''), hint: c.args ? c.hint : '', note: c.note }));
   }
 
-  return { body, invocation, botAvatar, ephemeral, sync, serverNow, suggestions, isCommand, divorceTarget, confirmFor, kakera, num, minutes, RARITY, SOURCES, seriesLine, ownerTag };
+  return { body, invocation, botAvatar, ephemeral, sync, serverNow, suggestions, isCommand, divorceTarget, confirmFor, kakera, num, minutes, RARITY, SOURCES, seriesLine, ownerTag,
+    MEDALS, FINISHES, ROMAN, POWER };
 };

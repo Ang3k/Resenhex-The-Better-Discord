@@ -3,7 +3,7 @@
    harem, o ranking de personagens (Personagens) e o dos haréns (Ranking). À direita, o chat do canal e quem está no Salão. O servidor sorteia e decide
    quem casa; aqui o navegador só faz o giro (até o revealAt que veio do servidor) e desenha. */
 window.MudaeSalon = function ({ state, el, Icon, call, onSocket, member, avatar, nameColor, toast, confirmDialog, openProfile, openImage, openChannel, closeProfile, setSimple, ui, Sounds,
-  trade = { start() {}, notice() {} }, crystals = null }) {
+  trade = { start() {}, notice() {} }, crystals = null, forge = null }) {
   const $ = (sel) => document.querySelector(sel);
   const root = $('#salon-view');
   const LIVE = 12;
@@ -267,7 +267,7 @@ window.MudaeSalon = function ({ state, el, Icon, call, onSocket, member, avatar,
 
   function renderTabs() {
     const tab = (id, label) => el('button', { type: 'button', role: 'tab', class: 'salon-tab' + (S.tab === id ? ' active' : ''), ariaSelected: String(S.tab === id), onclick: () => setTab(id) }, label);
-    nodes.tabs.replaceChildren(tab('mesa', 'Mesa'), tab('harem', 'Meu harem'), tab('chars', 'Personagens'), tab('ranking', 'Ranking'));
+    nodes.tabs.replaceChildren(tab('mesa', 'Mesa'), tab('harem', 'Meu harem'), forge ? tab('forja', 'Forja') : null, tab('chars', 'Personagens'), tab('ranking', 'Ranking'));
   }
 
   function setTab(id, opts = {}) {
@@ -283,6 +283,8 @@ window.MudaeSalon = function ({ state, el, Icon, call, onSocket, member, avatar,
     if (S.tab === 'mesa') return renderMesa();
     if (S.tab === 'harem') return renderAlbum();
     if (S.tab === 'chars') return renderChars();
+    // A Forja (mudae-forja.js) desenha a aba toda; o saldo que ela gasta também muda na faixa de cima.
+    if (S.tab === 'forja' && forge) return forge.render(nodes.body, { onKakera: showKakera });
     return renderRanking();
   }
 
@@ -1070,6 +1072,8 @@ window.MudaeSalon = function ({ state, el, Icon, call, onSocket, member, avatar,
     if (mine) setStatus(mine);
     renderPeople();
   });
+  // Alguém chegou ao nível IV de uma medalha: a forja acende na tela de todo mundo no Salão, em qualquer aba.
+  onSocket('mudae:forge', (data) => { if (S.channel && forge) forge.flare(data); });
   onSocket('mudae:reaction', (r) => { if (r.channel === S.channel) floatReaction(r); });
   // Alguém rodou um personagem da minha lista de desejos (o aviso chega em qualquer canal do servidor).
   onSocket('mudae:wish', (w) => {
@@ -1114,7 +1118,7 @@ window.MudaeSalon = function ({ state, el, Icon, call, onSocket, member, avatar,
 
   const api = { sync, onMessage, onUpdate, onHistory, show: (id) => { if (!S.channel) return; if (S.tab !== 'mesa') setTab('mesa'); S.stage = id; renderStage(); renderLive(); toggleSide(false); },
     openHarem, openChars, openRanking: () => { toggleSide(false); setTab('ranking'); },
-    // Abre o Salão na aba Forja (a aba chega na tarefa da Forja). No modo simplificado, sai dele e abre quando o Salão montar.
+    // Abre o Salão na aba Forja. No modo simplificado, sai dele e abre quando o Salão montar.
     openForja: () => { if (S.channel) { toggleSide(false); setTab('forja'); } else { wantTab = 'forja'; setSimple(false); } }, profileSection, get channel() { return S.channel; } };
   return api;
 };

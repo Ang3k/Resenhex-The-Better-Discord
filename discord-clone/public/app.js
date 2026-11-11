@@ -505,7 +505,7 @@
   // Mudae (mudae.js): cards de personagem, harem e o botão de casar nas respostas do bot.
   const mudae = MudaeUI({ state, el, Icon, call, member, avatar, nameColor, Format, fmtCtx, openProfile: (id, anchor) => openProfile(id, anchor),
     openImage: (url) => openLightbox({ url }), openChannel: (id) => openTextChannel(id), renderMessages: (end) => renderMessages(end), keepBottom: () => keepBottom(),
-    openTrade: (id) => mudaeTrade.open(id), openForja: () => salon.openForja() });
+    openTrade: (id) => mudaeTrade.open(id), openForja: () => salon.openForja(), medalSvg: (...args) => mudaeForge.medalSvg(...args) });
   // Trocas do Mudae (mudae-troca.js): o painel que as duas pessoas veem e os avisos com botão.
   const mudaeTrade = MudaeTrade({ state, el, Icon, call, onSocket: (event, handler) => socket.on(event, handler), member, avatar, nameColor, toast, ui: mudae, Sounds });
   // Salão do Mudae (mudae-salao.js): a tela própria dos canais com mudae: true. Quem prefere o Mudae
@@ -521,10 +521,13 @@
   // Cristal errante (mudae-cristal.js): voa por cima do Salão; no modo simplificado vira uma linha com "💎 Pegar".
   const mudaeCrystals = MudaeCrystals({ el, call, onSocket: (event, handler) => socket.on(event, handler), Sounds, ui: mudae, member,
     reducedMotion: () => reducedMotion(), addLiveLine: (channel, data) => addLiveLine(channel, data) });
+  // Forja do Salão (mudae-forja.js): a aba das medalhas e dos poderes, e a faixa do nível IV para todos.
+  const mudaeForge = MudaeForge({ el, call, onSocket: (event, handler) => socket.on(event, handler), ui: mudae, Sounds,
+    reducedMotion: () => reducedMotion(), toast, member });
   const salon = MudaeSalon({ state, el, Icon, call, onSocket: (event, handler) => socket.on(event, handler), member, avatar, nameColor, toast,
     confirmDialog: (opts) => confirmDialog(opts), openProfile: (id, anchor) => openProfile(id, anchor), openImage: (url) => openLightbox({ url }),
     openChannel: (id) => openTextChannel(id), closeProfile: () => closeProfile(), setSimple: (on) => setMudaeSimple(on), ui: mudae, Sounds, trade: mudaeTrade,
-    crystals: mudaeCrystals });
+    crystals: mudaeCrystals, forge: mudaeForge });
   // Linha ao vivo do Mudae (o cristal): entra no chat de quem está no Salão e não é gravada no servidor.
   // A linha do fim troca a do cristal (mesmo id); um chat:history novo do canal apaga as duas.
   function addLiveLine(channel, data) {
