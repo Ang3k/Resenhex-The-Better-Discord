@@ -29,16 +29,18 @@ function perksOf(store, accountId) {
 function createForja({ random = Math.random } = {}) {
   const checkMedal = (medal) => { if (!MEDALS[medal]) throw new Error('Medalha inválida.'); };
 
-  // Um sorteio só (um random), com os pesos de FINISHES em ordem.
-  function drawFinish() {
-    const total = FINISHES.reduce((sum, f) => sum + f.weight, 0);
+  // Um sorteio só (um random), com os pesos de FINISHES em ordem. `except` tira o acabamento que a medalha já tem:
+  // quando a pessoa vai escolher entre o atual e um novo, o novo nunca é igual (os pesos dos outros continuam na mesma proporção).
+  function drawFinish(except = null) {
+    const pool = FINISHES.filter((f) => f.key !== except);
+    const total = pool.reduce((sum, f) => sum + f.weight, 0);
     const roll = random() * total;
     let upTo = 0;
-    for (const f of FINISHES) {
+    for (const f of pool) {
       upTo += f.weight;
       if (roll < upTo) return f.key;
     }
-    return FINISHES.at(-1).key;
+    return pool.at(-1).key;
   }
 
   function medalsOf(store, accountId) {
@@ -64,7 +66,7 @@ function createForja({ random = Math.random } = {}) {
     const price = priceOf(medal, level);
     pay(store, accountId, price, `A ${name} ${ROMAN[level]}`);
     const entry = (((store.medals ||= {})[accountId] ||= {})[medal] ||= { level: 0, finish: null });
-    const drawn = drawFinish();
+    const drawn = drawFinish(level === 1 ? null : entry.finish);
     entry.level = level;
     if (level === 1) entry.finish = drawn;
     else entry.offer = drawn;
@@ -91,7 +93,7 @@ function createForja({ random = Math.random } = {}) {
     if (!e?.level) throw new Error(`Forje a ${name} antes de reforjar.`);
     if (e.offer) throw new Error('Escolha o acabamento antes.');
     pay(store, accountId, REFORGE_PRICE, `Reforjar a ${name}`);
-    e.offer = drawFinish();
+    e.offer = drawFinish(e.finish);
     return { price: REFORGE_PRICE, finish: e.finish, offer: e.offer, kakera: kakeraOf(store, accountId) };
   }
 

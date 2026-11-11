@@ -58,7 +58,8 @@ test('nível I já sai com acabamento; do II em diante a pessoa escolhe', () => 
   store.kakera.a = 500;
   forja.reforge(store, 'a', 'bronze');
   assert.equal(forja.chooseFinish(store, 'a', 'bronze', 'new').announce, false, 'e não repete depois de reforjar');
-  assert.deepEqual(forja.medalsOf(store, 'a').bronze, { level: 4, finish: 'galaxia', offer: null });
+  // Com galáxia no lugar, o 0,99 cai no último dos outros três (holográfico).
+  assert.deepEqual(forja.medalsOf(store, 'a').bronze, { level: 4, finish: 'holo', offer: null });
   assert.equal(forja.medalsOf(store, 'a').prata.level, 0);
   assert.equal(Object.keys(forja.medalsOf(store, 'a')).length, 7);
 });
@@ -78,13 +79,35 @@ test('reforjar custa 500 e oferece um acabamento novo', () => {
   assert.throws(() => forja.reforge(store, 'a', 'bronze'), /Forje a Bronze antes/);
   forja.forge(store, 'a', 'bronze');
   const before = store.kakera.a;
-  setRandom(0.7);
+  setRandom(0.5); // sem o metal que ela já tem: 0,5 × 40 = 20, cai no esmalte
   const r = forja.reforge(store, 'a', 'bronze');
   assert.equal(r.price, 500);
   assert.equal(r.offer, 'esmalte');
   assert.equal(r.finish, 'metal');
   assert.equal(r.kakera, before - 500);
   assert.equal(store.kakera.a, before - 500);
+});
+
+test('o acabamento oferecido nunca é igual ao que a medalha já tem', () => {
+  const { forja, store, setRandom } = setup();
+  setRandom(0);
+  forja.forge(store, 'a', 'bronze');
+  assert.equal(forja.medalsOf(store, 'a').bronze.finish, 'metal');
+  for (const r of [0, 0.3, 0.599, 0.7, 0.9, 0.999]) {
+    setRandom(r);
+    store.kakera.a = 5000;
+    const offer = forja.reforge(store, 'a', 'bronze').offer;
+    assert.notEqual(offer, 'metal', `reforjar com random ${r}`);
+    forja.chooseFinish(store, 'a', 'bronze', 'old');
+  }
+  // Sem o metal (60), sobram esmalte 28, holo 10 e galáxia 2: as fronteiras viram 28/38 de 40.
+  for (const [r, finish] of [[0, 'esmalte'], [0.69, 'esmalte'], [0.7, 'holo'], [0.94, 'holo'], [0.95, 'galaxia']]) {
+    setRandom(r);
+    assert.equal(forja.reforge(store, 'a', 'bronze').offer, finish, `random ${r}`);
+    forja.chooseFinish(store, 'a', 'bronze', 'old');
+  }
+  setRandom(0);
+  assert.equal(forja.forge(store, 'a', 'bronze').offer, 'esmalte', 'forjar o nível II também não repete o metal');
 });
 
 test('sorteio segue 60/28/10/2', () => {
