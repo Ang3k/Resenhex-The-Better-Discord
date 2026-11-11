@@ -376,6 +376,18 @@ test('modo simplificado recebe a linha com o botão Pegar', async (t) => {
   assert.equal(late().disabled, true);
   assert.match(late().textContent, /Sumiu/);
 
+  // Chuva: cada clique pega a próxima gota, e o total soma no botão até acabarem as gotas.
+  app.deliver('mudae:crystal', app.crystal({ id: 'k3', kind: 'storm', gems: 2 }));
+  await settle();
+  const rain = () => app.d.querySelector('[data-id="live-k3"] .mudae-crystal-take');
+  rain().click(); await settle();
+  assert.deepEqual(app.last('mudae:crystal:take'), { id: 'k3', gem: 0 });
+  assert.equal(rain().disabled, false, 'ainda tem gota');
+  rain().click(); await settle();
+  assert.deepEqual(app.last('mudae:crystal:take'), { id: 'k3', gem: 1 });
+  assert.match(rain().textContent, /\+260/);
+  assert.equal(rain().disabled, true, 'acabaram as gotas');
+
   await app.open('geral');
   assert.deepEqual(app.last('mudae:presence'), { channel: null }, 'sair do canal sai do Salão');
 });

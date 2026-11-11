@@ -458,13 +458,22 @@ window.MudaeUI = function ({ state, el, Icon, call, member, avatar, nameColor, F
     const btn = el('button', { type: 'button', class: 'mudae-go mudae-crystal-take' }, kakera(), label);
     const until = v.appearAt + v.life;
     const update = () => { if (!btn.classList.contains('done')) btn.disabled = serverNow() < v.appearAt; };
-    const expire = () => { btn.disabled = true; if (!btn.classList.contains('done')) label.textContent = 'Sumiu'; };
+    // Na chuva, cada clique pega a próxima gota (como clicar nas gotas no Salão), até acabarem ou a chuva passar.
+    let gem = 0, total = 0;
+    const gems = v.kind === 'storm' ? v.gems || 1 : 1;
+    const expire = () => { btn.disabled = true; if (!btn.classList.contains('done') && !total) label.textContent = 'Sumiu'; };
     if (serverNow() >= until) expire(); else { update(); watch({ node: btn, expires: until, update, expire }); }
     btn.onclick = async () => {
       if (btn.disabled) return;
       btn.disabled = true;
-      const res = await call('mudae:crystal:take', { id: v.id, gem: 0 });
-      if (res?.ok) { btn.classList.add('done'); label.textContent = `+${num(res.amount)}`; } else if (btn.isConnected && serverNow() < until) btn.disabled = false;
+      const res = await call('mudae:crystal:take', { id: v.id, gem });
+      // "já pegou": essa gota foi pega em outro aparelho, então passa para a próxima.
+      if (res?.ok || /já pegou/.test(res?.error || '')) {
+        gem++; total += res?.amount || 0;
+        if (total) label.textContent = `+${num(total)}`;
+        if (gem >= gems) { btn.classList.add('done'); return; }
+      }
+      if (btn.isConnected && serverNow() < until) btn.disabled = false;
     };
     return [line('crystal', crystalIcon(v), v.kind === 'storm' ? `Uma chuva de cristais ${v.colorKey} começou!` : `Um cristal ${v.colorKey} apareceu!`), el('div', { class: 'mudae-actions' }, btn)];
   }
