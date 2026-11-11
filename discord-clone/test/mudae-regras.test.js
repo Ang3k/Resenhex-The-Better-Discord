@@ -47,7 +47,8 @@ test('regras batem com a spec', () => {
   assert.deepEqual(R.POWERS.map((p) => [p.key, p.count, p.need]), [
     ['videncia', 'forged', 1], ['cadeado', 'claims', 20], ['amuleto', 'legendary', 1], ['chuva', 'crystals', 40],
     ['desejo', 'bronzeLevel', 3], ['eco', 'claims', 60], ['dupla', 'rolls', 500], ['laco', 'medalsAt2', 7]]);
-  assert.deepEqual(R.POWERS.map((p) => p.icon), ['🔮', '🔒', '🍀', '🌧️', '💫', '🔁', '🃏', '🪢']);
+  // O ícone de cada poder é desenhado no navegador (public/mudae-icones.js), pela chave.
+  assert.ok(R.POWERS.every((p) => !('icon' in p)));
   assert.equal(R.POWER_SLOTS, 3);
   assert.equal(R.POWER_RECHARGE_MS, 24 * HOUR);
   assert.deepEqual(R.AMULETO, { legendary: 5, epic: 3 });

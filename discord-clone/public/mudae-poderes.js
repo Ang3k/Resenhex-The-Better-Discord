@@ -6,6 +6,9 @@ window.MudaePowers = function ({ el, call, onSocket, ui, Sounds, reducedMotion =
   const NS = 'http://www.w3.org/2000/svg';
   const POWER = ui.POWER;
   const { minutes, num } = ui;
+  // Ícones próprios (mudae-icones.js); sem eles (testes), um espaço vazio.
+  const MI = window.MudaeIcon || Object.assign(() => document.createElement('span'), { inline: () => document.createElement('span') });
+  const ico = (name, label = '') => MI.inline(name, label);
   // Poderes que ficam acesos até o próximo roll de quem usou.
   const ARMED = ['amuleto', 'desejo', 'dupla'];
   // Poderes que só ligam numa hora certa da mesa, e o que o espaço diz enquanto ela não chega.
@@ -99,10 +102,10 @@ window.MudaePowers = function ({ el, call, onSocket, ui, Sounds, reducedMotion =
       return el('div', { class: 'poder-slot empty', title: 'Os poderes abrem com conquistas. Veja quanto falta na Forja.' },
         el('span', { class: 'poder-orb', ariaHidden: 'true' }), el('span', { class: 'poder-name', textContent: 'espaço livre' }), el('span', { class: 'poder-state' }));
     }
-    const p = POWER[key] || { name: key, icon: '✦', does: '' };
+    const p = POWER[key] || { name: key, does: '' };
     return el('div', { class: 'poder-slot', data: { power: key, slot: String(i) } },
       el('button', { type: 'button', class: 'poder-orb', ariaLabel: p.name, title: `${p.name}: ${p.does || ''}`, onclick: () => use(key) },
-        el('span', { class: 'poder-ico', ariaHidden: 'true', textContent: p.icon })),
+        el('span', { class: 'poder-ico', ariaHidden: 'true' }, MI(POWER[key] ? key : 'spark', 28))),
       el('span', { class: 'poder-name', textContent: p.name }),
       el('span', { class: 'poder-state' }));
   }
@@ -248,10 +251,10 @@ window.MudaePowers = function ({ el, call, onSocket, ui, Sounds, reducedMotion =
     nodes.future = null;
     if (future) {
       nodes.future = el('div', { class: 'poder-future', data: { power: 'videncia' }, role: 'status' },
-        el('span', { class: 'poder-future-label' }, '🔮 ', el('span', { class: 'poder-future-what', textContent: 'seus próximos rolls' }), el('small', { textContent: '(só você vê)' })),
+        el('span', { class: 'poder-future-label' }, ico('videncia'), el('span', { class: 'poder-future-what', textContent: 'seus próximos rolls' }), el('small', { textContent: '(só você vê)' })),
         el('div', { class: 'poder-future-list' }, future.list.map((rarity, i) => el('div', { class: 'poder-capsule r-' + rarity, data: { rarity },
           title: i === 0 && future.wish ? 'O próximo roll traz um desejo seu.' : '' },
-        el('i', { ariaHidden: 'true' }, i === 0 && future.wish ? '⭐' : null), el('span', {}, el('b', { class: 'poder-capsule-n', textContent: `${i + 1}º · ` }), ui.RARITY[rarity] || rarity)))));
+        el('i', { ariaHidden: 'true' }, i === 0 && future.wish ? MI('wish', 16) : null), el('span', {}, el('b', { class: 'poder-capsule-n', textContent: `${i + 1}º · ` }), ui.RARITY[rarity] || rarity)))));
     }
     if (!onStage()) return;
     place();
@@ -279,7 +282,7 @@ window.MudaePowers = function ({ el, call, onSocket, ui, Sounds, reducedMotion =
     picker = el('div', { class: 'poder-eco', data: { power: 'eco' }, role: 'dialog', ariaLabel: 'Qual personagem volta?',
       onclick: (e) => { if (e.target === picker) closePicker(); }, onkeydown: (e) => { if (e.key === 'Escape') closePicker(); } },
     el('div', { class: 'poder-eco-box' },
-      el('strong', { class: 'poder-eco-title', textContent: '🔁 Qual personagem volta?' }),
+      el('strong', { class: 'poder-eco-title' }, ico('eco'), 'Qual personagem volta?'),
       el('span', { class: 'poder-eco-sub', textContent: 'Passaram sem dono há pouco. Quem voltar é como um roll seu.' }),
       el('div', { class: 'poder-eco-list' }, cards.map((card) => el('button', { type: 'button', class: 'poder-eco-card r-' + (card.rarity || 'common'), title: card.series || '', onclick: () => pickEco(card) },
         el('img', { src: card.image, alt: '', loading: 'lazy', decoding: 'async', draggable: false }),
@@ -361,7 +364,7 @@ window.MudaePowers = function ({ el, call, onSocket, ui, Sounds, reducedMotion =
       // O cadeado fixo (desenhado pelo Salão) espera o que está caindo chegar.
       host.stage.classList.add('poder-locking');
       later(() => host?.stage.classList.remove('poder-locking'), 520);
-      play(piece('poder-fx-lock', b.x, top, 'cadeado', '🔒'), [{ transform: 'translate(-50%, calc(-50% - 70px)) scale(1.7)', opacity: 0 },
+      play(piece('poder-fx-lock', b.x, top, 'cadeado', MI('cadeado', 38)), [{ transform: 'translate(-50%, calc(-50% - 70px)) scale(1.7)', opacity: 0 },
         { transform: 'translate(-50%, calc(-50% + 5px)) scale(.94)', opacity: 1, offset: 0.7 }, { transform: 'translate(-50%, -50%) scale(1)', opacity: 1 }], 520);
       ring(b.x, top, 'cadeado', 9, 380);
     },
@@ -412,7 +415,7 @@ window.MudaePowers = function ({ el, call, onSocket, ui, Sounds, reducedMotion =
       play(piece('poder-fx-glow', 0, 0, 'amuleto'), [{ opacity: 0 }, { opacity: 1, offset: 0.15 }, { opacity: 0 }], 1500, { easing: 'linear' });
       for (let i = 0; i < 12; i++) {
         const a0 = (i / 12) * 360;
-        play(piece('poder-fx-clover', c.x, c.y, 'amuleto', i % 3 ? '✦' : '🍀'), [
+        play(piece('poder-fx-clover', c.x, c.y, 'amuleto', i % 3 ? MI('spark', 12) : MI('amuleto', 18)), [
           { transform: `translate(-50%, -50%) rotate(${a0}deg) translateX(${r}px) rotate(${-a0}deg) scale(.4)`, opacity: 0 }, { opacity: 1, offset: 0.2 },
           { transform: `translate(-50%, -50%) rotate(${a0 + 300}deg) translateX(${r * 0.15}px) rotate(${-a0 - 300}deg) scale(1)`, opacity: 0 }], 1400, { easing: 'cubic-bezier(.5, 0, .3, 1)' });
       }
@@ -431,7 +434,7 @@ window.MudaePowers = function ({ el, call, onSocket, ui, Sounds, reducedMotion =
             { transform: `translate(calc(-50% + ${dx.toFixed(1)}px), calc(-50% + ${dy.toFixed(1)}px)) scale(.2)`, opacity: 0 }], 700, { delay: k * ms });
         }
       }
-      play(piece('poder-fx-star', a.x, a.y, 'desejo', '✦'), frames, ms, { easing: 'linear' });
+      play(piece('poder-fx-star', a.x, a.y, 'desejo', MI('spark', 28)), frames, ms, { easing: 'linear' });
       ring(b.x, b.y, 'desejo', 11, ms - 40);
     },
     // Duas cartas se abrem em leque: o próximo roll vem em dobro.
@@ -471,15 +474,15 @@ window.MudaePowers = function ({ el, call, onSocket, ui, Sounds, reducedMotion =
   }
   // A faixa do Laço: quem laçou quem, ou a batida no cadeado.
   function lassoText(e) {
-    if (e.bounced) return '🪢 BATEU NO CADEADO!';
+    if (e.bounced) return [ico('laco'), 'BATEU NO CADEADO!'];
     const name = rollNode(e.id)?.querySelector('.salon-card-name')?.textContent || 'a carta';
-    return `🪢 ${nameOf(e.by).toUpperCase()} LAÇOU ${name.toUpperCase()}!`;
+    return [ico('laco'), `${nameOf(e.by).toUpperCase()} LAÇOU ${name.toUpperCase()}!`];
   }
 
   // ---------- faixas ----------
   function banner(text, power, sub = null) {
     nodes.banner?.remove();
-    const node = nodes.banner = el('div', { class: 'poder-banner', data: { power }, role: 'status' }, el('strong', { textContent: text }), sub ? el('small', { textContent: sub }) : null);
+    const node = nodes.banner = el('div', { class: 'poder-banner', data: { power }, role: 'status' }, el('strong', {}, ...[].concat(text)), sub ? el('small', { textContent: sub }) : null);
     host.stage.append(node);
     later(() => { node.remove(); if (nodes.banner === node) nodes.banner = null; }, BANNER_MS);
   }
@@ -512,7 +515,7 @@ window.MudaePowers = function ({ el, call, onSocket, ui, Sounds, reducedMotion =
     incoming = power;
     update();
     const dx = (to.x - from.x).toFixed(1), dy = (to.y - from.y).toFixed(1);
-    const fly = piece('poder-fly', from.x, from.y, power, el('span', { class: 'poder-ico', textContent: p.icon }));
+    const fly = piece('poder-fly', from.x, from.y, power, el('span', { class: 'poder-ico' }, MI(power, 28)));
     // Nasce no meio do palco, cresce, espera um instante e voa para o espaço dele.
     play(fly, [{ transform: 'translate(-50%, -50%) scale(.2)', opacity: 0 }, { transform: 'translate(-50%, -50%) scale(1.7)', opacity: 1, offset: 0.22 },
       { transform: 'translate(-50%, -50%) scale(1.5)', opacity: 1, offset: 0.55 }, { transform: `translate(calc(-50% + ${dx}px), calc(-50% + ${dy}px)) scale(1)`, opacity: 1 }], 1500);

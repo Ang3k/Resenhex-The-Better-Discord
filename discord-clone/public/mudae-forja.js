@@ -3,6 +3,9 @@
    nível, acabamento e o que falta; aqui só desenhamos o que ele diz. medalSvg também serve ao $forja do chat e
    ao cartão de perfil. */
 window.MudaeForge = function ({ el, call, onSocket, ui, Sounds, reducedMotion = () => false, toast = () => {}, member }) {
+  // Ícones próprios dos poderes (mudae-icones.js); sem eles (testes), um espaço vazio.
+  const MI = window.MudaeIcon || Object.assign(() => document.createElement('span'), { inline: () => document.createElement('span') });
+  const powerIco = (key, size) => MI(POWER[key] ? key : 'spark', size);
   const NS = 'http://www.w3.org/2000/svg';
   const { num, minutes, kakera } = ui;
   const MEDALS = ui.MEDALS;
@@ -541,7 +544,7 @@ window.MudaeForge = function ({ el, call, onSocket, ui, Sounds, reducedMotion = 
         el('ol', { class: 'forja-perks' }, [1, 2, 3, 4].map((n) => el('li', { class: 'forja-perk' + (n === m.level ? ' now' : n < m.level ? ' got' : '') },
           el('span', { class: 'forja-perk-level', textContent: ROMAN[n] }),
           el('span', { class: 'forja-perk-text', textContent: perks.at(n) }),
-          n <= m.level ? el('span', { class: 'forja-perk-price got', textContent: '✓' })
+          n <= m.level ? el('span', { class: 'forja-perk-price got', ariaLabel: 'já tem' }, MI('check', 14))
             : el('span', { class: 'forja-perk-price' }, base ? num(base * n) : '', base ? kakera() : null)))),
         m.offer && !animating ? choice(key, m) : null,
         m.level >= 1 ? el('label', { class: 'forja-show' },
@@ -757,18 +760,18 @@ window.MudaeForge = function ({ el, call, onSocket, ui, Sounds, reducedMotion = 
   function stageSlots() {
     return el('div', { class: 'forja-stage-slots' }, (powers.slots || []).map((key, i) => el('div', { class: 'forja-stage-slot' + (key ? '' : ' empty') },
       el('span', { class: 'forja-stage-n', textContent: String(i + 1) }), ' ',
-      key ? [el('span', { class: 'forja-power-icon', textContent: POWER[key]?.icon || '✦' }), ' ', el('strong', { textContent: POWER[key]?.name || key }), ' ',
+      key ? [el('span', { class: 'forja-power-icon', ariaHidden: 'true' }, powerIco(key, 20)), ' ', el('strong', { textContent: POWER[key]?.name || key }), ' ',
         el('span', { class: 'forja-muted', textContent: charge(powers.readyIn?.[key] || 0) })]
         : el('span', { class: 'forja-muted', textContent: 'espaço livre' }))));
   }
   const charge = (ms) => (ms > 0 ? `volta em ${minutes(ms)}` : 'pronto');
 
   function powerCard(key) {
-    const p = POWER[key] || { name: key, icon: '✦' };
+    const p = POWER[key] || { name: key };
     const open = powers.unlocked?.includes(key);
     const slot = powers.slots?.indexOf(key) ?? -1;
     const node = el('li', { class: 'forja-power' + (open ? ' open' : ' locked') + (slot >= 0 ? ' staged' : ''), data: { power: key } },
-      el('span', { class: 'forja-power-badge', ariaHidden: 'true' }, p.icon),
+      el('span', { class: 'forja-power-badge', ariaHidden: 'true' }, powerIco(key, 26)),
       el('div', { class: 'forja-power-body' },
         el('strong', { class: 'forja-power-name', textContent: p.name }),
         el('span', { class: 'forja-power-does', textContent: p.does || '' })));
@@ -792,7 +795,7 @@ window.MudaeForge = function ({ el, call, onSocket, ui, Sounds, reducedMotion = 
     body.append(el('div', { class: 'forja-slot-picks', role: 'group', ariaLabel: 'Em qual espaço?' },
       (powers.slots || []).map((other, i) => el('button', { type: 'button', class: 'forja-slot-pick', onclick: () => equip(i, key) },
         el('span', { class: 'forja-stage-n', textContent: String(i + 1) }), ' · ',
-        other ? `${POWER[other]?.icon || ''} ${POWER[other]?.name || other}` : 'livre')),
+        other ? [powerIco(other, 16), ' ', POWER[other]?.name || other] : 'livre')),
       el('button', { type: 'button', class: 'forja-slot-cancel', textContent: 'Cancelar', onclick: () => { picking = null; draw(); } })),
     el('span', { class: 'forja-power-note', textContent: `chega vazio e enche em ${minutes(powers.rechargeMs || 0)}` }));
     return node;

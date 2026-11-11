@@ -79,7 +79,7 @@ function stage(t, { reduced = false, powers = powersView(), replies = {} } = {})
   const member = (id) => (people[id] ? { id, name: people[id] } : null);
   const Sounds = { play: (name) => sounds.push(name) };
   const state = { me: { accountId: 'me' }, messages: { room: [] }, textChannel: 'room' };
-  for (const file of ['mudae.js', 'mudae-poderes.js', 'mudae-salao.js']) w.eval(read(file));
+  for (const file of ['mudae.js', 'mudae-icones.js', 'mudae-poderes.js', 'mudae-salao.js']) w.eval(read(file));
   const ui = w.MudaeUI({ state, el, Icon: () => el('i'), call, member, avatar: () => el('span'), nameColor: () => '', Format: { render: (text) => text }, fmtCtx: {},
     openProfile() {}, openImage() {}, openChannel() {}, renderMessages() {}, keepBottom() {} });
   const salon = w.MudaeSalon({ state, el, Icon: () => el('i'), call, onSocket, member, avatar: () => el('span'), nameColor: () => '', ui, Sounds,
@@ -128,7 +128,8 @@ test('o trilho mostra os 3 espaços com carga e nome', async (t) => {
   assert.equal(Number(app.orb('videncia').style.getPropertyValue('--p')), 1);
   assert.match(app.text(app.slot('videncia').querySelector('.poder-state')), /^pronto$/);
   assert.equal(app.orb('videncia').disabled, false);
-  assert.match(app.orb('videncia').textContent, /🔮/);
+  assert.ok(app.orb('videncia').querySelector('svg.mi-videncia'), 'o ícone desenhado da Vidência');
+  assert.equal(app.orb('videncia').textContent, '', 'nenhum emoji no botão');
   // O espaço vazio não é botão.
   assert.ok(slots[2].classList.contains('empty'));
   assert.equal(slots[2].querySelector('button'), null);
@@ -179,7 +180,8 @@ test('Cadeado só liga no seu roll girando; Laço só nos 3 s de outra pessoa', 
   await app.advance(2000);
   app.salon.onHistory('room');
   assert.ok(app.$('.salon-card-slot.locked .salon-card.big'), 'a carta aberta continua trancada');
-  assert.match(app.text(app.$('.salon-stage-caption')), /^🔒 Você rodou/);
+  assert.match(app.text(app.$('.salon-stage-caption')), /^Você rodou/);
+  assert.ok(app.$('.salon-stage-caption svg.mi-cadeado'));
   assert.match(app.text(app.$('.salon-claim-caption')), /Trancado: só você pode casar/);
 
   // Outro app, outra mesa: o roll da Ana.
@@ -278,7 +280,8 @@ test('Escolha dupla desenha duas cartas e a faixa na que ficou livre', async (t)
   assert.match(app.text(app.$('.salon-stage-caption')), /Você ficou com Levi\. A outra está livre para os outros\./);
   // Alguém casou com a que sobrou: a faixa e a legenda dizem quem foi.
   app.update(b, { ownerId: 'ana' });
-  assert.match(app.text(cards()[1].querySelector('.poder-ribbon')), /^💍 Ana casou$/);
+  assert.match(app.text(cards()[1].querySelector('.poder-ribbon')), /^Ana casou$/);
+  assert.ok(cards()[1].querySelector('.poder-ribbon svg.mi-ring'));
   assert.match(app.text(app.$('.salon-stage-caption')), /Você ficou com Levi\. Ana casou com a outra\./);
 
   // Para quem está vendo: a carta livre é a escolhida, com o botão de casar.
@@ -306,7 +309,7 @@ test('Escolha dupla desenha duas cartas e a faixa na que ficou livre', async (t)
   await lassoed.advance(2000);
   lassoed.$$('.salon-pair .salon-card.big')[0].querySelector('.salon-card-art').click();
   lassoed.update(f, { ownerId: 'ana', lasso: true });
-  assert.match(lassoed.text(lassoed.$('.salon-stage-caption')), /^🃏 Ana levou Levi\. Mikasa ainda é sua\.$/);
+  assert.match(lassoed.text(lassoed.$('.salon-stage-caption')), /^Ana levou Levi\. Mikasa ainda é sua\.$/);
   const [levi2, mikasa2] = lassoed.$$('.salon-pair .salon-card.big');
   assert.ok(mikasa2.classList.contains('chosen'), 'a que sobrou fica escolhida');
   assert.equal(levi2.classList.contains('chosen'), false);
@@ -473,7 +476,8 @@ test('efeitos que todos veem: o cadeado cai na carta e o Laço bate nele', async
   win.update(meu, { ownerId: 'ana', lasso: true });
   await win.advance(800);
   assert.ok(win.seen.has('poder-rope'));
-  assert.match(win.text(win.$('.poder-banner')), /^🪢 ANA LAÇOU LEVI!$/);
+  assert.match(win.text(win.$('.poder-banner')), /^ANA LAÇOU LEVI!$/);
+  assert.ok(win.$('.poder-banner svg.mi-laco'));
   const pulled = win.animations.filter((a) => a.node === win.$('.salon-card-slot .salon-card.big') && a.keyframes.some((k) => /translateX\(/.test(k.transform || '')));
   assert.equal(pulled.length, 1, 'a carta que está no palco agora é puxada para o lado de quem laçou');
   // Os outros poderes públicos também desenham no palco de quem está vendo.

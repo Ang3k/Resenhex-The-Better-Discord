@@ -12,6 +12,7 @@ function setup(t) {
   const w = dom.window;
   t.after(() => w.close());
   w.eval(fs.readFileSync(path.join(__dirname, '..', 'public', 'mudae.js'), 'utf8'));
+  w.eval(fs.readFileSync(path.join(__dirname, '..', 'public', 'mudae-icones.js'), 'utf8'));
   const calls = [];
   const replies = {};
   const el = (tag, props = {}, ...children) => {
@@ -48,48 +49,48 @@ test('linhas novas do bot', async (t) => {
   const { w, say, text, calls, replies, opened, ui } = setup(t);
 
   // Linhas salvas.
-  assert.equal(say({ kind: 'medal', ownerId: 'a', medal: 'bronze', level: 4, finish: 'galaxia' }), '🏅 Ana forjou a Bronze IV (galáxia)!');
-  assert.equal(say({ kind: 'medal', ownerId: 'a', medal: 'diamante', level: 4, finish: 'holo' }), '🏅 Ana forjou a Diamante IV (holográfico)!');
-  assert.equal(say({ kind: 'unlock', ownerId: 'a', power: 'cadeado' }), '✨ Ana ganhou um poder: Cadeado!');
-  assert.equal(say({ kind: 'unlock', ownerId: 'a', power: 'dupla' }), '✨ Ana ganhou um poder: Escolha dupla!');
+  assert.equal(say({ kind: 'medal', ownerId: 'a', medal: 'bronze', level: 4, finish: 'galaxia' }), 'Ana forjou a Bronze IV (galáxia)!');
+  assert.equal(say({ kind: 'medal', ownerId: 'a', medal: 'diamante', level: 4, finish: 'holo' }), 'Ana forjou a Diamante IV (holográfico)!');
+  assert.equal(say({ kind: 'unlock', ownerId: 'a', power: 'cadeado' }), 'Ana ganhou um poder: Cadeado!');
+  assert.equal(say({ kind: 'unlock', ownerId: 'a', power: 'dupla' }), 'Ana ganhou um poder: Escolha dupla!');
   const said = {
-    cadeado: '🔒 Ana trancou o roll.',
-    amuleto: '🍀 Ana usou o Amuleto: o próximo roll tem mais chance de ser épico ou lendário.',
-    desejo: '💫 Ana chamou um desejo para o próximo roll.',
-    dupla: '🃏 Ana vai abrir duas cartas no próximo roll.',
-    chuva: '🌧️ Ana chamou uma chuva de cristais!',
+    cadeado: 'Ana trancou o roll.',
+    amuleto: 'Ana usou o Amuleto: o próximo roll tem mais chance de ser épico ou lendário.',
+    desejo: 'Ana chamou um desejo para o próximo roll.',
+    dupla: 'Ana vai abrir duas cartas no próximo roll.',
+    chuva: 'Ana chamou uma chuva de cristais!',
   };
   for (const [power, line] of Object.entries(said)) assert.equal(say({ kind: 'power', ownerId: 'a', power }), line, power);
-  assert.equal(say({ kind: 'power', ownerId: 'a', power: 'laco', bounced: true, card: { name: 'Frieren' } }), '🪢 Ana tentou laçar Frieren, mas bateu no cadeado!');
+  assert.equal(say({ kind: 'power', ownerId: 'a', power: 'laco', bounced: true, card: { name: 'Frieren' } }), 'Ana tentou laçar Frieren, mas bateu no cadeado!');
   const card = { id: 1, name: 'Frieren' };
-  assert.equal(say({ kind: 'married', card, ownerId: 'a' }), '💖 Ana e Frieren agora são casados! 💖');
-  assert.equal(say({ kind: 'married', card, ownerId: 'a', lasso: true }), '💖 Ana e Frieren agora são casados! 💖 🪢 com o Laço');
-  assert.match(say({ kind: 'married', card, ownerId: 'a', from: 'c', lasso: true }), /roubou Frieren do roll de Caio! 🪢 com o Laço$/);
+  assert.equal(say({ kind: 'married', card, ownerId: 'a' }), 'Ana e Frieren agora são casados!');
+  assert.equal(say({ kind: 'married', card, ownerId: 'a', lasso: true }), 'Ana e Frieren agora são casados! com o Laço');
+  assert.match(say({ kind: 'married', card, ownerId: 'a', from: 'c', lasso: true }), /roubou Frieren do roll de Caio! com o Laço$/);
 
   // Cristal que acabou: os nomes cortam em "e mais N".
   const end = (ids) => say({ kind: 'crystalEnd', crystal: { id: 'x', colorKey: 'laranja', takers: ids.map((id) => ({ id, amount: 5 })) } });
   assert.equal(end([]), 'O cristal laranja sumiu. Ninguém pegou.');
-  assert.equal(end(['a']), '💎 Ana pegou o cristal laranja');
-  assert.equal(end(['a', 'c']), '💎 Ana e Caio pegaram o cristal laranja');
-  assert.equal(end(['a', 'c', 'b']), '💎 Ana, Caio e Beto pegaram o cristal laranja');
-  assert.equal(end(['a', 'c', 'b', 'd', 'e']), '💎 Ana, Caio e mais 3 pegaram o cristal laranja');
+  assert.equal(end(['a']), 'Ana pegou o cristal laranja');
+  assert.equal(end(['a', 'c']), 'Ana e Caio pegaram o cristal laranja');
+  assert.equal(end(['a', 'c', 'b']), 'Ana, Caio e Beto pegaram o cristal laranja');
+  assert.equal(end(['a', 'c', 'b', 'd', 'e']), 'Ana, Caio e mais 3 pegaram o cristal laranja');
 
   // Cristal que apareceu: o botão pega o cristal e some depois da vida dele.
   const now = ui.serverNow();
   const live = text({ kind: 'crystal', crystal: { id: 'g1', kind: 'wander', colorKey: 'laranja', appearAt: now - 100, life: 10_000 } });
   w.document.body.append(live);
-  assert.equal(live.querySelector('.mudae-line').textContent, '✦ Um cristal laranja apareceu!');
+  assert.equal(live.querySelector('.mudae-line').textContent, 'Um cristal laranja apareceu!');
   const take = live.querySelector('button');
-  assert.equal(take.textContent, '💎 Pegar');
+  assert.equal(take.textContent, 'Pegar');
   assert.equal(take.disabled, false);
   replies['mudae:crystal:take'] = { ok: true, amount: 340, kakera: 400, full: false };
   take.click();
   await new Promise((r) => setTimeout(r));
   assert.deepEqual(calls.at(-1), { event: 'mudae:crystal:take', payload: { id: 'g1', gem: 0 } });
-  assert.equal(take.textContent, '💎 +340');
+  assert.equal(take.textContent, '+340');
   assert.equal(take.disabled, true);
   const storm = text({ kind: 'crystal', crystal: { id: 'g2', kind: 'storm', colorKey: 'azul', appearAt: now - 100, life: 7000 } });
-  assert.equal(storm.querySelector('.mudae-line').textContent, '✦ Uma chuva de cristais azul começou!');
+  assert.equal(storm.querySelector('.mudae-line').textContent, 'Uma chuva de cristais azul começou!');
   const gone = text({ kind: 'crystal', crystal: { id: 'g3', kind: 'wander', colorKey: 'roxo', appearAt: now - 20_000, life: 10_000 } });
   assert.equal(gone.querySelector('button').disabled, true, 'passou da vida: o botão não pega mais');
 
@@ -121,7 +122,8 @@ test('linhas novas do bot', async (t) => {
   assert.match(poderes.textContent, /Eco · Casamentos: 33 de 60/);
   const tu = text({ kind: 'status', rollsLeft: 3, rollsMax: 10, rollResetIn: 60_000, claimReady: true, claimResetIn: 0, reserveReady: true, powersReady: ['cadeado', 'eco'] });
   assert.match(tu.textContent, /um casamento de reserva guardado/);
-  assert.match(tu.textContent, /Poderes prontos: 🔒 Cadeado, 🔁 Eco\./);
+  assert.match(tu.textContent, /Poderes prontos: Cadeado, Eco\./);
+  assert.deepEqual([...tu.querySelectorAll('svg.mi-power')].map((s) => s.dataset.power), ['cadeado', 'eco']);
 
   // $poder eco: um botão por personagem, cada um usa o Eco.
   const eco = text({ kind: 'eco', cards: [{ id: 7, name: 'Zero Two' }, { id: 8, name: 'Kyubey' }] });
@@ -133,4 +135,25 @@ test('linhas novas do bot', async (t) => {
   // Os comandos aparecem no autocompletar e são reconhecidos.
   assert.ok(['$forja', '$forjar', '$poderes', '$poder'].every((c) => ui.suggestions(c.slice(1)).some((s) => s.insert === c)));
   assert.ok(['$forja', '$badges', '$forjar diamante', '$poderes', '$poder laço', '$PODER Cadeado'].every((c) => ui.isCommand(c)));
+});
+
+test('linhas do bot usam os ícones próprios, sem emoji', (t) => {
+  const { text } = setup(t);
+  const EMOJI = /[\u{2190}-\u{2BFF}\u{1F000}-\u{1FFFF}\u{2700}-\u{27BF}]/u;
+  const kakera = text({ kind: 'dk', ownerId: 'a', amount: 120, kakera: 1340 });
+  assert.ok(kakera.querySelector('svg.mi-kakera'), 'o kakera é o cristal desenhado');
+  assert.equal(kakera.querySelector('.mudae-kakera').getAttribute('aria-label'), 'kakera', 'o leitor de tela fala "kakera"');
+  assert.doesNotMatch(kakera.textContent, EMOJI);
+  const power = text({ kind: 'power', ownerId: 'a', power: 'cadeado' });
+  const icon = power.querySelector('svg.mi-power');
+  assert.equal(icon?.dataset.power, 'cadeado', 'cada poder tem o seu ícone');
+  assert.equal(icon.getAttribute('viewBox'), '0 0 24 24');
+  assert.equal(icon.getAttribute('stroke'), 'currentColor', 'segue a cor do tema');
+  assert.doesNotMatch(power.textContent, EMOJI);
+  for (const mudae of [{ kind: 'married', card: { name: 'Frieren' }, ownerId: 'a', lasso: true }, { kind: 'divorce', card: { name: 'Frieren' }, ownerId: 'a' },
+    { kind: 'unlock', ownerId: 'a', power: 'laco' }, { kind: 'topserv', rows: [{ ownerId: 'a', total: 2, value: 900 }] }]) {
+    const node = text(mudae);
+    assert.ok(node.querySelector('svg'), mudae.kind + ': tem ícone');
+    assert.doesNotMatch(node.textContent, EMOJI, mudae.kind + ': sem emoji');
+  }
 });

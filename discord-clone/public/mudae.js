@@ -34,21 +34,26 @@ window.MudaeUI = function ({ state, el, Icon, call, member, avatar, nameColor, F
   ];
   // Fontes de personagens: a letra filtra o roll ($wg = waifu de jogo), como no Mudae do Discord.
   const SOURCES = {
-    a: { label: 'Anime', icon: '🎌', of: 'de anime' },
-    g: { label: 'Jogos', icon: '🎮', of: 'de jogo' },
-    c: { label: 'Quadrinhos', icon: '🦸', of: 'de quadrinhos' },
-    d: { label: 'Desenhos', icon: '📺', of: 'de desenho' },
-    s: { label: 'Séries', icon: '🎬', of: 'de série' },
+    a: { label: 'Anime', icon: 'torii', of: 'de anime' },
+    g: { label: 'Jogos', icon: 'gamepad', of: 'de jogo' },
+    c: { label: 'Quadrinhos', icon: 'comic', of: 'de quadrinhos' },
+    d: { label: 'Desenhos', icon: 'tv', of: 'de desenho' },
+    s: { label: 'Séries', icon: 'clapperboard', of: 'de série' },
   };
   for (const [letter, src] of Object.entries(SOURCES)) {
     COMMANDS.push({ name: 'w' + letter, note: 'waifu ' + src.of }, { name: 'h' + letter, note: 'husbando ' + src.of }, { name: 'm' + letter, note: 'qualquer personagem ' + src.of });
   }
   const sourceOf = (card) => SOURCES[card.source || 'a'];
-  const seriesLine = (card) => sourceOf(card).icon + ' ' + card.series;
+  // Ícones próprios (mudae-icones.js). Sem o arquivo (testes que só carregam este), um espaço vazio no lugar.
+  const MI = window.MudaeIcon || Object.assign(() => document.createElement('span'), { inline: () => document.createElement('span') });
+  // Um símbolo no meio do texto; label é o que o leitor de tela fala no lugar dele.
+  const ico = (name, label = '') => MI.inline(name, label);
+  const sourceIcon = (card) => ico(sourceOf(card).icon, sourceOf(card).label);
+  const seriesLine = (card) => card.series;
   const PAGE = 15;
   const num = (n) => Number(n || 0).toLocaleString('pt-BR');
   const whoName = (id) => member(id)?.name || 'alguém que saiu';
-  const kakera = () => el('span', { class: 'mudae-kakera', ariaLabel: 'kakera' }, Icon('gem', 15));
+  const kakera = () => el('span', { class: 'mudae-kakera', role: 'img', ariaLabel: 'kakera' }, MI('kakera', 15));
   const RARITY = { legendary: 'Lendário', epic: 'Épico', rare: 'Raro', common: 'Comum' };
   const strongName = (id) => el('strong', { textContent: whoName(id), style: { color: nameColor(member(id)) || '' } });
   const names = (ids) => ids.map(whoName).join(', ');
@@ -162,7 +167,7 @@ window.MudaeUI = function ({ state, el, Icon, call, member, avatar, nameColor, F
     const wishers = (d.wishedBy || []).filter(Boolean);
     const node = el('div', { class: 'mudae-card' + (d.ownerId ? ' owned' : '') },
       el('div', { class: 'mudae-name', textContent: card.name }),
-      el('div', { class: 'mudae-series', textContent: seriesLine(card) }),
+      el('div', { class: 'mudae-series' }, sourceIcon(card), seriesLine(card)),
       el('div', { class: 'mudae-value' }, el('strong', { textContent: num(card.value) }), kakera(),
         card.rarity ? el('span', { class: 'mudae-rarity-tag ' + card.rarity, textContent: RARITY[card.rarity] }) : null),
       !d.ownerId && roll ? el('div', { class: 'mudae-hint', textContent: 'Clique em Casar antes dos outros!' }) : null,
@@ -255,7 +260,7 @@ window.MudaeUI = function ({ state, el, Icon, call, member, avatar, nameColor, F
       if (!node.isConnected && st.drawn) return;
       st.drawn = true;
       const data = st.data;
-      const head = [el('div', { class: 'mudae-name', textContent: (obra ? '📚 ' : '🏆 ') + (obra ? d.label : 'Top · ' + d.label) })];
+      const head = [el('div', { class: 'mudae-name' }, ico(obra ? 'obra' : 'trophy'), obra ? d.label : 'Top · ' + d.label)];
       if (data?.series) {
         const pct = data.total ? Math.round((data.mine / data.total) * 100) : 0;
         head.push(el('div', { class: 'mudae-value' }, `Você tem `, el('strong', { textContent: num(data.mine) }), ` de ${plural(data.total, 'personagem', 'personagens')} · ${num(data.claimed)} com dono`),
@@ -285,21 +290,29 @@ window.MudaeUI = function ({ state, el, Icon, call, member, avatar, nameColor, F
     const owner = member(d.ownerId);
     charList(node, d.chars, {
       head: [el('div', { class: 'mudae-harem-head' }, owner ? avatar(owner, 'mudae-head-avatar') : null,
-        el('span', { class: 'mudae-name', textContent: '⭐ Desejos de ' + whoName(d.ownerId) })),
+        el('span', { class: 'mudae-name' }, ico('wish'), 'Desejos de ' + whoName(d.ownerId))),
       el('div', { class: 'mudae-hint', textContent: `${d.total} de ${d.max}. Quando alguém rodar um deles, ${d.ownerId === state.me.accountId ? 'você recebe' : 'a pessoa recebe'} um aviso.` })],
       empty: 'A lista está vazia. Use $wish nome para desejar alguém.',
     });
     return node;
   }
 
+  // Os 3 primeiros de um ranking: a medalha de ouro, prata e bronze da Forja (sem ela, a medalha simples na cor do lugar).
+  function rankMedal(i, size = 22) {
+    const label = `${i + 1}º lugar`;
+    if (!medalSvg) return el('span', { class: 'mudae-rank-medal p' + (i + 1) }, ico('medal', label));
+    const svg = medalSvg(['ouro', 'prata', 'bronze'][i], 1, 'metal', size);
+    svg.setAttribute('aria-label', label);
+    return svg;
+  }
+
   // $topserv: os 10 haréns mais valiosos do servidor.
   function topservCard(d) {
-    const medals = ['🥇', '🥈', '🥉'];
     return el('div', { class: 'mudae-card harem' },
-      el('div', { class: 'mudae-name', textContent: '🏆 Ranking dos haréns' }),
+      el('div', { class: 'mudae-name' }, ico('trophy'), 'Ranking dos haréns'),
       d.rows.length
         ? el('ol', { class: 'mudae-harem-list mudae-serv-list' }, d.rows.map((r, i) => el('li', {},
-          el('span', { class: 'mudae-li-rank', textContent: medals[i] || String(i + 1) }),
+          i < 3 ? el('span', { class: 'mudae-li-rank medal' }, rankMedal(i)) : el('span', { class: 'mudae-li-rank', textContent: String(i + 1) }),
           el('span', { class: 'mudae-li-name' }, strongName(r.ownerId), el('span', { class: 'mudae-muted', textContent: ' · ' + plural(r.total, 'personagem', 'personagens') })),
           el('span', { class: 'mudae-li-value' }, num(r.value), kakera()))))
         : el('div', { class: 'mudae-hint', textContent: 'Ninguém casou ainda. O primeiro lugar está livre!' }));
@@ -310,11 +323,11 @@ window.MudaeUI = function ({ state, el, Icon, call, member, avatar, nameColor, F
     const meIn = d.a === state.me.accountId || d.b === state.me.accountId;
     if (d.state === 'open') {
       return el('div', { class: 'mudae-card trade' },
-        el('div', { class: 'mudae-line' }, '🔄 ', strongName(d.a), ' propôs uma troca para ', strongName(d.b), '.'),
+        el('div', { class: 'mudae-line' }, ico('trade'), strongName(d.a), ' propôs uma troca para ', strongName(d.b), '.'),
         meIn ? el('div', { class: 'mudae-actions' }, el('button', { type: 'button', class: 'mudae-go', onclick: () => openTrade(d.tradeId) }, 'Abrir a troca')) : null);
     }
     if (d.state === 'canceled') {
-      return line('trade canceled', '🔄 A troca entre ', strongName(d.a), ' e ', strongName(d.b), ' foi cancelada', d.reason ? ': ' + d.reason.replace(/\.$/, '') : '', '.');
+      return line('trade canceled', ico('trade'), 'A troca entre ', strongName(d.a), ' e ', strongName(d.b), ' foi cancelada', d.reason ? ': ' + d.reason.replace(/\.$/, '') : '', '.');
     }
     const gave = (who) => {
       const side = d.sides?.[who] || { chars: [], kakera: 0 };
@@ -322,51 +335,56 @@ window.MudaeUI = function ({ state, el, Icon, call, member, avatar, nameColor, F
       return el('div', { class: 'mudae-trade-side' }, strongName(who), el('span', { class: 'mudae-muted', textContent: ' deu ' }), el('span', { textContent: items.join(', ') || 'nada' }));
     };
     return el('div', { class: 'mudae-card trade done' },
-      el('div', { class: 'mudae-line' }, '🔄 ', strongName(d.a), ' e ', strongName(d.b), ' fizeram uma troca!'),
+      el('div', { class: 'mudae-line' }, ico('trade'), strongName(d.a), ' e ', strongName(d.b), ' fizeram uma troca!'),
       gave(d.a), gave(d.b));
   }
 
   // ---------- Forja, poderes e cristais ----------
   const MEDALS = { bronze: 'Bronze', prata: 'Prata', ouro: 'Ouro', safira: 'Safira', rubi: 'Rubi', esmeralda: 'Esmeralda', diamante: 'Diamante' };
-  const MEDAL_ICON = { bronze: '🥉', prata: '🥈', ouro: '🥇', safira: '🔷', rubi: '♦️', esmeralda: '🟩', diamante: '💠' };
   const FINISHES = { metal: 'Metal', esmalte: 'Esmalte', holo: 'Holográfico', galaxia: 'Galáxia' };
   const ROMAN = ['', 'I', 'II', 'III', 'IV'];
   const finishName = (key) => FINISHES[key] || key;
-  // Os poderes (nome, ícone, frase da linha pública, o que falta para abrir e o que cada um faz). Tem que bater com POWERS em server/mudae-regras.js.
+  // Os poderes (nome, frase da linha pública, o que falta para abrir e o que cada um faz). Tem que bater com POWERS em server/mudae-regras.js.
+  // O ícone de cada um é o MudaeIcon com a mesma chave (mudae-icones.js).
   const POWER = {
-    videncia: { name: 'Vidência', icon: '🔮', goal: 'Medalhas forjadas', does: 'Mostra a raridade dos seus 3 próximos rolls. Só você vê.' },
-    cadeado: { name: 'Cadeado', icon: '🔒', goal: 'Casamentos', said: ' trancou o roll.', does: 'Tranca o seu roll: ninguém mais casa com ele.' },
-    amuleto: { name: 'Amuleto', icon: '🍀', goal: 'Lendários no harém', said: ' usou o Amuleto: o próximo roll tem mais chance de ser épico ou lendário.', does: 'O próximo roll tem mais chance de sair épico ou lendário.' },
-    chuva: { name: 'Chuva de cristais', icon: '🌧️', goal: 'Cristais pegos', said: ' chamou uma chuva de cristais!', does: 'Chama uma chuva de cristais para todo mundo no Salão.' },
-    desejo: { name: 'Chamar desejo', icon: '💫', goal: 'Nível da Bronze', said: ' chamou um desejo para o próximo roll.', does: 'O próximo roll tem chance alta de ser um desejo seu.' },
-    eco: { name: 'Eco', icon: '🔁', goal: 'Casamentos', does: 'Traz de volta um personagem que passou sem dono há pouco.' },
-    dupla: { name: 'Escolha dupla', icon: '🃏', goal: 'Rolls', said: ' vai abrir duas cartas no próximo roll.', does: 'O próximo roll abre duas cartas, e você casa com uma.' },
-    laco: { name: 'Laço', icon: '🪢', goal: 'Medalhas no nível II', does: 'Casa na hora com o roll de outra pessoa. Perde para o Cadeado.' },
+    videncia: { name: 'Vidência', goal: 'Medalhas forjadas', does: 'Mostra a raridade dos seus 3 próximos rolls. Só você vê.' },
+    cadeado: { name: 'Cadeado', goal: 'Casamentos', said: ' trancou o roll.', does: 'Tranca o seu roll: ninguém mais casa com ele.' },
+    amuleto: { name: 'Amuleto', goal: 'Lendários no harém', said: ' usou o Amuleto: o próximo roll tem mais chance de ser épico ou lendário.', does: 'O próximo roll tem mais chance de sair épico ou lendário.' },
+    chuva: { name: 'Chuva de cristais', goal: 'Cristais pegos', said: ' chamou uma chuva de cristais!', does: 'Chama uma chuva de cristais para todo mundo no Salão.' },
+    desejo: { name: 'Chamar desejo', goal: 'Nível da Bronze', said: ' chamou um desejo para o próximo roll.', does: 'O próximo roll tem chance alta de ser um desejo seu.' },
+    eco: { name: 'Eco', goal: 'Casamentos', does: 'Traz de volta um personagem que passou sem dono há pouco.' },
+    dupla: { name: 'Escolha dupla', goal: 'Rolls', said: ' vai abrir duas cartas no próximo roll.', does: 'O próximo roll abre duas cartas, e você casa com uma.' },
+    laco: { name: 'Laço', goal: 'Medalhas no nível II', does: 'Casa na hora com o roll de outra pessoa. Perde para o Cadeado.' },
   };
-  const powerOf = (key) => POWER[key] || { name: key, icon: '✦', goal: '' };
+  const powerOf = (key) => POWER[key] || { name: key, goal: '' };
+  const powerIcon = (key) => ico(POWER[key] ? key : 'spark');
+  // "ícone Cadeado, ícone Eco": vários poderes numa frase.
+  const powerNames = (keys) => keys.flatMap((key, i) => [i ? ', ' : null, powerIcon(key), powerOf(key).name]).filter(Boolean);
+  const medalIcon = (d) => (medalSvg && d.medal ? medalSvg(d.medal, d.level || 0, d.finish || null, 20) : ico('medal'));
 
   function powerLine(d) {
     const p = powerOf(d.power);
-    if (d.power === 'laco' && d.bounced) return line('power', '🪢 ', strongName(d.ownerId), ' tentou laçar ', el('strong', { textContent: d.card?.name || 'o personagem' }), ', mas bateu no cadeado!');
-    return line('power', p.icon + ' ', strongName(d.ownerId), p.said || ` usou ${p.name}.`);
+    if (d.power === 'laco' && d.bounced) return line('power', powerIcon('laco'), strongName(d.ownerId), ' tentou laçar ', el('strong', { textContent: d.card?.name || 'o personagem' }), ', mas bateu no cadeado!');
+    return line('power', powerIcon(d.power), strongName(d.ownerId), p.said || ` usou ${p.name}.`);
   }
 
   // Medalha: a linha salva do nível IV, o resultado de um $forjar e a escolha do acabamento (quando o nível II ou mais sorteia outro).
   function medalCard(d) {
     const title = `${MEDALS[d.medal] || d.medal} ${ROMAN[d.level] || ''}`.trim();
     if (d.price === undefined) {
-      return line('medal', '🏅 ', strongName(d.ownerId), ' forjou a ', el('strong', { textContent: title }), ` (${finishName(d.finish).toLowerCase()})!`);
+      return line('medal', medalIcon(d), strongName(d.ownerId), ' forjou a ', el('strong', { textContent: title }), ` (${finishName(d.finish).toLowerCase()})!`);
     }
     const cost = `por ${num(d.price)} kakera. Agora você tem ${num(d.kakera)}.`;
-    if (!d.offer) return line('medal', '🏅 Você forjou a ', el('strong', { textContent: title }), ` (${finishName(d.finish).toLowerCase()}) ${cost}`);
+    if (!d.offer) return line('medal', medalIcon(d), 'Você forjou a ', el('strong', { textContent: title }), ` (${finishName(d.finish).toLowerCase()}) ${cost}`);
     const node = el('div', { class: 'mudae-card medal' });
     const pick = async (choice) => {
       node.classList.add('pending');
       const res = await call('mudae:forja:finish', { medal: d.medal, pick: choice });
       if (!res) { node.classList.remove('pending'); return; }
-      node.replaceChildren(line('medal', '🏅 A ', el('strong', { textContent: title }), ` ficou com o acabamento ${finishName(res.finish ?? (choice === 'new' ? d.offer : d.finish)).toLowerCase()}.`));
+      const finish = res.finish ?? (choice === 'new' ? d.offer : d.finish);
+      node.replaceChildren(line('medal', medalIcon({ ...d, finish }), 'A ', el('strong', { textContent: title }), ` ficou com o acabamento ${finishName(finish).toLowerCase()}.`));
     };
-    node.append(line('medal', '🏅 Você forjou a ', el('strong', { textContent: title }), ` ${cost}`),
+    node.append(line('medal', medalIcon(d), 'Você forjou a ', el('strong', { textContent: title }), ` ${cost}`),
       el('div', { class: 'mudae-hint', textContent: `Saiu o acabamento ${finishName(d.offer)} e a medalha está com ${finishName(d.finish)}. Qual fica?` }),
       el('div', { class: 'mudae-actions' },
         el('button', { type: 'button', class: 'mudae-go', textContent: 'Ficar com ' + finishName(d.finish), onclick: () => pick('old') }),
@@ -378,19 +396,19 @@ window.MudaeUI = function ({ state, el, Icon, call, member, avatar, nameColor, F
   // Os poderes no palco, um por espaço.
   function stageList(d) {
     return el('ul', { class: 'mudae-powers' }, d.slots.map((key) => el('li', { class: key ? 'slot' : 'slot empty' },
-      key ? [powerOf(key).icon + ' ', el('strong', { textContent: powerOf(key).name }), el('span', { class: 'mudae-muted', textContent: ' · ' + chargeText(d.readyIn?.[key] || 0) })]
+      key ? [powerIcon(key), el('strong', { textContent: powerOf(key).name }), el('span', { class: 'mudae-muted', textContent: ' · ' + chargeText(d.readyIn?.[key] || 0) })]
         : el('span', { class: 'mudae-muted', textContent: 'espaço vazio' }))));
   }
 
   function forjaCard(d) {
     return el('div', { class: 'mudae-card forja' },
-      el('div', { class: 'mudae-name', textContent: '🏅 Sua Forja' }),
+      el('div', { class: 'mudae-name' }, ico('medal'), 'Sua Forja'),
       el('div', { class: 'mudae-value' }, 'Você tem ', el('strong', { textContent: num(d.kakera) }), kakera()),
       el('ul', { class: 'mudae-medals' }, Object.keys(MEDALS).map((key) => {
         const m = d.medals?.[key] || { level: 0 };
         const price = d.prices?.[key];
         return el('li', { class: 'mudae-medal l' + m.level, title: price ? `Próximo nível: ${num(price)} kakera` : 'No nível máximo' },
-          medalSvg ? medalSvg(key, m.level, m.finish, 28) : MEDAL_ICON[key] + ' ', el('strong', { textContent: MEDALS[key] }), el('span', { class: 'mudae-medal-level', textContent: ' ' + (ROMAN[m.level] || '—') }),
+          medalSvg ? medalSvg(key, m.level, m.finish, 28) : ico('medal'), el('strong', { textContent: MEDALS[key] }), el('span', { class: 'mudae-medal-level', textContent: ' ' + (ROMAN[m.level] || '—') }),
           el('span', { class: 'mudae-muted', textContent: m.level ? ' · ' + finishName(m.finish) : price ? ` · ${num(price)}` : '' }));
       })),
       d.powers ? stageList(d.powers) : null,
@@ -401,34 +419,41 @@ window.MudaeUI = function ({ state, el, Icon, call, member, avatar, nameColor, F
     const locked = Object.keys(POWER).filter((key) => !d.unlocked.includes(key));
     const benched = d.unlocked.filter((key) => !d.slots.includes(key));
     return el('div', { class: 'mudae-card forja' },
-      el('div', { class: 'mudae-name', textContent: '⚡ Seus poderes' }),
+      el('div', { class: 'mudae-name' }, ico('bolt'), 'Seus poderes'),
       stageList(d),
       d.rechargeMs ? el('div', { class: 'mudae-hint', textContent: `Cada poder recarrega em ${minutes(d.rechargeMs)}. Use com $poder nome.` }) : null,
-      benched.length ? el('div', { class: 'mudae-hint', textContent: 'Fora do palco: ' + benched.map((key) => powerOf(key).icon + ' ' + powerOf(key).name).join(', ') + '.' }) : null,
+      benched.length ? el('div', { class: 'mudae-hint' }, 'Fora do palco: ', ...powerNames(benched), '.') : null,
       locked.length ? el('ul', { class: 'mudae-powers locked' }, locked.map((key) => {
         const have = d.progress?.[key];
-        return el('li', {}, powerOf(key).icon + ' ', el('strong', { textContent: powerOf(key).name }),
+        return el('li', {}, powerIcon(key), el('strong', { textContent: powerOf(key).name }),
           el('span', { class: 'mudae-muted', textContent: have ? ` · ${powerOf(key).goal}: ${num(have.have)} de ${num(have.need)}` : '' }));
       })) : null);
   }
 
   // $poder eco: um botão por personagem que passou sem dono.
   function ecoCard(d) {
-    const node = el('div', { class: 'mudae-card forja' }, el('div', { class: 'mudae-name', textContent: '🔁 Qual personagem volta?' }));
+    const node = el('div', { class: 'mudae-card forja' }, el('div', { class: 'mudae-name' }, powerIcon('eco'), 'Qual personagem volta?'));
     node.append(el('div', { class: 'mudae-actions' }, (d.cards || []).slice(0, 5).map((card) => el('button', { type: 'button', class: 'mudae-go', textContent: card.name, onclick: async () => {
       node.classList.add('pending');
       const res = await call('mudae:power:use', { channel: state.textChannel, power: 'eco', charId: card.id });
       node.classList.remove('pending');
-      if (res) node.replaceChildren(line('power', '🔁 ', el('strong', { textContent: card.name }), ' voltou para a mesa.'));
+      if (res) node.replaceChildren(line('power', powerIcon('eco'), el('strong', { textContent: card.name }), ' voltou para a mesa.'));
     } }))));
+    return node;
+  }
+
+  // O kakera na cor do cristal (a cor vem do servidor).
+  function crystalIcon(v) {
+    const node = ico('kakera', 'cristal ' + (v.colorKey || ''));
+    if (v.color) node.style.color = v.color;
     return node;
   }
 
   // Cristal que apareceu (só ao vivo): o botão pega o primeiro cristal, até acabar a vida dele.
   function crystalLine(d) {
     const v = d.crystal || d;
-    const label = el('span', { textContent: '💎 Pegar' });
-    const btn = el('button', { type: 'button', class: 'mudae-go mudae-crystal-take' }, label);
+    const label = el('span', { textContent: 'Pegar' });
+    const btn = el('button', { type: 'button', class: 'mudae-go mudae-crystal-take' }, kakera(), label);
     const until = v.appearAt + v.life;
     const update = () => { if (!btn.classList.contains('done')) btn.disabled = serverNow() < v.appearAt; };
     const expire = () => { btn.disabled = true; if (!btn.classList.contains('done')) label.textContent = 'Sumiu'; };
@@ -437,9 +462,9 @@ window.MudaeUI = function ({ state, el, Icon, call, member, avatar, nameColor, F
       if (btn.disabled) return;
       btn.disabled = true;
       const res = await call('mudae:crystal:take', { id: v.id, gem: 0 });
-      if (res?.ok) { btn.classList.add('done'); label.textContent = `💎 +${num(res.amount)}`; } else if (btn.isConnected && serverNow() < until) btn.disabled = false;
+      if (res?.ok) { btn.classList.add('done'); label.textContent = `+${num(res.amount)}`; } else if (btn.isConnected && serverNow() < until) btn.disabled = false;
     };
-    return [line('crystal', v.kind === 'storm' ? `✦ Uma chuva de cristais ${v.colorKey} começou!` : `✦ Um cristal ${v.colorKey} apareceu!`), el('div', { class: 'mudae-actions' }, btn)];
+    return [line('crystal', crystalIcon(v), v.kind === 'storm' ? `Uma chuva de cristais ${v.colorKey} começou!` : `Um cristal ${v.colorKey} apareceu!`), el('div', { class: 'mudae-actions' }, btn)];
   }
 
   // Cristal que acabou (só ao vivo): quem pegou, com no máximo dois nomes e "mais N" no resto.
@@ -449,7 +474,7 @@ window.MudaeUI = function ({ state, el, Icon, call, member, avatar, nameColor, F
     if (!ids.length) return line('crystal', `O cristal ${v.colorKey} sumiu. Ninguém pegou.`);
     const [a, b, c] = ids.map(strongName);
     const who = ids.length === 1 ? [a] : ids.length === 2 ? [a, ' e ', b] : ids.length === 3 ? [a, ', ', b, ' e ', c] : [a, ', ', b, ` e mais ${ids.length - 2}`];
-    return line('crystal', '💎 ', ...who, ` ${ids.length === 1 ? 'pegou' : 'pegaram'} o cristal ${v.colorKey}`);
+    return line('crystal', crystalIcon(v), ...who, ` ${ids.length === 1 ? 'pegou' : 'pegaram'} o cristal ${v.colorKey}`);
   }
 
   function statusLines(d) {
@@ -462,7 +487,7 @@ window.MudaeUI = function ({ state, el, Icon, call, member, avatar, nameColor, F
         : ['Você já casou. Dá para casar de novo em ', el('strong', { textContent: minutes(d.claimResetIn) }), '.']),
       d.reserveReady ? el('div', {}, 'Você tem ', el('strong', { class: 'mudae-ok', textContent: 'um casamento de reserva' }), ' guardado.')
         : d.reserveIn ? el('div', {}, 'Seu casamento de reserva volta em ', el('strong', { textContent: minutes(d.reserveIn) }), '.') : null,
-      d.powersReady?.length ? el('div', {}, 'Poderes prontos: ', el('strong', { class: 'mudae-ok', textContent: d.powersReady.map((key) => powerOf(key).icon + ' ' + powerOf(key).name).join(', ') }), '.') : null,
+      d.powersReady?.length ? el('div', {}, 'Poderes prontos: ', el('strong', { class: 'mudae-ok' }, ...powerNames(d.powersReady)), '.') : null,
       d.kakera !== undefined ? el('div', {}, 'Você tem ', el('strong', { textContent: num(d.kakera) }), ' kakera.') : null,
       d.dailyIn !== undefined ? el('div', {}, d.dailyIn ? ['O $daily volta em ', el('strong', { textContent: minutes(d.dailyIn) }), '.'] : ['O ', el('strong', { class: 'mudae-ok', textContent: '$daily' }), ' está pronto: os rolls voltam na hora.']) : null,
       d.dkIn !== undefined ? el('div', {}, d.dkIn ? ['O $dk volta em ', el('strong', { textContent: minutes(d.dkIn) }), '.'] : ['O ', el('strong', { class: 'mudae-ok', textContent: '$dk' }), ` está pronto: +${num(d.dkAmount)} kakera.`]) : null,
@@ -487,10 +512,10 @@ window.MudaeUI = function ({ state, el, Icon, call, member, avatar, nameColor, F
     image.src = d.card.image;
     const node = el('button', { type: 'button', class: 'mudae-roll-line', onclick: () => salon.show(msg.id) },
       thumb,
-      el('span', { class: 'mudae-roll-text' }, '🎲 ', el('strong', { textContent: d.card.name }),
-        el('span', { class: 'mudae-muted', textContent: ' · ' + seriesLine(d.card) })),
+      el('span', { class: 'mudae-roll-text' }, el('strong', { textContent: d.card.name }),
+        el('span', { class: 'mudae-muted' }, ' · ', sourceIcon(d.card), seriesLine(d.card))),
       el('span', { class: 'mudae-rarity-tag ' + rarity, textContent: RARITY[rarity] }),
-      el('span', { class: 'mudae-roll-spin', textContent: '🎲 rodando…' }));
+      el('span', { class: 'mudae-roll-spin' }, ico('dice'), 'rodando…'));
     // Sem spoiler: enquanto a roleta gira no palco, a linha esconde quem saiu (só CSS, sem timer).
     const hold = (d.revealAt ?? 0) - serverNow();
     if (hold > 0) {
@@ -502,13 +527,16 @@ window.MudaeUI = function ({ state, el, Icon, call, member, avatar, nameColor, F
 
   function redirect(d) {
     if (!d.channel) {
-      return el('div', { class: 'msg-text' }, '🎰 Este servidor ainda não tem um Salão do Mudae. Quem pode gerenciar canais cria um em ',
+      return el('div', { class: 'msg-text' }, ico('dice'), 'Este servidor ainda não tem um Salão do Mudae. Quem pode gerenciar canais cria um em ',
         el('strong', { textContent: 'Criar canal → Salão do Mudae' }), '.');
     }
     return el('div', { class: 'mudae-redirect' },
-      el('div', { class: 'msg-text' }, '🎰 O Mudae agora mora no ', el('strong', { textContent: '#' + d.name }), '. Lá você vê o que a turma está rodando ao vivo.'),
+      el('div', { class: 'msg-text' }, ico('dice'), 'O Mudae agora mora no ', el('strong', { textContent: '#' + d.name }), '. Lá você vê o que a turma está rodando ao vivo.'),
       el('button', { type: 'button', class: 'mudae-go', onclick: () => openChannel(d.channel) }, 'Ir para o Salão'));
   }
+
+  // "com o Laço" no fim da linha do casamento.
+  const lassoTag = (d) => (d.lasso ? [' ', powerIcon('laco'), 'com o Laço'] : []);
 
   // Conteúdo da mensagem do bot (vai dentro do .msg-body). salon: a tela do Salão, quando o canal é um.
   function body(msg, salon = null) {
@@ -521,34 +549,34 @@ window.MudaeUI = function ({ state, el, Icon, call, member, avatar, nameColor, F
     else if (d.kind === 'topserv') content = topservCard(d);
     else if (d.kind === 'wishlist') content = wishCard(msg, d);
     else if (d.kind === 'trade') content = tradeCard(msg, d);
-    else if (d.kind === 'give') content = line('married', '🎁 ', strongName(d.ownerId), ' deu ', el('strong', { textContent: d.card.name }), ' de presente para ', strongName(d.to), '!');
-    else if (d.kind === 'givek') content = line('kakera', '💎 ', strongName(d.ownerId), ` deu ${num(d.amount)} kakera para `, strongName(d.to), '.');
-    else if (d.kind === 'dk') content = line('kakera', '💎 ', strongName(d.ownerId), ` pegou o kakera do dia: +${num(d.amount)} (agora tem ${num(d.kakera)}).`);
-    else if (d.kind === 'daily') content = line('daily', '🎲 ', strongName(d.ownerId), ' usou o $daily: os rolls voltaram!');
-    else if (d.kind === 'rolls') content = line('daily', '🎲 ', strongName(d.ownerId), ` comprou os rolls de volta por ${num(d.price)} kakera.`);
-    else if (d.kind === 'kakera') content = el('div', { class: 'msg-text' }, '💎 Você tem ', el('strong', { textContent: num(d.kakera) }), ' kakera.');
+    else if (d.kind === 'give') content = line('married', ico('gift'), strongName(d.ownerId), ' deu ', el('strong', { textContent: d.card.name }), ' de presente para ', strongName(d.to), '!');
+    else if (d.kind === 'givek') content = line('kakera', kakera(), strongName(d.ownerId), ` deu ${num(d.amount)} kakera para `, strongName(d.to), '.');
+    else if (d.kind === 'dk') content = line('kakera', kakera(), strongName(d.ownerId), ` pegou o kakera do dia: +${num(d.amount)} (agora tem ${num(d.kakera)}).`);
+    else if (d.kind === 'daily') content = line('daily', ico('dice'), strongName(d.ownerId), ' usou o $daily: os rolls voltaram!');
+    else if (d.kind === 'rolls') content = line('daily', ico('dice'), strongName(d.ownerId), ` comprou os rolls de volta por ${num(d.price)} kakera.`);
+    else if (d.kind === 'kakera') content = el('div', { class: 'msg-text' }, kakera(), 'Você tem ', el('strong', { textContent: num(d.kakera) }), ' kakera.');
     else if (d.kind === 'wish') {
-      content = el('div', { class: 'msg-text' }, '⭐ ', el('strong', { textContent: d.card.name }), ` entrou na sua lista de desejos (${d.total}/${d.max}). `,
+      content = el('div', { class: 'msg-text' }, ico('wish'), el('strong', { textContent: d.card.name }), ` entrou na sua lista de desejos (${d.total}/${d.max}). `,
         d.ownerId ? ['Já é de ', strongName(d.ownerId), '. Que tal propor uma troca?'] : 'Você recebe um aviso quando alguém rodar.');
-    } else if (d.kind === 'unwish') content = el('div', { class: 'msg-text' }, '⭐ ', el('strong', { textContent: d.card.name }), ` saiu da sua lista de desejos (${d.total}/${d.max}).`);
-    else if (d.kind === 'fm') content = el('div', { class: 'msg-text' }, '⭐ ', el('strong', { textContent: d.card.name }), ' agora é o seu favorito.');
+    } else if (d.kind === 'unwish') content = el('div', { class: 'msg-text' }, ico('wish'), el('strong', { textContent: d.card.name }), ` saiu da sua lista de desejos (${d.total}/${d.max}).`);
+    else if (d.kind === 'fm') content = el('div', { class: 'msg-text' }, ico('wish'), el('strong', { textContent: d.card.name }), ' agora é o seu favorito.');
     else if (d.kind === 'married' && d.from) {
-      content = line('married stolen', '😈 ', strongName(d.ownerId), ' roubou ', el('strong', { textContent: d.card.name }), ' do roll de ', strongName(d.from), '!', d.lasso ? ' 🪢 com o Laço' : '');
+      content = line('married stolen', ico('thief', 'roubo'), strongName(d.ownerId), ' roubou ', el('strong', { textContent: d.card.name }), ' do roll de ', strongName(d.from), '!', ...lassoTag(d));
     } else if (d.kind === 'married') {
-      content = line('married', '💖 ', strongName(d.ownerId), ' e ', el('strong', { textContent: d.card.name }), ' agora são casados! 💖', d.lasso ? ' 🪢 com o Laço' : '');
+      content = line('married', ico('heart'), strongName(d.ownerId), ' e ', el('strong', { textContent: d.card.name }), ' agora são casados!', ...lassoTag(d));
     } else if (d.kind === 'forja') content = forjaCard(d);
     else if (d.kind === 'medal') content = medalCard(d);
     else if (d.kind === 'powers') content = powersCard(d);
     else if (d.kind === 'power') content = powerLine(d);
     else if (d.kind === 'eco') content = ecoCard(d);
     else if (d.kind === 'foresee') {
-      content = line('power', '🔮 Vidência: os próximos rolls serão ', d.future?.map((r) => RARITY[r] || r).join(', ') || 'um mistério', '.', d.wish ? ' O próximo traz um desejo.' : '');
-    } else if (d.kind === 'unlock') content = line('unlock', '✨ ', strongName(d.ownerId), ` ganhou um poder: ${powerOf(d.power).name}!`);
+      content = line('power', powerIcon('videncia'), 'Vidência: os próximos rolls serão ', d.future?.map((r) => RARITY[r] || r).join(', ') || 'um mistério', '.', d.wish ? ' O próximo traz um desejo.' : '');
+    } else if (d.kind === 'unlock') content = line('unlock', ico('sparkles'), strongName(d.ownerId), ' ganhou um poder: ', powerIcon(d.power), powerOf(d.power).name + '!');
     else if (d.kind === 'crystal') content = crystalLine(d);
     else if (d.kind === 'crystalEnd') content = crystalEndLine(d);
     else if (d.kind === 'redirect') content = redirect(d);
     else if (d.kind === 'divorce') {
-      content = line('divorce', '💔 ', el('strong', { textContent: whoName(d.ownerId) }), ' e ', el('strong', { textContent: d.card.name }), ' se divorciaram.',
+      content = line('divorce', ico('heartBreak', 'divórcio'), el('strong', { textContent: whoName(d.ownerId) }), ' e ', el('strong', { textContent: d.card.name }), ' se divorciaram.',
         d.refund ? ` (+${num(d.refund)} kakera)` : '',
         d.capped ? ` O divórcio já devolveu 500 de kakera hoje; o próximo devolve em ${minutes(d.refundIn)}.` : '');
     } else if (d.kind === 'status') content = statusLines(d);
@@ -617,6 +645,6 @@ window.MudaeUI = function ({ state, el, Icon, call, member, avatar, nameColor, F
       .map((c) => ({ command: true, icon: 'heart', insert: '$' + c.name, label: '$' + c.name + (c.args ? ' ' : ''), hint: c.args ? c.hint : '', note: c.note }));
   }
 
-  return { body, invocation, botAvatar, ephemeral, sync, serverNow, suggestions, isCommand, divorceTarget, confirmFor, kakera, num, minutes, RARITY, SOURCES, seriesLine, ownerTag,
-    MEDALS, FINISHES, ROMAN, POWER };
+  return { body, invocation, botAvatar, ephemeral, sync, serverNow, suggestions, isCommand, divorceTarget, confirmFor, kakera, num, minutes, RARITY, SOURCES, seriesLine, sourceIcon, ownerTag,
+    MEDALS, FINISHES, ROMAN, POWER, ico, rankMedal };
 };

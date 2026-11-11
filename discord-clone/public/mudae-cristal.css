@@ -1,5 +1,5 @@
 /* Cristal errante do Mudae: a camada por cima do Salão, o cristal, a chuva, os efeitos do clique e o botão
-   "💎 Pegar" do modo simplificado. A cor de cada cristal vem do servidor (--c); o resto usa o tema. */
+   "Pegar" do modo simplificado. A cor de cada cristal vem do servidor (--c); o resto usa o tema. */
 
 .mudae-crystal-layer { position: absolute; inset: 0; z-index: 6; overflow: hidden; pointer-events: none; }
 
@@ -23,7 +23,8 @@
 html:not(.touch) .mudae-crystal:hover .mudae-crystal-body { transform: scale(1.14); }
 .mudae-crystal.pending .mudae-crystal-body { transform: scale(.86); }
 
-/* O desenho: corpo na cor do cristal, faces mais claras e mais escuras e um brilho que pisca. */
+/* O desenho: lasca pontuda nas duas pontas, na cor do cristal; faces da esquerda claras, da direita escuras, a aresta de
+   luz e um brilho que pisca. */
 .mudae-crystal-gem {
   display: block; width: 100%; height: 100%; overflow: visible;
   filter: drop-shadow(0 0 9px color-mix(in srgb, var(--c) 85%, transparent)) drop-shadow(0 2px 3px rgba(0, 0, 0, .4));
@@ -31,14 +32,16 @@ html:not(.touch) .mudae-crystal:hover .mudae-crystal-body { transform: scale(1.1
 }
 .mudae-crystal.drop .mudae-crystal-gem { animation-duration: .8s; filter: drop-shadow(0 0 6px color-mix(in srgb, var(--c) 85%, transparent)); }
 .mudae-crystal-gem .g-body { fill: var(--c); stroke: color-mix(in srgb, var(--c), black 32%); stroke-width: 1.5; stroke-linejoin: round; }
-.mudae-crystal-gem .g-light { fill: color-mix(in srgb, var(--c), white 55%); opacity: .55; }
-.mudae-crystal-gem .g-left { fill: color-mix(in srgb, var(--c), black 18%); opacity: .7; }
-.mudae-crystal-gem .g-right { fill: color-mix(in srgb, var(--c), black 40%); opacity: .75; }
-.mudae-crystal-gem .g-top { fill: color-mix(in srgb, var(--c), white 72%); opacity: .75; }
+.mudae-crystal-gem .g-left { fill: color-mix(in srgb, var(--c), white 38%); }
+.mudae-crystal-gem .g-right { fill: color-mix(in srgb, var(--c), black 38%); }
+.mudae-crystal-gem .g-light { fill: color-mix(in srgb, var(--c), white 12%); }
+.mudae-crystal-gem .g-top { fill: color-mix(in srgb, var(--c), white 62%); opacity: .8; }
+.mudae-crystal-gem .g-edge { fill: none; stroke: color-mix(in srgb, var(--c), white 85%); stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; opacity: .9; }
 .mudae-crystal-gem .g-shine { fill: color-mix(in srgb, var(--c), white 88%); transform-box: fill-box; transform-origin: center; animation: mudae-crystal-twinkle 1.8s ease-in-out infinite; }
 
 /* Corrente: o degrau embaixo do cristal. */
 .mudae-crystal-step {
+  display: inline-flex; align-items: center; gap: 2px;
   align-self: end; justify-self: center; margin-bottom: -12px; padding: 1px 7px; border-radius: 999px; white-space: nowrap; pointer-events: none;
   background: color-mix(in srgb, var(--c) 30%, var(--bg-floating)); color: var(--text-strong); font-size: 11px; font-weight: 800;
   box-shadow: 0 0 0 1px color-mix(in srgb, var(--c) 65%, transparent);
@@ -47,8 +50,8 @@ html:not(.touch) .mudae-crystal:hover .mudae-crystal-body { transform: scale(1.1
 /* ---------- efeitos (o JavaScript tira cada um da tela no fim) ---------- */
 .mudae-crystal-spark { position: absolute; width: 5px; height: 5px; margin: -2.5px 0 0 -2.5px; border-radius: 50%; background: var(--c); box-shadow: 0 0 6px var(--c); pointer-events: none; }
 .mudae-crystal-shard {
-  position: absolute; width: 10px; height: 10px; background: var(--c); pointer-events: none; transform: translate(-50%, -50%);
-  clip-path: polygon(50% 0, 100% 40%, 70% 100%, 0 70%); filter: drop-shadow(0 0 4px var(--c));
+  position: absolute; width: 7px; height: 13px; background: var(--c); pointer-events: none; transform: translate(-50%, -50%);
+  clip-path: polygon(50% 0, 100% 27%, 100% 73%, 50% 100%, 0 73%, 0 27%); filter: drop-shadow(0 0 4px var(--c));
 }
 .mudae-crystal-ring { position: absolute; width: 56px; height: 56px; border: 3px solid var(--c); border-radius: 50%; pointer-events: none; opacity: 0; transform: translate(-50%, -50%); }
 .mudae-crystal-pop {
@@ -64,7 +67,7 @@ html:not(.touch) .mudae-crystal:hover .mudae-crystal-body { transform: scale(1.1
   animation: mudae-crystal-banner 2.6s var(--ease-enter) both;
 }
 .mudae-crystal-banner span {
-  display: block; padding: 7px 16px; border-radius: 999px; color: var(--text-strong); font-size: 14px; font-weight: 800; letter-spacing: .02em; text-align: center;
+  display: flex; align-items: center; justify-content: center; padding: 7px 16px; border-radius: 999px; color: var(--text-strong); font-size: 14px; font-weight: 800; letter-spacing: .02em; text-align: center;
   background: color-mix(in srgb, var(--c) 30%, var(--bg-floating));
   box-shadow: 0 0 0 1px color-mix(in srgb, var(--c) 70%, transparent), 0 0 26px color-mix(in srgb, var(--c) 45%, transparent), var(--shadow-float);
 }
@@ -75,8 +78,9 @@ html:not(.touch) .mudae-crystal:hover .mudae-crystal-body { transform: scale(1.1
 .salon-status-pill.bump > span { overflow: visible; }
 .salon-status-pill.bump .salon-status-kakera { display: inline-block; animation: mudae-crystal-bump .45s var(--spring-pop); }
 
-/* Modo simplificado: o botão "💎 Pegar" na linha do bot. */
-.mudae-go.mudae-crystal-take { display: inline-flex; align-items: center; height: 36px; }
+/* Modo simplificado: o botão "Pegar" (com o kakera) na linha do bot. */
+.mudae-go.mudae-crystal-take { display: inline-flex; align-items: center; gap: 6px; height: 36px; }
+.mudae-go.mudae-crystal-take .mudae-kakera { color: inherit; }
 html.touch .mudae-go.mudae-crystal-take { height: 44px; padding: 0 18px; }
 .mudae-go.mudae-crystal-take:disabled { cursor: default; opacity: .6; }
 .mudae-go.mudae-crystal-take:disabled:hover { background: var(--brand); }

@@ -14,6 +14,11 @@ window.MudaeSalon = function ({ state, el, Icon, call, onSocket, member, avatar,
   // Vale a preferência do sistema e o "Reduzir animações" do app (a roleta é feita em JavaScript e o CSS não a desliga).
   const reducedMotion = () => document.documentElement.dataset.reduceMotion === 'true' || !!window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
   const { num, minutes, kakera } = ui;
+  // Ícones próprios (mudae-icones.js); sem eles (testes só do Salão), um espaço vazio.
+  const MI = window.MudaeIcon || Object.assign(() => document.createElement('span'), { inline: () => document.createElement('span') });
+  const ico = (name, label = '') => MI.inline(name, label);
+  const sourceChip = (k) => [ico(ui.SOURCES[k].icon), ui.SOURCES[k].label];
+  const allChip = () => [ico('sparkles'), 'Tudo'];
   const me = () => state.me.accountId;
   const now = () => ui.serverNow();
   const whoName = (id) => member(id)?.name || 'alguém que saiu';
@@ -165,7 +170,7 @@ window.MudaeSalon = function ({ state, el, Icon, call, onSocket, member, avatar,
         el('div', { class: 'salon-card-heading' },
           el('div', { class: 'salon-card-name', textContent: card.name, title: card.name }),
           size !== 'mini' ? el('span', { class: 'salon-rank', title: 'Posição no ranking de popularidade', textContent: '#' + num(card.rank) }) : null),
-        size !== 'mini' ? el('div', { class: 'salon-card-series', textContent: ui.seriesLine(card), title: card.series }) : null,
+        size !== 'mini' ? el('div', { class: 'salon-card-series', title: card.series }, ui.sourceIcon ? ui.sourceIcon(card) : null, ui.seriesLine(card)) : null,
         el('div', { class: 'salon-card-value' }, kakera(), el('strong', { textContent: num(card.value) }))),
       extra);
     return size === 'mini' ? node : tilt(node);
@@ -262,7 +267,7 @@ window.MudaeSalon = function ({ state, el, Icon, call, onSocket, member, avatar,
           m ? avatar(m) : el('div', { class: 'avatar' }),
           el('div', { class: 'salon-person-info' },
             el('div', { class: 'salon-person-name', style: { color: nameColor(m) || '' } }, el('span', { textContent: whoName(p.id) }),
-              p.claimReady ? el('span', { class: 'salon-ring-ready', title: 'Pode casar agora' }, '💍') : null),
+              p.claimReady ? el('span', { class: 'salon-ring-ready', title: 'Pode casar agora' }, ico('ring', 'pode casar agora')) : null),
             el('div', { class: 'salon-dots', title: `${p.rollsLeft} de ${p.rollsMax} rolls` },
               Array.from({ length: p.rollsMax }, (_, i) => el('span', { class: i < p.rollsLeft ? 'on' : '' })))));
       }));
@@ -315,17 +320,18 @@ window.MudaeSalon = function ({ state, el, Icon, call, onSocket, member, avatar,
     if (!s) { nodes.status.replaceChildren(); return; }
     const passed = Date.now() - S.statusAt;
     const rolls = s.rollsLeft ? `${s.rollsLeft}/${s.rollsMax} rolls` : `rolls voltam em ${minutes(s.rollResetIn - passed)}`;
-    const claim = s.claimReady ? 'casamento disponível 💍' : `casa de novo em ${minutes(s.claimResetIn - passed)}`;
-    const gem = s.kakera !== undefined ? ` · 💎 ${num(s.kakera)}` : '';
+    const claim = s.claimReady ? 'casamento disponível' : `casa de novo em ${minutes(s.claimResetIn - passed)}`;
+    const gem = s.kakera !== undefined ? ` · ${num(s.kakera)} kakera` : '';
     const text = `${rolls} · ${claim}${gem}`;
     // Versão curta para quando a faixa de cima aperta (o CSS escolhe qual aparece).
-    const short = `🎲 ${s.rollsLeft ? `${s.rollsLeft}/${s.rollsMax}` : minutes(s.rollResetIn - passed)} · 💍${s.claimReady ? '' : ' ' + minutes(s.claimResetIn - passed)}`;
+    const short = () => [ico('dice'), s.rollsLeft ? `${s.rollsLeft}/${s.rollsMax}` : minutes(s.rollResetIn - passed), ' · ', ico('ring'), s.claimReady ? '' : minutes(s.claimResetIn - passed)];
     // O saldo fica num pedaço à parte, para pular quando um cristal paga.
-    const kak = () => (s.kakera !== undefined ? [' · 💎 ', el('span', { class: 'salon-status-kakera', textContent: num(s.kakera) })] : []);
+    const kak = () => (s.kakera !== undefined ? [' · ', kakera(), el('span', { class: 'salon-status-kakera', textContent: num(s.kakera) })] : []);
     if (nodes.status.title !== text) {
       nodes.status.title = text;
       nodes.status.replaceChildren(el('span', { class: 'salon-status-pill' + (s.rollsLeft ? '' : ' empty') },
-        el('span', { class: 'salon-status-full' }, `${rolls} · ${claim}`, ...kak()), el('span', { class: 'salon-status-short', ariaHidden: 'true' }, short, ...kak())));
+        el('span', { class: 'salon-status-full' }, `${rolls} · ${claim}`, s.claimReady ? [' ', ico('ring')] : null, ...kak()),
+        el('span', { class: 'salon-status-short', ariaHidden: 'true' }, ...short(), ...kak())));
     }
   }
 
@@ -383,7 +389,7 @@ window.MudaeSalon = function ({ state, el, Icon, call, onSocket, member, avatar,
     const choice = (key, label) => el('button', { type: 'button', class: 'salon-source' + (S.source === key ? ' active' : ''), ariaPressed: String(S.source === key),
       onclick: () => { S.source = key; saveSource(key); renderRollBar(); } }, label);
     const filters = sources.length > 1 ? el('div', { class: 'salon-sources', role: 'group', ariaLabel: 'De onde vêm os personagens' },
-      choice('', '✨ Tudo'), ...sources.map((k) => choice(k, ui.SOURCES[k].icon + ' ' + ui.SOURCES[k].label))) : null;
+      choice('', allChip()), ...sources.map((k) => choice(k, sourceChip(k)))) : null;
     const cmd = (kind) => '$' + kind + S.source;
     nodes.rollBar.replaceChildren(...[filters,
       el('div', { class: 'salon-roll-buttons' }, btn(cmd('w'), 'Waifu', true), btn(cmd('h'), 'Husbando'), btn(cmd('m'), 'Qualquer um'))].filter(Boolean));
@@ -435,13 +441,13 @@ window.MudaeSalon = function ({ state, el, Icon, call, onSocket, member, avatar,
       if (mates.length > 1) {
         // Escolha dupla: as duas cartas lado a lado; tocar numa escolhe com qual casar.
         nodes.cardSlot.append(el('div', { class: 'salon-pair' }, mates.map(pairCard)),
-          el('div', { class: 'salon-stage-caption' }, '🃏 ', el('span', { textContent: pairCaption(m, mates) })));
+          el('div', { class: 'salon-stage-caption' }, ico('dupla'), el('span', { textContent: pairCaption(m, mates) })));
       } else {
         const locked = !!d.lockedBy && claimable(m);
         const card = stageCard(d.card);
         card.dataset.roll = m.id;
         nodes.cardSlot.append(card,
-          el('div', { class: 'salon-stage-caption' }, locked ? '🔒 ' : d.eco ? '🔁 ' : null, member(m.by) ? avatar(member(m.by), 'salon-chip-avatar') : null,
+          el('div', { class: 'salon-stage-caption' }, locked ? ico('cadeado', 'trancado') : d.eco ? ico('eco', 'Eco') : null, member(m.by) ? avatar(member(m.by), 'salon-chip-avatar') : null,
             el('span', { textContent: rolledBy(m) + (d.eco ? ' trouxe de volta' : ' rodou') + ' · ' + RARITY[d.card.rarity || 'common']
               + ' · ' + ui.SOURCES[d.card.source || 'a'].label })));
       }
@@ -465,7 +471,7 @@ window.MudaeSalon = function ({ state, el, Icon, call, onSocket, member, avatar,
   // Uma das duas cartas da Escolha dupla. A que sobrou depois que quem rodou casou leva a faixa "Livre para casar".
   function pairCard(x) {
     const d = x.mudae;
-    const ribbon = d.pairFree ? el('div', { class: 'poder-ribbon' + (d.ownerId ? ' taken' : ''), textContent: d.ownerId ? `💍 ${whoName(d.ownerId)} casou` : 'Livre para casar' }) : null;
+    const ribbon = d.pairFree ? el('div', { class: 'poder-ribbon' + (d.ownerId ? ' taken' : '') }, d.ownerId ? [ico('ring'), `${whoName(d.ownerId)} casou`] : 'Livre para casar') : null;
     const node = cardNode(d.card, { size: 'big', onclick: () => chooseCard(x.id), overlay: ribbon });
     node.dataset.roll = x.id;
     node.classList.toggle('chosen', x.id === S.stage);
@@ -515,7 +521,7 @@ window.MudaeSalon = function ({ state, el, Icon, call, onSocket, member, avatar,
         const who = byId(node.dataset.roll).mudae.lockedBy;
         // Na Escolha dupla, o cadeado fica em cima da carta trancada (a da esquerda ou a da direita).
         const side = cards.length > 1 ? String(cards.indexOf(node)) : '';
-        slot.append(el('div', { class: 'poder-lock', data: { for: node.dataset.roll, side }, title: who === me() ? 'Trancado: só você pode casar' : 'Trancado por ' + whoName(who), textContent: '🔒' }));
+        slot.append(el('div', { class: 'poder-lock', data: { for: node.dataset.roll, side }, title: who === me() ? 'Trancado: só você pode casar' : 'Trancado por ' + whoName(who) }, MI('cadeado', 34)));
       }
     }
     // claimAt: quando o meu casamento volta (0 se já posso casar, pela janela ou pela reserva da Esmeralda);
@@ -558,9 +564,9 @@ window.MudaeSalon = function ({ state, el, Icon, call, onSocket, member, avatar,
     delete nodes.stage.dataset.rarity;
     if (legend) {
       nodes.cardSlot.append(stageCard(legend.mudae.card),
-        el('div', { class: 'salon-stage-caption' }, '🔥 ', el('span', { textContent: `Último lendário: ${whoName(legend.by)}, ${ago(legend.ts)}` })));
+        el('div', { class: 'salon-stage-caption' }, ico('flame'), el('span', { textContent: `Último lendário: ${whoName(legend.by)}, ${ago(legend.ts)}` })));
     } else if (S.favorite) {
-      nodes.cardSlot.append(stageCard(S.favorite), el('div', { class: 'salon-stage-caption' }, '⭐ ', el('span', { textContent: 'Seu favorito' })));
+      nodes.cardSlot.append(stageCard(S.favorite), el('div', { class: 'salon-stage-caption' }, ico('wish'), el('span', { textContent: 'Seu favorito' })));
     } else {
       nodes.cardSlot.append(el('div', { class: 'salon-card big placeholder' }, el('div', { class: 'salon-card-back' }, Icon('dice', 56))),
         el('div', { class: 'salon-stage-caption', textContent: 'Rode para começar!' }));
@@ -579,7 +585,7 @@ window.MudaeSalon = function ({ state, el, Icon, call, onSocket, member, avatar,
     if (!nodes.banner) return;
     const show = S.legendaryUntil > Date.now();
     nodes.banner.classList.toggle('show', show);
-    nodes.banner.textContent = show ? `🔥 ${S.legendaryBy === me() ? 'VOCÊ TIROU' : whoName(S.legendaryBy).toUpperCase() + ' TIROU'} UM LENDÁRIO!` : '';
+    nodes.banner.replaceChildren(...(show ? [ico('flame'), `${S.legendaryBy === me() ? 'VOCÊ TIROU' : whoName(S.legendaryBy).toUpperCase() + ' TIROU'} UM LENDÁRIO!`] : []));
   }
 
   // Botão de casar com o anel de contagem; o anel esvazia por CSS, o número o ticker atualiza.
@@ -624,15 +630,18 @@ window.MudaeSalon = function ({ state, el, Icon, call, onSocket, member, avatar,
     const pr = Math.ceil(((m.mudae.priorityUntil || 0) - now()) / 1000);
     const lockedBy = m.mudae.lockedBy;
     let text = '';
-    if (lockedBy && lockedBy !== me()) text = `🔒 Trancado por ${whoName(lockedBy)}`;
+    let icon = null;
+    if (lockedBy && lockedBy !== me()) { icon = 'cadeado'; text = `Trancado por ${whoName(lockedBy)}`; }
     else if (!canClaim(s)) text = `Você casa de novo em ${minutes(s.claimResetIn - (Date.now() - S.statusAt))}`;
     else if (p === 'priority') text = `prioridade de ${whoName(m.by)} · ${pr}s`;
-    else if (usesReserve(s)) text = '💚 Vai usar a reserva da Esmeralda';
-    else if (lockedBy) text = '🔒 Trancado: só você pode casar';
+    else if (usesReserve(s)) { icon = 'emerald'; text = 'Vai usar a reserva da Esmeralda'; }
+    else if (lockedBy) { icon = 'cadeado'; text = 'Trancado: só você pode casar'; }
     else if (pr > 0 && m.by === me()) text = `só você pode casar · ${pr}s`;
     else if (m.mudae.pairFree) text = 'Livre para casar: quem for mais rápido leva!';
-    else if (m.by !== me()) text = 'Casar com o roll de outra pessoa é roubo 😈';
-    if (caption.textContent !== text) caption.textContent = text;
+    else if (m.by !== me()) { icon = 'thief'; text = 'Casar com o roll de outra pessoa é roubo'; }
+    // Só redesenha quando muda (o relógio chama isto várias vezes por segundo).
+    const key = (icon || '') + '|' + text;
+    if (caption.dataset.key !== key) { caption.dataset.key = key; caption.replaceChildren(...(icon ? [ico(icon), text] : [text])); }
   }
 
   async function claim(m, btn) {
@@ -661,16 +670,16 @@ window.MudaeSalon = function ({ state, el, Icon, call, onSocket, member, avatar,
   // Ao voltar para a Mesa durante um giro, guarda o espaço até o horário da revelação.
   function spinningLayout(m) {
     nodes.cardSlot.replaceChildren(el('div', { class: 'salon-card big placeholder', data: { roll: m.id } }, cardBack()),
-      el('div', { class: 'salon-stage-caption', textContent: spinCaption(m) }));
+      el('div', { class: 'salon-stage-caption' }, ...spinCaption(m)));
     nodes.stage.dataset.rarity = 'spinning';
     renderActions();
   }
 
   // O que o palco diz enquanto a cápsula gira: um roll, a Escolha dupla ou a carta que volta com o Eco.
   function spinCaption(m) {
-    if (m.mudae.eco) return `🔁 ${rolledBy(m)} está trazendo de volta…`;
-    if (m.mudae.pair) return `🃏 Escolha dupla: ${rolledBy(m).toLowerCase() === 'você' ? 'você abre' : rolledBy(m) + ' abre'} duas cartas…`;
-    return rolledBy(m) + ' está rodando…';
+    if (m.mudae.eco) return [ico('eco'), `${rolledBy(m)} está trazendo de volta…`];
+    if (m.mudae.pair) return [ico('dupla'), `Escolha dupla: ${rolledBy(m).toLowerCase() === 'você' ? 'você abre' : rolledBy(m) + ' abre'} duas cartas…`];
+    return [rolledBy(m) + ' está rodando…'];
   }
 
   // A carta vira de frente ao revelar o resultado.
@@ -721,7 +730,7 @@ window.MudaeSalon = function ({ state, el, Icon, call, onSocket, member, avatar,
     const decoys = warmUp(source, d.decoys);
     const cover = el('div', { class: 'salon-reel-cover' }, cardBack());
     const reel = el('div', { class: `salon-reel is-preparing r-${rarity}`, data: { roll: m.id } }, cover, el('div', { class: 'salon-reel-shade' }));
-    nodes.cardSlot.replaceChildren(reel, el('div', { class: 'salon-stage-caption', textContent: spinCaption(m) }));
+    nodes.cardSlot.replaceChildren(reel, el('div', { class: 'salon-stage-caption' }, ...spinCaption(m)));
     nodes.stage.dataset.rarity = 'spinning';
     renderActions();
     const done = () => {
@@ -798,8 +807,8 @@ window.MudaeSalon = function ({ state, el, Icon, call, onSocket, member, avatar,
     const d = m.mudae;
     const who = member(m.by);
     // Na Mesa ao vivo, a marca do poder vai na frente do nome: trancada, veio do Eco ou é da Escolha dupla.
-    const mark = d.lockedBy && claimable(m) ? '🔒 ' : d.eco ? '🔁 ' : d.pair ? '🃏 ' : '';
-    const chip = el('div', { class: 'salon-chip' }, who ? avatar(who, 'salon-chip-avatar') : null, el('span', { textContent: mark + whoName(m.by) }));
+    const mark = d.lockedBy && claimable(m) ? ico('cadeado', 'trancado') : d.eco ? ico('eco', 'Eco') : d.pair ? ico('dupla', 'Escolha dupla') : null;
+    const chip = el('div', { class: 'salon-chip' }, who ? avatar(who, 'salon-chip-avatar') : null, el('span', {}, mark, whoName(m.by)));
     const open = () => { S.stage = m.id; renderStage(); };
     let node;
     if (p === 'spinning') {
@@ -903,7 +912,7 @@ window.MudaeSalon = function ({ state, el, Icon, call, onSocket, member, avatar,
             el('button', { type: 'button', class: 'salon-trade-btn', onclick: () => trade.start(a.ownerId, S.channel) }, Icon('refresh', 16), 'Propor troca')))),
       fav ? el('div', { class: 'salon-album-fav r-' + fav.rarity, onclick: () => openImage(fav.image) },
         el('img', { src: fav.image, alt: fav.name, decoding: 'async', draggable: false }),
-        el('div', {}, el('div', { class: 'salon-fav-tag' }, '⭐ ', fav.chosen ? 'Favorito' : 'Mais valioso'),
+        el('div', {}, el('div', { class: 'salon-fav-tag' }, ico('wish'), fav.chosen ? 'Favorito' : 'Mais valioso'),
           el('div', { class: 'salon-card-name', textContent: fav.name }), el('div', { class: 'salon-card-series', textContent: fav.series }),
           el('div', { class: 'salon-card-value' }, kakera(), el('strong', { textContent: num(fav.value) })))) : null);
     if (!a.total) {
@@ -921,7 +930,7 @@ window.MudaeSalon = function ({ state, el, Icon, call, onSocket, member, avatar,
     sort.onchange = () => { S.sort = sort.value; S.shown = PAGE; renderGrid(); };
     const present = [...new Set(a.chars.map((c) => c.source || 'a'))].filter((k) => ui.SOURCES[k]);
     const sourceSelect = present.length > 1 ? el('select', { class: 'salon-sort', ariaLabel: 'Fonte' },
-      [['all', 'Todas as fontes'], ...present.map((k) => [k, ui.SOURCES[k].icon + ' ' + ui.SOURCES[k].label])].map(([v, t]) => el('option', { value: v, textContent: t, selected: S.albumSource === v }))) : null;
+      [['all', 'Todas as fontes'], ...present.map((k) => [k, ui.SOURCES[k].label])].map(([v, t]) => el('option', { value: v, textContent: t, selected: S.albumSource === v }))) : null;
     if (sourceSelect) sourceSelect.onchange = () => { S.albumSource = sourceSelect.value; S.shown = PAGE; renderGrid(); };
     nodes.grid = el('div', { class: 'salon-grid' });
     nodes.body.replaceChildren(el('div', { class: 'salon-album' }, head,
@@ -939,12 +948,12 @@ window.MudaeSalon = function ({ state, el, Icon, call, onSocket, member, avatar,
       const isFav = a.favorite?.chosen && a.favorite.id === c.id;
       const wishers = (c.wishedBy || []).filter((id) => id !== me());
       const actions = mine ? el('div', { class: 'salon-card-actions' },
-        el('button', { type: 'button', class: isFav ? 'active' : '', onclick: (e) => { e.stopPropagation(); favorite(isFav ? null : c.id); } }, '⭐ ', isFav ? 'Favorito' : 'Favoritar'),
+        el('button', { type: 'button', class: isFav ? 'active' : '', onclick: (e) => { e.stopPropagation(); favorite(isFav ? null : c.id); } }, ico('wish'), isFav ? 'Favorito' : 'Favoritar'),
         el('button', { type: 'button', class: 'danger', title: 'Divorciar de ' + c.name, ariaLabel: 'Divorciar de ' + c.name, onclick: (e) => { e.stopPropagation(); divorce(c); } }, Icon('trash', 16)))
         : wishButton(c);
       // Alguém deseja esta carta sua: um toque propõe a troca para essa pessoa.
       const wanted = mine && wishers.length ? el('button', { type: 'button', class: 'salon-wanted', title: 'Propor troca para ' + whoName(wishers[0]),
-        onclick: () => trade.start(wishers[0], S.channel) }, '🌟 ', el('span', { textContent: whoName(wishers[0]) + (wishers.length > 1 ? ` e mais ${wishers.length - 1}` : '') + ' deseja' })) : null;
+        onclick: () => trade.start(wishers[0], S.channel) }, ico('wish'), el('span', { textContent: whoName(wishers[0]) + (wishers.length > 1 ? ` e mais ${wishers.length - 1}` : '') + ' deseja' })) : null;
       const node = cardNode(c, { size: 'album' });
       if (isFav) node.classList.add('fav');
       return el('div', { class: 'salon-album-item' }, node, wanted, actions);
@@ -988,7 +997,7 @@ window.MudaeSalon = function ({ state, el, Icon, call, onSocket, member, avatar,
   }
   // Estrela na carta de outra pessoa (ou livre): põe ou tira da lista de desejos.
   function wishButton(c) {
-    if (c.ownerId === me()) return el('div', { class: 'salon-card-actions' }, el('button', { type: 'button', disabled: true }, '💖 É seu'));
+    if (c.ownerId === me()) return el('div', { class: 'salon-card-actions' }, el('button', { type: 'button', disabled: true }, ico('heart'), 'É seu'));
     const on = !!S.wishes?.has(String(c.id));
     return el('div', { class: 'salon-card-actions' },
       el('button', { type: 'button', class: on ? 'active' : '', ariaPressed: String(on), title: on ? 'Tirar da lista de desejos' : 'Você recebe um aviso quando alguém rodar',
@@ -1000,7 +1009,7 @@ window.MudaeSalon = function ({ state, el, Icon, call, onSocket, member, avatar,
           if (on) S.wishes.delete(String(c.id)); else S.wishes.add(String(c.id));
           toast(on ? `${c.name} saiu da sua lista de desejos (${res.total}/${res.max}).` : `${c.name} entrou na sua lista de desejos (${res.total}/${res.max}).`, 'info');
           if (S.tab === 'chars') renderCharGrid(); else renderGrid();
-        } }, '⭐ ', on ? 'Desejado' : 'Desejar'),
+        } }, ico('wish'), on ? 'Desejado' : 'Desejar'),
       c.ownerId && c.ownerId !== me() ? el('button', { type: 'button', class: 'icon', title: 'Propor troca para ' + whoName(c.ownerId), ariaLabel: 'Propor troca para ' + whoName(c.ownerId),
         onclick: (e) => { e.stopPropagation(); trade.start(c.ownerId, S.channel); } }, Icon('refresh', 16)) : null);
   }
@@ -1054,13 +1063,13 @@ window.MudaeSalon = function ({ state, el, Icon, call, onSocket, member, avatar,
       onclick: () => { Object.assign(c, { series: null, text: '', [field]: value, data: null }); renderChars(); loadChars(); } }, label);
     const sources = Object.keys(S.sources || ui.SOURCES).filter((k) => ui.SOURCES[k]);
     const d = c.data;
-    const title = c.series ? '📚 ' + c.series : d?.label || 'Personagens';
+    const title = c.series ? [ico('obra'), c.series] : [d?.label || 'Personagens'];
     const pct = d?.series && d.total ? Math.round((d.mine / d.total) * 100) : 0;
     nodes.charGrid = el('div', { class: 'salon-grid' });
     nodes.charPager = el('div', { class: 'salon-char-pager' });
     nodes.body.replaceChildren(el('div', { class: 'salon-album salon-chars' },
       el('div', { class: 'salon-album-head' },
-        el('div', {}, el('h2', { textContent: title }),
+        el('div', {}, el('h2', {}, ...title),
           d?.series
             ? el('div', { class: 'salon-chars-progress' }, el('span', {}, 'Você tem ', el('strong', { textContent: num(d.mine) }), ` de ${num(d.total)} · ${num(d.claimed)} com dono`),
               el('div', { class: 'mudae-progress', role: 'progressbar', ariaValuenow: String(pct), ariaValuemin: '0', ariaValuemax: '100' }, el('span', { style: { width: pct + '%' } })))
@@ -1069,7 +1078,7 @@ window.MudaeSalon = function ({ state, el, Icon, call, onSocket, member, avatar,
       el('div', { class: 'salon-toolbar' }, search,
         el('div', { class: 'salon-filters' }, chip('gender', '', 'Todos'), chip('gender', 'F', 'Waifus'), chip('gender', 'M', 'Husbandos'),
           chip('gender', 'O', 'Sem gênero'))),
-      sources.length > 1 ? el('div', { class: 'salon-filters' }, chip('source', '', '✨ Tudo'), ...sources.map((k) => chip('source', k, ui.SOURCES[k].icon + ' ' + ui.SOURCES[k].label))) : null,
+      sources.length > 1 ? el('div', { class: 'salon-filters' }, chip('source', '', allChip()), ...sources.map((k) => chip('source', k, sourceChip(k)))) : null,
       nodes.charGrid, nodes.charPager));
     renderCharGrid();
   }
@@ -1102,15 +1111,21 @@ window.MudaeSalon = function ({ state, el, Icon, call, onSocket, member, avatar,
     if (S.tab === 'ranking') renderRanking();
   }
 
+  // Ouro, prata e bronze da Forja nos 3 primeiros (sem a Forja, a medalha simples na cor do lugar).
+  function rankMedal(i) {
+    if (ui.rankMedal) return ui.rankMedal(i, 28);
+    if (forge) { const svg = forge.medalSvg(['ouro', 'prata', 'bronze'][i], 1, 'metal', 28); svg.setAttribute('aria-label', `${i + 1}º lugar`); return svg; }
+    return el('span', { class: 'mudae-rank-medal p' + (i + 1) }, ico('medal', `${i + 1}º lugar`));
+  }
+
   function renderRanking() {
     const r = S.ranking;
     if (!r) return nodes.body.replaceChildren(el('div', { class: 'salon-loading', textContent: 'Calculando o ranking…' }));
-    const medals = ['🥇', '🥈', '🥉'];
     const myIndex = r.rows.findIndex((row) => row.ownerId === me());
     const row = (x, i) => {
       const m = member(x.ownerId);
       return el('button', { type: 'button', class: 'salon-rank-row' + (x.ownerId === me() ? ' me' : ''), onclick: () => openHarem(x.ownerId) },
-        el('span', { class: 'salon-rank-pos', textContent: medals[i] || String(i + 1) }),
+        i < 3 ? el('span', { class: 'salon-rank-pos medal' }, rankMedal(i)) : el('span', { class: 'salon-rank-pos', textContent: String(i + 1) }),
         m ? avatar(m) : el('div', { class: 'avatar' }),
         el('div', { class: 'salon-rank-who' }, el('strong', { textContent: x.ownerId === me() ? 'Você' : whoName(x.ownerId), style: { color: nameColor(m) || '' } }),
           el('span', { textContent: `${num(x.total)} ${x.total === 1 ? 'personagem' : 'personagens'}` })),
@@ -1214,7 +1229,7 @@ window.MudaeSalon = function ({ state, el, Icon, call, onSocket, member, avatar,
     Sounds.play('mudaeRare');
     const go = () => { if (S.channel !== w.channel) openChannel(w.channel); setTimeout(() => api.show(w.id)); };
     trade.notice({ image: w.card.image, ms: 20_000,
-      text: `⭐ ${w.card.name}, da sua lista de desejos, saiu no roll de ${whoName(w.by)}!` + (w.ownerId ? ` Já é de ${whoName(w.ownerId)}.` : ' Corre para casar!'),
+      icon: 'wish', text: `${w.card.name}, da sua lista de desejos, saiu no roll de ${whoName(w.by)}!` + (w.ownerId ? ` Já é de ${whoName(w.ownerId)}.` : ' Corre para casar!'),
       action: S.channel === w.channel ? 'Ver na Mesa' : 'Ir para o Salão', onAction: go });
   });
   // Depois de reconectar, o servidor não sabe mais que estamos no Salão.
@@ -1247,7 +1262,7 @@ window.MudaeSalon = function ({ state, el, Icon, call, onSocket, member, avatar,
       el('button', { type: 'button', class: 'pc-mudae r-' + f.rarity, disabled: !salon, title: salon ? 'Ver o harem' : '',
         onclick: () => { closeProfile(); openChannel(salon.id); setTimeout(() => openHarem(accountId)); } },
         el('img', { src: f.image, alt: f.name, loading: 'lazy', decoding: 'async' }),
-        el('div', {}, el('div', { class: 'pc-mudae-tag', textContent: f.chosen ? '⭐ Favorito' : '⭐ Mais valioso' }),
+        el('div', {}, el('div', { class: 'pc-mudae-tag' }, ico('wish'), f.chosen ? 'Favorito' : 'Mais valioso'),
           el('strong', { textContent: f.name }),
           el('div', { class: 'pc-mudae-stats' }, `${num(s.total)} ${s.total === 1 ? 'personagem' : 'personagens'} · ${num(s.value)} `, kakera()))));
   }

@@ -87,7 +87,7 @@ async function ui(t, invited = false, options = {}) {
   let copied = '';
   Object.defineProperty(w.navigator, 'clipboard', { value: { writeText: async (text) => { copied = text; } } });
   options.setup?.(w);
-  for (const file of ['compat.js', 'motion.js', 'icons.js', 'format.js', 'sounds.js', 'media-policy.js', 'keybinds.js', 'settings.js', 'site-calls.js', 'site-health.js', 'photo-editor.js', 'media-session.js', 'media-sfu.js', 'stream-preview.js', 'mobile-stream.js', 'android-screen.js', 'stream-zoom.js', 'changelog.js', 'confetti.js', 'channel-navigation.js', 'music.js', 'mudae.js', 'mudae-troca.js', 'mudae-cristal.js', 'mudae-forja.js', 'mudae-poderes.js', 'mudae-salao.js', 'dm-call.js', 'state-patch.js', 'voice-message.js', 'poll.js', 'gif-picker.js', 'emoji-picker.js', 'lightbox.js', 'voice-fx.js', 'feedback.js', 'clip-model.js', 'clip-buffer.js', 'clip-screen.js', 'clip-render.js', 'clip-ui.js', 'sound-trimmer.js', 'app.js', 'landing.js']) w.eval(fs.readFileSync(path.join(publicDir, file), 'utf8'));
+  for (const file of ['compat.js', 'motion.js', 'icons.js', 'format.js', 'sounds.js', 'media-policy.js', 'keybinds.js', 'settings.js', 'site-calls.js', 'site-health.js', 'photo-editor.js', 'media-session.js', 'media-sfu.js', 'stream-preview.js', 'mobile-stream.js', 'android-screen.js', 'stream-zoom.js', 'changelog.js', 'confetti.js', 'channel-navigation.js', 'music.js', 'mudae.js', 'mudae-icones.js', 'mudae-troca.js', 'mudae-cristal.js', 'mudae-forja.js', 'mudae-poderes.js', 'mudae-salao.js', 'dm-call.js', 'state-patch.js', 'voice-message.js', 'poll.js', 'gif-picker.js', 'emoji-picker.js', 'lightbox.js', 'voice-fx.js', 'feedback.js', 'clip-model.js', 'clip-buffer.js', 'clip-screen.js', 'clip-render.js', 'clip-ui.js', 'sound-trimmer.js', 'app.js', 'landing.js']) w.eval(fs.readFileSync(path.join(publicDir, file), 'utf8'));
   w.localStorage.setItem('seenVersion', w.APP_VERSION);
   t.after(() => { dom.window.close(); assert.deepEqual(errors.map((e) => e.message), []); });
   await settle();
@@ -1298,8 +1298,10 @@ test('Salão do Mudae: tela própria com palco, mesa ao vivo, presença, álbum 
   assert.ok(app.d.querySelector('#main').classList.contains('salon-mode'));
   assert.ok(app.d.querySelector('#app').classList.contains('hide-members'), 'a coluna do chat fica no lugar da lista de membros');
   assert.deepEqual([...app.d.querySelectorAll('.salon-tab')].map((b) => b.textContent), ['Mesa', 'Meu harem', 'Forja', 'Personagens', 'Ranking']);
-  assert.equal(app.d.querySelector('.salon-status-full').textContent, '9/10 rolls · casamento disponível 💍');
-  assert.equal(app.d.querySelector('.salon-status-short').textContent, '🎲 9/10 · 💍', 'versão curta para a faixa apertada');
+  assert.equal(app.d.querySelector('.salon-status-full').textContent.trim(), '9/10 rolls · casamento disponível');
+  assert.ok(app.d.querySelector('.salon-status-full svg.mi-ring'), 'o anel desenhado no lugar do emoji');
+  assert.equal(app.d.querySelector('.salon-status-short').textContent.trim(), '9/10 ·', 'versão curta para a faixa apertada');
+  assert.ok(app.d.querySelector('.salon-status-short svg.mi-dice') && app.d.querySelector('.salon-status-short svg.mi-ring'));
   assert.match(app.d.querySelector('.salon-stage-caption').textContent, /Rode para começar/);
   assert.equal(app.d.querySelector('.salon-gacha'), null, 'o palco não cria a camada 3D');
   assert.equal(app.d.querySelector('.salon-stage canvas'), null, 'o fundo não usa canvas');
@@ -1404,7 +1406,8 @@ test('Mudae no modo simplificado: o Salão vira chat com cards completos que esp
   app.deliver('chat:message', { channel: 'server-1-salon', msg: roll }); await settle();
   const button = () => app.d.querySelector('[data-id="r1"] .mudae-claim');
   assert.ok(app.d.querySelector('[data-id="r1"] .mudae-card'), 'card completo no chat, como no Mudae original');
-  assert.match(app.d.querySelector('[data-id="r1"] .mudae-series').textContent, /🎮 The Witcher/);
+  assert.equal(app.d.querySelector('[data-id="r1"] .mudae-series').textContent, 'The Witcher');
+  assert.equal(app.d.querySelector('[data-id="r1"] .mudae-series [role="img"]').getAttribute('aria-label'), 'Jogos', 'o ícone da fonte fala o nome dela');
   assert.equal(app.d.querySelector('[data-id="r1"] .mudae-rarity-tag').textContent, 'Lendário');
   assert.match(button().textContent, /Girando…/);
   assert.equal(button().disabled, true);

@@ -2,7 +2,7 @@
    tela e some. O servidor sorteia o cristal, diz quando ele aparece (appearAt, na hora do servidor), quanto tempo
    vive (life) e confere cada clique; aqui o navegador só desenha o voo, que sai do seed (todos veem o mesmo
    caminho), e manda o clique. No modo simplificado (attach sem container), o cristal vira uma linha do bot com o
-   botão "💎 Pegar". O fim do cristal sempre vira a linha de quem pegou. Essas linhas são só ao vivo. */
+   botão "Pegar" (com o kakera). O fim do cristal sempre vira a linha de quem pegou. Essas linhas são só ao vivo. */
 window.MudaeCrystals = function ({ el, call, onSocket, Sounds, ui, member, reducedMotion, addLiveLine }) {
   const now = () => ui.serverNow();
   const FADE_IN = 0.12; // surge nos primeiros 12% da vida...
@@ -85,10 +85,15 @@ window.MudaeCrystals = function ({ el, call, onSocket, Sounds, ui, member, reduc
     return { x: box.x + PAD + p.x * Math.max(0, box.w - size - 2 * PAD), y: box.y + PAD + p.y * Math.max(0, box.h - size - 2 * PAD) };
   }
 
+  // Lasca de cristal pontuda em cima e embaixo (o mesmo desenho do ícone do kakera, mudae-icones.js): faces da esquerda
+  // claras, da direita escuras, a face da frente no meio e uma aresta de luz.
   const GEM_SVG = '<svg class="mudae-crystal-gem" viewBox="0 0 64 64" aria-hidden="true">'
-    + '<polygon class="g-body" points="32,3 57,22 47,60 17,60 7,22"/><polygon class="g-light" points="32,3 44,22 32,60 20,22"/>'
-    + '<polygon class="g-left" points="7,22 20,22 17,60"/><polygon class="g-right" points="57,22 44,22 47,60"/>'
-    + '<polygon class="g-top" points="32,3 20,22 44,22"/><path class="g-shine" d="M22 13l1.6 3.4L27 18l-3.4 1.6L22 23l-1.6-3.4L17 18l3.4-1.6z"/></svg>';
+    + '<polygon class="g-body" points="32,2 49,19 49,45 32,62 15,45 15,19"/>'
+    + '<polygon class="g-left" points="32,2 15,19 15,45 32,62 25,45 25,19"/><polygon class="g-right" points="32,2 49,19 49,45 32,62 39,45 39,19"/>'
+    + '<polygon class="g-light" points="32,2 39,19 39,45 32,62 25,45 25,19"/><polygon class="g-top" points="32,2 25,19 39,19"/>'
+    + '<polyline class="g-edge" points="32,5 25.5,19.5 25.5,44.5 31,58"/>'
+    + '<path class="g-shine" d="M21 9l1.6 3.4L26 14l-3.4 1.6L21 19l-1.6-3.4L16 14l3.4-1.6z"/></svg>';
+  const MI = window.MudaeIcon || Object.assign(() => document.createElement('span'), { inline: () => document.createElement('span') });
 
   // Um cristal na tela (ou uma gota da chuva): o botão, o caminho e a janela de tempo dele.
   function addSprite(c, { gem, start, dur, path, fixed, fade, drop = false }) {
@@ -102,7 +107,7 @@ window.MudaeCrystals = function ({ el, call, onSocket, Sounds, ui, member, reduc
     node.style.opacity = '0';
     node.append(el('span', { class: 'mudae-crystal-glow' }), el('span', { class: 'mudae-crystal-body' }));
     node.lastChild.innerHTML = GEM_SVG;
-    if (v.kind === 'chain') node.append(el('span', { class: 'mudae-crystal-step', textContent: `🔗 ${v.step}` }));
+    if (v.kind === 'chain') node.append(el('span', { class: 'mudae-crystal-step' }, MI('link', 12), String(v.step)));
     const sp = { c, gem, node, size, start, dur, path, fixed, fade, drop, x: 0, y: 0, spark: 0, pending: false };
     // No toque e no mouse, o clique vale ao apertar (o cristal está se mexendo); no teclado, Enter ou espaço.
     node.addEventListener('pointerdown', (e) => { if (e.button > 0) return; e.preventDefault(); take(sp); });
@@ -202,12 +207,12 @@ window.MudaeCrystals = function ({ el, call, onSocket, Sounds, ui, member, reduc
         'translate(-50%, -175%) scale(1)'],
       ease: 'ease-out', fade: [0, { opacity: 1, offset: 0.1 }, { opacity: 1, offset: 0.7 }, 0] }, 1300,
     el('strong', { textContent: '+' + ui.num(res.amount) }), note ? el('small', { textContent: note }) : null);
-    if (v.kind === 'chain' && v.step === 5) banner('🔗 Corrente completa!', v.color);
+    if (v.kind === 'chain' && v.step === 5) banner('Corrente completa!', v.color, 'link');
   }
-  function banner(text, color) {
+  function banner(text, color, icon = 'kakera') {
     if (!host?.layer) return;
     const box = measure();
-    effect('mudae-crystal-banner', box.x + box.w / 2, box.y + 12, color, null, 2600, el('span', { textContent: text }));
+    effect('mudae-crystal-banner', box.x + box.w / 2, box.y + 12, color, null, 2600, el('span', {}, MI.inline(icon), text));
   }
 
   // ---------- clique ----------
@@ -263,9 +268,9 @@ window.MudaeCrystals = function ({ el, call, onSocket, Sounds, ui, member, reduc
     Sounds.play('mudaeCrystal');
     if (v.kind === 'storm') {
       const who = v.by && member(v.by)?.name;
-      return banner(who ? `🌧️ ${who} chamou uma chuva de cristais!` : '🌧️ Chuva de cristais!', v.color);
+      return banner(who ? `${who} chamou uma chuva de cristais!` : 'Chuva de cristais!', v.color, 'chuva');
     }
-    if (v.kind === 'chain' && v.step === 1) banner('🔗 Corrente de cristais!', v.color);
+    if (v.kind === 'chain' && v.step === 1) banner('Corrente de cristais!', v.color, 'link');
     if (c.mine.has(0)) return;
     const r = random(v.seed);
     const box = measure();

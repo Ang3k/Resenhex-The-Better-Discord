@@ -81,7 +81,7 @@ function forja(t, { reduced = false, view = forjaView(1200), powers = powersView
   const member = (id) => (people[id] ? { id, name: people[id] } : null);
   const Sounds = { play: (name) => sounds.push(name) };
   const state = { me: { accountId: 'me' }, messages: { room: [] }, textChannel: 'room' };
-  for (const file of ['mudae.js', 'mudae-forja.js', 'mudae-salao.js']) w.eval(read(file));
+  for (const file of ['mudae.js', 'mudae-icones.js', 'mudae-forja.js', 'mudae-salao.js']) w.eval(read(file));
   let forge = null;
   const ui = w.MudaeUI({ state, el, Icon: () => el('i'), call, member, avatar: () => el('span'), nameColor: () => '', Format: { render: (text) => text }, fmtCtx: {},
     openProfile() {}, openImage() {}, openChannel() {}, renderMessages() {}, keepBottom() {}, medalSvg: (...args) => forge.medalSvg(...args) });
@@ -333,7 +333,9 @@ test('poderes fechados mostram o progresso; abertos podem ir para o palco', asyn
   assert.match(app.text(power('amuleto')), /No palco · espaço 2 · volta em 20h00/);
   assert.equal(app.$('.forja-slot-pick'), null, 'a escolha fecha');
   // Os 3 espaços do palco, em cima da lista.
-  assert.deepEqual(app.$$('.forja-stage-slot').map((s) => app.text(s)), ['1 🔮 Vidência pronto', '2 🍀 Amuleto volta em 20h00', '3 espaço livre']);
+  assert.deepEqual(app.$$('.forja-stage-slot').map((s) => app.text(s)), ['1 Vidência pronto', '2 Amuleto volta em 20h00', '3 espaço livre']);
+  assert.deepEqual(app.$$('.forja-stage-slot svg.mi-power').map((s) => s.dataset.power), ['videncia', 'amuleto'], 'o ícone de cada poder no palco');
+  assert.ok(app.$('.forja-power[data-power="laco"] .forja-power-badge svg.mi-laco'), 'o selo do poder é o ícone dele');
 });
 
 test('com Reduzir animações, forjar não anima voo nem martelo', async (t) => {

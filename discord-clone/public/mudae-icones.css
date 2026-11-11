@@ -1,0 +1,147 @@
+/* Ícones próprios do Mudae (mudae-icones.js): cores, tamanho no meio do texto e os gestos de cada um.
+   O desenho segue o Icon() do app (traço currentColor); a camada .mi-tone pinta por baixo do traço. Cada poder tem a
+   sua cor (--mi-c), a mesma do trilho (mudae-poderes.css). Os gestos usam os tempos e as molas do motion.css;
+   "Reduzir animações" (do app e do sistema) desliga tudo, e os que repetem param com a janela em segundo plano. */
+[data-power=videncia] { --mi-c: var(--rarity-epic); }
+[data-power=cadeado] { --mi-c: var(--rarity-rare); }
+[data-power=amuleto] { --mi-c: var(--rarity-legendary); }
+[data-power=chuva] { --mi-c: var(--brand); }
+[data-power=desejo] { --mi-c: var(--poder-desejo); }
+[data-power=eco] { --mi-c: var(--green); }
+[data-power=dupla] { --mi-c: var(--poder-dupla); }
+[data-power=laco] { --mi-c: var(--poder-laco); }
+
+.mi { flex-shrink: 0; overflow: visible; }
+.mi .mi-tone { fill: var(--mi-tone, currentColor); }
+.mi.mi-sm .mi-detail, .mi:not(.mi-sm) .mi-small { display: none; }
+/* O brilho só aparece no gesto. */
+.mi .mi-glint { fill: color-mix(in srgb, currentColor, #fff 75%); transform-box: fill-box; transform-origin: center; transform: scale(0); }
+.mi-power { color: color-mix(in srgb, var(--mi-c), #fff 18%); --mi-tone: var(--mi-c); }
+.mi-power .mi-tone { fill-opacity: .32; }
+.mi-power .mi-drop, .mi-power .mi-spark { fill: color-mix(in srgb, var(--mi-c), #fff 55%); }
+
+/* ---------- no meio do texto ---------- */
+.mi-inline { display: inline-flex; flex-shrink: 0; margin-right: .3em; line-height: 0; vertical-align: -.24em; }
+.mi-inline > .mi { width: 1.25em; height: 1.25em; }
+/* A medalha da Forja numa linha do bot. */
+:is(.mudae-line, .msg-text) > svg.forja-medal { margin-right: .35em; vertical-align: middle; }
+
+/* Cores dos símbolos (só no texto: no palco quem manda é o lugar). */
+.mi-inline > .mi-wish, .mi-inline > .mi-trophy, .mi-inline > .mi-bolt, .mi-inline > .mi-ring, .mi-inline > .mi-medal { color: var(--yellow); }
+.mi-inline > .mi-heart, .mi-inline > .mi-gift { color: var(--poder-desejo); }
+.mi-inline > :is(.mi-heartBreak, .mi-thief) { color: var(--red); }
+.mi-inline > .mi-flame { color: color-mix(in srgb, var(--yellow), var(--red) 40%); }
+.mi-inline > .mi-emerald { color: var(--green); }
+.mi-inline > .mi-sparkles { color: var(--yellow); }
+.mi-inline[style*="color"] > .mi-kakera { color: inherit; }
+.mi-inline > .mi-kakera { color: var(--brand-text, var(--brand)); }
+/* Medalha simples dos 3 primeiros (quando não há a da Forja). */
+.mudae-rank-medal.p1 { color: var(--rarity-legendary); }
+.mudae-rank-medal.p2 { color: color-mix(in srgb, var(--text-strong) 80%, var(--rarity-rare)); }
+.mudae-rank-medal.p3 { color: color-mix(in srgb, var(--rarity-legendary), var(--red) 45%); }
+.mudae-rank-medal .mi-inline > .mi { color: inherit; }
+
+/* ---------- kakera: o cristal pisca ---------- */
+.mi-kakera .mi-face-l { transition: fill-opacity var(--motion-base) var(--ease-enter); }
+@media (hover: hover) and (pointer: fine) {
+  :is(button, a, [role="button"]):hover:not(:disabled) .mi-kakera .mi-glint { animation: mi-glint .7s var(--spring-pop); }
+  :is(button, a, [role="button"]):hover:not(:disabled) .mi-kakera .mi-face-l { fill-opacity: .6; }
+  :is(button, a, [role="button"]):hover:not(:disabled) .mi-ring .mi-glint { animation: mi-glint .7s var(--spring-pop); }
+  :is(button, a, [role="button"]):hover:not(:disabled) .mi-wish { animation: g-twinkle .6s var(--spring); }
+  :is(button, a, [role="button"]):hover:not(:disabled) :is(.mi-heart, .mi-gift) { animation: g-pop .45s var(--spring); }
+  :is(button, a, [role="button"]):hover:not(:disabled) .mi-trade { animation: g-nudge .45s var(--spring); }
+  :is(button, a, [role="button"]):hover:not(:disabled) :is(.mi-torii, .mi-comic, .mi-tv) { animation: g-bounce .5s var(--spring); }
+}
+.salon-status-pill.bump .mi-kakera .mi-glint { animation: mi-glint .7s var(--spring-pop); }
+/* O botão "Pegar" de um cristal que ainda está na tela pisca de tempos em tempos. */
+.mudae-crystal-take:not(:disabled):not(.done) .mi-kakera .mi-glint { animation: mi-glint-idle 2.4s ease-in-out infinite; }
+/* O lendário arde. */
+:is(.salon-banner, .salon-stage-caption) .mi-flame { transform-origin: 50% 90%; animation: mi-flicker 1.4s ease-in-out infinite; }
+
+/* ---------- os poderes ---------- */
+/* No trilho: traço branco, cor do poder por baixo e um brilho em volta. */
+.poder-ico { display: grid; place-items: center; }
+.poder-ico .mi {
+  display: block; width: calc(var(--orb, 56px) * .56); height: calc(var(--orb, 56px) * .56); color: #fff; --mi-tone: color-mix(in srgb, var(--mi-c), #000 30%);
+  filter: drop-shadow(0 1px 2px rgba(0, 0, 0, .55));
+}
+.poder-ico .mi .mi-tone { fill-opacity: .9; }
+.poder-ico .mi :is(.mi-drop, .mi-spark) { fill: #fff; }
+.poder-fly .poder-ico .mi { width: 30px; height: 30px; }
+/* Na Forja: o selo de cada poder na cor dele. */
+.forja-power-badge .mi { width: 26px; height: 26px; filter: drop-shadow(0 1px 2px rgba(0, 0, 0, .5)); }
+.forja-power[data-power] .forja-power-badge {
+  background: radial-gradient(circle at 35% 30%, color-mix(in srgb, var(--mi-c) 45%, var(--bg-input)), var(--bg-floating));
+  box-shadow: inset 0 0 0 1.5px color-mix(in srgb, var(--mi-c) 60%, transparent), 0 0 12px color-mix(in srgb, var(--mi-c) 25%, transparent);
+}
+.forja-power-icon, .forja-slot-pick .mi { display: inline-flex; vertical-align: -.2em; }
+.forja-perk-price.got .mi { color: var(--green); }
+/* O cadeado em cima da carta trancada e o que cai nela. */
+.poder-lock .mi, .poder-fx-lock .mi { display: block; color: #fff; --mi-tone: var(--rarity-rare); }
+.poder-lock .mi .mi-tone, .poder-fx-lock .mi .mi-tone { fill-opacity: .95; }
+.poder-fx-clover .mi, .poder-fx-star .mi { display: block; color: color-mix(in srgb, var(--c), #fff 30%); --mi-tone: var(--c); filter: drop-shadow(0 0 6px var(--c)); }
+.poder-fx-star .mi { filter: drop-shadow(0 0 10px var(--c)) drop-shadow(0 0 2px #fff); }
+.poder-fx-clover .mi .mi-tone { fill-opacity: .8; }
+.poder-banner strong .mi-inline > .mi, .poder-ribbon .mi-inline > .mi { color: #fff; --mi-tone: #fff; }
+.poder-capsule i .mi { color: var(--yellow); filter: drop-shadow(0 1px 1px rgba(0, 0, 0, .6)); }
+.poder-capsule i .mi .mi-tone { fill-opacity: .9; }
+
+/* Partes que se mexem (giram em volta do próprio desenho, no quadro de 24). */
+.mi :is(.mi-spark, .mi-key, .mi-drop, .mi-star) { transform-box: fill-box; transform-origin: center; }
+.mi :is(.mi-leaves, .mi-arrows) { transform-box: view-box; transform-origin: 12px 12px; }
+.mi .mi-front { transform-box: view-box; transform-origin: 9.5px 21.5px; }
+.mi .mi-loop { transform-box: view-box; transform-origin: 9.2px 13.2px; }
+.mi .mi-shackle { transform-box: view-box; }
+.mi .mi-trail { stroke-dasharray: 9; }
+
+/* Pronto no palco: um movimento pequeno, sem parar (para com a janela em segundo plano). */
+.poder-slot.ready .mi-videncia .mi-spark { animation: mi-idle-twinkle 2.8s ease-in-out infinite; }
+.poder-slot.ready .mi-cadeado .mi-key { animation: mi-idle-glow 2.8s ease-in-out infinite; }
+.poder-slot.ready .mi-amuleto .mi-leaves { animation: mi-idle-sway 3.2s ease-in-out infinite; }
+.poder-slot.ready .mi-chuva .mi-drop { animation: mi-rain 1.6s linear infinite; }
+.poder-slot.ready .mi-chuva .mi-drop:nth-of-type(2) { animation-delay: -.55s; }
+.poder-slot.ready .mi-chuva .mi-drop:nth-of-type(3) { animation-delay: -1.1s; }
+.poder-slot.ready .mi-desejo .mi-star { animation: mi-idle-twinkle 2.6s ease-in-out infinite; }
+.poder-slot.ready .mi-eco .mi-arrows { animation: mi-idle-turn 3.2s ease-in-out infinite; }
+.poder-slot.ready .mi-dupla .mi-front { animation: mi-idle-fan 3s ease-in-out infinite; }
+.poder-slot.ready .mi-laco .mi-loop { animation: mi-idle-swing 2.8s ease-in-out infinite; }
+
+/* O gesto de cada poder: com o mouse em cima, quando acende, quando é usado e quando chega voando.
+   .mi-play é para a galeria de ícones. */
+:is(html:not(.touch) .poder-orb:hover:not(:disabled), html:not(.touch) .forja-power.open:hover, .poder-slot.fire, .poder-slot.pulse, .poder-fly, .mi-play) .mi-videncia .mi-spark { animation: mi-spin .7s var(--spring-pop); }
+:is(html:not(.touch) .poder-orb:hover:not(:disabled), html:not(.touch) .forja-power.open:hover, .poder-slot.fire, .poder-slot.pulse, .poder-fly, .mi-play) .mi-cadeado .mi-shackle { animation: mi-shackle .6s var(--spring-pop); }
+:is(html:not(.touch) .poder-orb:hover:not(:disabled), html:not(.touch) .forja-power.open:hover, .poder-slot.fire, .poder-slot.pulse, .poder-fly, .mi-play) .mi-amuleto .mi-leaves { animation: mi-turn .7s var(--spring-pop); }
+:is(html:not(.touch) .poder-orb:hover:not(:disabled), html:not(.touch) .forja-power.open:hover, .poder-slot.fire, .poder-slot.pulse, .poder-fly, .mi-play) .mi-chuva .mi-drop { animation: mi-rain .5s linear 2; }
+:is(html:not(.touch) .poder-orb:hover:not(:disabled), html:not(.touch) .forja-power.open:hover, .poder-slot.fire, .poder-slot.pulse, .poder-fly, .mi-play) .mi-chuva .mi-drop:nth-of-type(2) { animation-delay: .12s; }
+:is(html:not(.touch) .poder-orb:hover:not(:disabled), html:not(.touch) .forja-power.open:hover, .poder-slot.fire, .poder-slot.pulse, .poder-fly, .mi-play) .mi-chuva .mi-drop:nth-of-type(3) { animation-delay: .24s; }
+:is(html:not(.touch) .poder-orb:hover:not(:disabled), html:not(.touch) .forja-power.open:hover, .poder-slot.fire, .poder-slot.pulse, .poder-fly, .mi-play) .mi-desejo .mi-star { animation: mi-shoot .65s var(--spring-snappy); }
+:is(html:not(.touch) .poder-orb:hover:not(:disabled), html:not(.touch) .forja-power.open:hover, .poder-slot.fire, .poder-slot.pulse, .poder-fly, .mi-play) .mi-desejo .mi-trail { animation: mi-trail .65s var(--ease-enter); }
+:is(html:not(.touch) .poder-orb:hover:not(:disabled), html:not(.touch) .forja-power.open:hover, .poder-slot.fire, .poder-slot.pulse, .poder-fly, .mi-play) .mi-eco .mi-arrows { animation: mi-rewind .7s var(--spring-snappy); }
+:is(html:not(.touch) .poder-orb:hover:not(:disabled), html:not(.touch) .forja-power.open:hover, .poder-slot.fire, .poder-slot.pulse, .poder-fly, .mi-play) .mi-dupla .mi-front { animation: mi-fan .6s var(--spring-pop); }
+:is(html:not(.touch) .poder-orb:hover:not(:disabled), html:not(.touch) .forja-power.open:hover, .poder-slot.fire, .poder-slot.pulse, .poder-fly, .mi-play) .mi-laco .mi-loop { animation: mi-swing .75s ease-in-out; }
+.mi-play .mi-kakera .mi-glint, .mi-play .mi-ring .mi-glint { animation: mi-glint .7s var(--spring-pop); }
+
+@keyframes mi-glint { 0% { transform: scale(0) rotate(0); } 45% { transform: scale(1.15) rotate(45deg); } 100% { transform: scale(0) rotate(90deg); } }
+@keyframes mi-glint-idle { 0%, 70%, 100% { transform: scale(0) rotate(0); } 82% { transform: scale(1.1) rotate(45deg); } }
+@keyframes mi-flicker { 0%, 100% { transform: scale(1, 1) rotate(0); } 30% { transform: scale(.94, 1.06) rotate(-3deg); } 60% { transform: scale(1.04, .96) rotate(2deg); } }
+@keyframes mi-idle-twinkle { 0%, 100% { transform: scale(.85) rotate(0); } 50% { transform: scale(1.08) rotate(20deg); } }
+@keyframes mi-idle-glow { 0%, 100% { opacity: 1; } 50% { opacity: .55; } }
+@keyframes mi-idle-sway { 0%, 100% { transform: rotate(-7deg); } 50% { transform: rotate(7deg); } }
+@keyframes mi-idle-turn { 0%, 60%, 100% { transform: rotate(0); } 80% { transform: rotate(-28deg); } }
+@keyframes mi-idle-fan { 0%, 100% { transform: rotate(0); } 50% { transform: rotate(5deg); } }
+@keyframes mi-idle-swing { 0%, 100% { transform: rotate(-5deg); } 50% { transform: rotate(6deg); } }
+@keyframes mi-rain { 0% { transform: translateY(-2px); opacity: 0; } 25% { opacity: 1; } 100% { transform: translateY(3px); opacity: 0; } }
+@keyframes mi-spin { 0% { transform: scale(1) rotate(0); } 50% { transform: scale(1.45) rotate(90deg); } 100% { transform: scale(1) rotate(180deg); } }
+@keyframes mi-shackle { 0% { transform: translateY(0); } 35% { transform: translateY(-3px); } 70% { transform: translateY(.6px); } 100% { transform: translateY(0); } }
+@keyframes mi-turn { to { transform: rotate(90deg); } }
+@keyframes mi-shoot { 0% { transform: translate(0, 0) scale(1); } 35% { transform: translate(2.5px, -2.5px) scale(1.18); } 100% { transform: translate(0, 0) scale(1); } }
+@keyframes mi-trail { 0% { stroke-dashoffset: 0; } 35% { stroke-dashoffset: 9; } 100% { stroke-dashoffset: 0; } }
+@keyframes mi-rewind { to { transform: rotate(-360deg); } }
+@keyframes mi-fan { 0% { transform: rotate(0); } 45% { transform: translateX(1px) rotate(14deg); } 100% { transform: rotate(0); } }
+@keyframes mi-swing { 0% { transform: rotate(0); } 25% { transform: rotate(-22deg); } 55% { transform: rotate(16deg); } 80% { transform: rotate(-6deg); } 100% { transform: rotate(0); } }
+
+/* Animações reduzidas (a opção do app já para tudo no experience.css; aqui a do sistema, explícita). */
+@media (prefers-reduced-motion: reduce) {
+  .mi, .mi * { animation: none !important; transition: none !important; }
+}
+:root[data-reduce-motion=true] :is(.mi, .mi *) { animation: none !important; transition: none !important; }

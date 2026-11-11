@@ -32,6 +32,9 @@
 .mudae-value { display: flex; align-items: center; gap: 4px; margin-top: 2px; font-size: 14px; color: var(--text); }
 .mudae-value strong { color: var(--text-strong); font-variant-numeric: tabular-nums; }
 .mudae-kakera { display: inline-flex; color: var(--brand); }
+/* O kakera no começo de uma linha do bot (ou no saldo) é um símbolo no meio do texto. */
+:is(.mudae-line, .msg-text, .salon-status-pill > span) > .mudae-kakera { margin-right: .3em; vertical-align: -.2em; }
+.mudae-li-rank.medal { display: inline-flex; align-items: center; justify-content: center; }
 .mudae-hint { margin-top: 4px; font-size: 13px; color: var(--text-muted); }
 .mudae-img {
   display: block; width: 225px; max-width: 100%; aspect-ratio: 225 / 350; margin-top: 10px; object-fit: cover;
