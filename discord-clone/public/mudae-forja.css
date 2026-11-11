@@ -358,7 +358,8 @@ html:not(.touch) .forja-choose:not(:disabled):hover { filter: brightness(1.12); 
 .forja-stage-slot.empty { background: transparent; box-shadow: inset 0 0 0 1.5px var(--divider); border: 0; }
 .forja-stage-n { display: inline-grid; place-items: center; flex-shrink: 0; width: 20px; height: 20px; border-radius: 50%; background: var(--bg-input); color: var(--text-muted); font-size: 11px; font-weight: 800; }
 .forja-power-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 8px; margin: 0; padding: 0; list-style: none; }
-.forja-power { display: flex; gap: 12px; padding: 12px; border-radius: 12px; background: var(--bg-panel); }
+/* O cartão estica até a altura do vizinho da fileira (que pode ter a barra de progresso); o conteúdo fica no meio. */
+.forja-power { display: flex; align-items: center; gap: 12px; padding: 12px; border-radius: 12px; background: var(--bg-panel); }
 .forja-power.staged { box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--brand) 45%, transparent); }
 .forja-power-badge {
   display: grid; place-items: center; flex-shrink: 0; width: 44px; height: 44px; border-radius: 50%; font-size: 22px;
