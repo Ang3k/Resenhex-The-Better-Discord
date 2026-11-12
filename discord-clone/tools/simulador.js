@@ -129,7 +129,8 @@ const workers = [];
 
 function start() {
   const t0 = performance.now();
-  proc = spawn(process.execPath, ['--max-old-space-size=6144', '--max-semi-space-size=16', SERVER], // as mesmas opções do serviço (deploy/instalar-vps.sh) { env: { ...process.env, HOST: '127.0.0.1', PORT: String(PORT), DATA_FILE: DATA, UPLOAD_DIR: path.join(dir, 'uploads'), MAIL_DEV: 'console', PUBLIC_URL: '', MEDIA_SFU: '' }, stdio: ['ignore', 'pipe', 'pipe'] });
+  // As mesmas opções do Node que o serviço usa (deploy/instalar-vps.sh).
+  proc = spawn(process.execPath, ['--max-old-space-size=6144', '--max-semi-space-size=16', SERVER], { env: { ...process.env, HOST: '127.0.0.1', PORT: String(PORT), DATA_FILE: DATA, UPLOAD_DIR: path.join(dir, 'uploads'), MAIL_DEV: 'console', PUBLIC_URL: '', MEDIA_SFU: '' }, stdio: ['ignore', 'pipe', 'pipe'] });
   proc.stderr.on('data', (d) => { const text = String(d); if (!/ExperimentalWarning|DeprecationWarning/.test(text)) process.stderr.write('[servidor] ' + text); });
   return new Promise((resolve, reject) => {
     proc.stdout.on('data', (d) => { if (String(d).includes('rodando')) resolve(performance.now() - t0); });
