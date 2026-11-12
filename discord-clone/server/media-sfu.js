@@ -1,5 +1,4 @@
 const { createHash } = require('node:crypto');
-const { AccessToken, RoomServiceClient, WebhookReceiver, TrackSource } = require('livekit-server-sdk');
 
 const roomName = (server, channel) => 'resenhex-' + createHash('sha256').update(JSON.stringify([server ?? null, channel])).digest('hex').slice(0, 32);
 
@@ -12,6 +11,8 @@ function mediaSfu({ env = process.env, membership, service, onSwitch = () => {},
   const enabled = !!url;
   if (enabled && (!env.LIVEKIT_API_KEY || !env.LIVEKIT_API_SECRET)) throw new Error('LiveKit: configure API key and secret.');
   if (enabled && !/^wss?:\/\//.test(url)) throw new Error('LiveKit: URL must use ws:// or wss://.');
+  // O SDK do LiveKit só é carregado com o SFU ligado (sem ele, são ~3,5 MB a menos de memória).
+  const { AccessToken, RoomServiceClient, WebhookReceiver, TrackSource } = enabled ? require('livekit-server-sdk') : {};
   const client = enabled ? service || new RoomServiceClient(env.LIVEKIT_INTERNAL_URL || url.replace(/^ws/, 'http'), env.LIVEKIT_API_KEY, env.LIVEKIT_API_SECRET, { requestTimeout: 3 }) : null;
   const receiver = enabled ? new WebhookReceiver(env.LIVEKIT_API_KEY, env.LIVEKIT_API_SECRET) : null;
   const queues = new Map(), signatures = new Map(), transports = new Map();

@@ -5,6 +5,7 @@
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
+    "pretest": "node tools/montar-catalogo-mudae.js",
     "test": "node --test",
     "test:voice-chosen": "node --test test/voice-chosen.test.js",
     "check:voice-chosen": "node --check public/voice-fx-chosen.mjs && node --check public/voice-fx-classic-core.mjs && node --check public/voice-fx-classic-worklet.mjs",

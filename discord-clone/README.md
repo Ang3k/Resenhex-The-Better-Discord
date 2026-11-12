@@ -194,7 +194,7 @@ O Mudae mora no **Salão do Mudae**, um canal de texto com `mudae: true` (crie e
 - **Trocas** (`server/mudae.js`, `tradeOpen`/`tradeOffer`/`tradeConfirm`; tela em `public/mudae-troca.js`): ficam só na memória do servidor, uma por pessoa, abertas por 5 minutos depois da última mudança. Cada lado oferece até 20 personagens do próprio harem e kakera que tem. Qualquer mudança na oferta desfaz as duas confirmações, e a confirmação manda a versão (`rev`) que a pessoa viu. Com as duas confirmações, o servidor confere tudo de novo (os dois ainda no servidor, cada carta ainda de quem ofereceu, kakera suficiente) e só então troca; se algo falhar, a troca é cancelada e nada muda. O chat mostra a troca aberta, feita ou cancelada.
 - **Raridade** pela posição dentro da própria fonte, em proporção: os 0,67% mais populares são lendários, até 6,7% épicos, até 33% raros, o resto comum (numa fonte de 15 mil: 1–100, até 1.000, até 5.000). Assim a chance de lendário não muda com o tamanho da fonte. Lendário toma o palco de todos, com banner, flash e fanfarra.
 - **Palco:** o seu roll sempre vai para o palco; o de um amigo só se o palco estiver livre (senão entra na Mesa ao vivo); lendário de qualquer um sempre.
-- **Personagens:** `server/mudae-catalogo.json`, gerado no seu computador por `node tools/mudae-catalogo.js` (um módulo por fonte em `tools/mudae-fontes/`, cada uma com cache em `tools/mudae-cache/`). O servidor lê o arquivo uma vez e nunca chama essas APIs: um roll é só um sorteio na memória. As fotos vão direto do site de cada fonte para o navegador.
+- **Personagens:** `server/mudae-catalogo.json`, gerado no seu computador por `node tools/mudae-catalogo.js` (um módulo por fonte em `tools/mudae-fontes/`, cada uma com cache em `tools/mudae-cache/`). O servidor nunca chama essas APIs: na primeira subida (e quando o JSON muda) ele passa o arquivo para um banco SQLite, `mudae-catalogo.db`, ao lado do `data.db` e fora do Git (o `npm test` monta antes um molde em `server/mudae-catalogo.db`, que os testes abrem em vez de montar um banco cada um). Na memória ficam só números (as listas de sorteio); o nome e a foto de cada carta vêm do banco, e as cartas com dono ficam num cache pequeno. Um roll continua sendo só um sorteio. As fotos vão direto do site de cada fonte para o navegador.
 
   | Fonte | Cobertura | De onde | Popularidade | Chave |
   |---|---|---|---|---|
@@ -424,6 +424,7 @@ discord-clone/
 │   ├── mudae-regras.js  # números do Mudae: medalhas, acabamentos, cristal errante, poderes, teto do divórcio
 │   ├── mudae-cristal.js / mudae-forja.js / mudae-poderes.js / mudae-conta.js  # cristal errante, Forja, poderes, kakera e contadores
 │   ├── mudae-catalogo.json  # personagens do Mudae (~33 MB, gerado por tools/mudae-catalogo.js)
+│   ├── mudae-catalogo-banco.js  # passa o catálogo para o mudae-catalogo.db (SQLite, ao lado do data.db) e lê as cartas de lá
 │   ├── downloads.js     # /download: instalador e atualizações do app de Windows e o APK do Android
 │   ├── media-sfu.js     # integração com o LiveKit (SFU)
 │   └── …                # avatar, soundboard, link-preview, gifs, games, dm-calls, feedback

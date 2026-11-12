@@ -315,17 +315,22 @@ function allow(key, max, ms) {
 setInterval(() => {
   const now = Date.now();
   for (const [key, list] of hits) if (!list.length || now - list[list.length - 1] > 60 * 60 * 1000) hits.delete(key);
+  // Senhas erradas: sai quem não está bloqueado e não erra há um dia (sem isto, o mapa só crescia).
+  for (const [key, f] of loginFailures) if (f.until <= now && now - f.last > LOGIN_FAILURE_KEEP_MS) loginFailures.delete(key);
 }, 60 * 1000).unref();
 
 // Senha errada várias vezes seguidas bloqueia aquele nome, naquele IP, por um tempo crescente.
-const loginFailures = new Map(); // ip|nome -> { count, until }
+// A contagem zera ao acertar a senha, ao trocar a senha pelo e-mail ou depois de um dia sem errar.
+const loginFailures = new Map(); // ip|nome -> { count, until, last }
+const LOGIN_FAILURE_KEEP_MS = 24 * 60 * 60 * 1000;
 function loginLocked(key) {
   const f = loginFailures.get(key);
   return f && f.until > Date.now() ? Math.ceil((f.until - Date.now()) / 1000) : 0;
 }
 function loginFailed(key) {
-  const f = loginFailures.get(key) || { count: 0, until: 0 };
+  const f = loginFailures.get(key) || { count: 0, until: 0, last: 0 };
   f.count++;
+  f.last = Date.now();
   if (f.count >= 5) f.until = Date.now() + Math.min(30_000 * 2 ** (f.count - 5), 10 * 60 * 1000);
   loginFailures.set(key, f);
 }
@@ -931,9 +936,12 @@ app.get('/emojis/:id', (req, res) => {
 // o vídeo toca no player oficial do YouTube de cada pessoa.
 const dj = createDj({ newId, onChange: (key) => notifyMusic(key) });
 
-// Catálogo do Mudae: lido uma vez. Sem o arquivo, os comandos só avisam que não tem personagens.
+// Catálogo do Mudae: o JSON vira um banco SQLite ao lado do data.db (mudae-catalogo.db, fora do Git), montado
+// sozinho na primeira subida e quando o JSON muda; na memória ficam só números (server/mudae-catalogo-banco.js).
+// Sem o arquivo, os comandos só avisam que não tem personagens.
 const MUDAE_CATALOG = process.env.MUDAE_CATALOG || path.join(__dirname, 'server', 'mudae-catalogo.json');
-const mudae = createMudae({ catalog: fs.existsSync(MUDAE_CATALOG) ? JSON.parse(fs.readFileSync(MUDAE_CATALOG, 'utf8')) : [] });
+const mudae = createMudae({ catalogFile: MUDAE_CATALOG, catalogDb: path.join(path.dirname(DATA_DB), 'mudae-catalogo.db') });
+mudae.preload(Object.values(communities.root.servers).flatMap((s) => Object.keys(s.mudae?.claims || {})));
 const forja = createForja({ now: Date.now, random: Math.random });
 const poderes = createPoderes({ now: Date.now });
 // Cristal errante: um relógio só para todas as comunidades. MUDAE_CRYSTAL_MS="min,max" (só os testes) encurta a espera.
@@ -1712,7 +1720,12 @@ function scheduleTimeoutEnd(acc) {
   clearTimeout(timeoutTimers.get(key));
   const ms = (acc.timeoutUntil || 0) - Date.now();
   const serverId = communities.currentId();
-  if (ms > 0) timeoutTimers.set(key, setTimeout(() => broadcastState(serverId), Math.min(ms + 100, 2 ** 31 - 1)));
+  if (ms <= 0) { timeoutTimers.delete(key); return; }
+  const timer = setTimeout(() => {
+    if (timeoutTimers.get(key) === timer) timeoutTimers.delete(key); // o castigo acabou: a entrada sai do mapa
+    broadcastState(serverId);
+  }, Math.min(ms + 100, 2 ** 31 - 1));
+  timeoutTimers.set(key, timer);
 }
 // Ao ligar, só os membros de castigo agora: percorrer servidores × contas levaria minutos com o site grande.
 for (const server of Object.values(communities.root.servers)) {
