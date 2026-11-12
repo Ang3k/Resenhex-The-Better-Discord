@@ -5498,6 +5498,31 @@
     if (audioCtx.state === 'suspended') audioCtx.resume().catch(() => {});
     return audioCtx;
   }
+  // Fora da chamada, os contextos de áudio dela são fechados: a supressão de ruído por IA guardava ~17 MB de
+  // WASM, e os sons decodificados ficavam presos até fechar o app. Espera 30 s (uma volta rápida para a
+  // chamada reaproveita tudo) e só fecha o que nada mais usa; a próxima chamada, o teste de microfone ou o
+  // próximo som criam de novo, como na primeira vez.
+  let audioRelease = null;
+  function scheduleAudioRelease() {
+    clearTimeout(audioRelease);
+    audioRelease = setTimeout(releaseCallAudio, 30_000);
+  }
+  function releaseCallAudio() {
+    audioRelease = null;
+    if (state.voiceChannel || callTarget || joining || micTest || micTestStarting || callOutput.bus || analysers.size || noise.pipes.size || gate.meter) return;
+    if (noise.ctx) {
+      noise.ctx.close().catch(() => {});
+      noise.ctx = null;
+      noise.modules.clear();
+      noise.wasm = {};
+    }
+    if (audioCtx && Sounds.release(audioCtx)) {
+      audioCtx.close().catch(() => {});
+      audioCtx = null;
+    }
+    if (!Sounds.release() || audioCtx) scheduleAudioRelease(); // algum som ainda tocava: tenta de novo depois
+  }
+
   // Na chamada, um contexto de áudio suspenso ou interrompido pelo sistema (outro app, ligação) volta.
   function keepCallAudio() {
     if (!callTarget) return;
@@ -6161,7 +6186,7 @@
     state.view = 'chat';
     if (sound) Sounds.play('leave');
     if (notify && socket.connected) socket.emit('voice:leave');
-    if (!rejoin) endCall();
+    if (!rejoin) { endCall(); scheduleAudioRelease(); }
     render();
   }
 
@@ -8209,6 +8234,7 @@
     $('#mic-meter-fill').style.transform = 'scaleX(0)';
     applyAudio();
     if (announce && wasInCall) toast('Teste encerrado: seu microfone voltou na chamada.', 'info');
+    if (!wasInCall) scheduleAudioRelease();
   }
   async function updateMicTestFx(id) {
     const scope = micTestScope;

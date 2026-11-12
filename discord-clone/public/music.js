@@ -89,18 +89,40 @@ window.MusicDJ = function ({ state, el, Icon, toast, call, callInfo, callPerm, c
     }
   });
 
+  // Um minuto sem música (a fila acabou, ou saí da chamada), o player do YouTube é fechado: o iframe dele
+  // roda num processo próprio e segurava ~90 MB até fechar o app. Na próxima música ele é criado de novo,
+  // como na primeira vez.
+  const IDLE_CLOSE_MS = 60_000;
+  let idleTimer = null;
+  let generation = 0; // muda a cada fechamento: um ensurePlayer que ainda esperava a API desiste
+  function closePlayer() {
+    idleTimer = null;
+    if (music() || !(player || creating)) return;
+    generation++;
+    try { player?.destroy(); } catch {}
+    player = null;
+    ready = false;
+    creating = false;
+    loaded = null;
+    listen.classList.add('hidden');
+    mount.replaceChildren();
+  }
+
   async function ensurePlayer() {
     if (player || creating) return;
     creating = true;
-    try { await loadApi(); } catch (error) { creating = false; toast(error.message); return; }
-    player = new YT.Player(mount, {
+    const gen = generation;
+    try { await loadApi(); } catch (error) { if (gen === generation) creating = false; toast(error.message); return; }
+    if (gen !== generation) return; // fechado enquanto a API carregava
+    let p = null;
+    p = player = new YT.Player(mount.appendChild(el('div')), {
       width: '100%', height: '100%',
       playerVars: { autoplay: 1, controls: 0, disablekb: 1, fs: 0, iv_load_policy: 3, playsinline: 1, rel: 0, origin: location.origin },
       events: {
-        onReady: () => { ready = true; drive(); },
+        onReady: () => { if (player !== p) return; ready = true; drive(); },
         onStateChange: (e) => {
           const m = music();
-          if (!m || m.current.id !== loaded) return;
+          if (player !== p || !m || m.current.id !== loaded) return;
           if (e.data === YT.PlayerState.ENDED) call('music:report', { trackId: loaded, ended: true });
           if (e.data === YT.PlayerState.PLAYING) {
             listen.classList.add('hidden');
@@ -111,7 +133,7 @@ window.MusicDJ = function ({ state, el, Icon, toast, call, callInfo, callPerm, c
         },
         onError: (e) => {
           const m = music();
-          if (!m || m.current.id !== loaded) return;
+          if (player !== p || !m || m.current.id !== loaded) return;
           // 100/101/150: o vídeo saiu do ar ou não pode tocar fora do YouTube. Às vezes é só neste aparelho
           // (país, idade): o servidor só troca a música quando a maior parte da sala avisa.
           if ([100, 101, 150].includes(e.data)) call('music:report', { trackId: loaded, error: e.data });
@@ -132,8 +154,10 @@ window.MusicDJ = function ({ state, el, Icon, toast, call, callInfo, callPerm, c
       syncNativeSound(null);
       if (ready && loaded) player.stopVideo();
       loaded = null;
+      if ((player || creating) && !idleTimer) idleTimer = setTimeout(closePlayer, IDLE_CLOSE_MS);
       return;
     }
+    if (idleTimer) { clearTimeout(idleTimer); idleTimer = null; }
     if (m !== lastView) {
       lastView = m;
       offsets.push(m.now - Date.now());

@@ -133,7 +133,7 @@ window.Sounds = (() => {
   function play(name) {
     if (!enabled || !(PRESETS[name] || CHIMES[name])) return;
     try {
-      ctx ||= new AudioContext();
+      ctx ||= new AudioContext(); touch();
       if (ctx.state === 'suspended') ctx.resume();
       synth(name);
     } catch {
@@ -164,10 +164,27 @@ window.Sounds = (() => {
   }
 
   // Repete um som até a função devolvida ser chamada (o toque de uma chamada).
+  let loops = 0; // toques em repetição (chamada privada tocando)
   function loop(name, every) {
     play(name);
+    loops++;
     const timer = setInterval(() => play(name), every);
-    return () => clearInterval(timer);
+    let on = true;
+    return () => { clearInterval(timer); if (on) { on = false; loops--; } };
+  }
+
+  // Fora da chamada, o app fecha os contextos de áudio parados (ver releaseCallAudio no app.js). release(c):
+  // deixa de usar o contexto c, que o app fecha; release(): fecha o próprio. Com ele, saem os sons decodificados
+  // nele (o soundboard chega a ~50 MB). O próximo som cria outro contexto. Devolve false se ainda há som nele.
+  let lastUse = 0;
+  const touch = () => { lastUse = performance.now(); };
+  function release(c) {
+    if (!ctx || (c && ctx !== c)) return true;
+    if (callBus || loops || performance.now() - lastUse < 10_000) return false;
+    const old = ctx;
+    ctx = null;
+    if (!c) old.close().catch(() => {});
+    return true;
   }
 
   // ---------------- efeitos sonoros (soundboard) ----------------
@@ -311,7 +328,7 @@ window.Sounds = (() => {
   function playBoard(id, volume = 1) {
     if (!SYNTH[id] || volume <= 0) return false;
     try {
-      ctx ||= new AudioContext();
+      ctx ||= new AudioContext(); touch();
       if (ctx.state === 'suspended') ctx.resume();
       stopBoard();
       const epoch = boardEpoch, c = ctx;
@@ -334,7 +351,7 @@ window.Sounds = (() => {
 
   async function playCustom(url, volume, token) {
     if (volume <= 0 || !/^\/servers\/[a-f0-9]{16}\/sounds\/[a-f0-9]{16}$/.test(url)) return false;
-    ctx ||= new AudioContext();
+    ctx ||= new AudioContext(); touch();
     stopBoard(); const epoch = boardEpoch;
     if (ctx.state === 'suspended') await ctx.resume();
     if (epoch !== boardEpoch) return false;
@@ -379,7 +396,7 @@ window.Sounds = (() => {
     if (file.size > MAX_SOURCE_MB * 1024 * 1024) throw new Error(`Escolha um arquivo de até ${MAX_SOURCE_MB} MB.`);
     const seconds = await mediaDuration(file);
     if (seconds > MAX_SOURCE_SECONDS) throw new Error('Escolha um arquivo de até 5 minutos.');
-    ctx ||= new AudioContext();
+    ctx ||= new AudioContext(); touch();
     let decoded;
     try { decoded = await ctx.decodeAudioData(await file.arrayBuffer()); }
     catch {
@@ -435,6 +452,7 @@ window.Sounds = (() => {
     play,
     loop,
     route,
+    release,
     preloadBoard,
     board: BOARD,
     playBoard,
