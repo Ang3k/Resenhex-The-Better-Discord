@@ -45,7 +45,7 @@ Caminhos relativos a `discord-clone/`.
 | Som do computador na transmissão | — | `public/own-audio*.js` | `test/own-audio.test.js` |
 | Efeitos de voz | — | `public/voice-fx.js`, `public/voice-fx-*.mjs`, `public/voice-fx-assets/`, `public/vendor/autotalent/` | `test/voice-chosen.test.js` |
 | DJ (YouTube) | `server/dj.js`, `server/youtube.js` | `public/music.js` | `test/dj.test.js`, `test/dj-server.test.js` |
-| Mudae | `server/mudae.js`, `server/mudae-catalogo.json` | `public/mudae.js`, `public/mudae-salao.js` | `test/mudae*.test.js` |
+| Mudae | `server/mudae.js`, `server/mudae-catalogo.json`, `server/mudae-catalogo-banco.js` | `public/mudae.js`, `public/mudae-salao.js` | `test/mudae*.test.js` |
 | Soundboard | `server/soundboard.js` | `public/sounds.js`, `public/sfx/` | `test/profile-media.test.js` |
 | Foto, banner e fundo do perfil | `server/avatar.js` | `public/photo-editor.js`, `public/profile*.css` | `test/avatar.test.js`, `test/banner.test.js`, `test/profile-*.test.js` |
 | Prévias de links | `server/link-preview.js` | `public/app.js` | — |
@@ -60,7 +60,7 @@ Caminhos relativos a `discord-clone/`.
 | Clipar (clipes da chamada) | `server/clip-store.js` | `public/clip-*.js`, `public/clips.css` | `test/clip-*.test.js`, `test/clips-server.test.js` |
 | Saúde do servidor e alarmes por e-mail | `server/health.js`, `server/alarms.js` | `public/site-health.js` | `test/health.test.js`, `test/alarms.test.js` |
 | Retransmissor das chamadas (TURN) | `server/turn.js`, `deploy/instalar-vps.sh` | — | `test/turn.test.js` |
-| Fotos e imagens fora da linha principal | `server/images.js`, `server/image-worker.js` | — | — |
+| Fotos e imagens fora da linha principal | `server/images.js`, `server/image-worker.js` | — | `test/images.test.js` |
 | Animações | — | `public/motion.js`, `public/motion.css` | carregadas por `test/clip-ui.test.js` e `test/desktop.test.js` |
 
 `server.js` (~2.900 linhas) e `public/app.js` (~7.500 linhas) são grandes: procure pelo nome do evento ou da função antes de ler.
@@ -107,7 +107,7 @@ Os apps têm versões próprias e só precisam ser publicados quando suas pastas
 
 ## Armadilhas
 
-- **`server/mudae-catalogo.json` tem cerca de 33 MB** (um personagem por linha). Não abra o arquivo inteiro; busque com limite de resultados. Ele é gerado por `tools/mudae-catalogo.js`; as chaves das APIs (`tools/mudae-chaves.json`) e o cache (`tools/mudae-cache/`) ficam fora do Git.
+- **`server/mudae-catalogo.json` tem cerca de 33 MB** (um personagem por linha). Não abra o arquivo inteiro; busque com limite de resultados. Ele é gerado por `tools/mudae-catalogo.js`; as chaves das APIs (`tools/mudae-chaves.json`) e o cache (`tools/mudae-cache/`) ficam fora do Git. O servidor não guarda o catálogo na memória: ele o passa para `mudae-catalogo.db`, ao lado do `data.db` (fora do Git), na primeira subida e sempre que o JSON muda (`server/mudae-catalogo-banco.js`). Nos testes, `createMudae({ catalog: [...] })` monta o banco na memória. O `npm test` roda antes `tools/montar-catalogo-mudae.js` (pretest), que monta um molde em `server/mudae-catalogo.db` (fora do Git); os testes que ligam o servidor numa pasta nova abrem esse molde em vez de montar o próprio banco (~2 s cada). Rodando um teste solto sem o molde, a primeira subida demora ~2 s a mais. No `mudae.js`, cada personagem é um número `k` e o `k = 0` existe: "não achou" é `undefined` ou `null`, nunca um teste de verdadeiro ou falso.
 - `public/emoji-data.json` é gerado por `tools/emoji-data.js`, e os ícones dos apps por `tools/icones-app.js`.
 - **Tudo o que o Git conhece em `discord-clone/` (menos `desktop/`) vai para o servidor de produção.** Relatórios, planos e evidências ficam em `docs/`, na raiz; não crie `discord-clone/docs/`. O material de divulgação fica em `discord-clone/marketing/`, fora do Git.
 - `public/gacha/` é a cena 3D antiga do Salão do Mudae. Ela não é mais carregada, mas continua testada (`test/gacha-*.test.mjs`) e serve de referência.

@@ -1,10 +1,12 @@
 // Mudae: rodar personagens ($w/$h/$m), casar com eles e montar o seu harem; kakera, desejos, presentes,
 // rankings de personagens ($top, $obra) e trocas entre duas pessoas.
 // Os personagens vêm do mudae-catalogo.json (gerado por tools/mudae-catalogo.js a partir do AniList,
-// IGDB, Comic Vine, TMDB e wikis do Fandom) e ficam na memória: um roll é só um sorteio, sem rede.
+// IGDB, Comic Vine, TMDB e wikis do Fandom). Um roll é só um sorteio, sem rede: as listas de sorteio ficam
+// na memória (só números) e o nome e a foto vêm de um banco SQLite local (server/mudae-catalogo-banco.js).
 // As fotos vão direto do site de cada fonte para o navegador. Cada comunidade guarda
 // { claims, usage, favorites } e os limites são contados pelo relógio, sem nenhum timer rodando.
 const { kakeraOf, addKakera, statsOf, bumpStat, refundOf } = require('./mudae-conta');
+const { openCatalog } = require('./mudae-catalogo-banco');
 const { perksOf } = require('./mudae-forja');
 const { POWERS, AMULETO, DESEJO_CHANCE } = require('./mudae-regras');
 
@@ -104,60 +106,79 @@ function parse(text) {
 
 // Linha do catálogo: [id, nome, obra, foto, gênero, popularidade, fonte]. A fonte falta nas linhas
 // antigas (só anime), e a foto do anime é só o final do endereço do AniList.
-function createMudae({ catalog, now = Date.now, random = Math.random, refSize = REF_SIZE }) {
-  const bySource = new Map();
-  // O nome da obra se repete em milhares de linhas: guardar uma cópia só de cada um economiza memória.
-  const seriesNames = new Map();
-  for (const [id, name, series, img, gender, score = 0, source = 'a', fora = 0] of catalog) {
-    if (!SOURCES[source]) continue;
-    if (!bySource.has(source)) bySource.set(source, []);
-    if (!seriesNames.has(series)) seriesNames.set(series, series);
-    // pos e eq já nascem no objeto (preenchidos logo abaixo): todos ficam com o mesmo formato, mais enxuto.
-    bySource.get(source).push({ id, name, series: seriesNames.get(series), img, gender, score, source, key: normalize(name), pos: 0, eq: 0, fora: fora === 1 });
-  }
-  for (const list of bySource.values()) {
-    list.sort((a, b) => b.score - a.score);
-    list.forEach((c, i) => {
-      c.pos = i + 1;
-      c.eq = (i + 1) * refSize / list.length; // posição equivalente numa fonte de 15 mil
-    });
-  }
-  // Mais popular primeiro (entre todas as fontes): a busca do $im desempata por aqui.
-  const chars = [...bySource.values()].flat().sort((a, b) => a.eq - b.eq);
-  const byId = new Map(chars.map((c) => [String(c.id), c]));
-  const lookup = (id) => byId.get(String(id));
+// O catálogo vem de catalogFile (o mudae-catalogo.json), guardado num banco SQLite em catalogDb (montado sozinho
+// na primeira vez e quando o JSON muda), ou de catalog, um array de linhas (os testes), montado na memória.
+// Se esse banco não serve mas o molde ao lado do JSON (mudae-catalogo.db, que o `npm test` monta antes dos testes)
+// serve, usa o molde. Veja server/mudae-catalogo-banco.js.
+//
+// Cada personagem é um número k: a sua posição na lista de todos, do mais popular para o menos (entre todas as
+// fontes). Na memória ficam só números por personagem; o id, o nome e a foto vêm do banco quando uma carta
+// aparece. Cuidado: k = 0 é um personagem (o mais popular), então "não achou" é sempre undefined ou null.
+function createMudae({ catalog = null, catalogFile = null, catalogDb = null, now = Date.now, random = Math.random, refSize = REF_SIZE }) {
+  const molde = catalogFile ? catalogFile.replace(/\.json$/i, '') + '.db' : null;
+  const cat = openCatalog({ rows: catalog, file: catalogFile, dbFile: catalogDb, molde, refSize, isSource: (s) => !!SOURCES[s], normalize });
+  const { n, src, gen, fora, pos, sid, srcOrder, srcLen, obras } = cat;
+  // Posição equivalente numa fonte de 15 mil (a mesma conta de antes, (posição × refSize) / tamanho da fonte).
+  const eqOf = (k) => pos[k] * refSize / srcLen[src[k]];
+  const sourceOf = (k) => srcOrder[src[k]];
+  const seriesOf = (k) => obras[sid[k]];
+  const idOf = (k) => cat.row(k).id;
+  const lookup = (id) => cat.lookup(id);
+  const lookupAll = (ids) => cat.lookupMany(ids).filter((k) => k !== undefined);
+  const byEq = (a, b) => eqOf(a) - eqOf(b);
   // Quem tem 1 na 8ª coluna (não é personagem: lugar, item, figurante de um episódio) saiu da roleta,
   // mas continua no harém, no álbum e no ranking de quem já casou. Posição e valor contam com todos.
-  const ativos = chars.filter((c) => !c.fora);
+  let nAtivos = 0;
+  for (let k = 0; k < n; k++) if (!fora[k]) nAtivos++;
+  const ativos = new Int32Array(nAtivos);
+  for (let k = 0, a = 0; k < n; k++) if (!fora[k]) ativos[a++] = k;
   // Personagens de cada obra (só os da roleta), do mais valioso ao menos; as obras mais populares
-  // vêm primeiro na busca do $obra e do $top, que desempata por aqui.
-  const bySeries = new Map();
-  for (const c of ativos) {
-    if (!bySeries.has(c.series)) bySeries.set(c.series, []);
-    bySeries.get(c.series).push(c);
-  }
-  const seriesKeys = [...bySeries.keys()].map((name) => [normalize(name), name]);
-  // Listas de sorteio ($w, $h, $m e por fonte), montadas numa passada só e na mesma ordem de chars.
+  // vêm primeiro na busca do $obra e do $top, que desempata por aqui. Todos num Int32Array só, obra a obra.
+  const seriesCount = new Int32Array(obras.length);
+  const seriesOrder = []; // as obras na ordem em que aparecem nos ativos
+  for (const k of ativos) if (seriesCount[sid[k]]++ === 0) seriesOrder.push(sid[k]);
+  const seriesStart = new Int32Array(obras.length);
+  const seriesEnd = new Int32Array(obras.length);
+  for (let s = 0, off = 0; s < seriesOrder.length; s++) { seriesStart[seriesOrder[s]] = off; seriesEnd[seriesOrder[s]] = off; off += seriesCount[seriesOrder[s]]; }
+  const bySeriesAll = new Int32Array(nAtivos);
+  for (const k of ativos) bySeriesAll[seriesEnd[sid[k]]++] = k;
+  const sidOfSeries = new Map(seriesOrder.map((s) => [obras[s], s]));
+  const bySeries = {
+    has: (name) => sidOfSeries.has(name),
+    get: (name) => { const s = sidOfSeries.get(name); return s === undefined ? undefined : bySeriesAll.subarray(seriesStart[s], seriesEnd[s]); },
+  };
+  const seriesKeys = seriesOrder.map((s) => [normalize(obras[s]), obras[s]]);
+  // Listas de sorteio ($w, $h, $m e por fonte), na mesma ordem dos personagens, como Int32Array de k.
   // "m" é a própria ativos: nenhuma lista é alterada depois de pronta.
-  const pools = { m: ativos, w: [], h: [] };
-  const poolsOf = new Map([...bySource.keys()].map((s) => [s, [pools['m' + s] = [], pools['w' + s] = [], pools['h' + s] = []]]));
-  for (const c of ativos) {
-    const [all, women, men] = poolsOf.get(c.source);
-    all.push(c);
-    if (c.gender === 'F') { pools.w.push(c); women.push(c); }
-    else if (c.gender === 'M') { pools.h.push(c); men.push(c); }
+  const counts = { w: 0, h: 0 };
+  for (const s of srcOrder) { counts['m' + s] = 0; counts['w' + s] = 0; counts['h' + s] = 0; }
+  for (const k of ativos) {
+    const s = sourceOf(k);
+    counts['m' + s]++;
+    if (gen[k] === 1) { counts.w++; counts['w' + s]++; } else if (gen[k] === 2) { counts.h++; counts['h' + s]++; }
+  }
+  const pools = { m: ativos };
+  const filled = {};
+  for (const [key, len] of Object.entries(counts)) { pools[key] = new Int32Array(len); filled[key] = 0; }
+  const put = (key, k) => { pools[key][filled[key]++] = k; };
+  for (const k of ativos) {
+    const s = sourceOf(k);
+    put('m' + s, k);
+    if (gen[k] === 1) { put('w', k); put('w' + s, k); } else if (gen[k] === 2) { put('h', k); put('h' + s, k); }
   }
 
-  const imageOf = (c) => (/^https?:\/\//.test(c.img) ? c.img : IMG_PREFIX + c.img);
+  const imageOf = (img) => (/^https?:\/\//.test(img) ? img : IMG_PREFIX + img);
   // As fotos que só passam na roleta (borradas, em movimento) vão no tamanho menor de cada site.
-  const thumbOf = (c) => imageOf(c)
+  const thumbOf = (img) => imageOf(img)
     .replace('/scale-to-width-down/400', '/scale-to-width-down/200')
     .replace('/uploads/scale_large/', '/uploads/scale_small/')
     .replace('/t_cover_big_2x/', '/t_cover_big/')
     .replace('/t/p/w342/', '/t/p/w185/');
-  const valueOfChar = (c) => valueOf(c.eq - 1);
-  const card = (c) => ({ id: c.id, name: c.name, series: c.series, image: imageOf(c), value: valueOfChar(c), rank: c.pos,
-    rarity: rarityOf(c.eq), source: c.source });
+  const thumbsOf = (ks) => cat.imgs(ks).map(thumbOf);
+  const valueOfChar = (k) => valueOf(eqOf(k) - 1);
+  // r: a linha do banco (id, nome, foto), quando já foi lida junto com outras.
+  const card = (k, r = cat.row(k)) => ({ id: r.id, name: r.name, series: seriesOf(k), image: imageOf(r.img), value: valueOfChar(k), rank: pos[k],
+    rarity: rarityOf(eqOf(k)), source: sourceOf(k) });
   const usageOf = (store, accountId) => (store.usage[accountId] ||= {});
   const pick = (list) => list[Math.floor(random() * list.length)];
 
@@ -187,7 +208,7 @@ function createMudae({ catalog, now = Date.now, random = Math.random, refSize = 
   // Por isso toda mudança no harém lê os contadores antes (veja claim, transfer e release).
   const stats = (store, accountId) => statsOf(store, accountId, () => {
     const mine = owned(store, accountId);
-    return { claims: mine.length, legendary: mine.filter((c) => rarityOf(c.eq) === 'legendary').length };
+    return { claims: mine.length, legendary: mine.filter((k) => rarityOf(eqOf(k)) === 'legendary').length };
   });
   const bump = (store, accountId, key) => { stats(store, accountId); bumpStat(store, accountId, key); };
 
@@ -262,8 +283,8 @@ function createMudae({ catalog, now = Date.now, random = Math.random, refSize = 
   }
 
   // Desejos da pessoa sem dono que estão na lista do roll (e na raridade, se vier uma).
-  const freeWishes = (store, accountId, list, rarity = null) => wishesOf(store, accountId).map(lookup)
-    .filter((c) => c && !store.claims[c.id] && list.includes(c) && (!rarity || rarityOf(c.eq) === rarity));
+  const freeWishes = (store, accountId, list, rarity = null) => cat.lookupMany(wishesOf(store, accountId))
+    .filter((k) => k !== undefined && !store.claims[idOf(k)] && list.includes(k) && (!rarity || rarityOf(eqOf(k)) === rarity));
 
   // Rubi: com a chance da medalha (um random a mais, só para quem tem Rubi), o roll vira um desejo da pessoa
   // que esteja na lista que o roll sortearia e não tenha dono. Sem nenhum assim, volta null e o sorteio segue normal.
@@ -282,7 +303,7 @@ function createMudae({ catalog, now = Date.now, random = Math.random, refSize = 
     let hi = list.length;
     while (lo < hi) {
       const mid = (lo + hi) >> 1;
-      if (list[mid].eq <= x) lo = mid + 1;
+      if (eqOf(list[mid]) <= x) lo = mid + 1;
       else hi = mid;
     }
     return lo;
@@ -357,7 +378,7 @@ function createMudae({ catalog, now = Date.now, random = Math.random, refSize = 
   function drawFor(store, accountId, list, perks) {
     const u = usageOf(store, accountId);
     const armed = u.armed;
-    if (!u.future?.length && !armed) return { c: wishedPick(store, accountId, list, perks) || pick(list) };
+    if (!u.future?.length && !armed) return { c: wishedPick(store, accountId, list, perks) ?? pick(list) };
     const predicted = u.future?.shift() || null;
     if (u.future && !u.future.length) delete u.future;
     delete u.armed;
@@ -366,8 +387,8 @@ function createMudae({ catalog, now = Date.now, random = Math.random, refSize = 
     // continua ativo para o próximo roll, em vez de ser gasto à toa.
     if (armed?.desejo?.hit && !called.length && freeWishes(store, accountId, pools.m).length) u.armed = { desejo: armed.desejo };
     const c = (called.length ? pick(called) : null)
-      || wishedPick(store, accountId, list, perks, predicted)
-      || pickInRarity(list, predicted || drawRarity(list, !!armed?.amuleto));
+      ?? wishedPick(store, accountId, list, perks, predicted)
+      ?? pickInRarity(list, predicted || drawRarity(list, !!armed?.amuleto));
     return { c, second: armed?.dupla ? another(list, c) : null };
   }
   function another(list, c) {
@@ -394,20 +415,23 @@ function createMudae({ catalog, now = Date.now, random = Math.random, refSize = 
     if (u.rollWindow !== windowId) { u.rollWindow = windowId; u.rolls = 0; u.carry = window.carry; }
     u.rolls++;
     bump(store, accountId, 'rolls');
-    const decoys = Array.from({ length: DECOYS }, () => thumbOf(pick(list)));
-    const ownerId = store.claims[c.id]?.ownerId || null;
-    return { card: card(c), ownerId, rollsLeft: left - 1, decoys,
-      ...(second ? { second: { card: card(second), ownerId: store.claims[second.id]?.ownerId || null } } : {}) };
+    const decoys = thumbsOf(Array.from({ length: DECOYS }, () => pick(list)));
+    const out = card(c);
+    const ownerId = store.claims[out.id]?.ownerId || null;
+    return { card: out, ownerId, rollsLeft: left - 1, decoys,
+      ...(second != null ? { second: { card: card(second), ownerId: store.claims[idOf(second)]?.ownerId || null } } : {}) };
   }
 
   // Fotos soltas para a roleta girar (o Eco não sorteia, só repete uma carta).
-  const spin = (c) => Array.from({ length: DECOYS }, () => thumbOf(pick(pools['m' + c.source]?.length ? pools['m' + c.source] : pools.m)));
+  const spin = (c) => thumbsOf(Array.from({ length: DECOYS }, () => pick(pools['m' + c.source]?.length ? pools['m' + c.source] : pools.m)));
 
   // Fotos para o navegador já deixar carregadas ao abrir o Salão: a roleta nunca gira vazia,
   // mesmo quando as fotos sorteadas no roll (wikis, Comic Vine) demoram a chegar.
   // Separadas por fonte, para um roll de jogos girar fotos de jogos.
   function warmup(perSource = 8) {
-    return Object.fromEntries(Object.keys(sources).map((s) => [s, Array.from({ length: perSource }, () => thumbOf(pick(pools['m' + s])))]));
+    const picked = Object.keys(sources).map((s) => [s, Array.from({ length: perSource }, () => pick(pools['m' + s]))]);
+    const thumbs = thumbsOf(picked.flatMap(([, ks]) => ks));
+    return Object.fromEntries(picked.map(([s], i) => [s, thumbs.slice(i * perSource, (i + 1) * perSource)]));
   }
 
   // Por que esta pessoa não pode casar agora (texto), ou null se pode: a janela normal ou a reserva da Esmeralda.
@@ -420,7 +444,7 @@ function createMudae({ catalog, now = Date.now, random = Math.random, refSize = 
   // revealAt: quando o card aparece. Antes dele, ninguém; nos PRIORITY_MS seguintes, só quem rodou
   // (o Laço, lasso: true, ignora essa prioridade). lockedBy: carta trancada pelo Cadeado, só essa pessoa casa.
   function claim(store, accountId, charId, { revealAt, rollerId = null, priority = 0, lockedBy = null, lasso = false }) {
-    if (!lookup(charId)) throw new Error('Personagem desconhecido.');
+    if (lookup(charId) === undefined) throw new Error('Personagem desconhecido.');
     if (store.claims[charId]) throw new Error('Esse personagem já tem dono.');
     const t = now();
     if (t < revealAt) throw new Error('Calma, a roleta ainda está girando!');
@@ -439,13 +463,14 @@ function createMudae({ catalog, now = Date.now, random = Math.random, refSize = 
     note(store, charId, accountId, 'claim');
     dropWish(store, accountId, charId);
     bumpStat(store, accountId, 'claims');
-    if (rarityOf(lookup(charId).eq) === 'legendary') bumpStat(store, accountId, 'legendary');
+    if (rarityOf(eqOf(lookup(charId))) === 'legendary') bumpStat(store, accountId, 'legendary');
     return { reserve };
   }
 
   // Histórico de cada personagem: quantos donos já teve e os últimos (quem, como, quando).
   function note(store, charId, ownerId, how) {
-    const key = String(lookup(charId)?.id ?? charId);
+    const k = lookup(charId);
+    const key = String(k !== undefined ? idOf(k) ?? charId : charId);
     const h = ((store.hist ||= {})[key] ||= { n: 0, last: [] });
     h.n++;
     h.last.push([ownerId, how, now()]);
@@ -453,57 +478,75 @@ function createMudae({ catalog, now = Date.now, random = Math.random, refSize = 
   }
 
   // Passa um personagem de uma pessoa para outra (presente ou troca).
-  function transfer(store, c, from, to, how) {
+  function transfer(store, k, from, to, how) {
+    const id = idOf(k);
     // Presente e troca não contam como casamento: os contadores de quem dá e de quem recebe nascem antes.
     stats(store, from);
     stats(store, to);
-    const old = store.claims[c.id];
+    const old = store.claims[id];
     // Casamentos de antes do histórico entram nele como o primeiro dono.
-    if (old && !store.hist?.[c.id]) ((store.hist ||= {})[c.id] = { n: 1, last: [[old.ownerId, 'claim', old.at]] });
-    store.claims[c.id] = { ownerId: to, at: now() };
-    if (sameId(store.favorites?.[from], c.id)) delete store.favorites[from];
-    note(store, c.id, to, how);
-    dropWish(store, to, c.id);
+    if (old && !store.hist?.[id]) ((store.hist ||= {})[id] = { n: 1, last: [[old.ownerId, 'claim', old.at]] });
+    store.claims[id] = { ownerId: to, at: now() };
+    if (sameId(store.favorites?.[from], id)) delete store.favorites[from];
+    note(store, id, to, how);
+    dropWish(store, to, id);
   }
 
-  const owned = (store, accountId) => Object.entries(store.claims)
-    .filter(([, cl]) => cl.ownerId === accountId)
-    .map(([id]) => lookup(id))
-    .filter(Boolean)
-    .sort((a, b) => a.eq - b.eq);
-  const sum = (list) => list.reduce((total, c) => total + valueOfChar(c), 0);
+  // As cartas de uma pessoa, da mais valiosa para a menos (os ids são achados numa consulta só).
+  function owned(store, accountId) {
+    const ids = [];
+    for (const [id, cl] of Object.entries(store.claims)) if (cl.ownerId === accountId) ids.push(id);
+    return lookupAll(ids).sort(byEq);
+  }
+  const sum = (list) => list.reduce((total, k) => total + valueOfChar(k), 0);
   const sameId = (a, b) => a !== undefined && a !== null && String(a) === String(b);
 
   // O favorito escolhido; sem escolha (ou se ele foi solto), o mais valioso.
   function favoriteOf(store, accountId, list = owned(store, accountId)) {
     const chosen = store.favorites?.[accountId];
-    const c = (chosen !== undefined && store.claims[chosen]?.ownerId === accountId && lookup(chosen)) || list[0];
-    return c ? { ...card(c), chosen: sameId(chosen, c.id) } : null;
+    let k = chosen !== undefined && store.claims[chosen]?.ownerId === accountId ? lookup(chosen) : undefined;
+    if (k === undefined) k = list[0];
+    if (k === undefined) return null;
+    const out = card(k);
+    return { ...out, chosen: sameId(chosen, out.id) };
   }
 
   // Harem resumido para a mensagem do $mm no chat (até 300). sort: value (padrão), name, series ou recent.
+  // Cada item é [k, linha do banco]: as linhas vêm todas numa consulta só.
   const SORTS = {
-    name: (a, b) => a.name.localeCompare(b.name, 'pt'),
-    series: (a, b) => a.series.localeCompare(b.series, 'pt') || a.eq - b.eq,
+    name: (a, b) => a[1].name.localeCompare(b[1].name, 'pt'),
+    series: (a, b) => seriesOf(a[0]).localeCompare(seriesOf(b[0]), 'pt') || eqOf(a[0]) - eqOf(b[0]),
   };
   function harem(store, accountId, sort = 'value') {
-    let list = owned(store, accountId);
+    const list = owned(store, accountId);
     const value = sum(list);
-    if (sort === 'recent') list = list.slice().sort((a, b) => store.claims[b.id].at - store.claims[a.id].at);
-    else if (SORTS[sort]) list = list.slice().sort(SORTS[sort]);
-    else sort = 'value';
-    return { total: list.length, value, sort, chars: list.slice(0, HAREM_LIMIT).map(card) };
+    let items;
+    if (sort === 'recent' || SORTS[sort]) {
+      const rows = cat.rows(list);
+      items = list.map((k, i) => [k, rows[i]]);
+      if (sort === 'recent') items.sort((a, b) => store.claims[b[1].id].at - store.claims[a[1].id].at);
+      else items.sort(SORTS[sort]);
+      items = items.slice(0, HAREM_LIMIT);
+    } else {
+      sort = 'value';
+      const top = list.slice(0, HAREM_LIMIT);
+      const rows = cat.rows(top);
+      items = top.map((k, i) => [k, rows[i]]);
+    }
+    return { total: list.length, value, sort, chars: items.map(([k, r]) => card(k, r)) };
   }
 
   // Álbum completo do Salão, com a data de cada casamento e quem deseja cada carta (para propor troca).
   function album(store, accountId, isMember = () => true) {
     const list = owned(store, accountId);
     const wishes = wishIndex(store, isMember);
+    const rows = cat.rows(list);
     return {
       ownerId: accountId, total: list.length, value: sum(list), favorite: favoriteOf(store, accountId, list),
-      chars: list.map((c) => {
-        const wishedBy = wishes.get(String(c.id));
-        return { ...card(c), claimedAt: store.claims[c.id].at, ...(wishedBy ? { wishedBy } : {}) };
+      chars: list.map((k, i) => {
+        const r = rows[i];
+        const wishedBy = wishes.get(String(r.id));
+        return { ...card(k, r), claimedAt: store.claims[r.id].at, ...(wishedBy ? { wishedBy } : {}) };
       }),
     };
   }
@@ -516,78 +559,92 @@ function createMudae({ catalog, now = Date.now, random = Math.random, refSize = 
 
   function setFavorite(store, accountId, charId) {
     if (charId === null) { if (store.favorites) delete store.favorites[accountId]; return; }
-    const c = lookup(charId);
-    if (!c || store.claims[c.id]?.ownerId !== accountId) throw new Error('Esse personagem não é seu.');
-    (store.favorites ||= {})[accountId] = c.id;
+    const k = lookup(charId);
+    if (k === undefined || store.claims[idOf(k)]?.ownerId !== accountId) throw new Error('Esse personagem não é seu.');
+    (store.favorites ||= {})[accountId] = idOf(k);
   }
 
   // Ranking por valor total; isMember tira quem saiu do servidor.
   function ranking(store, isMember = () => true) {
     const byOwner = new Map();
-    for (const [id, cl] of Object.entries(store.claims)) {
-      const c = lookup(id);
-      if (!c || !isMember(cl.ownerId)) continue;
+    const entries = Object.entries(store.claims);
+    const ks = cat.lookupMany(entries.map(([id]) => id));
+    entries.forEach(([, cl], i) => {
+      const k = ks[i];
+      if (k === undefined || !isMember(cl.ownerId)) return;
       if (!byOwner.has(cl.ownerId)) byOwner.set(cl.ownerId, []);
-      byOwner.get(cl.ownerId).push(c);
-    }
+      byOwner.get(cl.ownerId).push(k);
+    });
     const rows = [...byOwner].map(([ownerId, list]) => {
-      list.sort((a, b) => a.eq - b.eq);
+      list.sort(byEq);
       return { ownerId, total: list.length, value: sum(list), favorite: favoriteOf(store, ownerId, list) };
     }).sort((a, b) => b.value - a.value || b.total - a.total);
-    const legendaries = [...byOwner].flatMap(([ownerId, list]) => list.filter((c) => rarityOf(c.eq) === 'legendary').map((c) => ({ ...card(c), ownerId, eq: c.eq })))
+    const legendaries = [...byOwner].flatMap(([ownerId, list]) => list.filter((k) => rarityOf(eqOf(k)) === 'legendary').map((k) => ({ ...card(k), ownerId, eq: eqOf(k) })))
       .sort((a, b) => a.eq - b.eq)
       .map(({ eq, ...c }) => c);
     return { rows, legendaries };
   }
 
   // Busca pelo nome: igual > começa com > contém. "among" vem ordenado por popularidade,
-  // então o primeiro encontrado em cada nível já é o mais popular.
-  function find(query, among = chars) {
+  // então o primeiro encontrado em cada nível já é o mais popular. Devolve k ou null.
+  function find(query, among) {
     const q = normalize(query);
     if (!q) return null;
     let best = null;
     let bestScore = 0;
-    for (const c of among) {
-      const score = c.key === q ? 3 : c.key.startsWith(q) ? 2 : c.key.includes(q) ? 1 : 0;
-      if (score > bestScore) { best = c; bestScore = score; }
+    for (const k of among) {
+      const key = cat.keyOf(k);
+      const score = key === q ? 3 : key.startsWith(q) ? 2 : key.includes(q) ? 1 : 0;
+      if (score > bestScore) { best = k; bestScore = score; }
       if (bestScore === 3) break;
     }
     return best;
   }
+  // A mesma busca em todo o catálogo, primeiro só entre os da roleta e, sem ninguém, entre todos.
+  // Usa as chaves num Buffer só (veja mudae-catalogo-banco.js): o resultado é o mesmo do find acima.
+  const isActive = (k) => !fora[k];
+  const anyone = () => true;
+  function findAll(query) {
+    const q = normalize(query);
+    if (!q) return null;
+    return cat.search(q, isActive) ?? cat.search(q, anyone) ?? null;
+  }
 
   // $im: o card, o dono, desde quando e como ficou com ele, quantos donos já teve e quem deseja.
   function info(store, query, isMember = () => true) {
-    const c = find(query, ativos) || find(query);
-    if (!c) return null;
-    const cl = store.claims[c.id];
-    const h = store.hist?.[c.id];
+    const k = findAll(query);
+    if (k === null) return null;
+    const out = card(k);
+    const cl = store.claims[out.id];
+    const h = store.hist?.[out.id];
     const last = h?.last.at(-1);
     return {
-      card: card(c), ownerId: cl?.ownerId || null, since: cl?.at || null, via: cl ? (last?.[0] === cl.ownerId ? last[1] : 'claim') : null,
-      owners: Math.max(h?.n || 0, cl ? 1 : 0), wishedBy: wishersOf(store, c.id, isMember),
+      card: out, ownerId: cl?.ownerId || null, since: cl?.at || null, via: cl ? (last?.[0] === cl.ownerId ? last[1] : 'claim') : null,
+      owners: Math.max(h?.n || 0, cl ? 1 : 0), wishedBy: wishersOf(store, out.id, isMember),
     };
   }
 
   // Divorciar devolve o valor da carta em kakera (até DIVORCE_CAP por dia).
-  function release(store, accountId, c) {
+  function release(store, accountId, k) {
+    const id = idOf(k);
     stats(store, accountId);
-    delete store.claims[c.id];
-    if (sameId(store.favorites?.[accountId], c.id)) delete store.favorites[accountId];
-    const out = card(c);
+    delete store.claims[id];
+    if (sameId(store.favorites?.[accountId], id)) delete store.favorites[accountId];
+    const out = card(k);
     const r = refundOf(store, accountId, out.value, now());
     addKakera(store, accountId, r.refund);
     return { ...out, ...r };
   }
 
   function divorce(store, accountId, query) {
-    const c = find(query, owned(store, accountId));
-    return c ? release(store, accountId, c) : null;
+    const k = find(query, owned(store, accountId));
+    return k !== null ? release(store, accountId, k) : null;
   }
 
   function divorceId(store, accountId, charId) {
-    const c = lookup(charId);
-    if (!c || store.claims[c.id]?.ownerId !== accountId) throw new Error('Esse personagem não é seu.');
-    return release(store, accountId, c);
+    const k = lookup(charId);
+    if (k === undefined || store.claims[idOf(k)]?.ownerId !== accountId) throw new Error('Esse personagem não é seu.');
+    return release(store, accountId, k);
   }
 
   // ---------- lista de desejos ($wish, $wl, $wr) ----------
@@ -616,42 +673,46 @@ function createMudae({ catalog, now = Date.now, random = Math.random, refSize = 
     .filter(([accountId, list]) => isMember(accountId) && list.some((id) => sameId(id, charId))).map(([accountId]) => accountId);
 
   // Põe um personagem na lista de desejos (pelo comando, com o nome, ou pela estrela na carta, com o id).
-  function addWish(store, accountId, c) {
+  function addWish(store, accountId, k) {
+    const { id, name } = cat.row(k);
     const list = wishesOf(store, accountId);
-    if (store.claims[c.id]?.ownerId === accountId) return { error: `**${c.name}** já é seu!` };
-    if (list.some((id) => sameId(id, c.id))) return { error: `**${c.name}** já está na sua lista de desejos.` };
+    if (store.claims[id]?.ownerId === accountId) return { error: `**${name}** já é seu!` };
+    if (list.some((x) => sameId(x, id))) return { error: `**${name}** já está na sua lista de desejos.` };
     const max = WISH_LIMIT + perksOf(store, accountId).wishSlots;
     if (list.length >= max) return { error: `Sua lista de desejos está cheia (${max}). Tire alguém com **$wr nome**.` };
-    (store.wishes ||= {})[accountId] = [...list, c.id];
-    return { card: card(c), ownerId: store.claims[c.id]?.ownerId || null, total: list.length + 1, max };
+    (store.wishes ||= {})[accountId] = [...list, id];
+    return { card: card(k), ownerId: store.claims[id]?.ownerId || null, total: list.length + 1, max };
   }
 
   function wish(store, accountId, query) {
-    const c = find(query, ativos) || find(query);
-    return c ? addWish(store, accountId, c) : { error: `Nenhum personagem encontrado para **${String(query).slice(0, 80)}**.` };
+    const k = findAll(query);
+    return k !== null ? addWish(store, accountId, k) : { error: `Nenhum personagem encontrado para **${String(query).slice(0, 80)}**.` };
   }
 
   function wishToggle(store, accountId, charId, on) {
-    const c = lookup(charId);
-    if (!c) throw new Error('Personagem desconhecido.');
-    const has = wishesOf(store, accountId).some((id) => sameId(id, c.id));
-    if (!on) dropWish(store, accountId, c.id);
+    const k = lookup(charId);
+    if (k === undefined) throw new Error('Personagem desconhecido.');
+    const id = idOf(k);
+    const has = wishesOf(store, accountId).some((x) => sameId(x, id));
+    if (!on) dropWish(store, accountId, id);
     else if (!has) {
-      const r = addWish(store, accountId, c);
+      const r = addWish(store, accountId, k);
       if (r.error) throw new Error(r.error.replaceAll('**', ''));
     }
     return { total: wishesOf(store, accountId).length, max: WISH_LIMIT + perksOf(store, accountId).wishSlots };
   }
 
   function unwish(store, accountId, query) {
-    const c = find(query, wishesOf(store, accountId).map(lookup).filter(Boolean));
-    if (!c) return { error: `Ninguém chamado **${String(query).slice(0, 80)}** na sua lista de desejos.` };
-    dropWish(store, accountId, c.id);
-    return { card: card(c), total: wishesOf(store, accountId).length, max: WISH_LIMIT + perksOf(store, accountId).wishSlots };
+    const k = find(query, lookupAll(wishesOf(store, accountId)));
+    if (k === null) return { error: `Ninguém chamado **${String(query).slice(0, 80)}** na sua lista de desejos.` };
+    dropWish(store, accountId, idOf(k));
+    return { card: card(k), total: wishesOf(store, accountId).length, max: WISH_LIMIT + perksOf(store, accountId).wishSlots };
   }
 
   function wishlist(store, accountId) {
-    const chars = wishesOf(store, accountId).map(lookup).filter(Boolean).map((c) => ({ ...card(c), ownerId: store.claims[c.id]?.ownerId || null }));
+    const ks = lookupAll(wishesOf(store, accountId));
+    const rows = cat.rows(ks);
+    const chars = ks.map((k, i) => ({ ...card(k, rows[i]), ownerId: store.claims[rows[i].id]?.ownerId || null }));
     return { ownerId: accountId, total: chars.length, max: WISH_LIMIT + perksOf(store, accountId).wishSlots, chars };
   }
 
@@ -659,18 +720,18 @@ function createMudae({ catalog, now = Date.now, random = Math.random, refSize = 
   // $give: dá uma carta do seu harém (só quem dá confirma, como no Mudae do Discord).
   function give(store, from, to, query) {
     if (from === to) return { error: 'Você não pode dar um personagem para si mesmo.' };
-    const c = find(query, owned(store, from));
-    if (!c) return { error: `Você não tem ninguém chamado **${String(query).slice(0, 80)}** no seu harem.` };
-    transfer(store, c, from, to, 'give');
-    return { card: card(c) };
+    const k = find(query, owned(store, from));
+    if (k === null) return { error: `Você não tem ninguém chamado **${String(query).slice(0, 80)}** no seu harem.` };
+    transfer(store, k, from, to, 'give');
+    return { card: card(k) };
   }
 
   // $fm: escolhe o favorito pelo nome.
   function firstMarry(store, accountId, query) {
-    const c = find(query, owned(store, accountId));
-    if (!c) return { error: `Você não tem ninguém chamado **${String(query).slice(0, 80)}** no seu harem.` };
-    (store.favorites ||= {})[accountId] = c.id;
-    return { card: card(c) };
+    const k = find(query, owned(store, accountId));
+    if (k === null) return { error: `Você não tem ninguém chamado **${String(query).slice(0, 80)}** no seu harem.` };
+    (store.favorites ||= {})[accountId] = idOf(k);
+    return { card: card(k) };
   }
 
   // ---------- $top, $obra e $topserv ----------
@@ -716,9 +777,25 @@ function createMudae({ catalog, now = Date.now, random = Math.random, refSize = 
     const key = filterKey(f);
     if (!filtered.has(key)) {
       const base = f.gender === 'F' ? pools['w' + f.source] : f.gender === 'M' ? pools['h' + f.source] : pools['m' + f.source];
-      filtered.set(key, f.gender === 'O' ? (base || []).filter((c) => c.gender !== 'F' && c.gender !== 'M') : base || []);
+      filtered.set(key, f.gender === 'O' ? (base || []).filter((k) => gen[k] === 0) : base || []);
     }
     return filtered.get(key);
+  }
+  // Quantas cartas da obra têm dono e quantas são de viewerId. Uma obra grande (a Disney tem ~5.900) passa pelos
+  // casamentos da comunidade em vez de pelos personagens: a conta é a mesma, porque cada id é de um personagem só.
+  function seriesOwners(store, all, series, viewerId) {
+    let mine = 0;
+    let claimed = 0;
+    const count = (owner) => { if (owner) { claimed++; if (owner === viewerId) mine++; } };
+    const entries = Object.entries(store.claims);
+    if (entries.length < all.length) {
+      const s = sidOfSeries.get(series);
+      const ks = cat.lookupMany(entries.map(([id]) => id));
+      entries.forEach(([, cl], i) => { const k = ks[i]; if (k !== undefined && !fora[k] && sid[k] === s) count(cl?.ownerId); });
+    } else {
+      for (const r of cat.rows(Array.from(all), false)) count(store.claims[r.id]?.ownerId);
+    }
+    return { mine, claimed };
   }
 
   // Para o comando: confere o filtro e devolve o que vai na mensagem.
@@ -739,18 +816,11 @@ function createMudae({ catalog, now = Date.now, random = Math.random, refSize = 
     const total = f.series ? all.length : Math.min(all.length, TOP_LIMIT);
     const pages = Math.max(1, Math.ceil(total / LIST_PAGE));
     const p = Math.min(Math.max(0, Math.floor(Number(page)) || 0), pages - 1);
-    const chars = all.slice(p * LIST_PAGE, Math.min(total, (p + 1) * LIST_PAGE))
-      .map((c, i) => ({ ...card(c), pos: p * LIST_PAGE + i + 1, ownerId: store.claims[c.id]?.ownerId || null }));
+    const shown = Array.prototype.slice.call(all, p * LIST_PAGE, Math.min(total, (p + 1) * LIST_PAGE));
+    const rows = cat.rows(shown);
+    const chars = shown.map((k, i) => ({ ...card(k, rows[i]), pos: p * LIST_PAGE + i + 1, ownerId: store.claims[rows[i].id]?.ownerId || null }));
     const out = { key: filterKey(f), label: labelOf(f), series: f.series || null, total, page: p, pages, chars };
-    if (f.series) {
-      let mine = 0;
-      let claimed = 0;
-      for (const c of all) {
-        const owner = store.claims[c.id]?.ownerId;
-        if (owner) { claimed++; if (owner === viewerId) mine++; }
-      }
-      Object.assign(out, { mine, claimed });
-    }
+    if (f.series) Object.assign(out, seriesOwners(store, all, f.series, viewerId));
     return out;
   }
 
@@ -799,9 +869,9 @@ function createMudae({ catalog, now = Date.now, random = Math.random, refSize = 
     const ids = [...new Set((Array.isArray(chars) ? chars : []).map((x) => String(x).slice(0, 64)))];
     if (ids.length > TRADE_MAX) throw new Error(`No máximo ${TRADE_MAX} personagens de cada lado.`);
     const list = ids.map((x) => {
-      const c = lookup(x);
-      if (!c || store.claims[c.id]?.ownerId !== accountId) throw new Error('Você só pode oferecer personagens do seu harem.');
-      return c.id;
+      const k = lookup(x);
+      if (k === undefined || store.claims[idOf(k)]?.ownerId !== accountId) throw new Error('Você só pode oferecer personagens do seu harem.');
+      return idOf(k);
     });
     const k = Math.floor(Number(kakera)) || 0;
     if (k < 0) throw new Error('Kakera inválido.');
@@ -827,7 +897,10 @@ function createMudae({ catalog, now = Date.now, random = Math.random, refSize = 
       if (!isMember(who)) return finish(t, 'canceled', 'Alguém saiu do servidor.');
       const offer = t.offers[who];
       for (const charId of offer.chars) {
-        if (store.claims[charId]?.ownerId !== who) return finish(t, 'canceled', `${lookup(charId)?.name || 'Um personagem'} não estava mais no harem de quem ofereceu.`);
+        if (store.claims[charId]?.ownerId !== who) {
+          const k = lookup(charId);
+          return finish(t, 'canceled', `${(k !== undefined ? cat.row(k).name : undefined) || 'Um personagem'} não estava mais no harem de quem ofereceu.`);
+        }
       }
       if (kakeraOf(store, who) < offer.kakera) return finish(t, 'canceled', 'Faltou kakera para fechar a troca.');
     }
@@ -858,17 +931,19 @@ function createMudae({ catalog, now = Date.now, random = Math.random, refSize = 
 
   // O que os dois veem: as cartas de cada lado (com foto e valor), o kakera e quem já confirmou.
   function tradeView(store, t) {
-    const side = (who) => ({ chars: t.offers[who].chars.map(lookup).filter(Boolean).map(card), kakera: t.offers[who].kakera, ok: !!t.ok[who] });
+    const side = (who) => ({ chars: lookupAll(t.offers[who].chars).map((k) => card(k)), kakera: t.offers[who].kakera, ok: !!t.ok[who] });
     return { id: t.id, a: t.a, b: t.b, state: t.state, reason: t.reason, rev: t.rev, expires: t.expires, sides: { [t.a]: side(t.a), [t.b]: side(t.b) } };
   }
 
   // Quantos personagens há em cada fonte na roleta (a tela mostra só os filtros que existem).
-  const sources = Object.fromEntries([...bySource.keys()].map((s) => [s, pools['m' + s].length]).filter(([, n]) => n));
+  const sources = Object.fromEntries(srcOrder.map((s) => [s, pools['m' + s].length]).filter(([, len]) => len));
 
   return { size: ativos.length, sources, parse, status, roll, foresee, arm, armedView, warmup, spin, claim, claimError, harem, album, summary, setFavorite, ranking, info, divorce, divorceId,
     kakeraOf, addKakera, countCrystal: (store, accountId) => bump(store, accountId, 'crystals'), stats, daily, dailyKakera, buyRolls, giveKakera, wish, wishToggle, unwish, wishlist, wishersOf, give, firstMarry, topFilter, list,
     tradeOpen, tradeOffer, tradeConfirm, tradeCancel, tradeExpire, tradeOf, tradeView, otherSide, sweepTrades: sweep,
-    card: (id) => (lookup(id) ? card(lookup(id)) : null) };
+    card: (id) => { const k = lookup(id); return k !== undefined ? card(k) : null; },
+    // Ao ligar: deixa no cache as cartas que já têm dono, para o primeiro harém ou álbum não esperar o disco.
+    preload: (ids) => cat.preload(ids) };
 }
 
 module.exports = { createMudae, parse, isRoll, valueOf, rarityOf, normalize, SOURCES, ROLLS_PER_HOUR, ROLL_RESET_MS, CLAIM_RESET_MS, CLAIM_WINDOW_MS, REVEAL_MS, revealDelay, PRIORITY_MS,

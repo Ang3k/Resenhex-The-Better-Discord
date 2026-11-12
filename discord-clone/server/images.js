@@ -1,15 +1,18 @@
 // Fila de imagens para o worker (server/image-worker.js): a linha principal só manda os bytes e recebe a
 // imagem pronta, com o nome do arquivo (sha256). Um worker só, que sobe no primeiro pedido; se ele morrer ou
 // travar numa imagem, os pedidos em andamento falham e o próximo pedido sobe outro.
+// Parado por IDLE_MS sem pedidos, o worker fecha (devolve ~13 MB de memória) e o próximo pedido sobe outro.
 const path = require('node:path');
 const { Worker } = require('node:worker_threads');
 
 const TIMEOUT_MS = 15_000;
+const IDLE_MS = 60_000;
 const FAILED = 'Não foi possível processar a imagem. Tente de novo.';
 
-function createImages({ log = console.error } = {}) {
+function createImages({ log = console.error, idleMs = IDLE_MS } = {}) {
   let worker = null;
   let nextId = 0;
+  let idleTimer = null;
   const waiting = new Map(); // id -> { resolve, reject, timer }
 
   function settle(id, fn) {
@@ -18,9 +21,16 @@ function createImages({ log = console.error } = {}) {
     waiting.delete(id);
     clearTimeout(job.timer);
     fn(job);
-    if (!waiting.size) worker?.unref(); // sem pedidos, o worker não segura o processo aberto
+    if (!waiting.size && worker) {
+      worker.unref(); // sem pedidos, o worker não segura o processo aberto
+      clearTimeout(idleTimer);
+      idleTimer = setTimeout(() => { idleTimer = null; if (!waiting.size) stop(null); }, idleMs);
+      idleTimer.unref();
+    }
   }
-  function stop(reason) { // reason null: desligando, sem aviso no log
+  function stop(reason) { // reason null: desligando ou parado sem pedidos, sem aviso no log
+    clearTimeout(idleTimer);
+    idleTimer = null;
     const current = worker;
     worker = null;
     for (const id of [...waiting.keys()]) settle(id, (job) => job.reject(new Error(FAILED)));
@@ -42,6 +52,8 @@ function createImages({ log = console.error } = {}) {
 
   // kind: 'avatar' (data URL de PNG), 'photo' (PNG ou GIF), 'banner' ou 'background'. Devolve { ext, data, hash }.
   function decode(kind, input) {
+    clearTimeout(idleTimer);
+    idleTimer = null;
     worker ||= start();
     worker.ref();
     const id = ++nextId;
