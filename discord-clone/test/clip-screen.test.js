@@ -50,3 +50,12 @@ test('stripLayout: fotos pequenas em fila no canto de baixo, sem passar da metad
   assert.equal(many.length, 12);
   assert.ok(many.at(-1).x + many.at(-1).r <= 1280 * 0.62, 'deixa lugar para a marca à direita');
 });
+
+test('rollSize: a tela vai para o rolo no formato dela, sem faixas pretas e com lados pares', () => {
+  assert.deepEqual(ClipScreen.rollSize(1920, 1080), { w: 1280, h: 720 });
+  assert.deepEqual(ClipScreen.rollSize(3840, 2160), { w: 1280, h: 720 });
+  assert.deepEqual(ClipScreen.rollSize(2560, 1080), { w: 1280, h: 540 });
+  assert.deepEqual(ClipScreen.rollSize(1080, 1920), { w: 404, h: 720 });
+  assert.deepEqual(ClipScreen.rollSize(1440, 900), { w: 1152, h: 720 });
+  assert.deepEqual(ClipScreen.rollSize(0, 0), { w: 1280, h: 720 });
+});
