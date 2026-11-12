@@ -443,7 +443,10 @@ window.Sounds = (() => {
 
   // Passa a tocar no contexto e na saída do app (a referência que tira o som do Resenhex da
   // transmissão); route(null, null) volta para a saída normal.
+  // O contexto próprio dos sons, trocado pelo da chamada, fecha 15 s depois (o som mais longo tem 8 s);
+  // antes ele ficava aberto até fechar o app.
   function route(context, node) {
+    if (context && ctx && ctx !== context) { const old = ctx; setTimeout(() => old.close().catch(() => {}), 15_000); }
     if (context) ctx = context;
     callBus = node;
   }
