@@ -2008,19 +2008,30 @@
     box.addEventListener('click', (e) => { if (Date.now() < suppressClickUntil) { e.preventDefault(); e.stopPropagation(); } }, true);
   }
 
+  // Foto com miniatura (enviada a partir da 2.7.0): o navegador escolhe entre a miniatura e a original pelo
+  // tamanho que a foto ocupa na tela (srcset). A miniatura tem o lado menor de 900 px, o bastante para o maior
+  // espaço do chat (400×300, ou o quadro de 293×284 do mosaico) em telas de até 3× de densidade; nas mais
+  // densas, e no visualizador, vale a original. Uma foto de 12 MP decodificada ocupa 48 MB; a miniatura, ~4 MB.
+  function photoSource(a, tile) {
+    if (!a.mini?.url || !(a.w > 0 && a.h > 0 && a.mini.w > 0)) return { src: a.url };
+    const r = a.w / a.h;
+    const width = Math.round(tile ? Math.max(293, 284 * r) : Math.min(400, 300 * r));
+    return { srcset: `${a.mini.url} ${a.mini.w}w, ${a.url} ${a.w}w`, sizes: width + 'px', src: a.mini.url };
+  }
+
   // Várias fotos na mesma mensagem viram um mosaico (como no Discord); o resto fica embaixo.
   function attachmentsNode(attachments) {
     const images = attachments.filter((a) => a.type.startsWith('image/'));
     const others = attachments.filter((a) => !a.type.startsWith('image/'));
     const gallery = images.length > 1 ? el('div', { class: 'att-gallery n-' + Math.min(images.length, 5) + (images.length > 4 ? ' many' : '') },
       images.map((a) => el('button', { type: 'button', class: 'att-tile', ariaLabel: 'Abrir ' + a.name, onclick: () => openLightbox(a) },
-        el('img', { src: a.url, alt: a.name, loading: 'lazy', draggable: false, onload: keepBottom })))) : null;
+        el('img', { ...photoSource(a, true), alt: a.name, loading: 'lazy', draggable: false, onload: keepBottom })))) : null;
     return el('div', { class: 'attachments' }, gallery, (images.length === 1 ? images : []).concat(others).map(attachmentNode));
   }
 
   function attachmentNode(a) {
     if (a.type.startsWith('image/')) {
-      const img = el('img', { src: a.url, alt: a.name, loading: 'lazy', onclick: () => openLightbox(a), onload: keepBottom });
+      const img = el('img', { ...photoSource(a, false), alt: a.name, loading: 'lazy', onclick: () => openLightbox(a), onload: keepBottom });
       return el('div', { class: 'att-image' }, img);
     }
     if (a.type.startsWith('video/')) return el('video', { class: 'att-video', src: a.url, controls: true, preload: 'metadata', onloadedmetadata: keepBottom });
@@ -2179,6 +2190,42 @@
     renderComposer();
   }
 
+  // A foto guarda a própria imagem original? Animada (PNG/WebP), ou com perfil de cor que não é sRGB (as
+  // fotos de iPhone em Display P3): a miniatura mudaria o movimento ou a cor, então fica só a original.
+  function keepOriginalOnly(head, type) {
+    const text = (from, to) => String.fromCharCode(...head.subarray(from, to));
+    const has = (s) => { for (let i = 0; i + s.length <= head.length; i++) { let ok = true; for (let j = 0; j < s.length && ok; j++) ok = head[i + j] === s.charCodeAt(j); if (ok) return true; } return false; };
+    if (type === 'image/png') return has('acTL') || has('iCCP');
+    if (type === 'image/webp') return text(12, 16) === 'VP8X' && (head[20] & 0x22) !== 0; // animada ou com perfil de cor
+    if (!has('ICC_PROFILE')) return false;
+    return !(has('sRGB') || has('s\0R\0G\0B'));
+  }
+
+  // Miniatura de uma foto, feita aqui antes de enviar (lado menor de 900 px). Devolve null quando a foto já é
+  // pequena, é animada, tem outro perfil de cor, ou o navegador não sabe fazer.
+  async function photoMini(file) {
+    if (!/^image\/(jpeg|png|webp)$/.test(file.type) || typeof createImageBitmap !== 'function' || typeof OffscreenCanvas === 'undefined') return null;
+    try {
+      if (keepOriginalOnly(new Uint8Array(await file.slice(0, 256 * 1024).arrayBuffer()), file.type)) return null;
+      let bitmap;
+      try { bitmap = await createImageBitmap(file, { imageOrientation: 'from-image' }); } catch { bitmap = await createImageBitmap(file); }
+      const { width: w, height: h } = bitmap;
+      const scale = 900 / Math.min(w, h);
+      if (scale * scale > 0.8) { bitmap.close(); return null; } // já é pequena: a miniatura quase não economizaria
+      const tw = Math.max(1, Math.round(w * scale)), th = Math.max(1, Math.round(h * scale));
+      const small = await createImageBitmap(bitmap, { resizeWidth: tw, resizeHeight: th, resizeQuality: 'high' });
+      bitmap.close();
+      const canvas = new OffscreenCanvas(tw, th);
+      canvas.getContext('2d').drawImage(small, 0, 0);
+      small.close();
+      let blob = await canvas.convertToBlob({ type: 'image/webp', quality: 0.9 });
+      if (blob.type !== 'image/webp') blob = file.type === 'image/jpeg' ? await canvas.convertToBlob({ type: 'image/jpeg', quality: 0.92 }) : null;
+      return blob?.type === 'image/webp' || blob?.type === 'image/jpeg' ? { blob, w, h } : null;
+    } catch {
+      return null;
+    }
+  }
+
   async function uploadFiles(files) {
     if (!canWrite()) return toast('Você não pode enviar arquivos agora.');
     for (const file of files) {
@@ -2190,6 +2237,7 @@
       const item = { name: file.name || 'imagem.png', size: file.size, uploading: true, preview: file.type.startsWith('image/') ? URL.createObjectURL(file) : null };
       state.pending.push(item);
       renderComposer();
+      const mini = photoMini(file);
       fetch('/upload', {
         method: 'POST',
         headers: { 'x-token': localStorage.getItem('token'), 'x-filename': encodeURIComponent(item.name), 'content-type': 'application/octet-stream', 'x-server-id': state.server.serverId || '', 'x-channel-id': state.textChannel || '' },
@@ -2197,6 +2245,12 @@
       })
         .then((r) => r.json().catch(() => ({ error: 'Falha no envio (' + r.status + ')' })))
         .catch(() => ({ error: 'Falha no envio' }))
+        // A miniatura sobe depois da original e antes de liberar o envio; se falhar, a foto vai só com a original.
+        .then(async (res) => {
+          const m = !res.error && await mini;
+          if (m) await fetch('/upload/' + res.id + '/mini', { method: 'POST', headers: { 'x-token': localStorage.getItem('token'), 'x-image-size': m.w + 'x' + m.h, 'content-type': 'application/octet-stream' }, body: m.blob }).catch(() => {});
+          return res;
+        })
         .then((res) => {
           const current = state.pending.includes(item);
           if (!current && ![...composerDrafts.values()].some((draft) => draft.pending.includes(item))) return;
