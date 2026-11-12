@@ -1,0 +1,1124 @@
+{
+ "sobre": "Rodadas A/B de 12/11/2026 (e1 a e7). MB de memória privada no Windows, sem o processo do medidor (tracing). proto = cópia com os protótipos ligados (chaves memlab); hoje = sem. e1-dj-* não vale (o /parar falhou); o DJ certo é o e5. e3/e4: S transmite, V e W assistem.",
+ "rodadas": [
+  {
+   "rotulo": "e1-E-hoje-chamada",
+   "hora": "2026-11-12T20:47:10.141Z",
+   "total_mb": 382,
+   "processos": {
+    "principal": 70.9,
+    "gpu-process": 128.8,
+    "network": 15,
+    "barra": 26.1,
+    "pagina": 129.3,
+    "audio": 12.2
+   },
+   "js_heap_mb": 3.7,
+   "mensagens_no_dom": 300,
+   "imagens_carregadas": 249,
+   "imagens_mpx": 16.1
+  },
+  {
+   "rotulo": "e1-E-hoje-chat",
+   "hora": "2026-11-12T20:46:37.351Z",
+   "total_mb": 292,
+   "processos": {
+    "principal": 60.5,
+    "gpu-process": 109.3,
+    "network": 14.6,
+    "barra": 26.1,
+    "pagina": 81.4
+   },
+   "js_heap_mb": 3.2,
+   "mensagens_no_dom": 300,
+   "imagens_carregadas": 245,
+   "imagens_mpx": 15.8
+  },
+  {
+   "rotulo": "e1-E-hoje-depois-1500",
+   "hora": "2026-11-12T20:54:25.113Z",
+   "total_mb": 543,
+   "processos": {
+    "principal": 77.3,
+    "gpu-process": 127.6,
+    "network": 14.9,
+    "barra": 26.2,
+    "pagina": 285.8,
+    "audio": 11.2
+   },
+   "js_heap_mb": 20.7,
+   "mensagens_no_dom": 1801,
+   "imagens_carregadas": 1354,
+   "imagens_mpx": 88.5
+  },
+  {
+   "rotulo": "e1-E-hoje-depois-pressao",
+   "hora": "2026-11-12T20:55:50.146Z",
+   "total_mb": 505,
+   "processos": {
+    "principal": 74.6,
+    "gpu-process": 93.8,
+    "network": 14.9,
+    "barra": 26.2,
+    "pagina": 284.6,
+    "audio": 11.3
+   },
+   "js_heap_mb": 20.7,
+   "mensagens_no_dom": 1801,
+   "imagens_carregadas": 1354,
+   "imagens_mpx": 88.5
+  },
+  {
+   "rotulo": "e1-E-hoje-dj-parado",
+   "hora": "2026-11-12T20:48:58.942Z",
+   "total_mb": 397,
+   "processos": {
+    "principal": 73.5,
+    "gpu-process": 127.6,
+    "network": 14.8,
+    "barra": 26.2,
+    "pagina": 143.3,
+    "audio": 12
+   },
+   "js_heap_mb": 3.9,
+   "mensagens_no_dom": 300,
+   "imagens_carregadas": 249,
+   "imagens_mpx": 16.1
+  },
+  {
+   "rotulo": "e1-E-hoje-dj-tocando",
+   "hora": "2026-11-12T20:48:06.206Z",
+   "total_mb": 396,
+   "processos": {
+    "principal": 70.8,
+    "gpu-process": 129.1,
+    "network": 14.9,
+    "barra": 26.2,
+    "pagina": 142.7,
+    "audio": 12.2
+   },
+   "js_heap_mb": 3.8,
+   "mensagens_no_dom": 300,
+   "imagens_carregadas": 249,
+   "imagens_mpx": 16.1
+  },
+  {
+   "rotulo": "e1-E-hoje-saiu-chamada-75s",
+   "hora": "2026-11-12T20:50:29.532Z",
+   "total_mb": 371,
+   "processos": {
+    "principal": 73.8,
+    "gpu-process": 129.1,
+    "network": 14.8,
+    "barra": 26.2,
+    "pagina": 116.1,
+    "audio": 11.4
+   },
+   "js_heap_mb": 3.7,
+   "mensagens_no_dom": 300,
+   "imagens_carregadas": 248,
+   "imagens_mpx": 16
+  },
+  {
+   "rotulo": "e1-E-hoje-saiu-chamada",
+   "hora": "2026-11-12T20:49:22.295Z",
+   "total_mb": 367,
+   "processos": {
+    "principal": 71.9,
+    "gpu-process": 127.6,
+    "network": 14.4,
+    "barra": 26.2,
+    "pagina": 115.3,
+    "audio": 11.6
+   },
+   "js_heap_mb": 3.7,
+   "mensagens_no_dom": 300,
+   "imagens_carregadas": 248,
+   "imagens_mpx": 16
+  },
+  {
+   "rotulo": "e1-E-hoje-saiu-salao",
+   "hora": "2026-11-12T20:53:09.906Z",
+   "total_mb": 440,
+   "processos": {
+    "principal": 75.9,
+    "gpu-process": 129.1,
+    "network": 15.1,
+    "barra": 26.2,
+    "pagina": 182.2,
+    "audio": 11.4
+   },
+   "js_heap_mb": 5,
+   "mensagens_no_dom": 300,
+   "imagens_carregadas": 248,
+   "imagens_mpx": 16
+  },
+  {
+   "rotulo": "e1-E-hoje-salao",
+   "hora": "2026-11-12T20:52:45.230Z",
+   "total_mb": 426,
+   "processos": {
+    "principal": 75.3,
+    "gpu-process": 129.1,
+    "network": 15.1,
+    "barra": 26.2,
+    "pagina": 169.1,
+    "audio": 11.4
+   },
+   "js_heap_mb": 5.2,
+   "mensagens_no_dom": 173,
+   "imagens_carregadas": 172,
+   "imagens_mpx": 11
+  },
+  {
+   "rotulo": "e1-F-proto-chamada",
+   "hora": "2026-11-12T20:47:13.774Z",
+   "total_mb": 380,
+   "processos": {
+    "principal": 71.7,
+    "gpu-process": 129.1,
+    "network": 15,
+    "barra": 26.2,
+    "pagina": 126,
+    "audio": 12.3
+   },
+   "js_heap_mb": 4,
+   "mensagens_no_dom": 300,
+   "imagens_carregadas": 248,
+   "imagens_mpx": 16
+  },
+  {
+   "rotulo": "e1-F-proto-chat",
+   "hora": "2026-11-12T20:46:41.162Z",
+   "total_mb": 296,
+   "processos": {
+    "principal": 60.5,
+    "gpu-process": 116.7,
+    "network": 14.8,
+    "barra": 26,
+    "pagina": 77.5
+   },
+   "js_heap_mb": 3.1,
+   "mensagens_no_dom": 300,
+   "imagens_carregadas": 246,
+   "imagens_mpx": 15.9
+  },
+  {
+   "rotulo": "e1-F-proto-depois-1500",
+   "hora": "2026-11-12T20:55:34.273Z",
+   "total_mb": 527,
+   "processos": {
+    "principal": 74.7,
+    "gpu-process": 129.8,
+    "network": 14.8,
+    "barra": 26.3,
+    "pagina": 270.4,
+    "audio": 11.2
+   },
+   "js_heap_mb": 4.9,
+   "mensagens_no_dom": 300,
+   "imagens_carregadas": 248,
+   "imagens_mpx": 16
+  },
+  {
+   "rotulo": "e1-F-proto-depois-pressao",
+   "hora": "2026-11-12T20:55:54.807Z",
+   "total_mb": 475,
+   "processos": {
+    "principal": 75.1,
+    "gpu-process": 92.3,
+    "network": 14.8,
+    "barra": 26.3,
+    "pagina": 255.7,
+    "audio": 11
+   },
+   "js_heap_mb": 4.8,
+   "mensagens_no_dom": 300,
+   "imagens_carregadas": 248,
+   "imagens_mpx": 16
+  },
+  {
+   "rotulo": "e1-F-proto-dj-parado",
+   "hora": "2026-11-12T20:49:03.212Z",
+   "total_mb": 396,
+   "processos": {
+    "principal": 73.5,
+    "gpu-process": 129.8,
+    "network": 15,
+    "barra": 26.2,
+    "pagina": 139.4,
+    "audio": 12.1
+   },
+   "js_heap_mb": 4.2,
+   "mensagens_no_dom": 300,
+   "imagens_carregadas": 249,
+   "imagens_mpx": 16.1
+  },
+  {
+   "rotulo": "e1-F-proto-dj-tocando",
+   "hora": "2026-11-12T20:48:10.046Z",
+   "total_mb": 392,
+   "processos": {
+    "principal": 69.9,
+    "gpu-process": 129.9,
+    "network": 14.9,
+    "barra": 26.2,
+    "pagina": 139.1,
+    "audio": 12.3
+   },
+   "js_heap_mb": 3.9,
+   "mensagens_no_dom": 300,
+   "imagens_carregadas": 249,
+   "imagens_mpx": 16.1
+  },
+  {
+   "rotulo": "e1-F-proto-saiu-chamada-75s",
+   "hora": "2026-11-12T20:50:33.040Z",
+   "total_mb": 344,
+   "processos": {
+    "principal": 72.8,
+    "gpu-process": 131.4,
+    "network": 14.8,
+    "barra": 26.2,
+    "pagina": 87.7,
+    "audio": 11.3
+   },
+   "js_heap_mb": 3.7,
+   "mensagens_no_dom": 300,
+   "imagens_carregadas": 248,
+   "imagens_mpx": 16
+  },
+  {
+   "rotulo": "e1-F-proto-saiu-chamada",
+   "hora": "2026-11-12T20:49:25.939Z",
+   "total_mb": 341,
+   "processos": {
+    "principal": 71.5,
+    "gpu-process": 129.9,
+    "network": 14.5,
+    "barra": 26.2,
+    "pagina": 87.5,
+    "audio": 11.5
+   },
+   "js_heap_mb": 3.7,
+   "mensagens_no_dom": 300,
+   "imagens_carregadas": 248,
+   "imagens_mpx": 16
+  },
+  {
+   "rotulo": "e1-F-proto-saiu-salao",
+   "hora": "2026-11-12T20:53:14.214Z",
+   "total_mb": 409,
+   "processos": {
+    "principal": 75,
+    "gpu-process": 129.8,
+    "network": 14.8,
+    "barra": 26.2,
+    "pagina": 152,
+    "audio": 11.3
+   },
+   "js_heap_mb": 5.1,
+   "mensagens_no_dom": 300,
+   "imagens_carregadas": 248,
+   "imagens_mpx": 16
+  },
+  {
+   "rotulo": "e1-F-proto-salao",
+   "hora": "2026-11-12T20:52:49.893Z",
+   "total_mb": 396,
+   "processos": {
+    "principal": 73,
+    "gpu-process": 129.9,
+    "network": 14.9,
+    "barra": 26.2,
+    "pagina": 140.8,
+    "audio": 11.3
+   },
+   "js_heap_mb": 5.3,
+   "mensagens_no_dom": 173,
+   "imagens_carregadas": 172,
+   "imagens_mpx": 11
+  },
+  {
+   "rotulo": "e2-G-hoje-chamada",
+   "hora": "2026-11-12T20:47:05.133Z",
+   "total_mb": 396,
+   "processos": {
+    "principal": 71.4,
+    "gpu-process": 148.2,
+    "network": 15,
+    "barra": 26.3,
+    "pagina": 123.2,
+    "audio": 12.3
+   },
+   "js_heap_mb": 3.6,
+   "mensagens_no_dom": 300,
+   "imagens_carregadas": 251,
+   "imagens_mpx": 16.2
+  },
+  {
+   "rotulo": "e2-G-hoje-chat",
+   "hora": "2026-11-12T20:46:37.648Z",
+   "total_mb": 289,
+   "processos": {
+    "principal": 61.4,
+    "gpu-process": 111.5,
+    "network": 14.3,
+    "barra": 26.1,
+    "pagina": 75.8
+   },
+   "js_heap_mb": 3,
+   "mensagens_no_dom": 300,
+   "imagens_carregadas": 246,
+   "imagens_mpx": 15.9
+  },
+  {
+   "rotulo": "e2-G-hoje-depois-pressao",
+   "hora": "2026-11-12T20:48:52.881Z",
+   "total_mb": 325,
+   "processos": {
+    "principal": 73.5,
+    "gpu-process": 90.9,
+    "network": 14.7,
+    "barra": 26.2,
+    "pagina": 108.4,
+    "audio": 11.4
+   },
+   "js_heap_mb": 3.6,
+   "mensagens_no_dom": 300,
+   "imagens_carregadas": 249,
+   "imagens_mpx": 16.1
+  },
+  {
+   "rotulo": "e2-G-hoje-saiu-chamada-75s",
+   "hora": "2026-11-12T20:48:35.278Z",
+   "total_mb": 367,
+   "processos": {
+    "principal": 73.9,
+    "gpu-process": 133,
+    "network": 14.7,
+    "barra": 26.1,
+    "pagina": 107.9,
+    "audio": 11.4
+   },
+   "js_heap_mb": 3.6,
+   "mensagens_no_dom": 300,
+   "imagens_carregadas": 249,
+   "imagens_mpx": 16.1
+  },
+  {
+   "rotulo": "e2-G-hoje-saiu-chamada",
+   "hora": "2026-11-12T20:47:28.034Z",
+   "total_mb": 368,
+   "processos": {
+    "principal": 74,
+    "gpu-process": 133.1,
+    "network": 14.8,
+    "barra": 26.3,
+    "pagina": 107.7,
+    "audio": 11.6
+   },
+   "js_heap_mb": 3.6,
+   "mensagens_no_dom": 300,
+   "imagens_carregadas": 249,
+   "imagens_mpx": 16.1
+  },
+  {
+   "rotulo": "e2-H-hoje-chamada",
+   "hora": "2026-11-12T20:47:08.843Z",
+   "total_mb": 383,
+   "processos": {
+    "principal": 75.8,
+    "gpu-process": 141.7,
+    "barra": 28.4,
+    "pagina": 136.6
+   },
+   "js_heap_mb": 4.3,
+   "mensagens_no_dom": 300,
+   "imagens_carregadas": 251,
+   "imagens_mpx": 16.2
+  },
+  {
+   "rotulo": "e2-H-hoje-chat",
+   "hora": "2026-11-12T20:46:41.402Z",
+   "total_mb": 310,
+   "processos": {
+    "principal": 63.9,
+    "gpu-process": 127.8,
+    "barra": 28.4,
+    "pagina": 89.7
+   },
+   "js_heap_mb": 3.1,
+   "mensagens_no_dom": 300,
+   "imagens_carregadas": 246,
+   "imagens_mpx": 15.9
+  },
+  {
+   "rotulo": "e2-H-hoje-depois-pressao",
+   "hora": "2026-11-12T20:48:56.680Z",
+   "total_mb": 330,
+   "processos": {
+    "principal": 75.3,
+    "gpu-process": 103.9,
+    "barra": 26.6,
+    "pagina": 124.4
+   },
+   "js_heap_mb": 3.6,
+   "mensagens_no_dom": 300,
+   "imagens_carregadas": 248,
+   "imagens_mpx": 16
+  },
+  {
+   "rotulo": "e2-H-hoje-saiu-chamada-75s",
+   "hora": "2026-11-12T20:48:39.035Z",
+   "total_mb": 362,
+   "processos": {
+    "principal": 78,
+    "gpu-process": 134.1,
+    "barra": 25.9,
+    "pagina": 124.4
+   },
+   "js_heap_mb": 3.6,
+   "mensagens_no_dom": 300,
+   "imagens_carregadas": 248,
+   "imagens_mpx": 16
+  },
+  {
+   "rotulo": "e2-H-hoje-saiu-chamada",
+   "hora": "2026-11-12T20:47:31.637Z",
+   "total_mb": 362,
+   "processos": {
+    "principal": 76.8,
+    "gpu-process": 134.4,
+    "barra": 26.8,
+    "pagina": 124.3
+   },
+   "js_heap_mb": 3.6,
+   "mensagens_no_dom": 300,
+   "imagens_carregadas": 248,
+   "imagens_mpx": 16
+  },
+  {
+   "rotulo": "e3-S-hoje-chamada",
+   "hora": "2026-11-12T21:09:12.781Z",
+   "total_mb": 461,
+   "processos": {
+    "principal": 75.7,
+    "gpu-process": 192.5,
+    "network": 15.4,
+    "barra": 27.3,
+    "pagina": 137.7,
+    "audio": 12.2
+   },
+   "js_heap_mb": 3.7,
+   "mensagens_no_dom": 300,
+   "imagens_carregadas": 249,
+   "imagens_mpx": 16.1
+  },
+  {
+   "rotulo": "e3-S-hoje-transmitindo",
+   "hora": "2026-11-12T21:10:40.885Z",
+   "total_mb": 1205,
+   "processos": {
+    "principal": 163.8,
+    "gpu-process": 826.9,
+    "network": 15.2,
+    "barra": 28.4,
+    "pagina": 158.4,
+    "audio": 12.4
+   },
+   "js_heap_mb": 4.8,
+   "mensagens_no_dom": 300,
+   "imagens_carregadas": 249,
+   "imagens_mpx": 16.1
+  },
+  {
+   "rotulo": "e3-V-hoje-chamada",
+   "hora": "2026-11-12T21:09:16.513Z",
+   "total_mb": 453,
+   "processos": {
+    "principal": 75.6,
+    "gpu-process": 188,
+    "network": 15.5,
+    "barra": 27.4,
+    "pagina": 133.9,
+    "audio": 12.2
+   },
+   "js_heap_mb": 3.6,
+   "mensagens_no_dom": 300,
+   "imagens_carregadas": 250,
+   "imagens_mpx": 16.1
+  },
+  {
+   "rotulo": "e3-V-hoje-transmitindo",
+   "hora": "2026-11-12T21:10:46.471Z",
+   "total_mb": 595,
+   "processos": {
+    "principal": 77.3,
+    "gpu-process": 305.7,
+    "network": 15.8,
+    "barra": 28.5,
+    "pagina": 154.3,
+    "audio": 13.1
+   },
+   "js_heap_mb": 4.1,
+   "mensagens_no_dom": 300,
+   "imagens_carregadas": 252,
+   "imagens_mpx": 16.6
+  },
+  {
+   "rotulo": "e3-W-proto-chamada",
+   "hora": "2026-11-12T21:09:20.195Z",
+   "total_mb": 457,
+   "processos": {
+    "principal": 76.5,
+    "gpu-process": 194.5,
+    "network": 15.1,
+    "barra": 27.4,
+    "pagina": 131.2,
+    "audio": 12.3
+   },
+   "js_heap_mb": 3.7,
+   "mensagens_no_dom": 300,
+   "imagens_carregadas": 250,
+   "imagens_mpx": 16.1
+  },
+  {
+   "rotulo": "e3-W-proto-transmitindo",
+   "hora": "2026-11-12T21:10:51.478Z",
+   "total_mb": 592,
+   "processos": {
+    "principal": 77.3,
+    "gpu-process": 298.3,
+    "network": 15.3,
+    "barra": 27.4,
+    "pagina": 161.2,
+    "audio": 12.1
+   },
+   "js_heap_mb": 3.9,
+   "mensagens_no_dom": 300,
+   "imagens_carregadas": 252,
+   "imagens_mpx": 16.6
+  },
+  {
+   "rotulo": "e4-S-proto-chamada",
+   "hora": "2026-11-12T21:13:07.297Z",
+   "total_mb": 359,
+   "processos": {
+    "principal": 75.7,
+    "gpu-process": 105.5,
+    "network": 15,
+    "barra": 26.5,
+    "pagina": 124.6,
+    "audio": 12.2
+   },
+   "js_heap_mb": 3.6,
+   "mensagens_no_dom": 300,
+   "imagens_carregadas": 247,
+   "imagens_mpx": 15.9
+  },
+  {
+   "rotulo": "e4-S-proto-transmitindo-2min",
+   "hora": "2026-11-12T21:16:04.179Z",
+   "total_mb": 673,
+   "processos": {
+    "principal": 167.6,
+    "gpu-process": 289.2,
+    "network": 15.2,
+    "barra": 26.4,
+    "pagina": 162.1,
+    "audio": 12.4
+   },
+   "js_heap_mb": 7,
+   "mensagens_no_dom": 300,
+   "imagens_carregadas": 247,
+   "imagens_mpx": 15.9
+  },
+  {
+   "rotulo": "e4-S-proto-transmitindo",
+   "hora": "2026-11-12T21:14:31.273Z",
+   "total_mb": 609,
+   "processos": {
+    "principal": 165.7,
+    "gpu-process": 233.1,
+    "network": 14.8,
+    "barra": 26.3,
+    "pagina": 156.8,
+    "audio": 12.4
+   },
+   "js_heap_mb": 7,
+   "mensagens_no_dom": 300,
+   "imagens_carregadas": 247,
+   "imagens_mpx": 15.9
+  },
+  {
+   "rotulo": "e4-V-hoje-chamada",
+   "hora": "2026-11-12T21:13:11.051Z",
+   "total_mb": 496,
+   "processos": {
+    "principal": 78.1,
+    "gpu-process": 211.1,
+    "network": 15.6,
+    "barra": 28.6,
+    "pagina": 149.1,
+    "audio": 13.1
+   },
+   "js_heap_mb": 4.4,
+   "mensagens_no_dom": 300,
+   "imagens_carregadas": 248,
+   "imagens_mpx": 16
+  },
+  {
+   "rotulo": "e4-V-hoje-transmitindo-2min",
+   "hora": "2026-11-12T21:16:08.599Z",
+   "total_mb": 601,
+   "processos": {
+    "principal": 77.2,
+    "gpu-process": 313.4,
+    "network": 15.2,
+    "barra": 28.5,
+    "pagina": 153.9,
+    "audio": 13.1
+   },
+   "js_heap_mb": 4.7,
+   "mensagens_no_dom": 300,
+   "imagens_carregadas": 250,
+   "imagens_mpx": 16.5
+  },
+  {
+   "rotulo": "e4-V-hoje-transmitindo",
+   "hora": "2026-11-12T21:14:35.513Z",
+   "total_mb": 601,
+   "processos": {
+    "principal": 79.4,
+    "gpu-process": 303.7,
+    "network": 15.4,
+    "barra": 28.6,
+    "pagina": 161.2,
+    "audio": 13.1
+   },
+   "js_heap_mb": 4,
+   "mensagens_no_dom": 300,
+   "imagens_carregadas": 250,
+   "imagens_mpx": 16.5
+  },
+  {
+   "rotulo": "e5-G-hoje-antes-dj",
+   "hora": "2026-11-12T21:02:37.411Z",
+   "total_mb": 501,
+   "processos": {
+    "principal": 80.2,
+    "gpu-process": 193.1,
+    "network": 15.5,
+    "barra": 28.5,
+    "pagina": 170.9,
+    "audio": 12.3
+   },
+   "js_heap_mb": 4.6,
+   "mensagens_no_dom": 300,
+   "imagens_carregadas": 253,
+   "imagens_mpx": 16.3
+  },
+  {
+   "rotulo": "e5-G-hoje-depois-pressao",
+   "hora": "2026-11-12T21:04:36.987Z",
+   "total_mb": 672,
+   "processos": {
+    "principal": 83,
+    "gpu-process": 276.2,
+    "network": 16.5,
+    "barra": 28.6,
+    "pagina": 255.2,
+    "audio": 12.8
+   },
+   "js_heap_mb": 4.8,
+   "mensagens_no_dom": 300,
+   "imagens_carregadas": 254,
+   "imagens_mpx": 16.4
+  },
+  {
+   "rotulo": "e5-G-hoje-dj-parado-100s",
+   "hora": "2026-11-12T21:07:14.184Z",
+   "total_mb": 630,
+   "processos": {
+    "principal": 82.5,
+    "gpu-process": 248.8,
+    "network": 16.5,
+    "barra": 28.6,
+    "pagina": 241.2,
+    "audio": 12.5
+   },
+   "js_heap_mb": 4.8,
+   "mensagens_no_dom": 300,
+   "imagens_carregadas": 253,
+   "imagens_mpx": 16.3
+  },
+  {
+   "rotulo": "e5-G-hoje-dj-parado-de-verdade",
+   "hora": "2026-11-12T21:06:06.126Z",
+   "total_mb": 636,
+   "processos": {
+    "principal": 81.2,
+    "gpu-process": 248.8,
+    "network": 16.6,
+    "barra": 28.5,
+    "pagina": 248.5,
+    "audio": 12.5
+   },
+   "js_heap_mb": 4.3,
+   "mensagens_no_dom": 300,
+   "imagens_carregadas": 253,
+   "imagens_mpx": 16.3
+  },
+  {
+   "rotulo": "e5-G-hoje-dj-parado",
+   "hora": "2026-11-12T21:04:18.646Z",
+   "total_mb": 688,
+   "processos": {
+    "principal": 81,
+    "gpu-process": 284.8,
+    "network": 16.8,
+    "barra": 28.6,
+    "pagina": 263.8,
+    "audio": 12.5
+   },
+   "js_heap_mb": 4.8,
+   "mensagens_no_dom": 300,
+   "imagens_carregadas": 254,
+   "imagens_mpx": 16.4
+  },
+  {
+   "rotulo": "e5-G-hoje-dj-tocando",
+   "hora": "2026-11-12T21:03:30.331Z",
+   "total_mb": 692,
+   "processos": {
+    "principal": 81.8,
+    "gpu-process": 285.2,
+    "network": 16.8,
+    "barra": 28.4,
+    "pagina": 267.3,
+    "audio": 12.5
+   },
+   "js_heap_mb": 4.9,
+   "mensagens_no_dom": 300,
+   "imagens_carregadas": 254,
+   "imagens_mpx": 16.4
+  },
+  {
+   "rotulo": "e5-G-hoje-memes-fotos",
+   "hora": "2026-11-12T20:59:09.863Z",
+   "total_mb": 518,
+   "processos": {
+    "principal": 65.6,
+    "gpu-process": 305.9,
+    "network": 14.4,
+    "barra": 28.5,
+    "pagina": 103.9
+   },
+   "js_heap_mb": 3,
+   "mensagens_no_dom": 240,
+   "imagens_carregadas": 315,
+   "imagens_mpx": 223.2
+  },
+  {
+   "rotulo": "e5-G-hoje-memes-inicio",
+   "hora": "2026-11-12T20:58:34.883Z",
+   "total_mb": 454,
+   "processos": {
+    "principal": 63.2,
+    "gpu-process": 225.9,
+    "network": 14.2,
+    "barra": 28.5,
+    "pagina": 122.1
+   },
+   "js_heap_mb": 3,
+   "mensagens_no_dom": 240,
+   "imagens_carregadas": 230,
+   "imagens_mpx": 150.7
+  },
+  {
+   "rotulo": "e5-G-hoje-saiu-memes",
+   "hora": "2026-11-12T20:59:27.209Z",
+   "total_mb": 436,
+   "processos": {
+    "principal": 65.4,
+    "gpu-process": 233.5,
+    "network": 14.2,
+    "barra": 28.6,
+    "pagina": 93.9
+   },
+   "js_heap_mb": 3.1,
+   "mensagens_no_dom": 300,
+   "imagens_carregadas": 246,
+   "imagens_mpx": 15.9
+  },
+  {
+   "rotulo": "e5-G-hoje-saiu-salao",
+   "hora": "2026-11-12T21:02:06.464Z",
+   "total_mb": 539,
+   "processos": {
+    "principal": 67.7,
+    "gpu-process": 288,
+    "network": 15.2,
+    "barra": 28.6,
+    "pagina": 128.8,
+    "audio": 10.5
+   },
+   "js_heap_mb": 3.5,
+   "mensagens_no_dom": 300,
+   "imagens_carregadas": 246,
+   "imagens_mpx": 15.9
+  },
+  {
+   "rotulo": "e5-G-hoje-salao",
+   "hora": "2026-11-12T21:01:42.843Z",
+   "total_mb": 446,
+   "processos": {
+    "principal": 65.6,
+    "gpu-process": 204.1,
+    "network": 14.7,
+    "barra": 28.5,
+    "pagina": 123,
+    "audio": 10.5
+   },
+   "js_heap_mb": 4.2,
+   "mensagens_no_dom": 209,
+   "imagens_carregadas": 262,
+   "imagens_mpx": 23.8
+  },
+  {
+   "rotulo": "e5-H-proto-antes-dj",
+   "hora": "2026-11-12T21:02:41.258Z",
+   "total_mb": 497,
+   "processos": {
+    "principal": 77.8,
+    "gpu-process": 189.3,
+    "network": 15.6,
+    "barra": 28.6,
+    "pagina": 173.4,
+    "audio": 12.3
+   },
+   "js_heap_mb": 4.7,
+   "mensagens_no_dom": 300,
+   "imagens_carregadas": 253,
+   "imagens_mpx": 16.3
+  },
+  {
+   "rotulo": "e5-H-proto-depois-pressao",
+   "hora": "2026-11-12T21:04:41.107Z",
+   "total_mb": 695,
+   "processos": {
+    "principal": 80.6,
+    "gpu-process": 281,
+    "network": 16.6,
+    "barra": 28.6,
+    "pagina": 275.2,
+    "audio": 12.7
+   },
+   "js_heap_mb": 4.8,
+   "mensagens_no_dom": 300,
+   "imagens_carregadas": 254,
+   "imagens_mpx": 16.4
+  },
+  {
+   "rotulo": "e5-H-proto-dj-parado-100s",
+   "hora": "2026-11-12T21:07:17.963Z",
+   "total_mb": 547,
+   "processos": {
+    "principal": 79.2,
+    "gpu-process": 225.7,
+    "network": 16.1,
+    "barra": 28.6,
+    "pagina": 185.1,
+    "audio": 12.6
+   },
+   "js_heap_mb": 4.9,
+   "mensagens_no_dom": 300,
+   "imagens_carregadas": 253,
+   "imagens_mpx": 16.3
+  },
+  {
+   "rotulo": "e5-H-proto-dj-parado-de-verdade",
+   "hora": "2026-11-12T21:06:10.201Z",
+   "total_mb": 538,
+   "processos": {
+    "principal": 77.8,
+    "gpu-process": 230.2,
+    "network": 16.3,
+    "barra": 28.6,
+    "pagina": 172.2,
+    "audio": 12.5
+   },
+   "js_heap_mb": 4.9,
+   "mensagens_no_dom": 300,
+   "imagens_carregadas": 253,
+   "imagens_mpx": 16.3
+  },
+  {
+   "rotulo": "e5-H-proto-dj-parado",
+   "hora": "2026-11-12T21:04:22.685Z",
+   "total_mb": 684,
+   "processos": {
+    "principal": 79.7,
+    "gpu-process": 291.9,
+    "network": 16.4,
+    "barra": 28.6,
+    "pagina": 254.8,
+    "audio": 12.5
+   },
+   "js_heap_mb": 4.6,
+   "mensagens_no_dom": 300,
+   "imagens_carregadas": 254,
+   "imagens_mpx": 16.4
+  },
+  {
+   "rotulo": "e5-H-proto-dj-tocando",
+   "hora": "2026-11-12T21:03:34.535Z",
+   "total_mb": 691,
+   "processos": {
+    "principal": 77.3,
+    "gpu-process": 291.7,
+    "network": 16.4,
+    "barra": 28.5,
+    "pagina": 264.3,
+    "audio": 12.6
+   },
+   "js_heap_mb": 4.7,
+   "mensagens_no_dom": 300,
+   "imagens_carregadas": 254,
+   "imagens_mpx": 16.4
+  },
+  {
+   "rotulo": "e5-H-proto-memes-fotos",
+   "hora": "2026-11-12T20:59:13.361Z",
+   "total_mb": 357,
+   "processos": {
+    "principal": 62.7,
+    "gpu-process": 157.8,
+    "network": 14.4,
+    "barra": 28.6,
+    "pagina": 93.6
+   },
+   "js_heap_mb": 3,
+   "mensagens_no_dom": 240,
+   "imagens_carregadas": 315,
+   "imagens_mpx": 43.3
+  },
+  {
+   "rotulo": "e5-H-proto-memes-inicio",
+   "hora": "2026-11-12T20:58:38.431Z",
+   "total_mb": 319,
+   "processos": {
+    "principal": 60.7,
+    "gpu-process": 121.1,
+    "network": 14.2,
+    "barra": 28.5,
+    "pagina": 94.8
+   },
+   "js_heap_mb": 3,
+   "mensagens_no_dom": 240,
+   "imagens_carregadas": 230,
+   "imagens_mpx": 21.3
+  },
+  {
+   "rotulo": "e5-H-proto-saiu-memes",
+   "hora": "2026-11-12T20:59:30.748Z",
+   "total_mb": 356,
+   "processos": {
+    "principal": 63,
+    "gpu-process": 153.9,
+    "network": 14.2,
+    "barra": 28.6,
+    "pagina": 96.2
+   },
+   "js_heap_mb": 3.1,
+   "mensagens_no_dom": 300,
+   "imagens_carregadas": 246,
+   "imagens_mpx": 15.9
+  },
+  {
+   "rotulo": "e5-H-proto-saiu-salao",
+   "hora": "2026-11-12T21:02:10.129Z",
+   "total_mb": 418,
+   "processos": {
+    "principal": 63.4,
+    "gpu-process": 170.5,
+    "network": 14.6,
+    "barra": 28.5,
+    "pagina": 130.1,
+    "audio": 10.5
+   },
+   "js_heap_mb": 3.9,
+   "mensagens_no_dom": 300,
+   "imagens_carregadas": 246,
+   "imagens_mpx": 15.9
+  },
+  {
+   "rotulo": "e5-H-proto-salao",
+   "hora": "2026-11-12T21:01:47.188Z",
+   "total_mb": 440,
+   "processos": {
+    "principal": 64.8,
+    "gpu-process": 193.8,
+    "network": 14.6,
+    "barra": 28.5,
+    "pagina": 128.2,
+    "audio": 10.4
+   },
+   "js_heap_mb": 4.3,
+   "mensagens_no_dom": 209,
+   "imagens_carregadas": 262,
+   "imagens_mpx": 23.6
+  },
+  {
+   "rotulo": "e7-V-base",
+   "hora": "2026-11-12T21:17:28.462Z",
+   "total_mb": 439,
+   "processos": {
+    "principal": 76.1,
+    "gpu-process": 164.3,
+    "network": 14.8,
+    "barra": 28.5,
+    "pagina": 143,
+    "audio": 12.5
+   },
+   "js_heap_mb": 3.4,
+   "mensagens_no_dom": 300,
+   "imagens_carregadas": 247,
+   "imagens_mpx": 15.9
+  },
+  {
+   "rotulo": "e7-V-emoji-fechado",
+   "hora": "2026-11-12T21:18:03.594Z",
+   "total_mb": 459,
+   "processos": {
+    "principal": 80.9,
+    "gpu-process": 166.9,
+    "network": 14.9,
+    "barra": 28.7,
+    "pagina": 155.1,
+    "audio": 12.3
+   },
+   "js_heap_mb": 4,
+   "mensagens_no_dom": 300,
+   "imagens_carregadas": 247,
+   "imagens_mpx": 15.9
+  },
+  {
+   "rotulo": "e7-V-sem-barra",
+   "hora": "2026-11-12T21:18:34.104Z",
+   "total_mb": 431,
+   "processos": {
+    "principal": 80.7,
+    "gpu-process": 168.1,
+    "network": 15,
+    "pagina": 154.9,
+    "audio": 12.4
+   },
+   "js_heap_mb": 4,
+   "mensagens_no_dom": 300,
+   "imagens_carregadas": 247,
+   "imagens_mpx": 15.9
+  }
+ ]
+}

@@ -4,6 +4,24 @@
 // O título deve destacar as principais funcionalidades ou correções, com termos objetivos.
 window.CHANGELOG = [
   {
+    version: '2.7.0', date: '2026-11-12', name: 'Menos memória RAM: transmissão, DJ, fotos e servidor',
+    summary: 'Atualização de desempenho: o Resenhex gasta bem menos memória RAM, sem mudar nada do que você vê ou usa. Quem transmite a tela pelo app de Windows economiza cerca de 360 MB, o DJ devolve uns 130 MB um minuto depois que a música para, e o app solta o áudio da chamada depois que você sai. As fotos novas aparecem no chat numa versão menor, com o mesmo tamanho e a mesma nitidez, e a original abre ao clicar. No servidor, o catálogo do Mudae foi para o disco, e a memória dele caiu pela metade.',
+    sections: [
+      { kind: 'improved', items: [
+        'Transmitir a tela pelo app de Windows gasta cerca de 360 MB a menos de memória. O Clipar continua guardando os últimos 30 segundos da tela, e o clipe sai igual.',
+        'O DJ fecha o player do YouTube um minuto depois que a música para, e devolve uns 130 MB. Na próxima música, ele abre de novo sozinho.',
+        'Depois que você sai da chamada, o app fecha a supressão de ruído e o áudio da chamada em 30 segundos (uns 20 MB). Se você voltar antes disso, tudo continua pronto; depois, tudo abre de novo ao entrar.',
+        'Fotos novas no chat: quem envia também manda uma versão menor, que é a que aparece na conversa, do mesmo tamanho e com a mesma nitidez. Clicando, abre a original. O canal carrega mais rápido e gasta menos memória. Fotos pequenas, GIFs e fotos enviadas antes continuam como sempre.',
+        'O seletor de emojis solta a memória ao fechar e monta tudo de novo ao abrir.',
+      ] },
+      { kind: 'inside', items: [
+        'O catálogo do Mudae (mais de 230 mil personagens) saiu da memória do servidor e foi para um banco de dados no disco. Com o servidor ligado e ninguém online, a memória caiu de 175 para 88 MB, e o pico ao ligar, de 412 para 106 MB. Rolls, harém, álbum e a busca do $im dão os mesmos resultados, e o $im ficou mais rápido.',
+        'O servidor fecha o processo que trata as imagens depois de 1 minuto sem uso, só carrega a biblioteca do SFU quando ele está ligado e limpa listas que só cresciam (senhas erradas antigas e castigos que já acabaram).',
+        'O Node do servidor usa uma área menor para os objetos novos: num teste com 1.000 pessoas no site, foram ~130 MB a menos, sem gastar mais processador.',
+      ] },
+    ],
+  },
+  {
     version: '2.6.0', date: '2026-11-11', name: 'Cristal errante, Forja de medalhas e superpoderes no Salão do Mudae',
     summary: 'O Salão do Mudae ganhou três coisas novas. De tempos em tempos, um cristal de kakera passa voando pela tela, e todo mundo que clicar a tempo ganha, não só o primeiro. Com o kakera, você forja medalhas na aba nova Forja: são 7, cada uma com 4 níveis, uma vantagem pequena no jogo e um acabamento sorteado que pode sair até galáxia. E, ao lado da carta, ficam 3 espaços para superpoderes, como o Cadeado, que tranca o seu roll, e o Laço, que casa com o roll de outra pessoa. Os poderes abrem aos poucos, conforme você joga. O divórcio continua devolvendo kakera, mas agora com um teto de 500 por dia.',
     sections: [

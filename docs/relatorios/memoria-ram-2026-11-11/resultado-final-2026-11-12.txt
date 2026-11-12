@@ -1,0 +1,20 @@
+
+== f1   (MB; "sem principal" tira o processo principal, que guarda o histórico de cada cópia)
+passo            antigo   novo    dif | sem principal: antigo  novo   dif | páginas a/n   placa a/n
+base                703    499   -204 |                  432   421   -11 |     148/151     244/232
+fotos               763    519   -244 |                  493   440   -53 |     192/133     261/268
+fotos-saiu          721    535   -186 |                  450   457     7 |     155/146     256/272
+emoji-fechado       661    468   -193 |                  389   389     0 |     155/149     195/201
+dj-tocando          874    637   -237 |                  598   556   -42 |     293/280     261/234
+dj-parado           830    501   -329 |                  553   421  -132 |     285/194     225/184
+depois-chamada      905    571   -334 |                  629   490  -139 |     281/171     307/278
+
+== f2   (MB; "sem principal" tira o processo principal, que guarda o histórico de cada cópia)
+passo            antigo   novo    dif | sem principal: antigo  novo   dif | páginas a/n   placa a/n
+base                417    405    -12 |                  353   343   -10 |     129/127     198/190
+fotos               435    432     -3 |                  369   369     0 |     114/133     228/209
+fotos-saiu          465    428    -37 |                  398   365   -33 |     142/128     230/211
+emoji-fechado       379    370     -9 |                  313   308    -5 |     148/133     138/148
+dj-tocando          636    624    -12 |                  556   545   -11 |     291/279     224/224
+dj-parado           606    481   -125 |                  526   402  -124 |     289/188     195/173
+depois-chamada      692    532   -160 |                  609   456  -153 |     280/162     289/253
