@@ -339,7 +339,7 @@ test('fim do cristal vira linha ao vivo, que não fica no histórico', async (t)
   await settle();
   assert.match(app.d.querySelector('#messages [data-id="live-k8"]').textContent, /pegou o cristal verde/);
 
-  // Ninguém pegou: nada entra no chat (com um cristal a cada 5–15 min, o chat encheria).
+  // Ninguém pegou: nada entra no chat (com um cristal a cada 3–7 min, o chat encheria).
   app.deliver('mudae:crystal:end', { id: 'k9', kind: 'drifter', colorKey: 'roxo', color: '#a35bff', takers: [] });
   await settle();
   assert.equal(app.d.querySelector('#messages [data-id="live-k9"]'), null);

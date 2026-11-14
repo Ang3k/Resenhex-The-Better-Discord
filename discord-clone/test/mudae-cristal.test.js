@@ -18,12 +18,13 @@ function setup({ values = [] } = {}) {
   return { crystals, store, mudae, advance: (ms) => { t += ms; }, now: () => t };
 }
 
-test('nasce entre 5 e 15 min com alguém no Salão, e não nasce sem ninguém', () => {
+test('nasce entre 3 e 7 min com alguém no Salão, e não nasce sem ninguém', () => {
   const { crystals, advance } = setup();
+  const middle = (CRYSTAL.everyMinMs + CRYSTAL.everyMaxMs) / 2; // o que o random 0.5 sorteia
   assert.deepEqual(crystals.tick([]), { spawned: [], ended: [] });
   advance(CRYSTAL.everyMaxMs * 2);
   assert.equal(crystals.tick([]).spawned.length, 0);
-  // com gente: o primeiro tick só marca o horário (random 0.5 -> 10 min)
+  // com gente: o primeiro tick só marca o horário (random 0.5 -> 5 min)
   assert.equal(crystals.tick(['s1']).spawned.length, 0);
   advance(CRYSTAL.everyMinMs - 1);
   assert.equal(crystals.tick(['s1']).spawned.length, 0);
@@ -32,11 +33,11 @@ test('nasce entre 5 e 15 min com alguém no Salão, e não nasce sem ninguém', 
   assert.equal(spawned.length, 1);
   assert.equal(spawned[0].serverId, 's1');
   assert.equal(spawned[0].kind, 'drifter');
-  // o Salão esvazia com 10 min faltando (random 0.5): na volta, a espera continua dali, não do zero
+  // o Salão esvazia com 5 min faltando (random 0.5): na volta, a espera continua dali, não do zero
   crystals.tick([]);
   advance(CRYSTAL.everyMaxMs * 2);
   assert.equal(crystals.tick(['s1']).spawned.length, 0);
-  advance(10 * 60_000 - 1);
+  advance(middle - 1);
   assert.equal(crystals.tick(['s1']).spawned.length, 0);
   advance(1);
   assert.equal(crystals.tick(['s1']).spawned.length, 1);
