@@ -29,8 +29,6 @@ window.Sounds = (() => {
     mudaeEpic: [[523, 0, 0.09], [659, 0.07, 0.09], [784, 0.14, 0.09], [1047, 0.21, 0.3]],
     mudaeLegendary: [[523, 0, 0.11], [659, 0.1, 0.11], [784, 0.2, 0.11], [1047, 0.3, 0.16], [784, 0.47, 0.09], [1047, 0.56, 0.55], [1319, 0.56, 0.55], [1568, 0.7, 0.45]],
     mudaeClaim: [[880, 0, 0.08], [1175, 0.08, 0.08], [1760, 0.16, 0.26]],
-    // Cristal errante: um brilho curto e agudo quando ele aparece no Salão.
-    mudaeCrystal: [[1319, 0, 0.06], [1976, 0.055, 0.06], [2637, 0.11, 0.2]],
     // Forja: o fogo subindo (notas graves que sobem) e a batida do martelo na bigorna (metal curto e agudo).
     mudaeForge: [[98, 0, 0.22], [131, 0.12, 0.24], [175, 0.26, 0.26], [262, 0.42, 0.32]],
     mudaeHammer: [[1760, 0, 0.03], [2489, 0, 0.05], [880, 0.01, 0.09]],
@@ -104,6 +102,44 @@ window.Sounds = (() => {
     return end + 1;
   }
 
+  // Cristal errante, quando aparece no Salão: uma "montanhazinha". Tudo chega baixinho, cresce até o pico e vai
+  // sumindo; as notas de sino sobem até o pico e descem de leve (um arco no espectrograma) e, por baixo, um brilho
+  // contínuo tremula (duas notas quase iguais).
+  const CRYSTAL_S = 1.3; // duração da montanha, em s
+  const CRYSTAL_PEAK = 0.45; // onde fica o pico, em s
+  const CRYSTAL_HILL = Float32Array.from({ length: 64 }, (_, i) => {
+    const x = i / 63, p = CRYSTAL_PEAK / CRYSTAL_S;
+    return (x < p ? Math.sin(Math.PI / 2 * x / p) : Math.cos(Math.PI / 2 * (x - p) / (1 - p))) ** 2;
+  });
+  // [frequência em Hz, início em s, decaimento em s, volume relativo]: mi, sol#, si, mi (o pico), dó#, si.
+  const CRYSTAL_NOTES = [[1319, 0, 0.3, 0.8], [1661, 0.1, 0.32, 0.85], [1976, 0.2, 0.38, 0.9], [2637, 0.32, 0.7, 1],
+    [2217, 0.52, 0.45, 0.8], [1976, 0.7, 0.5, 0.7]];
+  const CRYSTAL_SHIMMER = [[1319, 0.014], [1322.5, 0.014], [1976, 0.008], [1980, 0.008]]; // [Hz, volume]
+  function crystal(c, out, at) {
+    const hill = c.createGain();
+    hill.gain.setValueCurveAtTime(CRYSTAL_HILL, at, CRYSTAL_S);
+    hill.connect(out);
+    for (const [freq, vol] of CRYSTAL_SHIMMER) {
+      const osc = c.createOscillator();
+      const gain = c.createGain();
+      osc.frequency.value = freq;
+      gain.gain.value = vol;
+      osc.connect(gain).connect(hill);
+      osc.start(at);
+      osc.stop(at + CRYSTAL_S);
+      osc.onended = () => { osc.disconnect(); gain.disconnect(); };
+    }
+    const end = chime(c, hill, CRYSTAL_NOTES, at);
+    // Desliga a montanha quando o eco das notas acaba.
+    const silence = c.createConstantSource();
+    silence.offset.value = 0;
+    silence.connect(hill);
+    silence.start(at);
+    silence.stop(Math.max(end, at + CRYSTAL_S));
+    silence.onended = () => { silence.disconnect(); hill.disconnect(); };
+  }
+  const SPECIAL = { mudaeCrystal: crystal };
+
   // ---------------- arquivos (public/sfx/board) ----------------
   const bytes = new Map(); // url -> Promise<ArrayBuffer>
   const decoded = new WeakMap(); // AudioContext -> Map(url -> Promise<AudioBuffer>)
@@ -131,7 +167,7 @@ window.Sounds = (() => {
   const preloadBoard = () => { for (const id of Object.keys(BOARD)) fetchBytes(boardUrl(id)); };
 
   function play(name) {
-    if (!enabled || !(PRESETS[name] || CHIMES[name])) return;
+    if (!enabled || !(PRESETS[name] || CHIMES[name] || SPECIAL[name])) return;
     try {
       ctx ||= new AudioContext();
       if (ctx.state === 'suspended') ctx.resume();
@@ -146,6 +182,7 @@ window.Sounds = (() => {
     try {
       const now = ctx.currentTime + 0.01;
       if (CHIMES[name]) { chime(ctx, destination(), CHIMES[name], now); return; }
+      if (SPECIAL[name]) { SPECIAL[name](ctx, destination(), now); return; }
       for (const [freq, start, dur] of notes) {
         const osc = ctx.createOscillator();
         const gain = ctx.createGain();

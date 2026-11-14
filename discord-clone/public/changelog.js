@@ -4,6 +4,19 @@
 // O título deve destacar as principais funcionalidades ou correções, com termos objetivos.
 window.CHANGELOG = [
   {
+    version: '2.6.1', date: '2026-11-14', name: 'Mudae: o dobro de cristais, som novo do cristal e fotos de jogos que não carregavam',
+    summary: 'O cristal de kakera agora passa pelo Salão o dobro de vezes, então juntar kakera para a Forja ficou bem mais rápido. O som dele também mudou: chega baixinho, cresce e vai sumindo. E corrigimos as fotos de personagens de jogos que, para algumas pessoas, apareciam como uma imagem cinza de "sem foto".',
+    sections: [
+      { kind: 'improved', items: [
+        'O cristal errante aparece em média a cada 5 minutos com alguém no Salão (entre 3 e 7). Antes era a cada 10 (entre 5 e 15). Os valores continuam os mesmos, e os 15 primeiros cristais do dia continuam rendendo inteiro.',
+        'O som do cristal ficou mais suave: em vez de um estalo curto, um brilho de sininho que chega baixinho, cresce e vai sumindo, com o mesmo volume de antes.',
+      ] },
+      { kind: 'fixed', items: [
+        'Algumas pessoas viam uma imagem cinza com uma montanha no lugar da foto de vários personagens de jogos. As fotos vêm das wikis do Fandom, que às vezes bloqueia a imagem quando percebe que ela foi pedida por outro site. Agora o Resenhex pede as fotos sem dizer de onde veio, e, se a imagem cinza ainda aparecer, tenta de novo e, se não der, mostra o verso da carta.',
+      ] },
+    ],
+  },
+  {
     version: '2.6.0', date: '2026-11-11', name: 'Cristal errante, Forja de medalhas e superpoderes no Salão do Mudae',
     summary: 'O Salão do Mudae ganhou três coisas novas. De tempos em tempos, um cristal de kakera passa voando pela tela, e todo mundo que clicar a tempo ganha, não só o primeiro. Com o kakera, você forja medalhas na aba nova Forja: são 7, cada uma com 4 níveis, uma vantagem pequena no jogo e um acabamento sorteado que pode sair até galáxia. E, ao lado da carta, ficam 3 espaços para superpoderes, como o Cadeado, que tranca o seu roll, e o Laço, que casa com o roll de outra pessoa. Os poderes abrem aos poucos, conforme você joga. O divórcio continua devolvendo kakera, mas agora com um teto de 500 por dia.',
     sections: [
