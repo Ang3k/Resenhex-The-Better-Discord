@@ -17,6 +17,7 @@ O cristal de kakera agora passa pelo Salão o dobro de vezes, então juntar kake
 ### Correções
 
 - Algumas pessoas viam uma imagem cinza com uma montanha no lugar da foto de vários personagens de jogos. As fotos vêm das wikis do Fandom, que às vezes bloqueia a imagem quando percebe que ela foi pedida por outro site. Agora o Resenhex pede as fotos sem dizer de onde veio, e, se a imagem cinza ainda aparecer, tenta de novo e, se não der, mostra o verso da carta.
+- Na chamada, o alfinete de fixar dos quadros pequenos ficava um pouco para a direita no botão. Agora fica no meio.
 
 ## v2.6.0 — Cristal errante, Forja de medalhas e superpoderes no Salão do Mudae
 
