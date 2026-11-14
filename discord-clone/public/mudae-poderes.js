@@ -285,7 +285,7 @@ window.MudaePowers = function ({ el, call, onSocket, ui, Sounds, reducedMotion =
       el('strong', { class: 'poder-eco-title' }, ico('eco'), 'Qual personagem volta?'),
       el('span', { class: 'poder-eco-sub', textContent: 'Passaram sem dono há pouco. Quem voltar é como um roll seu.' }),
       el('div', { class: 'poder-eco-list' }, cards.map((card) => el('button', { type: 'button', class: 'poder-eco-card r-' + (card.rarity || 'common'), title: card.series || '', onclick: () => pickEco(card) },
-        el('img', { src: card.image, alt: '', loading: 'lazy', decoding: 'async', draggable: false }),
+        MudaeFotos.guard(el('img', { referrerPolicy: MudaeFotos.POLICY, src: card.image, alt: '', loading: 'lazy', decoding: 'async', draggable: false })),
         el('span', { class: 'poder-eco-info' }, el('span', { class: 'poder-eco-name', textContent: card.name }),
           el('span', { class: 'poder-eco-value' }, ui.kakera(), el('b', { textContent: num(card.value) })))))),
       el('button', { type: 'button', class: 'poder-eco-cancel', textContent: 'Cancelar', onclick: closePicker })));

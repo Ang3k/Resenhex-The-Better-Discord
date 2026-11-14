@@ -1,6 +1,35 @@
 /* Mudae: os cards de personagem que o bot posta no chat ($w/$h/$m), o harem ($mm), o $im, o $tu,
    o botão de casar, o cristal de kakera, os rankings ($top, $obra, $topserv), os desejos e as trocas. O servidor decide tudo (sorteio, limites, quem casou primeiro); aqui só desenhamos
-   as respostas. As fotos vêm direto do CDN do AniList. */
+   as respostas. As fotos vêm direto dos sites (AniList, wikis do Fandom, TMDB, Comic Vine, IGDB). */
+
+// Fotos dos personagens. O Fandom bloqueia "hotlink": quando o navegador conta de qual site veio o pedido (o
+// cabeçalho Referer), às vezes ele responde um 404 falso com uma figura cinza de "sem imagem", e o navegador
+// guarda esse erro por 1 hora. Por isso as fotos vão sem Referer, e a figura cinza conta como foto que falhou.
+window.MudaeFotos = (() => {
+  const POLICY = 'no-referrer';
+  const RETRY = 'resenhex=1';
+  // A figura do Fandom tem sempre a mesma proporção: 300×171 (200×114 na miniatura da roleta).
+  const isPlaceholder = (img) => /\.nocookie\.net\//.test(img.currentSrc || img.src) && img.naturalWidth > 0
+    && img.naturalWidth <= 300 && Math.abs(img.naturalWidth / img.naturalHeight - 300 / 171) < 0.02;
+  // Outro endereço para a mesma foto, para o navegador pedir de novo em vez de usar o 404 falso guardado.
+  const again = (src) => src + (src.includes('?') ? '&' : '?') + RETRY;
+  // Confere a foto que acabou de carregar: true é a foto de verdade; na figura cinza, pede de novo uma vez e
+  // devolve null (o load dispara outra vez); se a figura voltar, devolve false.
+  function real(img) {
+    if (!isPlaceholder(img)) return true;
+    if (img.src.endsWith(RETRY)) return false;
+    img.src = again(img.src);
+    return null;
+  }
+  // Para uma <img> da página: sem Referer e com a conferência acima; failed é chamado quando não tem jeito.
+  function guard(img, failed = null) {
+    img.referrerPolicy = POLICY;
+    img.addEventListener('load', () => { if (real(img) === false) failed?.(img); });
+    return img;
+  }
+  return { POLICY, isPlaceholder, real, guard };
+})();
+
 window.MudaeUI = function ({ state, el, Icon, call, member, avatar, nameColor, Format, fmtCtx, openProfile, openImage, openChannel, renderMessages, keepBottom, openTrade = () => {}, openForja = () => {}, medalSvg = null }) {
   const COMMANDS = [
     { name: 'w', note: 'roda uma waifu' },
@@ -112,10 +141,11 @@ window.MudaeUI = function ({ state, el, Icon, call, member, avatar, nameColor, F
   }
 
   function portrait(card) {
-    const img = el('img', { class: 'mudae-img', src: card.image, alt: card.name, loading: 'lazy', decoding: 'async', draggable: false,
-      onload: keepBottom, onclick: () => openImage(card.image) });
-    img.onerror = () => img.replaceWith(el('div', { class: 'mudae-img missing', textContent: card.name.slice(0, 1) }));
-    return img;
+    const img = el('img', { class: 'mudae-img', referrerPolicy: MudaeFotos.POLICY, src: card.image, alt: card.name, loading: 'lazy',
+      decoding: 'async', draggable: false, onload: keepBottom, onclick: () => openImage(card.image) });
+    const missing = () => img.replaceWith(el('div', { class: 'mudae-img missing', textContent: card.name.slice(0, 1) }));
+    img.onerror = missing;
+    return MudaeFotos.guard(img, missing);
   }
 
   function claimButton(msg, d) {
@@ -510,12 +540,14 @@ window.MudaeUI = function ({ state, el, Icon, call, member, avatar, nameColor, F
   // Roll dentro do Salão: o card grande está no palco, então o chat mostra só uma linha.
   function rollLine(msg, d, salon) {
     const rarity = d.card.rarity || 'common';
-    const image = el('img', { alt: '', loading: 'lazy', decoding: 'async', draggable: false });
+    const image = el('img', { alt: '', referrerPolicy: MudaeFotos.POLICY, loading: 'lazy', decoding: 'async', draggable: false });
     const thumb = el('span', { class: 'mudae-roll-thumb', ariaHidden: 'true' }, Icon('dice', 16), image);
     image.onload = async () => {
+      const real = MudaeFotos.real(image);
+      if (real === null) return; // pediu de novo: o load volta a disparar
       try {
-        if (image.decode) await image.decode();
-        if (image.naturalWidth) image.classList.add('ready');
+        if (real && image.decode) await image.decode();
+        if (real && image.naturalWidth) image.classList.add('ready');
         else image.remove();
       } catch { image.remove(); }
     };

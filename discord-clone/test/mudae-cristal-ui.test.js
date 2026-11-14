@@ -65,6 +65,7 @@ function salon(t, { reduced = false, take = null } = {}) {
   const onSocket = (event, fn) => handlers.set(event, fn);
   const ui = { num: String, minutes: String, kakera: () => el('span'), seriesLine: (card) => card.series,
     serverNow: () => time, RARITY: { common: 'Comum' }, SOURCES: { a: { label: 'Anime' } } };
+  w.eval(read('mudae.js'));
   w.eval(read('mudae-cristal.js'));
   w.eval(read('mudae-salao.js'));
   const crystals = w.MudaeCrystals({ el, call, onSocket, Sounds: { play: (name) => sounds.push(name) }, ui, member: () => null,

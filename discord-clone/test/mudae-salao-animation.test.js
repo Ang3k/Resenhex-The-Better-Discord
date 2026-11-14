@@ -69,7 +69,7 @@ function salon(t, { reduced = false, presence = null } = {}) {
     return node;
   }
   const state = { me: { accountId: 'me' }, messages: { room: [] } };
-  w.eval(fs.readFileSync(path.join(__dirname, '../public/mudae-salao.js'), 'utf8'));
+  for (const file of ['mudae.js', 'mudae-salao.js']) w.eval(fs.readFileSync(path.join(__dirname, '../public', file), 'utf8'));
   const api = w.MudaeSalon({ state, el, Icon: () => el('svg'), call: async (name) => (name === 'mudae:presence' ? presence : null), onSocket() {}, member: () => null,
     ui: { num: String, minutes: String, kakera: () => el('span'), seriesLine: (card) => card.series,
       serverNow: () => time, RARITY: { common: 'Comum' }, SOURCES: { a: { label: 'Anime' } } }, Sounds: { play() {} } });
@@ -142,6 +142,39 @@ test('fotos do roll atrasadas: a roleta gira com o estoque pré-carregado, da me
   assert.equal(app.d.querySelectorAll('.salon-reel-cell .salon-card-back').length, 1, 'só o resultado (ainda baixando) fica de verso');
   assert.ok(srcs.length >= 5);
   assert.deepEqual([...new Set(srcs)].sort(), ['a1', 'a2', 'g1', 'g2', 'g3']);
+});
+
+// O Fandom às vezes responde um 404 falso com uma figura cinza de "sem imagem" (300×171) quando vê outro site pedindo.
+const FANDOM = 'https://static.wikia.nocookie.net/w/images/a/ab/X.png/revision/latest/scale-to-width-down/400?cb=1';
+function loadSize(request, width, height) {
+  request.img.naturalWidth = width;
+  Object.defineProperty(request.img, 'naturalHeight', { value: height, configurable: true });
+  request.img.onload();
+}
+
+test('figura cinza do Fandom: a foto vai sem Referer, pede de novo uma vez e, se voltar, fica o verso da carta', async (t) => {
+  const app = salon(t);
+  app.roll('roll', FANDOM, []);
+  const request = app.requests.find((r) => r.img.getAttribute('src') === FANDOM);
+  assert.equal(request.img.referrerPolicy, 'no-referrer');
+  loadSize(request, 300, 171);
+  assert.equal(request.img.getAttribute('src'), FANDOM + '&resenhex=1', 'pede de novo por outro endereço (o navegador guarda o 404 falso)');
+  loadSize(request, 300, 171);
+  await app.advance(2000);
+  const art = app.d.querySelector('.salon-card.big .salon-art');
+  assert.ok(art.querySelector('.salon-card-back'), 'o verso da carta no lugar da figura cinza');
+  assert.equal(art.querySelector('img'), null);
+});
+
+test('figura cinza do Fandom: se a segunda tentativa traz a foto, ela aparece', async (t) => {
+  const app = salon(t);
+  app.roll('roll', FANDOM, []);
+  const request = app.requests.find((r) => r.img.getAttribute('src') === FANDOM);
+  loadSize(request, 300, 171);
+  loadSize(request, 400, 375);
+  request.decode();
+  await app.advance(2000);
+  assert.ok(app.d.querySelector('.salon-card.big img.ready'));
 });
 
 test('falha na imagem do resultado mantém uma carta visível e o casamento disponível', async (t) => {

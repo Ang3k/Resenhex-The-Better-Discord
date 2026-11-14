@@ -91,13 +91,17 @@ window.MudaeSalon = function ({ state, el, Icon, call, onSocket, member, avatar,
     img.decoding = 'async';
     img.fetchPriority = priority;
     img.draggable = false;
+    img.referrerPolicy = MudaeFotos.POLICY;
     const record = { src, image: img, ready: false };
     if (!src) { record.promise = Promise.resolve(record); return record; }
     record.promise = new Promise((resolve) => {
       img.onload = async () => {
+        // A figura cinza de "sem imagem" do Fandom não conta como foto (ver MudaeFotos, no mudae.js).
+        const real = MudaeFotos.real(img);
+        if (real === null) return; // pediu de novo: o load volta a disparar
         try {
-          if (img.decode) await img.decode();
-          record.ready = img.naturalWidth > 0;
+          if (real && img.decode) await img.decode();
+          record.ready = real && img.naturalWidth > 0;
         } catch { /* Uma imagem inválida mantém o verso da carta. */ }
         resolve(record);
       };
@@ -911,7 +915,7 @@ window.MudaeSalon = function ({ state, el, Icon, call, onSocket, member, avatar,
             el('button', { type: 'button', class: 'salon-link', onclick: () => loadAlbum(me()) }, '← Ver o meu harem'),
             el('button', { type: 'button', class: 'salon-trade-btn', onclick: () => trade.start(a.ownerId, S.channel) }, Icon('refresh', 16), 'Propor troca')))),
       fav ? el('div', { class: 'salon-album-fav r-' + fav.rarity, onclick: () => openImage(fav.image) },
-        el('img', { src: fav.image, alt: fav.name, decoding: 'async', draggable: false }),
+        MudaeFotos.guard(el('img', { referrerPolicy: MudaeFotos.POLICY, src: fav.image, alt: fav.name, decoding: 'async', draggable: false })),
         el('div', {}, el('div', { class: 'salon-fav-tag' }, ico('wish'), fav.chosen ? 'Favorito' : 'Mais valioso'),
           el('div', { class: 'salon-card-name', textContent: fav.name }), el('div', { class: 'salon-card-series', textContent: fav.series }),
           el('div', { class: 'salon-card-value' }, kakera(), el('strong', { textContent: num(fav.value) })))) : null);
@@ -1129,7 +1133,7 @@ window.MudaeSalon = function ({ state, el, Icon, call, onSocket, member, avatar,
         m ? avatar(m) : el('div', { class: 'avatar' }),
         el('div', { class: 'salon-rank-who' }, el('strong', { textContent: x.ownerId === me() ? 'Você' : whoName(x.ownerId), style: { color: nameColor(m) || '' } }),
           el('span', { textContent: `${num(x.total)} ${x.total === 1 ? 'personagem' : 'personagens'}` })),
-        x.favorite ? el('img', { class: 'salon-rank-fav r-' + x.favorite.rarity, src: x.favorite.image, alt: x.favorite.name, title: x.favorite.name, loading: 'lazy' }) : null,
+        x.favorite ? MudaeFotos.guard(el('img', { class: 'salon-rank-fav r-' + x.favorite.rarity, referrerPolicy: MudaeFotos.POLICY, src: x.favorite.image, alt: x.favorite.name, title: x.favorite.name, loading: 'lazy' })) : null,
         el('span', { class: 'salon-rank-value' }, el('strong', { textContent: num(x.value) }), kakera()));
     };
     const top = r.rows.slice(0, 10).map(row);
@@ -1267,7 +1271,7 @@ window.MudaeSalon = function ({ state, el, Icon, call, onSocket, member, avatar,
       el('div', { class: 'pc-label', textContent: 'MUDAE' }), medals,
       el('button', { type: 'button', class: 'pc-mudae r-' + f.rarity, disabled: !salon, title: salon ? 'Ver o harem' : '',
         onclick: () => { closeProfile(); openChannel(salon.id); setTimeout(() => openHarem(accountId)); } },
-        el('img', { src: f.image, alt: f.name, loading: 'lazy', decoding: 'async' }),
+        MudaeFotos.guard(el('img', { referrerPolicy: MudaeFotos.POLICY, src: f.image, alt: f.name, loading: 'lazy', decoding: 'async' })),
         el('div', {}, el('div', { class: 'pc-mudae-tag' }, ico('wish'), f.chosen ? 'Favorito' : 'Mais valioso'),
           el('strong', { textContent: f.name }),
           el('div', { class: 'pc-mudae-stats' }, `${num(s.total)} ${s.total === 1 ? 'personagem' : 'personagens'} · ${num(s.value)} `, kakera()))));

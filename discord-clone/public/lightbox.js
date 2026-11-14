@@ -40,6 +40,8 @@ window.Lightbox = ({ el, Icon, root }) => {
     ui.frame.classList.add('loading');
     ui.img.onload = () => ui.frame.classList.remove('loading');
     ui.img.onerror = () => ui.frame.classList.remove('loading');
+    // Fotos do Mudae vão sem Referer: o Fandom troca a foto por uma figura cinza quando vê outro site pedindo.
+    ui.img.referrerPolicy = item.noReferrer ? 'no-referrer' : '';
     ui.img.src = item.url;
     ui.img.alt = item.name || '';
     ui.name.textContent = item.name || 'Imagem';
@@ -112,7 +114,7 @@ window.Lightbox = ({ el, Icon, root }) => {
     if (!ui) build();
     items = list;
     ui.thumbs.replaceChildren(...items.map((item, n) => el('button', { type: 'button', class: 'lb-thumb', ariaLabel: 'Ver imagem ' + (n + 1), onclick: () => show(n) },
-      el('img', { src: item.thumb || item.url, alt: '', loading: 'lazy', draggable: false }))));
+      el('img', { referrerPolicy: item.noReferrer ? 'no-referrer' : '', src: item.thumb || item.url, alt: '', loading: 'lazy', draggable: false }))));
     returnFocus = document.activeElement;
     root.classList.remove('hidden');
     document.addEventListener('keydown', onKey, true);

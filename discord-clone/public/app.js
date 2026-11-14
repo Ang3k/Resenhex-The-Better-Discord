@@ -507,7 +507,7 @@
   const fmtCtx = { member: (id) => member(id), role: (id) => roleById(id), onUser: (id, e) => (e.type === 'contextmenu' ? openMemberMenu(id, e) : (e.stopPropagation(), openProfile(id, e.currentTarget || e.target))) };
   // Mudae (mudae.js): cards de personagem, harem e o botão de casar nas respostas do bot.
   const mudae = MudaeUI({ state, el, Icon, call, member, avatar, nameColor, Format, fmtCtx, openProfile: (id, anchor) => openProfile(id, anchor),
-    openImage: (url) => openLightbox({ url }), openChannel: (id) => openTextChannel(id), renderMessages: (end) => renderMessages(end), keepBottom: () => keepBottom(),
+    openImage: (url) => openLightbox({ url, noReferrer: true }), openChannel: (id) => openTextChannel(id), renderMessages: (end) => renderMessages(end), keepBottom: () => keepBottom(),
     openTrade: (id) => mudaeTrade.open(id), openForja: () => salon.openForja(), medalSvg: (...args) => mudaeForge.medalSvg(...args) });
   // Trocas do Mudae (mudae-troca.js): o painel que as duas pessoas veem e os avisos com botão.
   const mudaeTrade = MudaeTrade({ state, el, Icon, call, onSocket: (event, handler) => socket.on(event, handler), member, avatar, nameColor, toast, ui: mudae, Sounds });
@@ -528,7 +528,7 @@
   const mudaeForge = MudaeForge({ el, call, onSocket: (event, handler) => socket.on(event, handler), ui: mudae, Sounds,
     reducedMotion: () => reducedMotion(), toast, member });
   const salon = MudaeSalon({ state, el, Icon, call, onSocket: (event, handler) => socket.on(event, handler), member, avatar, nameColor, toast,
-    confirmDialog: (opts) => confirmDialog(opts), openProfile: (id, anchor) => openProfile(id, anchor), openImage: (url) => openLightbox({ url }),
+    confirmDialog: (opts) => confirmDialog(opts), openProfile: (id, anchor) => openProfile(id, anchor), openImage: (url) => openLightbox({ url, noReferrer: true }),
     openChannel: (id) => openTextChannel(id), closeProfile: () => closeProfile(), setSimple: (on) => setMudaeSimple(on), ui: mudae, Sounds, trade: mudaeTrade,
     crystals: mudaeCrystals, forge: mudaeForge });
   // Linha ao vivo do Mudae (o cristal): entra no chat de quem está no Salão e não é gravada no servidor.
@@ -2082,7 +2082,7 @@
   function openLightbox(a) {
     const all = channelMedia();
     const i = all.findIndex((item) => item.url === a.url);
-    if (i < 0) return lightbox.open([{ url: a.url, name: a.name || 'Imagem' }], 0);
+    if (i < 0) return lightbox.open([{ url: a.url, name: a.name || 'Imagem', noReferrer: a.noReferrer }], 0);
     // Perto da foto aberta: a faixa de miniaturas não carrega o histórico inteiro.
     const from = Math.max(0, i - 50);
     lightbox.open(all.slice(from, i + 51), i - from);

@@ -20,7 +20,7 @@ window.MudaeTrade = function ({ state, el, Icon, call, onSocket, member, avatar,
     }
     const close = () => { clearTimeout(timer); node.remove(); };
     const node = el('div', { class: 'mudae-notice' },
-      image ? el('img', { class: 'mudae-notice-img', src: image, alt: '', loading: 'eager', decoding: 'async' }) : el('span', { class: 'mudae-notice-icon' }, Icon(icon, 20)),
+      image ? MudaeFotos.guard(el('img', { class: 'mudae-notice-img', referrerPolicy: MudaeFotos.POLICY, src: image, alt: '', loading: 'eager', decoding: 'async' })) : el('span', { class: 'mudae-notice-icon' }, Icon(icon, 20)),
       el('div', { class: 'mudae-notice-text', textContent: text }),
       action ? el('button', { type: 'button', class: 'mudae-go', onclick: () => { close(); onAction?.(); } }, action) : null,
       el('button', { type: 'button', class: 'mudae-notice-close', ariaLabel: 'Fechar aviso', onclick: close }, Icon('x', 16)));
@@ -131,8 +131,10 @@ window.MudaeTrade = function ({ state, el, Icon, call, onSocket, member, avatar,
   }
 
   function miniCard(c, { remove = null, selected = false, onclick = null } = {}) {
-    const img = el('img', { src: c.image, alt: '', loading: 'lazy', decoding: 'async', draggable: false });
-    img.onerror = () => img.replaceWith(el('span', { class: 'mudae-trade-img-missing', textContent: c.name.slice(0, 1) }));
+    const img = el('img', { referrerPolicy: MudaeFotos.POLICY, src: c.image, alt: '', loading: 'lazy', decoding: 'async', draggable: false });
+    const missing = () => img.replaceWith(el('span', { class: 'mudae-trade-img-missing', textContent: c.name.slice(0, 1) }));
+    img.onerror = missing;
+    MudaeFotos.guard(img, missing);
     const body = [img,
       el('span', { class: 'mudae-trade-card-name', textContent: c.name, title: c.name }),
       el('span', { class: 'mudae-trade-card-value' }, num(c.value), kakera())];
