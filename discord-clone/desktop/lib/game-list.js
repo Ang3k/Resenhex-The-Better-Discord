@@ -2,13 +2,15 @@
 // transmissão que segue a partida. Renova a cada 24 h, também com o app aberto. A cópia em disco é
 // a resposta inteira do servidor (lista e regras das pastas); uma cópia sem as regras é de versões
 // anteriores e é baixada de novo.
+// custom(): os jogos que a pessoa adicionou no app ([{ name, exe }]), somados à lista do servidor.
 const fs = require('node:fs');
-const { createGameMatcher } = require('./game-detect');
+const { createGameMatcher, withCustom } = require('./game-detect');
 
 const LIST_MAX_AGE = 24 * 60 * 60 * 1000;
 
-function createGameList({ cacheFile, origin, fetch, log }) {
+function createGameList({ cacheFile, origin, fetch, log, custom = () => [] }) {
   let matcher = null;
+  let combined = { list: null, base: null, matcher: null }; // refeito só quando uma das duas listas muda
   let savedAt = 0; // quando a lista em uso foi baixada
   let loading = null;
 
@@ -40,8 +42,15 @@ function createGameList({ cacheFile, origin, fetch, log }) {
     })();
   }
 
-  // O reconhecedor em uso (ou null antes da primeira lista); pedir também renova a lista vencida.
-  return { matcher() { load(); return matcher; } };
+  // O reconhecedor em uso (ou null antes da primeira lista e sem jogos adicionados); pedir também renova a lista vencida.
+  return {
+    matcher() {
+      load();
+      const list = custom();
+      if (combined.list !== list || combined.base !== matcher) combined = { list, base: matcher, matcher: withCustom(matcher, list) };
+      return combined.matcher;
+    },
+  };
 }
 
 module.exports = { createGameList };

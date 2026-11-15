@@ -21,14 +21,15 @@ const normalize = (file) => String(file || '').toLowerCase().split('\\').join('/
 const handleOf = (sourceId) => Number(/^window:(\d+):/.exec(String(sourceId))?.[1]) || 0;
 
 // O executável "exe" é um jogo aberto pelo app transmitido ("home")?
-function isGameOf(home, exe, matcher) {
+// commandLine: como em game-detect.js (o Minecraft é reconhecido pela linha de comando do "javaw.exe").
+function isGameOf(home, exe, matcher, commandLine) {
   const from = normalize(home), file = normalize(exe);
   if (!from || !file || from === file || !matcher) return false;
   const dir = from.slice(0, from.lastIndexOf('/') + 1);
   // Pelo menos uma pasta abaixo do disco ("c:/jogo/"), para não valer o disco inteiro.
   if (dir.split('/').filter(Boolean).length < 2 || !file.startsWith(dir)) return false;
   if (matcher.inLibrary?.(file.slice(dir.length))) return false;
-  return !!matcher.match(exe);
+  return !!matcher.match(exe, commandLine);
 }
 
 // windows: foreground.js ({ hwnd, pid, exe, rect } em primeiro plano, mais processOf, alive e visible).
@@ -85,8 +86,9 @@ function createShareFollow({ windows, games, sources, large, send, log, now = Da
   async function findGame() {
     const top = windows();
     const matcher = games.matcher();
-    if (!top || top.hwnd === share.home.hwnd || !isGameOf(share.home.exe, top.exe, matcher)) return null;
-    if (!matcher.match(top.exe)?.exact && !large(top.rect)) return null; // pela pasta, só janela grande
+    const commandLine = () => windows.commandLine?.(top.pid);
+    if (!top || top.hwnd === share.home.hwnd || !isGameOf(share.home.exe, top.exe, matcher, commandLine)) return null;
+    if (!matcher.match(top.exe, commandLine)?.exact && !large(top.rect)) return null; // pela pasta, só janela grande
     if (missing.hwnd === top.hwnd && now() < missing.until) return null;
     const [item] = await windowsOf((item) => item.hwnd === top.hwnd);
     if (!item?.exe) missing = { hwnd: top.hwnd, until: now() + 10000 };

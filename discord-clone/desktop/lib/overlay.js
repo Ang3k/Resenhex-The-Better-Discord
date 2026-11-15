@@ -68,9 +68,11 @@ function createOverlay({ BrowserWindow, screen, origin, preload, games, log }) {
 
   // ---------------- jogo em primeiro plano ----------------
   function check() {
-    const current = config.enabled && call ? getForeground()?.() : null;
+    const fg = getForeground();
+    const current = config.enabled && call ? fg?.() : null;
     const matcher = games.matcher(); // também renova a lista se já passou um dia
-    const game = current && current.pid !== process.pid ? matcher?.match(current.exe) : null;
+    // A linha de comando só é lida para executáveis como o "javaw.exe" do Minecraft (game-detect.js).
+    const game = current && current.pid !== process.pid ? matcher?.match(current.exe, () => fg.commandLine?.(current.pid)) : null;
     let area = null;
     if (game) {
       const rect = process.platform === 'win32' ? screen.screenToDipRect(null, current.rect) : current.rect;

@@ -1011,6 +1011,25 @@
 </label>
 <p id="overlay-unavailable" class="hint hidden">O overlay não está disponível neste computador.</p>
 </div>
+<div id="my-games" class="setting-group my-games" role="group" aria-labelledby="my-games-title">
+<div class="my-games-head">
+<div>
+<h3 id="my-games-title">Seus jogos</h3>
+<p class="hint">O Resenhex já reconhece sozinho os jogos da Steam, Epic, Xbox, o Minecraft e milhares de outros. Se o seu não foi reconhecido, abra o jogo e adicione aqui.</p>
+</div>
+<button type="button" id="my-games-add" class="secondary overlay-action" aria-expanded="false" aria-controls="my-games-open"><span data-icon="plus" data-size="16"></span><span class="my-games-add-label">Adicionar jogo</span></button>
+</div>
+<p id="my-games-outdated" class="hint hidden">Atualize o app do Resenhex para adicionar jogos.</p>
+<ul id="my-games-list" class="my-games-list" aria-label="Jogos que você adicionou"></ul>
+<div id="my-games-open" class="my-games-open hidden">
+<div class="my-games-open-head">
+<span id="my-games-open-title">Programas abertos agora</span>
+<button type="button" id="my-games-refresh" class="secondary overlay-action"><span data-icon="refresh" data-size="16"></span>Atualizar</button>
+</div>
+<ul class="my-games-list" aria-labelledby="my-games-open-title"></ul>
+<p class="hint my-games-empty hidden">Nenhum outro programa aberto. Abra o jogo e clique em Atualizar.</p>
+</div>
+</div>
 <div class="overlay-split">
 <div id="overlay-look" class="setting-group overlay-look-group" role="group" aria-labelledby="overlay-look-title">
 <h3 id="overlay-look-title">Aparência</h3>

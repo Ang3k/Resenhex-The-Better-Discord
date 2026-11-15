@@ -81,5 +81,12 @@ if (location.protocol === 'file:') {
       setState: (state) => ipcRenderer.send('desktop:overlay:state', state ?? null),
       preview: (position, state) => ipcRenderer.send('desktop:overlay:preview', { position: { x: Number(position?.x), y: Number(position?.y) }, state }),
     },
+    // "Seus jogos" (desde o app 1.4.8): os programas abertos para marcar como jogo e os já marcados.
+    // list() → { mine: [{ name, exe }], open: [{ title, exe, file, game, mine }] }; add e remove devolvem a lista nova.
+    games: {
+      list: () => ipcRenderer.invoke('desktop:games:list'),
+      add: (exe, name) => ipcRenderer.invoke('desktop:games:add', { exe: String(exe || ''), name: String(name || '') }),
+      remove: (exe) => ipcRenderer.invoke('desktop:games:remove', String(exe || '')),
+    },
   });
 }

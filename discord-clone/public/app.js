@@ -7323,11 +7323,95 @@
     field.dataset.setting = key;
     if (field.type === 'range' || ['uploadMbps', 'overlayX', 'overlayY'].includes(key)) field.dataset.number = '';
   }
+  // "Seus jogos" (app de Windows 1.4.8+): o que a lista de jogos não reconhece (um jogo pirata numa pasta qualquer,
+  // um jogo novo, um emulador), a pessoa marca aqui entre os programas abertos. Vale no overlay, no "Jogando agora" e
+  // na transmissão que segue a partida, e fica salvo no app (desktop/lib/my-games.js), não na conta.
+  function setupMyGames(api) {
+    if (!api) {
+      $('#my-games-outdated').classList.remove('hidden');
+      $('#my-games-add').remove();
+      return;
+    }
+    const mineList = $('#my-games-list'), panel = $('#my-games-open'), addButton = $('#my-games-add');
+    const openList = panel.querySelector('ul'), empty = panel.querySelector('.my-games-empty');
+    const fileOf = (exe) => String(exe).split(/[\\/]/).pop();
+    // O nome sugerido sai do título da janela, sem o que vem depois de " - " (o modo de jogo, o servidor…).
+    const suggestName = (program) => (program.title.split(/\s[-–—|]\s/)[0].trim() || program.file.replace(/\.exe$/i, '')).slice(0, 60);
+    let mine = [];
+    let loading = null;
+
+    function renderMine() {
+      mineList.replaceChildren(...mine.map((game) => {
+        const input = el('input', { type: 'text', class: 'my-game-name', value: game.name, maxLength: 60, spellcheck: false,
+          ariaLabel: 'Nome do jogo ' + game.name, title: 'Clique para trocar o nome' });
+        input.addEventListener('keydown', (event) => {
+          if (event.key === 'Enter') input.blur();
+          if (event.key === 'Escape') { event.stopPropagation(); input.value = game.name; input.blur(); }
+        });
+        input.addEventListener('change', async () => {
+          const name = input.value.replace(/\s+/g, ' ').trim();
+          if (!name || name === game.name) { input.value = game.name; return; }
+          setMine(await api.add(game.exe, name));
+        });
+        return el('li', { class: 'my-game-row' },
+          el('span', { class: 'my-game-icon' }, Icon('gamepad', 18)),
+          el('span', { class: 'my-game-text' }, input, el('small', { textContent: fileOf(game.exe), title: game.exe })),
+          el('button', { type: 'button', class: 'my-game-remove', tip: 'Remover', ariaLabel: 'Remover ' + game.name,
+            onclick: async () => { setMine(await api.remove(game.exe)); if (!panel.classList.contains('hidden')) loadOpen(); } }, Icon('trash', 16)));
+      }));
+      mineList.hidden = !mine.length;
+    }
+    function setMine(list) {
+      if (!Array.isArray(list)) return;
+      mine = list;
+      renderMine();
+    }
+    function renderOpen(programs) {
+      openList.replaceChildren(...programs.map((program) => el('li', { class: 'my-game-row' },
+        el('span', { class: 'my-game-icon' }, Icon(program.game ? 'check' : 'screen', 18)),
+        el('span', { class: 'my-game-text' },
+          el('span', { class: 'my-game-title', textContent: program.title || program.file }),
+          el('small', { textContent: program.file, title: program.exe })),
+        program.game
+          ? el('span', { class: 'my-game-known', textContent: program.mine ? 'Adicionado' : 'Já reconhecido' })
+          : el('button', { type: 'button', class: 'secondary overlay-action my-game-pick', ariaLabel: 'Adicionar ' + (program.title || program.file),
+            onclick: async (event) => {
+              event.currentTarget.disabled = true;
+              setMine(await api.add(program.exe, suggestName(program)));
+              loadOpen();
+            } }, Icon('plus', 16), 'Adicionar'))));
+      empty.classList.toggle('hidden', programs.length > 0);
+    }
+    // Lê os jogos adicionados e os programas abertos (a lista de abertos só aparece com o painel aberto).
+    function loadOpen() {
+      loading ||= api.list().then((data) => {
+        if (!data) return;
+        setMine(data.mine);
+        renderOpen(Array.isArray(data.open) ? data.open : []);
+      }).catch(() => {}).finally(() => { loading = null; });
+      return loading;
+    }
+    addButton.onclick = () => {
+      const show = panel.classList.contains('hidden');
+      panel.classList.toggle('hidden', !show);
+      addButton.setAttribute('aria-expanded', String(show));
+      addButton.querySelector('.my-games-add-label').textContent = show ? 'Fechar' : 'Adicionar jogo';
+      if (show) loadOpen();
+    };
+    $('#my-games-refresh').onclick = loadOpen;
+    // Ao abrir a aba Jogos, a lista é lida de novo (o jogo pode ter sido aberto agora).
+    const page = $('#page-overlay');
+    new MutationObserver(() => { if (!page.classList.contains('hidden')) loadOpen(); })
+      .observe(page, { attributes: true, attributeFilter: ['class'] });
+    if (!page.classList.contains('hidden')) loadOpen();
+  }
+
   // A opção da janelinha da call só existe no app do Android que deixa desligá-la (APK 1.3.4+).
   if (!window.AndroidApp?.pipOptional) $('#call-pip-group').remove();
   // A seção do overlay só existe no app de desktop (versões com o overlay).
   let placeOverlayPuck = () => {};
   let stopOverlayTest = () => {};
+  if (desktopOverlay) setupMyGames(desktopApp.games);
   if (!desktopOverlay) { $('#tab-overlay').remove(); $('#page-overlay').remove(); }
   else if (!desktopApp.nowPlaying) $('#activity-group').remove(); // app sem o "Jogando agora"
   else {

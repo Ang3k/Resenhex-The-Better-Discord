@@ -288,3 +288,39 @@ html.touch .share-source:not(.selected):hover { background: var(--bg-sidebar); }
 #page-overlay p#overlay-unavailable { margin: 0; }
 @media (max-width: 640px) { .overlay-position-head { flex-direction: column; } }
 @media (prefers-reduced-motion: reduce) { .overlay-puck, .overlay-stage.dragging .overlay-puck, #settings .settings-content .overlay-action .ico { transition: none; transform: none; } }
+
+/* ---------- Seus jogos (aba Jogos): os que a pessoa adicionou e os programas abertos para adicionar ---------- */
+.my-games { gap: 14px; }
+.my-games-head { display: flex; align-items: flex-start; justify-content: space-between; flex-wrap: wrap; gap: 12px 16px; }
+.my-games-head > div { flex: 1 1 280px; min-width: 0; }
+.my-games-head .hint { margin: 4px 0 0; }
+#settings .settings-content #my-games-add { flex-shrink: 0; }
+#settings .settings-content #my-games-add[aria-expanded="true"] .ico { transform: rotate(45deg); }
+#page-overlay p#my-games-outdated { margin: 0; }
+.my-games-list { display: flex; flex-direction: column; gap: 2px; margin: 0; padding: 0; list-style: none; }
+.my-games-list[hidden] { display: none; }
+.my-game-row { display: flex; align-items: center; gap: 12px; min-height: 52px; margin: 0 -8px; padding: 6px 8px; border-radius: 8px; }
+.my-game-row:hover, .my-game-row:focus-within { background: var(--hover); }
+.my-game-icon { display: grid; place-items: center; flex: none; width: 36px; height: 36px; border-radius: 10px; background: var(--bg-panel); color: var(--interactive); }
+.my-games-list .my-game-row:has(.my-game-name) .my-game-icon { background: color-mix(in srgb, var(--brand) 18%, var(--bg-panel)); color: var(--brand); }
+.my-game-text { display: flex; flex-direction: column; flex: 1; min-width: 0; gap: 1px; }
+.my-game-title, .my-game-text small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.my-game-title { color: var(--text-strong); font-size: 14px; font-weight: 500; }
+.my-game-text small { color: var(--text-muted); font-size: 12px; }
+/* O nome do jogo adicionado é um campo que parece texto até receber o foco. */
+#settings .settings-content input.my-game-name { width: 100%; min-height: 0; margin: -2px 0 -2px -6px; padding: 2px 6px; border: 1px solid transparent; border-radius: 6px;
+  background: transparent; color: var(--text-strong); font: inherit; font-size: 14px; font-weight: 500; text-overflow: ellipsis; }
+#settings .settings-content input.my-game-name:hover { border-color: var(--divider); }
+#settings .settings-content input.my-game-name:focus { border-color: var(--brand); background: var(--bg-input); outline: none; }
+.my-game-known { flex: none; color: var(--text-muted); font-size: 12px; }
+/* Botão só de ícone: sem o fundo roxo e a sombra dos botões das configurações (controls.css). */
+#settings .settings-content button.my-game-remove { display: grid; place-items: center; flex: none; width: 32px; height: 32px; min-height: 0; padding: 0; border: 0; border-radius: 8px;
+  background: transparent; color: var(--interactive); box-shadow: none; cursor: pointer; opacity: 0; }
+.my-game-row:hover .my-game-remove, .my-game-remove:focus-visible { opacity: 1; }
+#settings .settings-content button.my-game-remove:hover { background: color-mix(in srgb, var(--red) 16%, transparent); color: var(--red); }
+#settings .settings-content .my-game-pick { flex: none; }
+.my-games-open { display: flex; flex-direction: column; gap: 6px; padding-top: 14px; border-top: 1px solid var(--divider); }
+.my-games-open-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; color: var(--text-muted); font-size: 12px; font-weight: 600; letter-spacing: .02em; text-transform: uppercase; }
+.my-games-open .my-games-empty { margin: 4px 0 0; }
+@media (hover: none) { .my-game-remove { opacity: 1; } }
+@media (prefers-reduced-motion: reduce) { #settings .settings-content #my-games-add[aria-expanded="true"] .ico { transform: none; } }

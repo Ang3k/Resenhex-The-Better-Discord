@@ -22,6 +22,7 @@ const { createOverlay } = require('./lib/overlay');
 const { createGameList } = require('./lib/game-list');
 const { createShareFollow } = require('./lib/share-follow');
 const { createNowPlaying } = require('./lib/now-playing');
+const { createMyGames } = require('./lib/my-games');
 const { tuneCapture, setCaptureRing, captureStats } = require('./lib/capture-tuning');
 if (!app.isPackaged && process.env.RESENHEX_USER_DATA_DIR) app.setPath('userData', path.resolve(process.env.RESENHEX_USER_DATA_DIR));
 
@@ -60,7 +61,7 @@ function acquireLock() {
 }
 
 const store = createStore(path.join(app.getPath('userData'), 'preferencias.json'), {
-  bounds: null, maximized: false, closeToTray: true, trayHintShown: false, captureRing: true,
+  bounds: null, maximized: false, closeToTray: true, trayHintShown: false, captureRing: true, myGames: [],
 });
 // Os selos e ícones da bandeja trocam a cada mudança de título; cada um é lido do disco uma vez só.
 const images = new Map();
@@ -344,6 +345,7 @@ const progressivePickers = new WeakSet();
 const appAudioPlans = new AppAudioPlans();
 let shareFollow = null; // transmissão que segue a partida (lib/share-follow.js); criada quando o app fica pronto
 let nowPlaying = null; // "Jogando agora" (lib/now-playing.js); criado quando o app fica pronto
+let myGames = null; // "Seus jogos" (lib/my-games.js); criado quando o app fica pronto
 const sourcePreviews = new Map();
 const PREVIEW_MAX_AGE = 10000;
 const PREVIEW_DISPLAY_MAX_AGE = 60000;
@@ -737,6 +739,36 @@ function setupNowPlaying(games) {
 }
 ipcMain.on('desktop:game:ready', (event) => { if (fromVoiceSite(event)) event.sender.send('desktop:game', nowPlaying?.current() || null); });
 
+// As janelas abertas que dá para capturar: [{ id: "window:<HWND>:0", name }].
+const windowSources = async () => (await desktopCapturer.getSources({ types: ['window'], thumbnailSize: { width: 0, height: 0 } }))
+  .map((source) => ({ id: source.id, name: source.name }));
+
+// ---------------- seus jogos ----------------
+// A aba Jogos do site lista os programas abertos para a pessoa marcar como jogo o que a lista não reconhece.
+function setupMyGames(games) {
+  let windows = null;
+  try { windows = require('./lib/foreground').createForeground(); }
+  catch (error) { log.warn('Seus jogos indisponível:', error.message); }
+  myGames = createMyGames({ store, windows, games, sources: windowSources });
+}
+ipcMain.handle('desktop:games:list', async (event) => {
+  if (!fromVoiceSite(event) || !myGames) return null;
+  return { mine: myGames.list(), open: await myGames.open() };
+});
+// Depois de mudar a lista, o "Jogando agora" confere na hora (o jogo pode estar aberto).
+ipcMain.handle('desktop:games:add', (event, value) => {
+  if (!fromVoiceSite(event) || !myGames) return null;
+  const list = myGames.add(String(value?.exe || ''), String(value?.name || ''));
+  nowPlaying?.check();
+  return list;
+});
+ipcMain.handle('desktop:games:remove', (event, exe) => {
+  if (!fromVoiceSite(event) || !myGames) return null;
+  const list = myGames.remove(String(exe || ''));
+  nowPlaying?.check();
+  return list;
+});
+
 // ---------------- transmissão que segue a partida ----------------
 function setupShareFollow(games) {
   let windows = null;
@@ -745,7 +777,7 @@ function setupShareFollow(games) {
   if (!windows) return;
   shareFollow = createShareFollow({
     windows, games, log,
-    sources: async () => (await desktopCapturer.getSources({ types: ['window'], thumbnailSize: { width: 0, height: 0 } })).map((source) => ({ id: source.id, name: source.name })),
+    sources: windowSources,
     large: (rect) => largeGameWindow(games, rect),
     send: (contents, message) => { if (!contents.isDestroyed()) contents.send('desktop:share-follow', message); },
   });
@@ -768,7 +800,9 @@ app.on('window-all-closed', () => { if (quitting) app.quit(); });
 app.whenReady().then(() => {
   Menu.setApplicationMenu(null);
   setupSession();
-  const games = createGameList({ cacheFile: path.join(app.getPath('userData'), 'jogos.json'), origin: ORIGIN, fetch: (url) => net.fetch(url, { cache: 'no-store' }), log });
+  const games = createGameList({ cacheFile: path.join(app.getPath('userData'), 'jogos.json'), origin: ORIGIN, fetch: (url) => net.fetch(url, { cache: 'no-store' }), log,
+    custom: () => myGames?.list() || [] });
+  setupMyGames(games);
   overlay = createOverlay({ BrowserWindow, screen, origin: ORIGIN, preload: path.join(__dirname, 'overlay-preload.js'), games, log });
   setupShareFollow(games);
   setupNowPlaying(games);

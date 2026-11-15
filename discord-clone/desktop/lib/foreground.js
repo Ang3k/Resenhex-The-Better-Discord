@@ -27,6 +27,7 @@ function createForeground() {
   const PostMessageW = user32.func('bool PostMessageW(uintptr_t hWnd, uint32 msg, uintptr_t wParam, intptr_t lParam)');
   const RegisterWindowMessageW = user32.func('uint32 RegisterWindowMessageW(str16 name)');
   const UIPI_TEST = RegisterWindowMessageW('ResenhexUipiTest');
+  let NtQueryInformationProcess = null; // carregada na primeira vez que precisa (Windows 8.1 em diante)
 
   function imageOf(pid) {
     let exe = '';
@@ -39,6 +40,31 @@ function createForeground() {
       } finally { CloseHandle(handle); }
     }
     return exe;
+  }
+  // A linha de comando do processo, ou '' se não der para ler. Serve para o "javaw.exe", que roda o Minecraft e
+  // qualquer outro programa em Java. Lê na hora (é rápido) e só quando o executável precisa disso.
+  function commandLineOf(pid) {
+    const PROCESS_COMMAND_LINE_INFORMATION = 60, STATUS_INFO_LENGTH_MISMATCH = 0xC0000004 | 0;
+    try {
+      NtQueryInformationProcess ||= koffi.load('ntdll.dll')
+        .func('int32 NtQueryInformationProcess(void *process, int32 infoClass, _Out_ void *info, uint32 length, _Out_ uint32 *returned)');
+    } catch { return ''; }
+    const handle = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, false, pid);
+    if (!handle) return '';
+    try {
+      let buffer = Buffer.alloc(8 * 1024);
+      const size = [0];
+      let status = NtQueryInformationProcess(handle, PROCESS_COMMAND_LINE_INFORMATION, buffer, buffer.length, size);
+      if (status === STATUS_INFO_LENGTH_MISMATCH && size[0] > buffer.length && size[0] <= 1024 * 1024) {
+        buffer = Buffer.alloc(size[0]);
+        status = NtQueryInformationProcess(handle, PROCESS_COMMAND_LINE_INFORMATION, buffer, buffer.length, size);
+      }
+      if (status !== 0) return '';
+      // UNICODE_STRING { Length, MaximumLength, Buffer } e o texto logo depois, no mesmo espaço.
+      const start = koffi.sizeof('void *') * 2;
+      const length = buffer.readUInt16LE(0);
+      return start + length <= buffer.length ? buffer.toString('utf16le', start, start + length) : '';
+    } catch { return ''; } finally { CloseHandle(handle); }
   }
   let cached = { pid: 0, exe: '' };
   function exeOf(pid) {
@@ -67,6 +93,7 @@ function createForeground() {
     GetWindowThreadProcessId(hwnd, pid);
     return pid[0] ? { pid: pid[0], exe: imageOf(pid[0]) } : null;
   };
+  current.commandLine = commandLineOf;
   current.alive = (hwnd) => !!hwnd && IsWindow(hwnd);
   // Escondida (o client do LoL durante a partida) ou já fechada: false.
   current.visible = (hwnd) => !!hwnd && IsWindow(hwnd) && IsWindowVisible(hwnd);

@@ -20,7 +20,7 @@ function createNowPlaying({ foreground, games, large, onChange, alive = isAlive,
     let top = null;
     try { top = foreground(); } catch { /* janela sumiu no meio da leitura */ }
     const matcher = games.matcher();
-    const found = top && top.pid !== self && matcher ? matcher.match(top.exe) : null;
+    const found = top && top.pid !== self && matcher ? matcher.match(top.exe, () => foreground.commandLine?.(top.pid)) : null;
     if (found && (found.exact || large(top.rect)) && game?.pid !== top.pid) {
       game = { name: found.name, pid: top.pid, since: now() };
       onChange(view());
