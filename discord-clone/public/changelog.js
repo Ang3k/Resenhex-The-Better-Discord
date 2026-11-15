@@ -4,6 +4,19 @@
 // O título deve destacar as principais funcionalidades ou correções, com termos objetivos.
 window.CHANGELOG = [
   {
+    version: '2.6.2', date: '2026-11-14', name: 'Overlay e "Jogando agora" no Minecraft e em qualquer jogo que você adicionar',
+    summary: 'O Minecraft Java agora é reconhecido como jogo, seja original ou pirata, com ou sem mods, então o overlay aparece e o seu perfil mostra "Jogando Minecraft". E, para qualquer jogo que o Resenhex não reconheça sozinho, a aba Jogos das configurações ganhou "Seus jogos": abra o jogo, clique em Adicionar jogo e escolha ele na lista. O Minecraft com qualquer Java e o "Seus jogos" precisam do app do Windows 1.4.8, que se atualiza sozinho.',
+    sections: [
+      { kind: 'new', items: [
+        '"Seus jogos", na aba Jogos das configurações do app do Windows: o Resenhex lista os programas abertos e você marca como jogo o que ele não reconheceu, como um jogo pirata numa pasta qualquer, um jogo novo ou um emulador. Daí em diante, o overlay e o "Jogando agora" funcionam nele. Dá para trocar o nome que aparece para a galera e remover quando quiser.',
+      ] },
+      { kind: 'improved', items: [
+        'O Minecraft Java é reconhecido como jogo pelo launcher oficial, pelo TLauncher e pelos outros, com Forge, Fabric ou sem mods. Antes, o Resenhex só reconhecia o Minecraft do launcher antigo, de 2014.',
+        'Team Fortress 2, Garry\'s Mod e Half-Life 2, que dividem o mesmo programa da Valve, agora também são reconhecidos pelo nome certo.',
+      ] },
+    ],
+  },
+  {
     version: '2.6.1', date: '2026-11-14', name: 'Mudae: o dobro de cristais, som novo do cristal e fotos de jogos que não carregavam',
     summary: 'O cristal de kakera agora passa pelo Salão o dobro de vezes, então juntar kakera para a Forja ficou bem mais rápido. O som dele também mudou: chega baixinho, cresce e vai sumindo. E corrigimos as fotos de personagens de jogos que, para algumas pessoas, apareciam como uma imagem cinza de "sem foto".',
     sections: [

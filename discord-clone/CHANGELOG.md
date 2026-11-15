@@ -3,6 +3,21 @@
 Histórico de versões. A mesma lista aparece dentro do app em **Novidades** (menu do servidor ou rodapé das Configurações).
 O Resenhex chegou à versão 1.0 em 4 de outubro de 2026.
 
+## v2.6.2 — Overlay e "Jogando agora" no Minecraft e em qualquer jogo que você adicionar
+
+14 de novembro de 2026.
+
+O Minecraft Java agora é reconhecido como jogo, seja original ou pirata, com ou sem mods, então o overlay aparece e o seu perfil mostra "Jogando Minecraft". E, para qualquer jogo que o Resenhex não reconheça sozinho, a aba Jogos das configurações ganhou "Seus jogos": abra o jogo, clique em Adicionar jogo e escolha ele na lista. O Minecraft com qualquer Java e o "Seus jogos" precisam do app do Windows 1.4.8, que se atualiza sozinho.
+
+### Novidades
+
+- "Seus jogos", na aba Jogos das configurações do app do Windows: o Resenhex lista os programas abertos e você marca como jogo o que ele não reconheceu, como um jogo pirata numa pasta qualquer, um jogo novo ou um emulador. Daí em diante, o overlay e o "Jogando agora" funcionam nele. Dá para trocar o nome que aparece para a galera e remover quando quiser.
+
+### Melhorias
+
+- O Minecraft Java é reconhecido como jogo pelo launcher oficial, pelo TLauncher e pelos outros, com Forge, Fabric ou sem mods. Antes, o Resenhex só reconhecia o Minecraft do launcher antigo, de 2014.
+- Team Fortress 2, Garry's Mod e Half-Life 2, que dividem o mesmo programa da Valve, agora também são reconhecidos pelo nome certo.
+
 ## v2.6.1 — Mudae: o dobro de cristais, som novo do cristal e fotos de jogos que não carregavam
 
 14 de novembro de 2026.
