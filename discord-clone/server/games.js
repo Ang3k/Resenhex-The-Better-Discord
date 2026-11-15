@@ -37,6 +37,20 @@ const RULES = {
 // Jogos que nem as pastas nem o Discord cobrem (ex.: o Discord cadastra o AION 2 sem executável).
 const EXTRA_GAMES = [
   ['AION 2', ['aion2/binaries/win64/aion2.exe']],
+  // Minecraft Java pelo Java que o launcher oficial baixa em ".minecraft/runtime/" (o TLauncher e outros também usam).
+  // No Discord só tem o caminho do launcher de 2014. Esta regra vale até nos apps que não leem a linha de comando.
+  ['Minecraft', ['java-runtime-alpha/bin/javaw.exe', 'java-runtime-beta/bin/javaw.exe', 'java-runtime-gamma/bin/javaw.exe',
+    'java-runtime-delta/bin/javaw.exe', 'java-runtime-epsilon/bin/javaw.exe', 'jre-legacy/bin/javaw.exe', 'runtime/jre-x64/bin/javaw.exe']],
+];
+
+// Jogos que só dá para reconhecer pela linha de comando, porque o executável serve para muita coisa: o "javaw.exe"
+// roda qualquer programa em Java, e o "hl2.exe" da Valve roda vários jogos. [[nome, executável, [trechos]]]: vale
+// quando a linha de comando tem um dos trechos (em minúsculas). Só o app 1.4.8 em diante lê a linha de comando.
+const EXTRA_ARGS = [
+  // Minecraft Java com qualquer Java e qualquer launcher (oficial, TLauncher, Prism…), com ou sem mods. O Discord só
+  // conhece a classe do Minecraft sem mods; "--assetsdir" e "--assetindex" são argumentos do próprio jogo, que todo launcher repassa.
+  ['Minecraft', 'javaw.exe', ['net.minecraft.', '--assetsdir', '--assetindex']],
+  ['Minecraft', 'java.exe', ['net.minecraft.', '--assetsdir', '--assetindex']],
 ];
 
 // [[nome, [executáveis]]]. Os executáveis ficam em minúsculas e com "/" (ex.: "win64/valorant-win64-shipping.exe").
@@ -58,8 +72,28 @@ function slimDetectable(raw) {
   return games;
 }
 
-// O que o app recebe: as regras das pastas, a lista extra e a do Discord.
-const bodyOf = (fetchedAt, discord) => JSON.stringify({ fetchedAt, ...RULES, games: [...EXTRA_GAMES, ...discord] });
+// Os executáveis com ">" do Discord, no formato de EXTRA_ARGS: [[nome, "hl2.exe", ["-game tf"]]].
+function slimArgs(raw) {
+  if (!Array.isArray(raw)) return [];
+  const rules = [];
+  for (const app of raw) {
+    if (!app || typeof app.name !== 'string' || !app.name.trim() || !Array.isArray(app.executables)) continue;
+    for (const exe of app.executables) {
+      if (!exe || exe.os !== 'win32' || exe.is_launcher || typeof exe.name !== 'string' || typeof exe.arguments !== 'string') continue;
+      const name = exe.name.trim().toLowerCase();
+      const args = exe.arguments.trim().toLowerCase();
+      if (name.length > 1 && name.length <= 100 && name.startsWith('>') && !/[\\/]/.test(name) && args && args.length <= 200) {
+        rules.push([app.name.trim().slice(0, 100), name.slice(1), [args]]);
+      }
+    }
+  }
+  return rules;
+}
+
+// O que o app recebe: as regras das pastas, a lista extra e a do Discord. Os apps até o 1.4.7 ignoram o "byArgs".
+const bodyOf = (fetchedAt, discord, discordArgs = []) => JSON.stringify({
+  fetchedAt, ...RULES, games: [...EXTRA_GAMES, ...discord], byArgs: [...EXTRA_ARGS, ...discordArgs],
+});
 
 function createGameList({ file, fetch = globalThis.fetch, source = SOURCE, maxAge = MAX_AGE, now = Date.now } = {}) {
   let cache = null; // { fetchedAt, body }
@@ -67,7 +101,9 @@ function createGameList({ file, fetch = globalThis.fetch, source = SOURCE, maxAg
   // No disco fica só a lista do Discord; as regras e a lista extra vêm sempre deste arquivo.
   try {
     const saved = JSON.parse(fs.readFileSync(file, 'utf8'));
-    if (Array.isArray(saved.games) && saved.games.length >= MIN_GAMES) cache = { fetchedAt: saved.fetchedAt || 0, body: bodyOf(saved.fetchedAt || 0, saved.games) };
+    if (Array.isArray(saved.games) && saved.games.length >= MIN_GAMES) {
+      cache = { fetchedAt: saved.fetchedAt || 0, body: bodyOf(saved.fetchedAt || 0, saved.games, Array.isArray(saved.byArgs) ? saved.byArgs : []) };
+    }
   } catch { /* ainda não baixada */ }
 
   function refresh() {
@@ -75,11 +111,13 @@ function createGameList({ file, fetch = globalThis.fetch, source = SOURCE, maxAg
       try {
         const response = await fetch(source, { headers: { accept: 'application/json' }, signal: AbortSignal.timeout(30_000) });
         if (!response.ok) throw new Error('HTTP ' + response.status);
-        const games = slimDetectable(await response.json());
+        const raw = await response.json();
+        const games = slimDetectable(raw);
         if (games.length < MIN_GAMES) throw new Error(`só ${games.length} jogos`);
+        const byArgs = slimArgs(raw);
         const fetchedAt = now();
-        cache = { fetchedAt, body: bodyOf(fetchedAt, games) };
-        fs.writeFile(file + '.tmp', JSON.stringify({ fetchedAt, games }), (error) => {
+        cache = { fetchedAt, body: bodyOf(fetchedAt, games, byArgs) };
+        fs.writeFile(file + '.tmp', JSON.stringify({ fetchedAt, games, byArgs }), (error) => {
           if (error) return console.warn('Lista de jogos não foi salva:', error.message);
           fs.rename(file + '.tmp', file, (err) => err && console.warn('Lista de jogos não foi salva:', err.message));
         });
@@ -109,4 +147,4 @@ function createGameList({ file, fetch = globalThis.fetch, source = SOURCE, maxAg
   return { body, refresh, route };
 }
 
-module.exports = { slimDetectable, createGameList, SOURCE, RULES, EXTRA_GAMES };
+module.exports = { slimDetectable, slimArgs, createGameList, SOURCE, RULES, EXTRA_GAMES, EXTRA_ARGS };
