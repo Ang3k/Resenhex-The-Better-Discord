@@ -7,12 +7,13 @@ O Resenhex chegou à versão 1.0 em 4 de outubro de 2026.
 
 16 de novembro de 2026.
 
-Esta versão junta cinco coisas. O Resenhex gasta bem menos memória RAM, sem mudar nada do que você vê ou usa: quem transmite a tela pelo app de Windows economiza cerca de 360 MB, e o DJ devolve uns 130 MB quando a música para. O overlay e o "Jogando agora" passam a funcionar no Minecraft, original ou pirata, e em qualquer jogo que você adicionar em "Seus jogos". No Salão do Mudae, o cristal passa o dobro de vezes, com um som novo, e as fotos de personagens de jogos que apareciam cinza voltaram. Os clipes do Clipar ganham título, que todo mundo da chamada vê. E a tela do celular chega mais fluida na call. O Minecraft com qualquer Java e o "Seus jogos" precisam do app do Windows 1.4.8, que se atualiza sozinho; o formato novo da tela do celular vem com o app do Android 1.4.2.
+Esta versão junta cinco coisas. O Resenhex gasta bem menos memória RAM, sem mudar nada do que você vê ou usa: quem transmite a tela pelo app de Windows economiza cerca de 360 MB, e o DJ devolve uns 130 MB quando a música para. O overlay e o "Jogando agora" passam a funcionar no Minecraft, original ou pirata, e em qualquer jogo que você adicionar em "Seus jogos". No Salão do Mudae, o cristal passa o dobro de vezes, com um som novo, um aviso chega quando seus rolls voltam, e as fotos de personagens de jogos que apareciam cinza voltaram. Os clipes do Clipar ganham título, que todo mundo da chamada vê. E a tela do celular chega mais fluida na call. O Minecraft com qualquer Java e o "Seus jogos" precisam do app do Windows 1.4.8, que se atualiza sozinho; o formato novo da tela do celular vem com o app do Android 1.4.2.
 
 ### Novidades
 
 - "Seus jogos", na aba Jogos das configurações do app do Windows: o Resenhex lista os programas abertos e você marca como jogo o que ele não reconheceu, como um jogo pirata numa pasta qualquer, um jogo novo ou um emulador. Daí em diante, o overlay e o "Jogando agora" funcionam nele. Dá para trocar o nome que aparece para a galera e remover quando quiser.
 - Título nos clipes: ao clipar, você pode dar um nome ao clipe, como "a jogada do século". O título aparece para todo mundo da chamada no aviso de clipe novo e em "Clipes da chamada", e vira o nome do arquivo ao baixar. Quem fez o clipe pode trocar o título depois, no lápis ao lado de "Baixar".
+- Aviso de rolls no Mudae: quem gastar todos os rolls recebe um aviso quando eles voltarem (na hora cheia e na meia hora), com o botão "Rolar", que leva direto ao Salão, mesmo se você estiver em outro servidor. Com o Resenhex em segundo plano e as notificações ligadas, o aviso também chega como notificação do sistema.
 
 ### Melhorias
 

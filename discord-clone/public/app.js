@@ -531,6 +531,42 @@
     confirmDialog: (opts) => confirmDialog(opts), openProfile: (id, anchor) => openProfile(id, anchor), openImage: (url) => openLightbox({ url, noReferrer: true }),
     openChannel: (id) => openTextChannel(id), closeProfile: () => closeProfile(), setSimple: (on) => setMudaeSimple(on), ui: mudae, Sounds, trade: mudaeTrade,
     crystals: mudaeCrystals, forge: mudaeForge });
+  // Os rolls do Mudae voltaram: o servidor só avisa quem gastou todos na janela de 30 minutos que acabou.
+  // Aparece um aviso no canto (com "Rolar", que leva ao Salão daquele servidor), toca o som de destravar
+  // e, com a janela fora de foco, sai também a notificação do sistema.
+  socket.on('mudae:rolls-back', (d) => {
+    if (!d?.serverId || !d.channel || !state.me) return;
+    const here = d.serverId === state.server.serverId;
+    if (here) salon.refreshStatus();
+    const where = here || !d.serverName ? 'no Salão' : `no Salão de ${d.serverName}`;
+    const rolls = `${d.rolls} ${d.rolls === 1 ? 'roll' : 'rolls'} ${where}`;
+    const go = async () => {
+      if (d.serverId !== state.server.serverId && !(await switchServer(d.serverId))) return;
+      if (state.home) leaveHome();
+      openTextChannel(d.channel);
+    };
+    Sounds.play('mudaeUnlock');
+    showRollsBack(rolls, go);
+    if (!state.notify || !('Notification' in window) || Notification.permission !== 'granted') return;
+    if (document.visibilityState === 'visible' && document.hasFocus()) return;
+    const n = new Notification('Seus rolls do Mudae voltaram!', { body: `${rolls}. Bora rolar?`, tag: 'mudae-rolls-' + d.serverId, silent: true });
+    n.onclick = () => { window.focus(); window.resenhexDesktop?.focus(); go(); n.close(); };
+  });
+  function showRollsBack(text, go) {
+    let box = document.getElementById('clip-notices'); // a mesma pilha de avisos do canto (Clipar)
+    if (!box) { box = el('div', { id: 'clip-notices', ariaLive: 'polite' }); document.body.append(box); }
+    box.querySelector('.mudae-rolls-notice')?.remove(); // um aviso só, o mais novo
+    const hide = () => { clearTimeout(timer); notice.classList.add('leaving'); setTimeout(() => notice.remove(), 200); };
+    const notice = el('div', { class: 'clip-notice mudae-rolls-notice', role: 'status' },
+      el('span', { class: 'mudae-rolls-icon', ariaHidden: 'true' }, Icon('dice', 24)),
+      el('div', { class: 'clip-notice-text' }, el('strong', { textContent: 'Seus rolls voltaram!' }), el('small', { textContent: text })),
+      el('button', { type: 'button', class: 'clip-download primary', onclick: () => { hide(); go(); } }, Icon('dice', 16), el('span', { textContent: 'Rolar' })),
+      el('button', { type: 'button', class: 'clip-notice-close', ariaLabel: 'Fechar aviso', onclick: () => hide() }, Icon('x', 14)));
+    let timer = setTimeout(hide, 15_000);
+    notice.addEventListener('mouseenter', () => clearTimeout(timer));
+    notice.addEventListener('mouseleave', () => { timer = setTimeout(hide, 6_000); });
+    box.append(notice);
+  }
   // Linha ao vivo do Mudae (o cristal): entra no chat de quem está no Salão e não é gravada no servidor.
   // A linha do fim troca a do cristal (mesmo id); um chat:history novo do canal apaga as duas.
   function addLiveLine(channel, data) {

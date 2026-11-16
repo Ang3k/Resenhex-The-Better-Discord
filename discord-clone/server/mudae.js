@@ -194,6 +194,10 @@ function createMudae({ catalog = null, catalogFile = null, catalogDb = null, now
     return { max: base + carry, used: 0, carry };
   }
   const rollsLeft = (u, perks) => { const w = rollWindow(u, perks); return Math.max(0, w.max - w.used); };
+  // Quem gastou todos os rolls na janela `windowId` (o servidor avisa essas pessoas quando os rolls voltam).
+  const ranOut = (store, windowId) => Object.entries(store.usage || {})
+    .filter(([id, u]) => u.rollWindow === windowId && u.rolls >= ROLLS_PER_HOUR + perksOf(store, id).extraRolls + (u.carry || 0))
+    .map(([id]) => id);
   const rollsMaxOf = (u, perks) => rollWindow(u, perks).max;
   const claimReady = (u) => !u.lastClaim || Math.floor(u.lastClaim / CLAIM_RESET_MS) < Math.floor(now() / CLAIM_RESET_MS);
   const rollResetIn = () => ROLL_RESET_MS - (now() % ROLL_RESET_MS);
@@ -938,7 +942,7 @@ function createMudae({ catalog = null, catalogFile = null, catalogDb = null, now
   // Quantos personagens há em cada fonte na roleta (a tela mostra só os filtros que existem).
   const sources = Object.fromEntries(srcOrder.map((s) => [s, pools['m' + s].length]).filter(([, len]) => len));
 
-  return { size: ativos.length, sources, parse, status, roll, foresee, arm, armedView, warmup, spin, claim, claimError, harem, album, summary, setFavorite, ranking, info, divorce, divorceId,
+  return { size: ativos.length, sources, parse, status, ranOut, roll, foresee, arm, armedView, warmup, spin, claim, claimError, harem, album, summary, setFavorite, ranking, info, divorce, divorceId,
     kakeraOf, addKakera, countCrystal: (store, accountId) => bump(store, accountId, 'crystals'), stats, daily, dailyKakera, buyRolls, giveKakera, wish, wishToggle, unwish, wishlist, wishersOf, give, firstMarry, topFilter, list,
     tradeOpen, tradeOffer, tradeConfirm, tradeCancel, tradeExpire, tradeOf, tradeView, otherSide, sweepTrades: sweep,
     card: (id) => { const k = lookup(id); return k !== undefined ? card(k) : null; },

@@ -18,7 +18,7 @@ const { communityStore } = require('./server/communities');
 const { downloadRoutes } = require('./server/downloads');
 const { feedbackRoutes } = require('./server/feedback');
 const { createDj } = require('./server/dj');
-const { createMudae, CLAIM_WINDOW_MS, revealDelay, PRIORITY_MS, isRoll, normalize: mudaeNormalize } = require('./server/mudae');
+const { createMudae, ROLL_RESET_MS, CLAIM_WINDOW_MS, revealDelay, PRIORITY_MS, isRoll, normalize: mudaeNormalize } = require('./server/mudae');
 const { createForja, perksOf, forgedCount, levelOf, atLeast } = require('./server/mudae-forja');
 const { createPoderes } = require('./server/mudae-poderes');
 const { MEDAL_KEYS, MEDALS, priceOf, CRYSTAL, ECO, POWERS } = require('./server/mudae-regras');
@@ -985,6 +985,30 @@ function crystalTick() {
   for (const e of ended) crystalToSalons(e.serverId, 'mudae:crystal:end', { id: e.id, kind: e.kind, colorKey: e.colorKey, color: e.color, takers: e.takers });
 }
 setInterval(crystalTick, crystalRules.tickMs).unref();
+// Os rolls voltam a cada 30 minutos (na hora cheia e na meia hora). Quem gastou todos na janela que acabou
+// recebe um aviso em todas as abas abertas, com o servidor e o Salão para voltar a rolar.
+function rollsBackTick() {
+  try { warnRollsBack(Math.floor(Date.now() / ROLL_RESET_MS)); } catch (err) { console.error('Falha no aviso dos rolls do Mudae:', err); }
+  scheduleRollsBack();
+}
+function warnRollsBack(windowId) {
+  for (const [serverId, server] of Object.entries(communities.root.servers)) {
+    communities.run(serverId, () => {
+      const store = mudaeData();
+      const salon = db.channels.find((c) => c.mudae);
+      if (!salon) return;
+      for (const accountId of mudae.ranOut(store, windowId - 1)) {
+        if (!online.sidsOf(accountId).size || !communities.joined(accountId, serverId)) continue;
+        const { rollsLeft } = mudae.status(store, accountId);
+        emitToAccount(accountId, 'mudae:rolls-back', { serverId, serverName: server.serverName, channel: salon.id, rolls: rollsLeft });
+      }
+    });
+  }
+}
+function scheduleRollsBack() {
+  setTimeout(rollsBackTick, ROLL_RESET_MS - (Date.now() % ROLL_RESET_MS) + 1000).unref();
+}
+scheduleRollsBack();
 function leaveSalon(s) {
   if (!s?.salon) return;
   const { salon, salonServerId } = s;

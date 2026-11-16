@@ -226,3 +226,16 @@ test('fora da roleta (8ª coluna): nunca sai no roll, mas segue no harém, no á
   assert.deepEqual(m.ranking(store), normal.ranking(store));
   assert.equal(m.info(store, 'zero two').card.id, 3, '$im ainda acha quem já casou');
 });
+
+test('ranOut: quem gastou todos os rolls na janela (para o aviso de que voltaram)', () => {
+  const { mudae, store, now, advance } = setup();
+  const win = () => Math.floor(now() / ROLL_RESET_MS);
+  for (let i = 0; i < 10; i++) assert.ok(mudae.roll(store, 'a', 'w').card);
+  for (let i = 0; i < 3; i++) mudae.roll(store, 'b', 'w');
+  const ended = win();
+  assert.deepEqual(mudae.ranOut(store, ended), ['a'], 'só quem zerou; quem sobrou rolls não é avisado');
+  advance(ROLL_RESET_MS);
+  assert.equal(mudae.status(store, 'a').rollsLeft, 10, 'na janela nova os rolls voltaram');
+  assert.deepEqual(mudae.ranOut(store, ended), ['a'], 'o servidor consulta a janela que acabou');
+  assert.deepEqual(mudae.ranOut(store, win()), []);
+});

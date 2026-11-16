@@ -1277,7 +1277,7 @@ window.MudaeSalon = function ({ state, el, Icon, call, onSocket, member, avatar,
           el('div', { class: 'pc-mudae-stats' }, `${num(s.total)} ${s.total === 1 ? 'personagem' : 'personagens'} · ${num(s.value)} `, kakera()))));
   }
 
-  const api = { sync, onMessage, onUpdate, onHistory, show: (id) => { if (!S.channel) return; if (S.tab !== 'mesa') setTab('mesa'); S.stage = id; renderStage(); renderLive(); toggleSide(false); },
+  const api = { sync, onMessage, onUpdate, onHistory, refreshStatus: () => { if (S.channel) refreshStatus(); }, show: (id) => { if (!S.channel) return; if (S.tab !== 'mesa') setTab('mesa'); S.stage = id; renderStage(); renderLive(); toggleSide(false); },
     openHarem, openChars, openRanking: () => { toggleSide(false); setTab('ranking'); },
     // Abre o Salão na aba Forja. No modo simplificado, sai dele e abre quando o Salão montar.
     openForja: () => { if (S.channel) { toggleSide(false); setTab('forja'); } else { wantTab = 'forja'; setSimple(false); } }, profileSection, get channel() { return S.channel; } };
