@@ -1,11 +1,11 @@
 // Transmitir a tela do celular pelo app de Android (APK 1.4.0+). O WebView não tem getDisplayMedia:
-// quem captura é o app (MediaProjection). Ele codifica a tela em H.264 pelo chip de vídeo do celular
+// quem captura é o app (MediaProjection). Ele codifica a tela pelo próprio celular, em VP8 (APK 1.4.2+) ou H.264
 // (ou em JPEG, se não der) e manda os pacotes por um fetch em /__resenhex/tela/<chave>, que o próprio
 // app responde, sem passar pela rede. Aqui eles viram uma MediaStream comum (vídeo e, no Android 10+,
 // o som do celular), que a call transmite como a de um computador (media-session.js, captureScreen).
 //
 // Pacote (igual ao android/.../ScreenFeed.java): cabeçalho de 16 bytes, little-endian, e o conteúdo.
-//   byte 0: tipo (1 descrição, 2 H.264, 3 JPEG, 4 som); byte 1: marcas (1 = quadro-chave);
+//   byte 0: tipo (1 descrição, 2 H.264, 3 JPEG, 4 som, 5 VP8); byte 1: marcas (1 = quadro-chave);
 //   bytes 2-3: geração do codificador; 4-7: tamanho do conteúdo; 8-15: instante em microssegundos.
 // A descrição (JSON) abre cada geração: codec, largura, altura e fps. Girar o celular ou trocar a
 // qualidade cria um codificador novo, com geração nova; pacotes de gerações antigas são ignorados.
@@ -14,7 +14,7 @@
   if (typeof module === 'object' && module.exports) module.exports = api;
   else root.AndroidScreen = api;
 })(typeof globalThis !== 'undefined' ? globalThis : this, (root) => {
-  const TYPE = { INFO: 1, H264: 2, JPEG: 3, PCM: 4 };
+  const TYPE = { INFO: 1, H264: 2, JPEG: 3, PCM: 4, VP8: 5 };
   const FLAG_KEY = 1;
   const HEADER = 16;
   const MAX_PACKET = 16 * 1024 * 1024;
@@ -78,6 +78,16 @@
     return 'avc1.' + hex(data[sps.start + 1]) + hex(data[sps.start + 2]) + hex(data[sps.start + 3]);
   }
 
+  // Laboratório (lab-tela.js): intervalos entre quadros do codificador, em ms (quantos, menor, mediana, 90% e maior).
+  function intervalSummary(list) {
+    if (!list.length) return null;
+    const sorted = [...list].sort((a, b) => a - b);
+    const at = (p) => sorted[Math.min(sorted.length - 1, Math.floor(p * sorted.length))];
+    const ms = (v) => Math.round(v * 10) / 10;
+    return { n: sorted.length, min: ms(sorted[0]), p50: ms(at(0.5)), p90: ms(at(0.9)), max: ms(sorted[sorted.length - 1]) };
+  }
+  const labCounters = () => ({ pk: 0, bytes: 0, key: 0, gaps: [], dec: 0, qMax: 0, waitDrop: 0, sinkDrop: 0, jpegDrop: 0, behind: 0, gens: 0, errs: 0, reads: 0, pauses: 0 });
+
   // ---------------- ponte com o app ----------------
 
   const bridge = root.ResenhexAndroid;
@@ -103,6 +113,17 @@
     return h264Check;
   }
 
+  // APK 1.4.2+: o celular pode mandar VP8, que este WebView decodifica no processador (libvpx).
+  let vp8Check = null;
+  function vp8Decodable() {
+    vp8Check ||= (async () => {
+      if (!has('screenUseH264') || typeof root.VideoDecoder !== 'function' || typeof root.EncodedVideoChunk !== 'function') return false;
+      try { return !!(await root.VideoDecoder.isConfigSupported({ codec: 'vp8', optimizeForLatency: true, hardwareAcceleration: 'prefer-software' })).supported; }
+      catch { return false; }
+    })();
+    return vp8Check;
+  }
+
   // Trilha de vídeo que recebe os quadros: o gerador de trilhas do Chrome ou, em WebViews antigos, um canvas.
   function videoSink(fps) {
     if (typeof root.MediaStreamTrackGenerator === 'function' && typeof root.VideoFrame === 'function') {
@@ -112,8 +133,9 @@
         track: generator,
         write(frame) {
           // Página atrasada: descarta o quadro em vez de acumular (são quadros já decodificados).
-          if (writer.desiredSize !== null && writer.desiredSize <= 0) { frame.close(); return; }
+          if (writer.desiredSize !== null && writer.desiredSize <= 0) { frame.close(); return false; }
           writer.write(frame).catch(() => {}).finally(() => { try { frame.close(); } catch {} });
+          return true;
         },
         close() { writer.close().catch(() => {}); },
       };
@@ -129,6 +151,7 @@
         if (canvas.width !== w || canvas.height !== h) { canvas.width = w; canvas.height = h; }
         context.drawImage(frame, 0, 0);
         if (typeof root.VideoFrame === 'function' && frame instanceof root.VideoFrame) frame.close();
+        return true;
       },
       close() {},
     };
@@ -175,11 +198,17 @@
   async function capture({ width = 1280, height = 720, fps = 30, audio = true } = {}) {
     if (!available) throw named('Este app não transmite a tela. Atualize o app do Resenhex.', 'NotSupportedError');
     if (session) throw named(START_ERRORS.busy, 'InvalidStateError');
-    const h264 = await h264Decodable();
+    // Laboratório ligado pelo dono (lab-tela.js): pode forçar o JPEG e desligar a regra de atraso neste teste.
+    const lab = root.ScreenLab?.state?.on ? root.ScreenLab.state : null;
+    // Formato da captura: VP8 quando o app e o WebView dão conta (decodifica no processador, sem a cópia da placa
+    // de vídeo antes da call), senão H.264; JPEG só quando nenhum dos dois decodifica aqui (ou o laboratório pede).
+    const h264 = lab?.capture === 'jpeg' || lab?.capture === 'vp8' ? false : await h264Decodable();
+    const vp8 = lab?.capture === 'jpeg' || lab?.capture === 'h264' ? false : await vp8Decodable();
     const s = {
       stopped: false, started: false, token: '', box: { width, height, fps },
       gen: -1, info: null, decoder: null, decoderCodec: '', waitKey: true, decodeErrors: 0, lastKeyAsk: 0,
       packets: 0, skips: 0, behind: [], slowedAt: -Infinity, slowCount: 0, fpsLimit: 60, wantFps: fps, frames: 0, lastFrameAt: 0, lastTs: 0, lastBitmap: null, jpegBusy: false, repeat: 0,
+      lagRule: lab?.lagRule !== false, lab: labCounters(), lastTime: null, paused: false,
       settings: { width: 0, height: 0, frameRate: fps, aspectRatio: 16 / 9, displaySurface: 'monitor', deviceId: 'android-screen' },
       sink: null, audio: null, video: null, nativeStop: null, abort: null,
       onStatus: null, firstFrame: null,
@@ -198,7 +227,7 @@
             reject(st.reason === 'not_in_call' ? named('Fora da call', 'ShareCancelledError') : named(START_ERRORS[st.reason] || START_ERRORS.projection, 'NotReadableError'));
           }
         };
-        bridge.screenStart(JSON.stringify({ width, height, fps, h264, audio: !!audio && audioAvailable }));
+        bridge.screenStart(JSON.stringify({ width, height, fps, h264, vp8, audio: !!audio && audioAvailable }));
       });
       if (s.stopped) throw named('Transmissão cancelada.', 'ShareCancelledError');
       s.started = true;
@@ -215,10 +244,11 @@
       readLoop(s);
       s.repeat = setInterval(() => { repeatStill(s); speedBackUp(s); }, 250);
 
-      // 3. Espera o primeiro quadro. H.264 que não decodifica neste WebView: passa para JPEG.
+      // 3. Espera o primeiro quadro.
+      // Sem imagem em 6 s: o VP8 volta para o H.264 e o H.264 vai para o JPEG.
       let got = await Promise.race([firstFrame.then(() => true), sleep(6000).then(() => false)]);
-      if (!got && !s.stopped && s.info?.codec !== 'jpeg') {
-        safe(() => bridge.screenUseJpeg());
+      for (let tries = 0; !got && !s.stopped && s.info?.codec !== 'jpeg' && tries < 2; tries++) {
+        fallBack(s);
         got = await Promise.race([firstFrame.then(() => true), sleep(6000).then(() => false)]);
       }
       if (s.stopped) throw named('Transmissão cancelada.', 'ShareCancelledError');
@@ -250,8 +280,9 @@
     if (s.stopped) return;
     if (status.state === 'stopped' || status.state === 'error') { endFromApp(s, status.reason === 'notification' || status.reason === 'app' ? '' : END_NOTICES[status.reason] || END_NOTICES.lost); return; }
     // Android 14+, um app só: ele saiu da tela (a transmissão fica pausada até ele voltar).
-    if (status.state === 'paused') s.video?.dispatchEvent(new Event('mute'));
-    if (status.state === 'resumed') s.video?.dispatchEvent(new Event('unmute'));
+    // O Android manda "resumed" logo no começo de qualquer captura; só a pausa mostra que é um app só.
+    if (status.state === 'paused') { s.paused = true; s.lab.pauses++; s.video?.dispatchEvent(new Event('mute')); }
+    if (status.state === 'resumed') { s.paused = false; s.video?.dispatchEvent(new Event('unmute')); }
   }
 
   function askKeyframe(s) {
@@ -281,6 +312,7 @@
         // Tenta abrir de novo logo abaixo.
       }
       if (s.stopped) return;
+      s.lab.reads++;
       if (++failures > 5) { endFromApp(s, END_NOTICES.lost); return; }
       await sleep(250 * failures);
     }
@@ -299,13 +331,21 @@
       s.info = info;
       s.waitKey = true;
       s.settings.frameRate = info.fps || s.settings.frameRate;
+      s.lab.gens++;
+      s.lastTime = null;
       if (info.codec === 'jpeg') closeDecoder(s);
       return;
     }
     if (packet.gen !== s.gen || !s.info) return; // pacote de um codificador que já foi trocado
     s.packets++;
+    const c = s.lab;
+    c.pk++;
+    c.bytes += packet.data.length;
+    if (packet.flags & FLAG_KEY) c.key++;
+    if (s.lastTime !== null && packet.time > s.lastTime && c.gaps.length < 600) c.gaps.push((packet.time - s.lastTime) / 1000);
+    s.lastTime = packet.time;
     if (packet.type === TYPE.JPEG) { drawJpeg(s, packet); return; }
-    if (packet.type === TYPE.H264) decodeH264(s, packet);
+    if (packet.type === TYPE.H264 || packet.type === TYPE.VP8) decodeVideo(s, packet);
   }
 
   function configureDecoder(s, codec) {
@@ -314,7 +354,9 @@
       output: (frame) => { if (decoder === s.decoder) emit(s, frame); else frame.close(); },
       error: () => { if (decoder === s.decoder) decodeFailed(s); },
     });
-    decoder.configure({ codec, optimizeForLatency: true });
+    // VP8 no processador (libvpx): o quadro já sai na memória e a call o codifica direto. O H.264 do Android só
+    // decodifica pela placa de vídeo, e a call precisava copiar cada quadro de volta antes de codificar.
+    decoder.configure({ codec, optimizeForLatency: true, ...(codec === 'vp8' ? { hardwareAcceleration: 'prefer-software' } : {}) });
     s.decoder = decoder;
     s.decoderCodec = codec;
   }
@@ -326,26 +368,36 @@
     if (decoder && decoder.state !== 'closed') try { decoder.close(); } catch {}
   }
 
-  // Três erros do decodificador na mesma transmissão: este WebView não se dá com o H.264 do celular.
+  // Três erros do decodificador na mesma transmissão: este WebView não se dá com o formato do celular.
+  // Do VP8 volta para o H.264; do H.264, para o JPEG.
   function decodeFailed(s) {
+    s.lab.errs++;
     closeDecoder(s);
     s.waitKey = true;
-    if (++s.decodeErrors >= 3) safe(() => bridge.screenUseJpeg());
-    else askKeyframe(s);
+    if (++s.decodeErrors < 3) { askKeyframe(s); return; }
+    s.decodeErrors = 0;
+    fallBack(s);
   }
 
-  function decodeH264(s, packet) {
+  function fallBack(s) {
+    if (s.info?.codec === 'vp8') safe(() => bridge.screenUseH264());
+    else safe(() => bridge.screenUseJpeg());
+  }
+
+  function decodeVideo(s, packet) {
     if (typeof root.VideoDecoder !== 'function') return;
     const key = !!(packet.flags & FLAG_KEY);
     if (key) {
-      const codec = codecFromSps(packet.data) || s.decoderCodec || 'avc1.42E01F';
+      const codec = packet.type === TYPE.VP8 ? 'vp8' : codecFromSps(packet.data) || (s.decoderCodec !== 'vp8' && s.decoderCodec) || 'avc1.42E01F';
       try { if (!s.decoder || s.decoder.state !== 'configured' || codec !== s.decoderCodec) configureDecoder(s, codec); }
       catch { decodeFailed(s); return; }
       s.waitKey = false;
-    } else if (s.waitKey || !s.decoder) { askKeyframe(s); return; }
+    } else if (s.waitKey || !s.decoder) { s.lab.waitDrop++; askKeyframe(s); return; }
+    s.lab.qMax = Math.max(s.lab.qMax, s.decoder.decodeQueueSize);
     // Decodificador atrasado mais de meio segundo (celular ocupado): pula até o próximo quadro-chave em vez
     // de acumular atraso. Engasgos curtos passam: o decodificador costuma correr atrás e alcançar sozinho.
-    if (s.decoder.decodeQueueSize > Math.max(8, Math.ceil(s.box.fps / 2))) { s.waitKey = true; decoderBehind(s); askKeyframe(s); return; }
+    // (O laboratório pode desligar esta regra para comparar.)
+    if (s.lagRule && s.decoder.decodeQueueSize > Math.max(8, Math.ceil(s.box.fps / 2))) { s.waitKey = true; s.lab.waitDrop++; decoderBehind(s); askKeyframe(s); return; }
     try { s.decoder.decode(new root.EncodedVideoChunk({ type: key ? 'key' : 'delta', timestamp: packet.time, data: packet.data })); }
     catch { decodeFailed(s); }
   }
@@ -355,6 +407,7 @@
   // quadros (mínimo 10 fps).
   function decoderBehind(s) {
     s.skips++;
+    s.lab.behind++;
     const now = performance.now();
     s.behind = s.behind.filter((t) => now - t < 10_000);
     s.behind.push(now);
@@ -370,7 +423,7 @@
   // O aperto passou (um jogo abrindo, por exemplo): sem atraso por um tempo, dobra os quadros de novo até
   // voltar ao do perfil. Cada vez que precisou reduzir, espera o dobro antes de tentar (30 s, 1 min… até 5 min).
   function speedBackUp(s) {
-    if (s.stopped || s.fpsLimit >= s.wantFps || s.info?.codec !== 'h264') return;
+    if (s.stopped || s.fpsLimit >= s.wantFps || !s.info || s.info.codec === 'jpeg') return;
     const now = performance.now();
     const wait = Math.min(300_000, 30_000 * 2 ** Math.max(0, s.slowCount - 1));
     if (now - s.slowedAt < wait || s.behind.some((t) => now - t < 10_000)) return;
@@ -382,7 +435,7 @@
   }
 
   async function drawJpeg(s, packet) {
-    if (s.jpegBusy) return; // o anterior ainda está sendo aberto: este quadro fica de fora
+    if (s.jpegBusy) { s.lab.jpegDrop++; return; } // o anterior ainda está sendo aberto: este quadro fica de fora
     s.jpegBusy = true;
     try {
       const { width, height } = s.info;
@@ -408,7 +461,7 @@
 
   function emitBitmap(s, bitmap, time) {
     const timestamp = Math.max(time, s.lastTs + 1000);
-    if (typeof root.VideoFrame !== 'function') { s.lastTs = timestamp; s.sink.write(bitmap); frameShown(s, bitmap.width, bitmap.height); return; }
+    if (typeof root.VideoFrame !== 'function') { s.lastTs = timestamp; s.sink.write(bitmap); s.lab.dec++; frameShown(s, bitmap.width, bitmap.height); return; }
     let frame;
     try { frame = new root.VideoFrame(bitmap, { timestamp }); } catch { return; }
     emit(s, frame);
@@ -418,7 +471,8 @@
     if (s.stopped || !s.sink) { frame.close(); return; }
     s.lastTs = Math.max(s.lastTs, frame.timestamp);
     frameShown(s, frame.displayWidth, frame.displayHeight);
-    s.sink.write(frame);
+    if (s.sink.write(frame) === false) s.lab.sinkDrop++;
+    else s.lab.dec++;
   }
 
   function frameShown(s, width, height) {
@@ -480,7 +534,18 @@
       return s && { codec: s.info?.codec, gen: s.gen, packets: s.packets, frames: s.frames, decodeQueue: s.decoder?.decodeQueueSize ?? null,
         decodeErrors: s.decodeErrors, skippedToKey: s.skips, captureFps: s.box.fps, audio: !!s.audio, ...s.settings };
     },
+    // Laboratório (lab-tela.js): o que aconteceu desde a última leitura (os contadores recomeçam a cada uma).
+    labTake() {
+      const s = session;
+      if (!s?.started || s.stopped) return null;
+      const c = s.lab;
+      s.lab = labCounters();
+      return { codec: s.info?.codec || null, w: s.info?.width || null, h: s.info?.height || null, fps: s.box.fps, want: s.wantFps, limit: s.fpsLimit,
+        gen: s.gen, gens: c.gens, pk: c.pk, kb: Math.round(c.bytes / 1024), key: c.key, gaps: intervalSummary(c.gaps), dec: c.dec,
+        q: c.qMax, waitDrop: c.waitDrop, sinkDrop: c.sinkDrop, jpegDrop: c.jpegDrop, behind: c.behind, errs: c.errs, reads: c.reads,
+        rule: s.lagRule, paused: s.paused, pauses: c.pauses, audio: !!s.audio };
+    },
     // Partes puras, para os testes.
-    TYPE, FLAG_KEY, HEADER, packetParser, nalUnits, codecFromSps,
+    TYPE, FLAG_KEY, HEADER, packetParser, nalUnits, codecFromSps, intervalSummary,
   };
 });

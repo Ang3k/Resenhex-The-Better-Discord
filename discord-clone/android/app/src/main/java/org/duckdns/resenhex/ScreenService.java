@@ -83,6 +83,9 @@ public class ScreenService extends Service {
     private boolean allowH264 = true;
     private boolean wantAudio = true;
     private boolean jpeg;
+    /** APK 1.4.2+, quando o site pede: VP8 em vez de H.264 (o site decodifica no processador e não precisa
+     *  copiar cada quadro de volta da placa de vídeo antes da call, o que custava a maior parte do tempo). */
+    private boolean vp8;
     private int generation;
     private int width;
     private int height;
@@ -141,6 +144,17 @@ public class ScreenService extends Service {
             service.boxWidth = w;
             service.boxHeight = h;
             service.fps = rate;
+            service.rebuild();
+        });
+    }
+
+    /** O site não decodificou o VP8 deste celular: volta para o H.264. */
+    static void useH264() {
+        ScreenService service = running;
+        if (service == null) return;
+        service.handler.post(() -> {
+            if (!service.vp8 || service.jpeg) return;
+            service.vp8 = false;
             service.rebuild();
         });
     }
@@ -235,10 +249,16 @@ public class ScreenService extends Service {
             fps = clamp(config.optInt("fps", 30), 5, 60);
             allowH264 = config.optBoolean("h264", true);
             wantAudio = config.optBoolean("audio", true);
+            vp8 = config.optBoolean("vp8", false);
         } catch (Exception ignored) {
             // Perfil padrão.
         }
-        jpeg = !allowH264;
+        jpeg = !allowH264 && !vp8;
+    }
+
+    /** Nome do formato atual, como o site espera ("vp8", "h264" ou "jpeg"). */
+    private String codecName() {
+        return jpeg ? "jpeg" : vp8 ? "vp8" : "h264";
     }
 
     private static int clamp(int value, int min, int max) {
@@ -306,13 +326,21 @@ public class ScreenService extends Service {
     }
 
     private Sink createSink() {
-        if (!jpeg) {
+        if (!jpeg && vp8) {
             try {
-                return new H264Sink(width, height, generation);
+                return new VideoSink(MediaFormat.MIMETYPE_VIDEO_VP8, ScreenFeed.TYPE_VP8, width, height, generation);
             } catch (Exception error) {
-                jpeg = true; // este celular não codifica H.264 nesse tamanho: segue em JPEG
+                vp8 = false; // sem VP8 nesse tamanho: segue em H.264
             }
         }
+        if (!jpeg && allowH264) {
+            try {
+                return new VideoSink(MediaFormat.MIMETYPE_VIDEO_AVC, ScreenFeed.TYPE_H264, width, height, generation);
+            } catch (Exception error) {
+                // este celular não codifica H.264 nesse tamanho: segue em JPEG
+            }
+        }
+        jpeg = true;
         try {
             return new JpegSink(width, height, generation);
         } catch (Exception error) {
@@ -325,7 +353,7 @@ public class ScreenService extends Service {
         try {
             JSONObject info = new JSONObject();
             info.put("gen", generation);
-            info.put("codec", jpeg ? "jpeg" : "h264");
+            info.put("codec", codecName());
             info.put("width", width);
             info.put("height", height);
             info.put("fps", fps);
@@ -344,20 +372,24 @@ public class ScreenService extends Service {
         void stop();
     }
 
-    /** H.264 do próprio celular, com a tela virtual desenhando direto na entrada dele. */
-    private final class H264Sink implements Sink, Runnable {
+    /** Codificador de vídeo do próprio celular (H.264 ou VP8), com a tela virtual desenhando direto na entrada dele. */
+    private final class VideoSink implements Sink, Runnable {
         private final MediaCodec codec;
         private final Surface input;
+        private final String mime;
+        private final int type;
         private final int gen;
         private final Thread thread;
         private volatile boolean alive = true;
         private byte[] config;
 
-        H264Sink(int w, int h, int gen) throws Exception {
+        VideoSink(String mime, int type, int w, int h, int gen) throws Exception {
+            this.mime = mime;
+            this.type = type;
             this.gen = gen;
-            codec = MediaCodec.createEncoderByType(MediaFormat.MIMETYPE_VIDEO_AVC);
+            codec = MediaCodec.createEncoderByType(mime);
             try {
-                MediaCodecInfo.VideoCapabilities caps = codec.getCodecInfo().getCapabilitiesForType(MediaFormat.MIMETYPE_VIDEO_AVC).getVideoCapabilities();
+                MediaCodecInfo.VideoCapabilities caps = codec.getCodecInfo().getCapabilitiesForType(mime).getVideoCapabilities();
                 if (caps != null && !caps.isSizeSupported(w, h)) throw new IllegalArgumentException("tamanho");
                 try {
                     codec.configure(format(w, h, true), null, null, MediaCodec.CONFIGURE_FLAG_ENCODE);
@@ -372,12 +404,12 @@ public class ScreenService extends Service {
                 codec.release();
                 throw error;
             }
-            thread = new Thread(this, "resenhex-tela-h264");
+            thread = new Thread(this, "resenhex-tela-video");
             thread.start();
         }
 
         private MediaFormat format(int w, int h, boolean detailed) {
-            MediaFormat format = MediaFormat.createVideoFormat(MediaFormat.MIMETYPE_VIDEO_AVC, w, h);
+            MediaFormat format = MediaFormat.createVideoFormat(mime, w, h);
             format.setInteger(MediaFormat.KEY_COLOR_FORMAT, MediaCodecInfo.CodecCapabilities.COLOR_FormatSurface);
             // Boa qualidade: a imagem ainda é codificada de novo pelo WebRTC.
             format.setInteger(MediaFormat.KEY_BIT_RATE, clamp((int) ((long) w * h * fps / 5), 1_500_000, 12_000_000));
@@ -388,8 +420,10 @@ public class ScreenService extends Service {
             // Telas de 90/120 Hz: o Android descarta o excesso antes do codificador (Android 10+).
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) format.setFloat(MediaFormat.KEY_MAX_FPS_TO_ENCODER, fps);
             if (detailed) {
-                format.setInteger(MediaFormat.KEY_PROFILE, MediaCodecInfo.CodecProfileLevel.AVCProfileBaseline);
-                format.setInteger(MediaFormat.KEY_LEVEL, MediaCodecInfo.CodecProfileLevel.AVCLevel41);
+                if (MediaFormat.MIMETYPE_VIDEO_AVC.equals(mime)) {
+                    format.setInteger(MediaFormat.KEY_PROFILE, MediaCodecInfo.CodecProfileLevel.AVCProfileBaseline);
+                    format.setInteger(MediaFormat.KEY_LEVEL, MediaCodecInfo.CodecProfileLevel.AVCLevel41);
+                }
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) format.setInteger(MediaFormat.KEY_PRIORITY, 0); // tempo real
             }
             return format;
@@ -436,8 +470,8 @@ public class ScreenService extends Service {
                         } else {
                             boolean key = (info.flags & MediaCodec.BUFFER_FLAG_KEY_FRAME) != 0;
                             // O quadro-chave leva SPS e PPS junto: o site pode começar dele.
-                            byte[] payload = key && config != null ? concat(config, data) : data;
-                            feed.video(ScreenFeed.packet(ScreenFeed.TYPE_H264, key ? ScreenFeed.FLAG_KEY : 0, gen, info.presentationTimeUs, payload, 0, payload.length), key);
+                            byte[] payload = key && config != null && type == ScreenFeed.TYPE_H264 ? concat(config, data) : data;
+                            feed.video(ScreenFeed.packet(type, key ? ScreenFeed.FLAG_KEY : 0, gen, info.presentationTimeUs, payload, 0, payload.length), key);
                         }
                     }
                     codec.releaseOutputBuffer(index, false);
@@ -657,7 +691,7 @@ public class ScreenService extends Service {
             status.put("state", state);
             if (reason != null) status.put("reason", reason);
             if ("started".equals(state)) status.put("token", token);
-            status.put("codec", jpeg ? "jpeg" : "h264");
+            status.put("codec", codecName());
             status.put("width", width);
             status.put("height", height);
             status.put("fps", fps);

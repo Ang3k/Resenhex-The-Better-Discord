@@ -1027,6 +1027,12 @@ public class MainActivity extends Activity {
         public void screenUseJpeg() {
             ScreenService.useJpeg();
         }
+
+        /** APK 1.4.2+: o site não decodificou o VP8 deste celular; volta para o H.264. */
+        @JavascriptInterface
+        public void screenUseH264() {
+            ScreenService.useH264();
+        }
     }
 
     private void openNotificationSettings() {

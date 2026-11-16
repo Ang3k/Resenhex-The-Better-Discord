@@ -1,0 +1,16 @@
+/* Laboratório da transmissão do celular (lab-tela.js): painel do dono nas Configurações e selo na call. */
+.lab-groups { display: grid; gap: 16px; }
+.lab-groups .setting-group > .hint { margin: -10px 0 0; color: var(--text-muted); }
+#lab-status { font-variant-numeric: tabular-nums; }
+
+/* Selo no alto da call enquanto a página manda os números (a enquete, quando aberta, fica por cima). */
+.lab-pill {
+  position: absolute; top: 12px; left: 12px; z-index: 5;
+  display: inline-flex; align-items: center; gap: 8px; padding: 6px 12px 6px 10px;
+  border: 1px solid var(--divider); border-radius: 999px; background: var(--bg-floating);
+  color: var(--text-strong); font-size: 12px; font-weight: 600; line-height: 1; box-shadow: var(--shadow-float);
+}
+.lab-pill-dot { width: 8px; height: 8px; flex-shrink: 0; border-radius: 50%; background: var(--red); animation: lab-pill-pulse 1.6s ease-in-out infinite; }
+@keyframes lab-pill-pulse { 50% { opacity: .35; } }
+@media (prefers-reduced-motion: reduce) { .lab-pill-dot { animation: none; } }
+@media (max-width: 640px) { .lab-pill { top: 8px; left: 8px; padding: 5px 10px 5px 8px; font-size: 11px; } }

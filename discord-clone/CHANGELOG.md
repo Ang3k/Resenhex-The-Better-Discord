@@ -88,6 +88,18 @@ O Salão do Mudae ganhou três coisas novas. De tempos em tempos, um cristal de 
 - O divórcio agora tem teto: ele continua devolvendo o valor do personagem em kakera, mas no máximo 500 a cada 24 horas. Passando disso, dá para divorciar normalmente, só não volta kakera, e a mensagem do bot avisa quando volta. O motivo: com medalhas para comprar, casar e divorciar sem parar virava uma fábrica de kakera, e quem tem um harém grande compraria a Forja inteira no primeiro dia. O kakera que você já tem continua valendo.
 - Os cristais rendem o valor inteiro nos 15 primeiros que você pega no dia (o dia vira à meia-noite de Brasília). Depois disso eles continuam aparecendo e dando para quebrar, mas rendem 10%. Uma chuva conta como um cristal só. Assim, quem deixa o Salão aberto o dia todo não passa muito na frente de quem joga um pouco.
 
+## v2.5.1 — Tela do celular mais fluida na call
+
+8 de novembro de 2026.
+
+A tela do celular chega mais fluida para quem assiste. O celular agora captura a tela no tamanho em que as pessoas estão vendo, em vez de sempre em 720p, e a gravação dos últimos 30 segundos para o Clipar ficou bem mais leve quando é a sua tela do celular. Com o app do Android 1.4.2, a imagem também vai num formato que o celular repassa para a call com menos esforço.
+
+### Melhorias
+
+- A tela do celular é capturada no tamanho que quem assiste está vendo: se todo mundo vê num quadro pequeno, o celular não gasta força com 720p. Quando alguém abre a tela grande, a captura cresce junto.
+- O Clipar continua guardando os últimos 30 segundos da sua tela do celular, mas de um jeito leve: no tamanho da captura e a 15 quadros por segundo. No clipe, a tela em pé aparece inteira no meio, sem esticar.
+- App do Android 1.4.2: a tela vai em VP8, que o celular passa para a call sem copiar cada quadro de volta da placa de vídeo. Se o celular não der conta desse formato, ele volta sozinho para o de antes.
+
 ## v2.5.0 — Tela do celular na call, enquetes e mensagem direta para o dev
 
 8 de novembro de 2026.
