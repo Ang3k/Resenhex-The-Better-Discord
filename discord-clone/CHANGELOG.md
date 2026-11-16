@@ -3,11 +3,15 @@
 Histórico de versões. A mesma lista aparece dentro do app em **Novidades** (menu do servidor ou rodapé das Configurações).
 O Resenhex chegou à versão 1.0 em 4 de outubro de 2026.
 
-## v2.7.0 — Menos memória RAM: transmissão, DJ, fotos e servidor
+## v2.7.0 — Menos memória RAM, "Seus jogos" no overlay, o dobro de cristais no Mudae e a tela do celular mais fluida
 
-12 de novembro de 2026.
+16 de novembro de 2026.
 
-Atualização de desempenho: o Resenhex gasta bem menos memória RAM, sem mudar nada do que você vê ou usa. Quem transmite a tela pelo app de Windows economiza cerca de 360 MB, o DJ devolve uns 130 MB um minuto depois que a música para, e o app solta o áudio da chamada depois que você sai. As fotos novas aparecem no chat numa versão menor, com o mesmo tamanho e a mesma nitidez, e a original abre ao clicar. No servidor, o catálogo do Mudae foi para o disco, e a memória dele caiu pela metade.
+Esta versão junta quatro coisas. O Resenhex gasta bem menos memória RAM, sem mudar nada do que você vê ou usa: quem transmite a tela pelo app de Windows economiza cerca de 360 MB, e o DJ devolve uns 130 MB quando a música para. O overlay e o "Jogando agora" passam a funcionar no Minecraft, original ou pirata, e em qualquer jogo que você adicionar em "Seus jogos". No Salão do Mudae, o cristal passa o dobro de vezes, com um som novo, e as fotos de personagens de jogos que apareciam cinza voltaram. E a tela do celular chega mais fluida na call. O Minecraft com qualquer Java e o "Seus jogos" precisam do app do Windows 1.4.8, que se atualiza sozinho; o formato novo da tela do celular vem com o app do Android 1.4.2.
+
+### Novidades
+
+- "Seus jogos", na aba Jogos das configurações do app do Windows: o Resenhex lista os programas abertos e você marca como jogo o que ele não reconheceu, como um jogo pirata numa pasta qualquer, um jogo novo ou um emulador. Daí em diante, o overlay e o "Jogando agora" funcionam nele. Dá para trocar o nome que aparece para a galera e remover quando quiser.
 
 ### Melhorias
 
@@ -16,43 +20,24 @@ Atualização de desempenho: o Resenhex gasta bem menos memória RAM, sem mudar 
 - Depois que você sai da chamada, o app fecha a supressão de ruído e o áudio da chamada em 30 segundos (uns 20 MB). Se você voltar antes disso, tudo continua pronto; depois, tudo abre de novo ao entrar.
 - Fotos novas no chat: quem envia também manda uma versão menor, que é a que aparece na conversa, do mesmo tamanho e com a mesma nitidez. Clicando, abre a original. O canal carrega mais rápido e gasta menos memória. Fotos pequenas, GIFs e fotos enviadas antes continuam como sempre.
 - O seletor de emojis solta a memória ao fechar e monta tudo de novo ao abrir.
+- O Minecraft Java é reconhecido como jogo pelo launcher oficial, pelo TLauncher e pelos outros, com Forge, Fabric ou sem mods. Antes, o Resenhex só reconhecia o Minecraft do launcher antigo, de 2014.
+- Team Fortress 2, Garry's Mod e Half-Life 2, que dividem o mesmo programa da Valve, agora também são reconhecidos pelo nome certo.
+- O cristal errante aparece em média a cada 5 minutos com alguém no Salão (entre 3 e 7). Antes era a cada 10 (entre 5 e 15). Os valores continuam os mesmos, e os 15 primeiros cristais do dia continuam rendendo inteiro.
+- O som do cristal ficou mais suave: em vez de um estalo curto, um brilho de sininho que chega baixinho, cresce e vai sumindo, com o mesmo volume de antes.
+- A tela do celular é capturada no tamanho que quem assiste está vendo: se todo mundo vê num quadro pequeno, o celular não gasta força com 720p. Quando alguém abre a tela grande, a captura cresce junto.
+- O Clipar continua guardando os últimos 30 segundos da sua tela do celular, mas de um jeito leve: no tamanho da captura e a 15 quadros por segundo. No clipe, a tela em pé aparece inteira no meio, sem esticar.
+- App do Android 1.4.2: a tela vai em VP8, que o celular passa para a call sem copiar cada quadro de volta da placa de vídeo. Se o celular não der conta desse formato, ele volta sozinho para o de antes.
+
+### Correções
+
+- Algumas pessoas viam uma imagem cinza com uma montanha no lugar da foto de vários personagens de jogos. As fotos vêm das wikis do Fandom, que às vezes bloqueia a imagem quando percebe que ela foi pedida por outro site. Agora o Resenhex pede as fotos sem dizer de onde veio, e, se a imagem cinza ainda aparecer, tenta de novo e, se não der, mostra o verso da carta.
+- Na chamada, o alfinete de fixar dos quadros pequenos ficava um pouco para a direita no botão. Agora fica no meio.
 
 ### Por dentro
 
 - O catálogo do Mudae (mais de 230 mil personagens) saiu da memória do servidor e foi para um banco de dados no disco. Com o servidor ligado e ninguém online, a memória caiu de 175 para 88 MB, e o pico ao ligar, de 412 para 106 MB. Rolls, harém, álbum e a busca do $im dão os mesmos resultados, e o $im ficou mais rápido.
 - O servidor fecha o processo que trata as imagens depois de 1 minuto sem uso, só carrega a biblioteca do SFU quando ele está ligado e limpa listas que só cresciam (senhas erradas antigas e castigos que já acabaram).
 - O Node do servidor usa uma área menor para os objetos novos: num teste com 1.000 pessoas no site, foram ~130 MB a menos, sem gastar mais processador.
-
-## v2.6.2 — Overlay e "Jogando agora" no Minecraft e em qualquer jogo que você adicionar
-
-14 de novembro de 2026.
-
-O Minecraft Java agora é reconhecido como jogo, seja original ou pirata, com ou sem mods, então o overlay aparece e o seu perfil mostra "Jogando Minecraft". E, para qualquer jogo que o Resenhex não reconheça sozinho, a aba Jogos das configurações ganhou "Seus jogos": abra o jogo, clique em Adicionar jogo e escolha ele na lista. O Minecraft com qualquer Java e o "Seus jogos" precisam do app do Windows 1.4.8, que se atualiza sozinho.
-
-### Novidades
-
-- "Seus jogos", na aba Jogos das configurações do app do Windows: o Resenhex lista os programas abertos e você marca como jogo o que ele não reconheceu, como um jogo pirata numa pasta qualquer, um jogo novo ou um emulador. Daí em diante, o overlay e o "Jogando agora" funcionam nele. Dá para trocar o nome que aparece para a galera e remover quando quiser.
-
-### Melhorias
-
-- O Minecraft Java é reconhecido como jogo pelo launcher oficial, pelo TLauncher e pelos outros, com Forge, Fabric ou sem mods. Antes, o Resenhex só reconhecia o Minecraft do launcher antigo, de 2014.
-- Team Fortress 2, Garry's Mod e Half-Life 2, que dividem o mesmo programa da Valve, agora também são reconhecidos pelo nome certo.
-
-## v2.6.1 — Mudae: o dobro de cristais, som novo do cristal e fotos de jogos que não carregavam
-
-14 de novembro de 2026.
-
-O cristal de kakera agora passa pelo Salão o dobro de vezes, então juntar kakera para a Forja ficou bem mais rápido. O som dele também mudou: chega baixinho, cresce e vai sumindo. E corrigimos as fotos de personagens de jogos que, para algumas pessoas, apareciam como uma imagem cinza de "sem foto".
-
-### Melhorias
-
-- O cristal errante aparece em média a cada 5 minutos com alguém no Salão (entre 3 e 7). Antes era a cada 10 (entre 5 e 15). Os valores continuam os mesmos, e os 15 primeiros cristais do dia continuam rendendo inteiro.
-- O som do cristal ficou mais suave: em vez de um estalo curto, um brilho de sininho que chega baixinho, cresce e vai sumindo, com o mesmo volume de antes.
-
-### Correções
-
-- Algumas pessoas viam uma imagem cinza com uma montanha no lugar da foto de vários personagens de jogos. As fotos vêm das wikis do Fandom, que às vezes bloqueia a imagem quando percebe que ela foi pedida por outro site. Agora o Resenhex pede as fotos sem dizer de onde veio, e, se a imagem cinza ainda aparecer, tenta de novo e, se não der, mostra o verso da carta.
-- Na chamada, o alfinete de fixar dos quadros pequenos ficava um pouco para a direita no botão. Agora fica no meio.
 
 ## v2.6.0 — Cristal errante, Forja de medalhas e superpoderes no Salão do Mudae
 
@@ -87,18 +72,6 @@ O Salão do Mudae ganhou três coisas novas. De tempos em tempos, um cristal de 
 
 - O divórcio agora tem teto: ele continua devolvendo o valor do personagem em kakera, mas no máximo 500 a cada 24 horas. Passando disso, dá para divorciar normalmente, só não volta kakera, e a mensagem do bot avisa quando volta. O motivo: com medalhas para comprar, casar e divorciar sem parar virava uma fábrica de kakera, e quem tem um harém grande compraria a Forja inteira no primeiro dia. O kakera que você já tem continua valendo.
 - Os cristais rendem o valor inteiro nos 15 primeiros que você pega no dia (o dia vira à meia-noite de Brasília). Depois disso eles continuam aparecendo e dando para quebrar, mas rendem 10%. Uma chuva conta como um cristal só. Assim, quem deixa o Salão aberto o dia todo não passa muito na frente de quem joga um pouco.
-
-## v2.5.1 — Tela do celular mais fluida na call
-
-8 de novembro de 2026.
-
-A tela do celular chega mais fluida para quem assiste. O celular agora captura a tela no tamanho em que as pessoas estão vendo, em vez de sempre em 720p, e a gravação dos últimos 30 segundos para o Clipar ficou bem mais leve quando é a sua tela do celular. Com o app do Android 1.4.2, a imagem também vai num formato que o celular repassa para a call com menos esforço.
-
-### Melhorias
-
-- A tela do celular é capturada no tamanho que quem assiste está vendo: se todo mundo vê num quadro pequeno, o celular não gasta força com 720p. Quando alguém abre a tela grande, a captura cresce junto.
-- O Clipar continua guardando os últimos 30 segundos da sua tela do celular, mas de um jeito leve: no tamanho da captura e a 15 quadros por segundo. No clipe, a tela em pé aparece inteira no meio, sem esticar.
-- App do Android 1.4.2: a tela vai em VP8, que o celular passa para a call sem copiar cada quadro de volta da placa de vídeo. Se o celular não der conta desse formato, ele volta sozinho para o de antes.
 
 ## v2.5.0 — Tela do celular na call, enquetes e mensagem direta para o dev
 
