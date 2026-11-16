@@ -6,7 +6,8 @@ window.ClipBuffer = ({ getCtx, now = () => performance.now(), maxPeople = 12 } =
   const blocked = new Set(); // contas com a opção desligada
   const waiting = new Map(); // accountId -> { stream, profile } de quem está na chamada com a opção desligada
   let states = []; // [{ t, byAccount: Map }] a cada 100 ms
-  let moduleReady = null, snapSeq = 0;
+  const moduleReady = new WeakMap(); // contexto -> carga do worklet (fora da chamada o app fecha o contexto e cria outro)
+  let snapSeq = 0;
 
   function forget(accountId) {
     const p = people.get(accountId);
@@ -27,8 +28,8 @@ window.ClipBuffer = ({ getCtx, now = () => performance.now(), maxPeople = 12 } =
     if (!accountId || !stream) return;
     if (blocked.has(accountId)) { waiting.set(accountId, { stream, profile }); return; }
     const ctx = getCtx();
-    moduleReady ||= ctx.audioWorklet.addModule('/clip-buffer-worklet.js');
-    await moduleReady;
+    if (!moduleReady.has(ctx)) moduleReady.set(ctx, ctx.audioWorklet.addModule('/clip-buffer-worklet.js'));
+    await moduleReady.get(ctx);
     if (blocked.has(accountId)) return;
     let p = people.get(accountId);
     if (!p) {

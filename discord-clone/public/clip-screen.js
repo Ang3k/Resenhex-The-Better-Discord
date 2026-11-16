@@ -43,7 +43,14 @@
     return { x: Math.round((dstW - w) / 2), y: Math.round((dstH - h) / 2), w, h };
   }
 
-  const helpers = { pruneChunks, seekIndex, fitRect, W, H, FPS, CODEC };
+  // Tamanho em que a tela vai para o rolo: o encaixe dela em 1280×720, sem as faixas pretas (que o clipe
+  // põe na hora de montar). Lados pares, que o H.264 pede.
+  function rollSize(srcW, srcH) {
+    const r = fitRect(srcW, srcH);
+    return { w: Math.max(2, r.w - (r.w % 2)), h: Math.max(2, r.h - (r.h % 2)) };
+  }
+
+  const helpers = { pruneChunks, seekIndex, fitRect, rollSize, W, H, FPS, CODEC };
   if (typeof module !== 'undefined') module.exports = helpers;
   if (typeof window === 'undefined') return;
 
@@ -86,21 +93,34 @@
       if (first > 0) chunks = chunks.slice(first);
     }
 
+    const encoderConfig = (w, h) => ({ codec: CODEC, width: w, height: h, bitrate: RING_BITRATE, framerate: FPS, latencyMode: 'realtime', avc: { format: 'annexb' } });
+    const sizeOk = new Map(); // "LxA" -> Promise<boolean>: a placa codifica nesse tamanho?
+    const canEncode = (w, h) => {
+      const k = w + 'x' + h;
+      if (!sizeOk.has(k)) sizeOk.set(k, VideoEncoder.isConfigSupported(encoderConfig(w, h)).then((r) => !!r.supported, () => false));
+      return sizeOk.get(k);
+    };
+
+    // Cada quadro da tela vai direto ao codificador, que muda o tamanho dele para o do rolo. Antes, todo quadro
+    // era desenhado num canvas 2D, e o Chromium guardava cada desenho em dois caches da placa de vídeo
+    // (~500 MB em quem transmite). O canvas só volta se a placa recusar o tamanho da tela; aí as faixas
+    // pretas são desenhadas nele, como antes.
     async function record(s, track) {
       if (!await supported() || s.stopped) return;
-      const canvas = new OffscreenCanvas(W, H);
-      const ctx = canvas.getContext('2d', { alpha: false });
+      let size = null; // o que o codificador recebe agora: { w, h, direct, src }
+      let rollW = W, rollH = H; // tamanho dos pedaços que estão saindo do codificador
+      let canvas = null, ctx = null;
       s.encoder = new VideoEncoder({
-        output: (chunk) => {
+        output: (chunk, meta) => {
           if (s.stopped) return;
+          if (meta?.decoderConfig?.codedWidth) { rollW = meta.decoderConfig.codedWidth; rollH = meta.decoderConfig.codedHeight; }
           const data = new ArrayBuffer(chunk.byteLength);
           chunk.copyTo(data);
-          chunks.push({ ms: chunk.timestamp / 1000, key: chunk.type === 'key', data });
+          chunks.push({ ms: chunk.timestamp / 1000, key: chunk.type === 'key', data, w: rollW, h: rollH });
           prune();
         },
         error: () => { if (session === s) endSession(); },
       });
-      s.encoder.configure({ codec: CODEC, width: W, height: H, bitrate: RING_BITRATE, framerate: FPS, latencyMode: 'realtime', avc: { format: 'annexb' } });
       s.clone = track.clone();
       s.reader = new MediaStreamTrackProcessor({ track: s.clone }).readable.getReader();
       let lastFrame = -Infinity, lastKey = -Infinity;
@@ -113,14 +133,36 @@
         // 30 por segundo bastam; com a placa atrasada, pula o quadro em vez de acumular.
         if (s.stopped || t - lastFrame < 1000 / FPS - 4 || s.encoder.encodeQueueSize > 4) { frame.close(); continue; }
         lastFrame = t;
+        // Primeira tela, ou a tela mudou de formato (janela redimensionada, outra tela): o codificador passa
+        // para o tamanho novo e o próximo quadro é chave. O rolo pode misturar tamanhos; cada pedaço sabe o seu.
+        const want = rollSize(frame.displayWidth, frame.displayHeight);
+        const src = want.w + 'x' + want.h;
+        if (size?.src !== src) {
+          const direct = await canEncode(want.w, want.h);
+          if (s.stopped) { frame.close(); break; }
+          const next = direct ? { w: want.w, h: want.h, direct, src } : { w: W, h: H, direct, src };
+          if (!size || next.w !== size.w || next.h !== size.h) {
+            try { s.encoder.configure(encoderConfig(next.w, next.h)); } catch { frame.close(); break; }
+            lastKey = -Infinity;
+          }
+          size = next;
+          if (!direct && !canvas) { canvas = new OffscreenCanvas(W, H); ctx = canvas.getContext('2d', { alpha: false }); }
+        }
+        const key = t - lastKey >= KEY_EVERY_MS;
+        if (key) lastKey = t;
+        if (size.direct) {
+          const out = new VideoFrame(frame, { timestamp: Math.round(t * 1000), duration: Math.round(1e6 / FPS) });
+          frame.close();
+          try { s.encoder.encode(out, { keyFrame: key }); } catch { out.close(); break; }
+          out.close();
+          continue;
+        }
         const r = fitRect(frame.displayWidth, frame.displayHeight);
         ctx.fillStyle = '#000';
         ctx.fillRect(0, 0, W, H);
         ctx.drawImage(frame, r.x, r.y, r.w, r.h);
         frame.close();
         const out = new VideoFrame(canvas, { timestamp: Math.round(t * 1000), duration: Math.round(1e6 / FPS) });
-        const key = t - lastKey >= KEY_EVERY_MS;
-        if (key) lastKey = t;
         try { s.encoder.encode(out, { keyFrame: key }); } catch { out.close(); break; }
         out.close();
       }
@@ -151,7 +193,7 @@
       prune();
       if (!owner || !chunks.length) return null;
       const start = takenAt - seconds * 1000;
-      const list = chunks.filter((c) => c.ms <= takenAt).map((c) => ({ t: (c.ms - start) / 1000, key: c.key, data: c.data }));
+      const list = chunks.filter((c) => c.ms <= takenAt).map((c) => ({ t: (c.ms - start) / 1000, key: c.key, data: c.data, w: c.w, h: c.h }));
       if (!list.some((c) => c.key && c.t <= seconds)) return null;
       return { accountId: owner.accountId, name: owner.name, chunks: list, codec: CODEC, width: W, height: H };
     }
@@ -179,7 +221,7 @@
         output: (frame) => { outputs++; queue.push(frame); wake?.(); },
         error: () => { broken = true; wake?.(); },
       });
-      decoder.configure({ codec: screen.codec, codedWidth: screen.width, codedHeight: screen.height, optimizeForLatency: true });
+      decoder.configure({ codec: screen.codec, codedWidth: list[index]?.w || screen.width, codedHeight: list[index]?.h || screen.height, optimizeForLatency: true });
     }
     function feed() {
       const c = list[fed++];

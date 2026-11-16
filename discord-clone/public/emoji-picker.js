@@ -40,6 +40,13 @@ window.EmojiPicker = ({ el, Icon, root, getCustom }) => {
 
   const isOpen = () => !root.classList.contains('hidden');
   const close = () => root.classList.add('hidden');
+  // Fechado (por close, Esc ou clique fora), a grade de quase 2 mil botões sai da página depois da animação de saída,
+  // para não ocupar memória; open() sempre monta a grade de novo, então nada muda para quem usa.
+  let unmount = null;
+  new MutationObserver(() => {
+    clearTimeout(unmount);
+    if (built && !isOpen()) unmount = setTimeout(() => { if (!isOpen()) built.body.replaceChildren(); }, 1000);
+  }).observe(root, { attributes: true, attributeFilter: ['class'] });
 
   function pick(value, item) {
     writeRecent([value, ...readRecent().filter((v) => v !== value)]);

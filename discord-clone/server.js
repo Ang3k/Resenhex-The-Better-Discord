@@ -9,6 +9,7 @@ const express = require('express');
 const { Server } = require('socket.io');
 const { validateAvatarCrop } = require('./server/avatar');
 const { createImages } = require('./server/images');
+const { imageSize } = require('./server/image-size');
 const { createTurn } = require('./server/turn');
 const { decodeSound, soundName, MAX_SOUND_BYTES, MAX_SERVER_SOUNDS } = require('./server/soundboard');
 const linkPreview = require('./server/link-preview');
@@ -45,6 +46,8 @@ const DATA_DB = process.env.DATA_DB || DATA_FILE.replace(/\.json$/i, '') + '.db'
 const MAX_MESSAGES = 300;
 const UPLOAD_DIR = process.env.UPLOAD_DIR || path.join(__dirname, 'uploads');
 const MAX_UPLOAD_MB = Number(process.env.MAX_UPLOAD_MB) || 50;
+// Miniatura das fotos do chat, feita no aparelho de quem envia (lado menor de até 900 px).
+const MAX_MINI_BYTES = 2 * 1024 * 1024;
 // Instalador e atualizações do app de desktop (enviados por deploy/publicar-app.ps1).
 const DOWNLOAD_DIR = process.env.DOWNLOAD_DIR || path.join(__dirname, 'downloads');
 const MAX_ATTACHMENTS = 10;
@@ -315,17 +318,22 @@ function allow(key, max, ms) {
 setInterval(() => {
   const now = Date.now();
   for (const [key, list] of hits) if (!list.length || now - list[list.length - 1] > 60 * 60 * 1000) hits.delete(key);
+  // Senhas erradas: sai quem não está bloqueado e não erra há um dia (sem isto, o mapa só crescia).
+  for (const [key, f] of loginFailures) if (f.until <= now && now - f.last > LOGIN_FAILURE_KEEP_MS) loginFailures.delete(key);
 }, 60 * 1000).unref();
 
 // Senha errada várias vezes seguidas bloqueia aquele nome, naquele IP, por um tempo crescente.
-const loginFailures = new Map(); // ip|nome -> { count, until }
+// A contagem zera ao acertar a senha, ao trocar a senha pelo e-mail ou depois de um dia sem errar.
+const loginFailures = new Map(); // ip|nome -> { count, until, last }
+const LOGIN_FAILURE_KEEP_MS = 24 * 60 * 60 * 1000;
 function loginLocked(key) {
   const f = loginFailures.get(key);
   return f && f.until > Date.now() ? Math.ceil((f.until - Date.now()) / 1000) : 0;
 }
 function loginFailed(key) {
-  const f = loginFailures.get(key) || { count: 0, until: 0 };
+  const f = loginFailures.get(key) || { count: 0, until: 0, last: 0 };
   f.count++;
+  f.last = Date.now();
   if (f.count >= 5) f.until = Date.now() + Math.min(30_000 * 2 ** (f.count - 5), 10 * 60 * 1000);
   loginFailures.set(key, f);
 }
@@ -460,6 +468,7 @@ function deleteUpload(id) {
   delete db.uploads[id];
   save(chunk.upload(id));
   fs.unlink(path.join(UPLOAD_DIR, up.file), () => {});
+  if (up.mini) fs.unlink(path.join(UPLOAD_DIR, up.mini.file), () => {});
 }
 
 const deleteAttachments = (msg) => (msg.attachments || []).forEach((a) => deleteUpload(a.id));
@@ -931,9 +940,12 @@ app.get('/emojis/:id', (req, res) => {
 // o vídeo toca no player oficial do YouTube de cada pessoa.
 const dj = createDj({ newId, onChange: (key) => notifyMusic(key) });
 
-// Catálogo do Mudae: lido uma vez. Sem o arquivo, os comandos só avisam que não tem personagens.
+// Catálogo do Mudae: o JSON vira um banco SQLite ao lado do data.db (mudae-catalogo.db, fora do Git), montado
+// sozinho na primeira subida e quando o JSON muda; na memória ficam só números (server/mudae-catalogo-banco.js).
+// Sem o arquivo, os comandos só avisam que não tem personagens.
 const MUDAE_CATALOG = process.env.MUDAE_CATALOG || path.join(__dirname, 'server', 'mudae-catalogo.json');
-const mudae = createMudae({ catalog: fs.existsSync(MUDAE_CATALOG) ? JSON.parse(fs.readFileSync(MUDAE_CATALOG, 'utf8')) : [] });
+const mudae = createMudae({ catalogFile: MUDAE_CATALOG, catalogDb: path.join(path.dirname(DATA_DB), 'mudae-catalogo.db') });
+mudae.preload(Object.values(communities.root.servers).flatMap((s) => Object.keys(s.mudae?.claims || {})));
 const forja = createForja({ now: Date.now, random: Math.random });
 const poderes = createPoderes({ now: Date.now });
 // Cristal errante: um relógio só para todas as comunidades. MUDAE_CRYSTAL_MS="min,max" (só os testes) encurta a espera.
@@ -1136,15 +1148,45 @@ app.post('/upload', uploadGate(MAX_UPLOAD_MB * 1024 * 1024), express.raw({ type:
   });
 });
 
+// Miniatura de uma foto enviada agora (ainda fora de mensagem): o chat mostra ela, e o visualizador abre a
+// original. Ela vem pronta do aparelho de quem envia; aqui só é conferida pelo cabeçalho (WebP ou JPEG, parada,
+// lado menor de até 1200 px, menor que a original e no mesmo formato), sem decodificar.
+app.post('/upload/:id/mini', uploadGate(MAX_MINI_BYTES), express.raw({ type: () => true, limit: MAX_MINI_BYTES }), (req, res) => {
+  const acc = db.accounts[db.sessions[req.get('x-token')]];
+  if (!acc) return res.status(401).json({ error: 'Não autenticado' });
+  const up = /^[0-9a-f]{32}$/.test(req.params.id) ? db.uploads[req.params.id] : null;
+  if (!up || up.uploaderId !== acc.id || up.messageId || up.mini || !/^image\/(jpeg|png|webp)$/.test(up.type)) return res.status(404).json({ error: 'Arquivo não encontrado.' });
+  if (!allow('upload-mini:' + acc.id, 40, 60 * 1000)) return res.status(429).json({ error: 'Muitos arquivos seguidos. Espere um pouco.' });
+  const [w, h] = String(req.get('x-image-size') || '').split('x').map(Number);
+  const mini = Buffer.isBuffer(req.body) ? imageSize(req.body) : null;
+  const ok = mini && Number.isInteger(w) && Number.isInteger(h) && w > 0 && h > 0 && w <= 50000 && h <= 50000
+    && mini.w > 0 && mini.h > 0 && Math.min(mini.w, mini.h) <= 1200 && mini.w <= w && mini.h <= h
+    && Math.abs(mini.w / mini.h - w / h) <= 0.02 * (w / h) + 1 / Math.min(mini.w, mini.h);
+  if (!ok) return res.status(400).json({ error: 'Miniatura inválida.' });
+  const file = up.id + '-mini.' + (mini.type === 'webp' ? 'webp' : 'jpg');
+  fs.writeFile(path.join(UPLOAD_DIR, file), req.body, (err) => {
+    if (err) return res.status(500).json({ error: 'Falha ao salvar o arquivo' });
+    if (db.uploads[up.id] !== up || up.messageId || up.mini) { fs.unlink(path.join(UPLOAD_DIR, file), () => {}); return res.status(409).json({ error: 'Arquivo não encontrado.' }); }
+    up.mini = { file, w: mini.w, h: mini.h, size: req.body.length };
+    up.w = w;
+    up.h = h;
+    save(chunk.upload(up.id));
+    chargeUpload(req, req.body.length);
+    res.json({ mini: '/uploads/' + file });
+  });
+});
+
 app.get('/uploads/:file', (req, res) => {
-  const match = /^([0-9a-f]{32})(\.[a-z0-9]{1,10})?$/.exec(req.params.file);
+  const match = /^([0-9a-f]{32})(-mini)?(\.[a-z0-9]{1,10})?$/.exec(req.params.file);
   const up = match && db.uploads[match[1]];
-  if (!up || up.file !== req.params.file) return res.status(404).end();
+  const mini = up && match[2] ? up.mini : null;
+  if (!up || (match[2] ? mini?.file : up.file) !== req.params.file) return res.status(404).end();
   res.set({
     'X-Content-Type-Options': 'nosniff',
     'Content-Security-Policy': "default-src 'none'; sandbox",
     'Cache-Control': 'private, max-age=31536000, immutable',
   });
+  if (mini) return res.type(mini.file.endsWith('.webp') ? 'image/webp' : 'image/jpeg').sendFile(path.join(UPLOAD_DIR, mini.file));
   if (INLINE_TYPES[path.extname(up.file).slice(1)]) res.type(up.type);
   else res.set({ 'Content-Type': 'application/octet-stream', 'Content-Disposition': `attachment; filename*=UTF-8''${encodeURIComponent(up.name)}` });
   res.sendFile(path.join(UPLOAD_DIR, up.file));
@@ -1712,7 +1754,12 @@ function scheduleTimeoutEnd(acc) {
   clearTimeout(timeoutTimers.get(key));
   const ms = (acc.timeoutUntil || 0) - Date.now();
   const serverId = communities.currentId();
-  if (ms > 0) timeoutTimers.set(key, setTimeout(() => broadcastState(serverId), Math.min(ms + 100, 2 ** 31 - 1)));
+  if (ms <= 0) { timeoutTimers.delete(key); return; }
+  const timer = setTimeout(() => {
+    if (timeoutTimers.get(key) === timer) timeoutTimers.delete(key); // o castigo acabou: a entrada sai do mapa
+    broadcastState(serverId);
+  }, Math.min(ms + 100, 2 ** 31 - 1));
+  timeoutTimers.set(key, timer);
 }
 // Ao ligar, só os membros de castigo agora: percorrer servidores × contas levaria minutos com o site grande.
 for (const server of Object.values(communities.root.servers)) {
@@ -2738,7 +2785,8 @@ io.on('connection', (socket) => {
     const replied = replyTo ? list.find((m) => m.id === replyTo) : null;
     const msg = { id: newId(), authorId: acc.id, text, ts: Date.now() };
     if (ups.length) {
-      msg.attachments = ups.map((up) => ({ id: up.id, name: up.name, size: up.size, type: up.type, url: '/uploads/' + up.file }));
+      msg.attachments = ups.map((up) => ({ id: up.id, name: up.name, size: up.size, type: up.type, url: '/uploads/' + up.file,
+        ...(up.mini && { w: up.w, h: up.h, mini: { url: '/uploads/' + up.mini.file, w: up.mini.w, h: up.mini.h } }) }));
       ups.forEach((up) => { up.messageId = msg.id; save(chunk.upload(up.id)); });
     }
     if (gif) msg.gif = gif;

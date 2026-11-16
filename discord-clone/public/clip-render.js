@@ -80,7 +80,11 @@ window.ClipRender = (() => {
   function drawScreenFrame(ctx, { width, height, people, label, progress, screen, screenName }) {
     ctx.fillStyle = '#000';
     ctx.fillRect(0, 0, width, height);
-    ctx.drawImage(screen, 0, 0, width, height);
+    // O rolo guarda a tela no formato dela (sem faixas pretas): aqui ela é encaixada inteira, com as faixas.
+    const sw = screen.displayWidth, sh = screen.displayHeight;
+    const scale = sw > 0 && sh > 0 ? Math.min(width / sw, height / sh) : 0;
+    const w = scale ? Math.round(sw * scale) : width, h = scale ? Math.round(sh * scale) : height;
+    ctx.drawImage(screen, Math.round((width - w) / 2), Math.round((height - h) / 2), w, h);
     const shade = ctx.createLinearGradient(0, height - 140, 0, height);
     shade.addColorStop(0, 'rgba(0, 0, 0, 0)');
     shade.addColorStop(1, 'rgba(0, 0, 0, .75)');

@@ -81,3 +81,19 @@ test('com a tela: ela cobre o quadro, as fotos ficam embaixo e só quem fala gan
   const brand = ctx.calls.find((c) => c.name === 'fillText' && c.args[0] === 'Resenhex');
   assert.ok(brand.args[1] > 640, 'marca à direita, longe das fotos');
 });
+
+test('com a tela em retrato ou ultrawide: o clipe põe as faixas pretas na hora de montar', () => {
+  const list = people().map((p, i) => ({ ...p, circle: { x: 54 + i * 68, y: 672, r: 26 } }));
+  for (const [screen, rect] of [
+    [{ displayWidth: 404, displayHeight: 720 }, [438, 0, 404, 720]],
+    [{ displayWidth: 1280, displayHeight: 540 }, [0, 90, 1280, 540]],
+    [{ displayWidth: 640, displayHeight: 360 }, [0, 0, 1280, 720]],
+  ]) {
+    const ctx = fakeCtx();
+    load().drawFrame(ctx, { width: 1280, height: 720, people: list, label: 'Sala 1', progress: 0.5, screen, screenName: 'Ana' });
+    const black = ctx.calls.find((c) => c.name === 'fillRect');
+    assert.deepEqual(black.args, [0, 0, 1280, 720]);
+    assert.equal(black.fillStyle, '#000');
+    assert.deepEqual(ctx.calls.find((c) => c.name === 'drawImage').args.slice(1), rect);
+  }
+});

@@ -1,10 +1,11 @@
 {
   "name": "resenhex",
-  "version": "2.6.2",
+  "version": "2.7.0",
   "description": "Resenhex: chat de texto, voz, câmera e compartilhamento de tela para você e seus amigos (inspirado no Discord)",
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
+    "pretest": "node tools/montar-catalogo-mudae.js",
     "test": "node --test",
     "test:voice-chosen": "node --test test/voice-chosen.test.js",
     "check:voice-chosen": "node --check public/voice-fx-chosen.mjs && node --check public/voice-fx-classic-core.mjs && node --check public/voice-fx-classic-worklet.mjs",
