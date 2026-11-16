@@ -1226,7 +1226,7 @@ app.post('/clips', uploadGate(MAX_CLIP_BYTES + MAX_THUMB_BYTES + 4), express.raw
     if (err) { console.error('Falha ao salvar clipe:', err); return clipError(res, 500, 'Falha ao salvar o clipe.'); }
     const clip = clipStore.add({
       file, voice: s.voice, serverId: s.voiceServerId || null, creatorId: acc.id, duration: Math.round(duration * 10) / 10, channelName,
-      recipients: room.map((x) => x.accountId), thumb: 'data:image/jpeg;base64,' + thumb.toString('base64'),
+      recipients: room.map((x) => x.accountId), thumb: 'data:image/jpeg;base64,' + thumb.toString('base64'), title: meta.title,
     });
     save();
     chargeUpload(req, body.length);
@@ -1244,7 +1244,7 @@ app.get('/clips/:id', (req, res) => {
     'Content-Type': 'video/mp4',
     'X-Content-Type-Options': 'nosniff',
     'Cache-Control': 'no-store',
-    'Content-Disposition': `attachment; filename="resenhex-clipe-${clipSlug(clip.channelName)}-${stamp}.mp4"`,
+    'Content-Disposition': `attachment; filename="resenhex-clipe-${clipSlug(clip.title || clip.channelName)}-${stamp}.mp4"`,
   });
   res.sendFile(path.join(CLIP_DIR, clip.file));
 });
@@ -3272,6 +3272,16 @@ io.on('connection', (socket) => {
     const token = typeof id === 'string' && clipStore.issueToken(id, acc.id);
     if (!token) fail('Clipe indisponível.');
     return { url: `/clips/${id}?t=${token}` };
+  }, { voice: true });
+  // Título do clipe, trocado depois por quem clipou: todo mundo que recebeu o clipe vê na hora.
+  on('clip:title', (acc, { id, title }) => {
+    if (!allow('clip-title:' + acc.id, 20, 60_000)) fail('Calma: muitas trocas de título seguidas.');
+    const clip = typeof id === 'string' && clipStore.setTitle(id, acc.id, title);
+    if (!clip) fail('Só quem fez o clipe pode mudar o título.');
+    save();
+    const view = clipStore.publicView(clip);
+    for (const accountId of clip.recipients) emitToAccount(accountId, 'clip:update', view);
+    return { clip: view };
   }, { voice: true });
 
   // Prévia da transmissão (como no Discord): uma foto pequena da tela de quem transmite, repassada a quem

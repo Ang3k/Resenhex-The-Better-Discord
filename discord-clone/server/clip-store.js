@@ -9,14 +9,22 @@ const TOKEN_USES = 3;
 const MAX_CLIP_BYTES = 25 * 1024 * 1024;
 const MAX_THUMB_BYTES = 40 * 1024;
 const MAX_CLIP_SECONDS = 31;
+const MAX_TITLE_CHARS = 80;
+
+// Título do clipe: uma linha só, sem caracteres invisíveis ou de controle, até 80 letras. Vazio = sem título.
+function cleanTitle(value) {
+  if (typeof value !== 'string') return null;
+  const line = value.replace(/[\u0000-\u001f\u007f-\u009f\u200b-\u200f\u2028-\u202e\u2060-\u206f\ufeff]/g, ' ').replace(/\s+/g, ' ').trim();
+  return [...line].slice(0, MAX_TITLE_CHARS).join('').trim() || null;
+}
 
 // `changed(chave)` marca o pedaço do banco que mudou (server/store.js).
 function createClipStore({ root, now = Date.now, randomId, serverExists = () => true, changed = () => {} }) {
   root.clips ||= {};
   const tokens = new Map(); // token -> { id, accountId, expires }
 
-  function add({ file, voice, serverId, creatorId, duration, channelName, recipients, thumb }) {
-    const clip = { id: randomId(), file, voice, serverId, creatorId, duration, channelName, recipients: [...new Set(recipients)], thumb, createdAt: now() };
+  function add({ file, voice, serverId, creatorId, duration, channelName, recipients, thumb, title }) {
+    const clip = { id: randomId(), file, voice, serverId, creatorId, duration, channelName, title: cleanTitle(title), recipients: [...new Set(recipients)], thumb, createdAt: now() };
     root.clips[clip.id] = clip;
     changed('clips/' + clip.id);
     return clip;
@@ -55,9 +63,18 @@ function createClipStore({ root, now = Date.now, randomId, serverExists = () => 
     return removed;
   }
 
-  const publicView = ({ id, creatorId, duration, channelName, createdAt, thumb }) => ({ id, creatorId, duration, channelName, createdAt, thumb });
+  // Só quem clipou troca o título (vazio tira o título).
+  function setTitle(id, accountId, title) {
+    const clip = root.clips[id];
+    if (!clip || clip.creatorId !== accountId) return null;
+    clip.title = cleanTitle(title);
+    changed('clips/' + id);
+    return clip;
+  }
 
-  return { add, listFor, issueToken, consumeToken, prune, publicView };
+  const publicView = ({ id, creatorId, duration, channelName, title, createdAt, thumb }) => ({ id, creatorId, duration, channelName, title: title || null, createdAt, thumb });
+
+  return { add, setTitle, listFor, issueToken, consumeToken, prune, publicView };
 }
 
-module.exports = { createClipStore, CLIP_TTL_MS, TOKEN_TTL_MS, MAX_CLIP_BYTES, MAX_THUMB_BYTES, MAX_CLIP_SECONDS };
+module.exports = { createClipStore, cleanTitle, MAX_TITLE_CHARS, CLIP_TTL_MS, TOKEN_TTL_MS, MAX_CLIP_BYTES, MAX_THUMB_BYTES, MAX_CLIP_SECONDS };

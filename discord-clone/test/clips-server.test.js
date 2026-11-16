@@ -93,6 +93,25 @@ test('clipes: envio, aviso só na sala, recusas, download de uso único, lista e
     assert.deepEqual((await emit(idle, 'clip:list', {})).clips, []);
     assert.deepEqual((await emit(outsider, 'clip:list', {})).clips, []);
 
+    // Título: vai limpo no envio, só quem clipou troca, quem recebeu vê na hora e o arquivo baixado leva o nome.
+    assert.equal(viewer.clips[0].title, null);
+    const updates = [];
+    viewer.on('clip:update', (clip) => updates.push(clip));
+    assert.ok((await emit(viewer, 'clip:title', { id, title: 'Roubei o clipe' })).error);
+    const renamed = await emit(host, 'clip:title', { id, title: '  A jogada\n do   século  ' });
+    assert.equal(renamed.clip.title, 'A jogada do século');
+    await until(() => updates.length === 1);
+    assert.equal(updates[0].id, id);
+    assert.equal(updates[0].title, 'A jogada do século');
+    assert.equal((await emit(viewer, 'clip:list', {})).clips[0].title, 'A jogada do século');
+    const { url: named } = await emit(viewer, 'clip:link', { id });
+    assert.match((await fetch(base + named)).headers.get('content-disposition'), /filename="resenhex-clipe-a-jogada-do-seculo-/);
+    assert.equal((await emit(host, 'clip:title', { id, title: '   ' })).clip.title, null, 'vazio tira o título');
+    const titled = await postClip(host, { ...meta, title: 'x'.repeat(120) });
+    assert.equal(titled.status, 200);
+    await until(() => viewer.clips.length === 2);
+    assert.equal(viewer.clips[1].title, 'x'.repeat(80));
+
     // allowClips aparece no estado da chamada, ligado por padrão.
     const entry = (sock, accountId) => sock.snapshot.voice.find((v) => v.accountId === accountId);
     await until(() => entry(host, viewer.accountId));

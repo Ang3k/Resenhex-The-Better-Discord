@@ -261,6 +261,56 @@ test('os clipes da chamada ficam numa aba do Clipar e baixam cada um', async () 
   assert.equal(h.d.querySelector('#clip-panel-new').hidden, false);
 });
 
+test('título do clipe: vai no envio, aparece no cartão e no aviso, e quem clipou pode trocar', async () => {
+  const h = harness();
+  h.ui.open(snapshotOf(['a', 'b'])); await settle();
+  const field = h.d.querySelector('.clip-title-field');
+  assert.ok(field, 'o corte tem o campo de título');
+  assert.equal(field.maxLength, 80);
+  // Espaço no título é texto, não toca o trecho.
+  field.focus();
+  field.dispatchEvent(new h.w.KeyboardEvent('keydown', { key: ' ', bubbles: true }));
+  await settle();
+  assert.equal(h.mixes.length, 0);
+  field.value = '  A jogada   do século ';
+  field.dispatchEvent(new h.w.Event('input'));
+  assert.equal(h.d.querySelector('.clip-title-count').textContent, '23/80');
+  // Enter no título solta o clipe.
+  field.dispatchEvent(new h.w.KeyboardEvent('keydown', { key: 'Enter', bubbles: true })); await settle();
+  assert.equal(JSON.parse(decodeURIComponent(h.posts[0].init.headers['x-clip'])).title, 'A jogada do século');
+
+  // Na lista: o título é a linha principal; o lápis só aparece nos meus clipes.
+  const list = [{ ...twoClips()[0], title: 'A jogada do século' }, twoClips()[1]];
+  h.ui.setList(list);
+  h.ui.open(null, { tab: 'list' }); await settle();
+  const mine = h.d.querySelector('.clip-item[data-clip="x"]'), other = h.d.querySelector('.clip-item[data-clip="y"]');
+  assert.equal(mine.querySelector('strong').textContent, 'A jogada do século');
+  assert.ok(mine.querySelector('small').textContent.startsWith('Ana · 10 s · '));
+  assert.equal(other.querySelector('strong').textContent, 'Bia');
+  assert.equal(other.querySelector('.clip-rename'), null);
+  // Trocar o título: Enter salva no servidor; Esc desiste sem fechar a janela.
+  mine.querySelector('.clip-rename').click();
+  let input = h.d.querySelector('.clip-title-input');
+  assert.equal(input.value, 'A jogada do século');
+  input.value = 'Ace no último round';
+  input.dispatchEvent(new h.w.KeyboardEvent('keydown', { key: 'Enter', bubbles: true })); await settle();
+  assert.deepEqual(plain(h.calls.at(-1)), { event: 'clip:title', payload: { id: 'x', title: 'Ace no último round' } });
+  h.d.querySelector('.clip-item[data-clip="x"] .clip-rename').click();
+  input = h.d.querySelector('.clip-title-input');
+  input.value = 'outra coisa';
+  input.dispatchEvent(new h.w.KeyboardEvent('keydown', { key: 'Escape', bubbles: true })); await settle();
+  assert.ok(h.d.querySelector('.clip-overlay'), 'Esc no campo não fecha a janela');
+  assert.equal(h.calls.filter((c) => c.event === 'clip:title').length, 1);
+  // A troca feita por quem clipou chega pelo servidor e muda o cartão de todos.
+  h.ui.update({ ...twoClips()[1], title: 'Clutch da Bia' });
+  assert.equal(h.d.querySelector('.clip-item[data-clip="y"] strong').textContent, 'Clutch da Bia');
+  // O aviso de clipe novo mostra o título.
+  const notice = h.ui.showNotice({ ...twoClips()[1], title: 'Clutch da Bia' });
+  assert.ok(notice.textContent.includes('“Clutch da Bia”'));
+  assert.ok(notice.textContent.includes('Bia clipou 30 s · Sala 1'));
+  h.w.close();
+});
+
 test('sem poder clipar, a claquete abre direto nos clipes que já existem', async () => {
   const h = harness({ context: { deafened: true } });
   h.ui.prepare(); await settle();

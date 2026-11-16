@@ -4,6 +4,7 @@
 window.ClipUI = ({ el, Icon, toast, call, token, buffer, model, render, getContext, setAllowClips, nameOf, loadImage, audioCtx, fetch: send = (...args) => fetch(...args) }) => {
   const W = 1280, H = 720, FPS = 30, BARS = 120;
   const NOTICE_MS = 10_000;
+  const TITLE_MAX = 80; // o servidor corta no mesmo tamanho
   const SUB = { new: 'Escolha o trecho. Só quem está na chamada recebe.', list: 'Ficam aqui por 24 horas, só para quem estava na chamada.' };
   let supported = null, clips = [], modal = null;
 
@@ -119,6 +120,7 @@ window.ClipUI = ({ el, Icon, toast, call, token, buffer, model, render, getConte
     }
 
     function refresh() {
+      if (editing?.isConnected) return; // volta a desenhar quando o título for salvo
       count.textContent = String(clips.length);
       count.hidden = !clips.length;
       library.replaceChildren(clips.length
@@ -157,16 +159,61 @@ window.ClipUI = ({ el, Icon, toast, call, token, buffer, model, render, getConte
     else (library.querySelector('button') || tabList).focus();
   }
 
+  // Com título, ele vira a linha principal e o nome de quem clipou desce para a linha de baixo.
   function clipCard(clip) {
-    return el('div', { class: 'clip-item' },
+    const mine = clip.creatorId === getContext().selfId;
+    const heading = el('strong', { class: 'clip-item-title' + (clip.title ? ' named' : ''), textContent: clip.title || nameOf(clip.creatorId), title: clip.title || '' });
+    const meta = el('small', { textContent: [clip.title && nameOf(clip.creatorId), `${Math.round(clip.duration)} s`, hour(clip.createdAt)].filter(Boolean).join(' · ') });
+    const rename = mine && el('button', {
+      type: 'button', class: 'clip-rename', ariaLabel: clip.title ? 'Mudar o título do clipe' : 'Dar um título ao clipe', title: clip.title ? 'Mudar o título' : 'Dar um título',
+      onclick: () => editTitle(clip, heading, rename),
+    }, Icon('pencil', 15));
+    const item = el('div', { class: 'clip-item' },
       el('div', { class: 'clip-item-media' },
         el('img', { class: 'clip-item-thumb', src: clip.thumb, alt: '' }),
         el('span', { class: 'clip-item-length', textContent: length(clip.duration) })),
+      // O título ganha a largura inteira do cartão (até duas linhas); embaixo, quem, quanto tempo e os botões.
       el('div', { class: 'clip-item-body' },
-        el('div', { class: 'clip-notice-text' },
-          el('strong', { textContent: nameOf(clip.creatorId) }),
-          el('small', { textContent: `${Math.round(clip.duration)} s · ${hour(clip.createdAt)}` })),
-        downloadButton(clip.id, false)));
+        heading,
+        el('div', { class: 'clip-item-row' }, meta, el('div', { class: 'clip-item-actions' }, rename, downloadButton(clip.id, false)))));
+    item.setAttribute('data-clip', clip.id);
+    return item;
+  }
+
+  // Troca do título na própria lista: Enter ou sair do campo salva, Esc desiste (sem fechar a janela).
+  // Enquanto o campo está aberto, a lista não se redesenha (um clipe novo de outra pessoa apagaria o que se digita).
+  let editing = null;
+  function editTitle(clip, heading, button) {
+    const input = el('input', {
+      type: 'text', class: 'clip-title-input', value: clip.title || '', maxLength: TITLE_MAX, placeholder: 'Título do clipe',
+      ariaLabel: 'Título do clipe', autocomplete: 'off',
+    });
+    const finish = async (keep) => {
+      if (editing !== input) return;
+      editing = null;
+      const title = input.value.replace(/\s+/g, ' ').trim();
+      input.replaceWith(heading);
+      button.hidden = false;
+      const changed = keep && title !== (clip.title || '');
+      // Já mostra o título novo; a confirmação do servidor chega para todos por "clip:update".
+      if (changed) update({ ...clip, title: title || null });
+      else modal?.refresh();
+      modal?.overlay.querySelector(`.clip-item[data-clip="${clip.id}"] .clip-rename`)?.focus();
+      if (!changed) return;
+      const res = await call('clip:title', { id: clip.id, title });
+      if (!res?.clip) update({ ...clip, title: clip.title || null });
+    };
+    input.addEventListener('keydown', (e) => {
+      e.stopPropagation(); // Espaço, setas e Esc são do campo, não da janela
+      if (e.key === 'Enter') { e.preventDefault(); finish(true); }
+      else if (e.key === 'Escape') { e.preventDefault(); finish(false); }
+    });
+    input.addEventListener('blur', () => finish(true));
+    editing = input;
+    heading.replaceWith(input);
+    button.hidden = true;
+    input.focus();
+    input.select();
   }
 
   // ---------- Aba "Novo clipe" ----------
@@ -210,9 +257,19 @@ window.ClipUI = ({ el, Icon, toast, call, token, buffer, model, render, getConte
     const listen = el('button', { type: 'button', class: 'btn-ghost clip-listen', onclick: () => togglePlay() }, Icon('play', 16), el('span', { textContent: 'Ouvir trecho' }));
     const discard = el('button', { type: 'button', class: 'btn-ghost', textContent: 'Descartar', onclick: () => !busy && close() });
     const release = el('button', { type: 'button', class: 'btn-primary clip-release', textContent: 'Soltar para a chamada', onclick: () => submit() });
+    // Título (opcional): aparece para todos na lista "Clipes da chamada", no aviso de clipe novo e no nome do arquivo.
+    const titleInput = el('input', {
+      type: 'text', class: 'clip-title-field', maxLength: TITLE_MAX, placeholder: 'Dê um título ao clipe (opcional)', ariaLabel: 'Título do clipe (opcional)', autocomplete: 'off',
+      oninput: () => { titleCount.textContent = `${[...titleInput.value].length}/${TITLE_MAX}`; titleCount.classList.toggle('full', [...titleInput.value].length >= TITLE_MAX); },
+      onkeydown: (e) => { if (e.key === 'Enter') { e.preventDefault(); if (!release.disabled) submit(); } },
+    });
+    const titleCount = el('span', { class: 'clip-title-count', ariaHidden: 'true', textContent: `0/${TITLE_MAX}` });
+    // Uma linha só, logo acima da onda do som; clicar no lápis também entra no campo.
+    const titleRow = el('label', { class: 'clip-title-box' }, Icon('pencil', 15), titleInput, titleCount);
 
     const panel = el('div', { class: 'clip-panel clip-cutter', id: 'clip-panel-new', role: 'tabpanel' },
       el('div', { class: 'clip-stage' }, preview),
+      titleRow,
       el('div', { class: 'clip-timeline' },
         el('div', { class: 'clip-wave' }, wave, shadeLeft, shadeRight, window_, playhead, startHandle, endHandle),
         ruler),
@@ -305,6 +362,7 @@ window.ClipUI = ({ el, Icon, toast, call, token, buffer, model, render, getConte
     }
 
     function onKey(e) {
+      if (e.target === titleInput) return; // no título, Espaço e setas são do texto
       if (e.key === ' ' && !(e.target instanceof HTMLButtonElement)) { e.preventDefault(); togglePlay(); return; }
       // Setas fora das alças mexem no fim, que é o que mais se ajusta.
       if ((e.key === 'ArrowLeft' || e.key === 'ArrowRight') && !e.target.classList?.contains('clip-handle')) nudge(e, 'end');
@@ -366,6 +424,7 @@ window.ClipUI = ({ el, Icon, toast, call, token, buffer, model, render, getConte
       release.textContent = 'Gerando o clipe…';
       try {
         const screen = screenOk() ? snapshot.screen : null;
+        const title = titleInput.value.replace(/\s+/g, ' ').trim();
         const clip = await render.render({ snapshot: { ...snapshot, screen }, people: list, start: sel.start, end: sel.end, label: label(), loadImage });
         const head = new Uint8Array(4);
         new DataView(head.buffer).setUint32(0, clip.thumb.size);
@@ -373,7 +432,7 @@ window.ClipUI = ({ el, Icon, toast, call, token, buffer, model, render, getConte
           method: 'POST',
           headers: {
             'content-type': 'application/octet-stream', 'x-token': token(),
-            'x-clip': encodeURIComponent(JSON.stringify({ duration: Math.round(clip.duration * 1000) / 1000, participants: list.map((p) => p.accountId), voice: channelId, ...(screen ? { screen: screen.accountId } : {}) })),
+            'x-clip': encodeURIComponent(JSON.stringify({ duration: Math.round(clip.duration * 1000) / 1000, participants: list.map((p) => p.accountId), voice: channelId, ...(title ? { title } : {}), ...(screen ? { screen: screen.accountId } : {}) })),
           },
           body: new Blob([head, clip.thumb, clip.mp4]),
         });
@@ -411,11 +470,13 @@ window.ClipUI = ({ el, Icon, toast, call, token, buffer, model, render, getConte
   }
 
   function showNotice(clip) {
+    const who = `${nameOf(clip.creatorId)} clipou ${Math.round(clip.duration)} s`;
     const notice = el('div', { class: 'clip-notice', role: 'status' },
       el('img', { class: 'clip-thumb', src: clip.thumb, alt: '' }),
       el('div', { class: 'clip-notice-text' },
-        el('strong', { textContent: `${nameOf(clip.creatorId)} clipou ${Math.round(clip.duration)} s` }),
-        el('small', { textContent: `${clip.channelName} · só para quem está na chamada` })),
+        clip.title
+          ? [el('strong', { class: 'clip-notice-title', textContent: `“${clip.title}”`, title: clip.title }), el('small', { textContent: `${who} · ${clip.channelName}` })]
+          : [el('strong', { textContent: who }), el('small', { textContent: `${clip.channelName} · só para quem está na chamada` })]),
       downloadButton(clip.id),
       el('button', { type: 'button', class: 'clip-notice-close', ariaLabel: 'Fechar aviso', onclick: () => hide() }, Icon('x', 14)));
     let timer = setTimeout(() => hide(), NOTICE_MS);
@@ -440,5 +501,12 @@ window.ClipUI = ({ el, Icon, toast, call, token, buffer, model, render, getConte
     else modal.refresh();
   }
 
-  return { prepare, canClip, start, open, discard, showNotice, setList, clips: () => clips };
+  // Título trocado (por quem clipou): atualiza o cartão na lista, se o clipe estiver nela.
+  function update(clip) {
+    if (!clip?.id || !clips.some((c) => c.id === clip.id)) return;
+    clips = clips.map((c) => (c.id === clip.id ? { ...c, ...clip } : c));
+    modal?.refresh();
+  }
+
+  return { prepare, canClip, start, open, discard, showNotice, setList, update, clips: () => clips };
 };

@@ -6733,6 +6733,12 @@
     clipUi.showNotice(clip);
     render();
   });
+  // Quem clipou trocou o título: muda na lista de todo mundo que recebeu o clipe.
+  socket.on('clip:update', (clip) => {
+    if (!state.voiceChannel || !clip?.id) return;
+    state.clips = state.clips.map((c) => (c.id === clip.id ? { ...c, ...clip } : c));
+    clipUi.update(clip);
+  });
   socket.on('voice:peer-left', ({ id }) => {
     if (earlySignals) earlySignals = earlySignals.filter((signal) => signal.from !== id); // saiu antes de a chamada começar aqui
     closePeer(id);

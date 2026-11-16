@@ -4,11 +4,12 @@
 // O título deve destacar as principais funcionalidades ou correções, com termos objetivos.
 window.CHANGELOG = [
   {
-    version: '2.7.0', date: '2026-11-16', name: 'Menos memória RAM, "Seus jogos" no overlay, o dobro de cristais no Mudae e a tela do celular mais fluida',
-    summary: 'Esta versão junta quatro coisas. O Resenhex gasta bem menos memória RAM, sem mudar nada do que você vê ou usa: quem transmite a tela pelo app de Windows economiza cerca de 360 MB, e o DJ devolve uns 130 MB quando a música para. O overlay e o "Jogando agora" passam a funcionar no Minecraft, original ou pirata, e em qualquer jogo que você adicionar em "Seus jogos". No Salão do Mudae, o cristal passa o dobro de vezes, com um som novo, e as fotos de personagens de jogos que apareciam cinza voltaram. E a tela do celular chega mais fluida na call. O Minecraft com qualquer Java e o "Seus jogos" precisam do app do Windows 1.4.8, que se atualiza sozinho; o formato novo da tela do celular vem com o app do Android 1.4.2.',
+    version: '2.7.0', date: '2026-11-16', name: 'Menos memória RAM, título nos clipes, "Seus jogos" no overlay, o dobro de cristais no Mudae e a tela do celular mais fluida',
+    summary: 'Esta versão junta cinco coisas. O Resenhex gasta bem menos memória RAM, sem mudar nada do que você vê ou usa: quem transmite a tela pelo app de Windows economiza cerca de 360 MB, e o DJ devolve uns 130 MB quando a música para. O overlay e o "Jogando agora" passam a funcionar no Minecraft, original ou pirata, e em qualquer jogo que você adicionar em "Seus jogos". No Salão do Mudae, o cristal passa o dobro de vezes, com um som novo, e as fotos de personagens de jogos que apareciam cinza voltaram. Os clipes do Clipar ganham título, que todo mundo da chamada vê. E a tela do celular chega mais fluida na call. O Minecraft com qualquer Java e o "Seus jogos" precisam do app do Windows 1.4.8, que se atualiza sozinho; o formato novo da tela do celular vem com o app do Android 1.4.2.',
     sections: [
       { kind: 'new', items: [
         '"Seus jogos", na aba Jogos das configurações do app do Windows: o Resenhex lista os programas abertos e você marca como jogo o que ele não reconheceu, como um jogo pirata numa pasta qualquer, um jogo novo ou um emulador. Daí em diante, o overlay e o "Jogando agora" funcionam nele. Dá para trocar o nome que aparece para a galera e remover quando quiser.',
+        'Título nos clipes: ao clipar, você pode dar um nome ao clipe, como "a jogada do século". O título aparece para todo mundo da chamada no aviso de clipe novo e em "Clipes da chamada", e vira o nome do arquivo ao baixar. Quem fez o clipe pode trocar o título depois, no lápis ao lado de "Baixar".',
       ] },
       { kind: 'improved', items: [
         'Transmitir a tela pelo app de Windows gasta cerca de 360 MB a menos de memória. O Clipar continua guardando os últimos 30 segundos da tela, e o clipe sai igual.',
