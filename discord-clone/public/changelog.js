@@ -19,7 +19,7 @@ window.CHANGELOG = [
         'O Minecraft Java é reconhecido como jogo pelo launcher oficial, pelo TLauncher e pelos outros, com Forge, Fabric ou sem mods. Antes, o Resenhex só reconhecia o Minecraft do launcher antigo, de 2014.',
         'Team Fortress 2, Garry\'s Mod e Half-Life 2, que dividem o mesmo programa da Valve, agora também são reconhecidos pelo nome certo.',
         'O cristal errante aparece em média a cada 5 minutos com alguém no Salão (entre 3 e 7). Antes era a cada 10 (entre 5 e 15). Os valores continuam os mesmos, e os 15 primeiros cristais do dia continuam rendendo inteiro.',
-        'O som do cristal ficou mais suave: em vez de um estalo curto, um brilho de sininho que chega baixinho, cresce e vai sumindo, com o mesmo volume de antes.',
+        'Som novo do cristal: em vez de um estalo curto, uma corrida de sininhos de vento que chega baixinho, vai crescendo e some devagar, com o mesmo volume de antes.',
         'A tela do celular é capturada no tamanho que quem assiste está vendo: se todo mundo vê num quadro pequeno, o celular não gasta força com 720p. Quando alguém abre a tela grande, a captura cresce junto.',
         'O Clipar continua guardando os últimos 30 segundos da sua tela do celular, mas de um jeito leve: no tamanho da captura e a 15 quadros por segundo. No clipe, a tela em pé aparece inteira no meio, sem esticar.',
         'App do Android 1.4.2: a tela vai em VP8, que o celular passa para a call sem copiar cada quadro de volta da placa de vídeo. Se o celular não der conta desse formato, ele volta sozinho para o de antes.',

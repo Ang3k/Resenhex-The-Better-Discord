@@ -102,41 +102,87 @@ window.Sounds = (() => {
     return end + 1;
   }
 
-  // Cristal errante, quando aparece no Salão: uma "montanhazinha". Tudo chega baixinho, cresce até o pico e vai
-  // sumindo; as notas de sino sobem até o pico e descem de leve (um arco no espectrograma) e, por baixo, um brilho
-  // contínuo tremula (duas notas quase iguais).
-  const CRYSTAL_S = 1.3; // duração da montanha, em s
-  const CRYSTAL_PEAK = 0.45; // onde fica o pico, em s
-  const CRYSTAL_HILL = Float32Array.from({ length: 64 }, (_, i) => {
-    const x = i / 63, p = CRYSTAL_PEAK / CRYSTAL_S;
-    return (x < p ? Math.sin(Math.PI / 2 * x / p) : Math.cos(Math.PI / 2 * (x - p) / (1 - p))) ** 2;
+  // Cristal errante, quando aparece no Salão: sininhos de vento que chegam baixinho, vão crescendo até ~45% do som
+  // e somem devagar (a curva que o dono desenhou em 16/11, no espírito do aviso do cookie dourado). Cada sininho é
+  // um seno quase puro, com ataque macio e cauda de 1,2 a 2 s, então eles se encostam e viram um brilho só; as notas
+  // (mi maior pentatônica) sobem de leve até o pico. O sorteio é fixo, então o som sai igual toda vez.
+  // Gravação aprovada: artifacts/som-cristal-cookie-2026-11-16/dourado.wav (render4.html), -26,5 LUFS.
+  const CRYSTAL_S = 3.6; // duração da curva, em s
+  const CRYSTAL_PEAK = 1.6; // onde fica o pico, em s
+  const CRYSTAL_SCALE = [2217, 2637, 2960, 3322, 3951, 4435, 5274, 5920, 6645]; // dó#7 a sol#8
+  const smoothStep = (u) => u * u * u * (u * (u * 6 - 15) + 10);
+  const CRYSTAL_CURVE = Float32Array.from({ length: 512 }, (_, i) => {
+    const x = i / 511 * CRYSTAL_S;
+    return x < CRYSTAL_PEAK ? smoothStep(x / CRYSTAL_PEAK) : 1 - smoothStep((x - CRYSTAL_PEAK) / (CRYSTAL_S - CRYSTAL_PEAK));
   });
-  // [frequência em Hz, início em s, decaimento em s, volume relativo]: mi, sol#, si, mi (o pico), dó#, si.
-  const CRYSTAL_NOTES = [[1319, 0, 0.3, 0.8], [1661, 0.1, 0.32, 0.85], [1976, 0.2, 0.38, 0.9], [2637, 0.32, 0.7, 1],
-    [2217, 0.52, 0.45, 0.8], [1976, 0.7, 0.5, 0.7]];
-  const CRYSTAL_SHIMMER = [[1319, 0.014], [1322.5, 0.014], [1976, 0.008], [1980, 0.008]]; // [Hz, volume]
-  function crystal(c, out, at) {
-    const hill = c.createGain();
-    hill.gain.setValueCurveAtTime(CRYSTAL_HILL, at, CRYSTAL_S);
-    hill.connect(out);
-    for (const [freq, vol] of CRYSTAL_SHIMMER) {
-      const osc = c.createOscillator();
-      const gain = c.createGain();
-      osc.frequency.value = freq;
-      gain.gain.value = vol;
-      osc.connect(gain).connect(hill);
-      osc.start(at);
-      osc.stop(at + CRYSTAL_S);
-      osc.onended = () => { osc.disconnect(); gain.disconnect(); };
+  const seeded = (seed) => { let s = seed >>> 0; return () => ((s = (s * 1664525 + 1013904223) >>> 0) / 4294967296); };
+  // [início em s, frequência em Hz, cauda em s, volume relativo] de cada sininho. Mais juntos perto do pico.
+  const CRYSTAL_TINKS = (() => {
+    const r = seeded(3), list = [], count = 30, top = CRYSTAL_SCALE.length - 1;
+    for (let i = 0; i < count; i++) {
+      const u = (i + r() * 0.8) / count;
+      const t = u < 0.62 ? CRYSTAL_PEAK * Math.pow(u / 0.62, 0.8) : CRYSTAL_PEAK + (CRYSTAL_S * 0.82 - CRYSTAL_PEAK) * ((u - 0.62) / 0.38);
+      const win = Math.floor(Math.min(1, t / CRYSTAL_PEAK) * (CRYSTAL_SCALE.length - 4));
+      const f = CRYSTAL_SCALE[Math.min(top, win + Math.floor(r() * 4))] * (1 + (r() - 0.5) * 0.004);
+      list.push([t, f, 1.2 + r() * 0.8, 0.5 + r() * 0.5]);
     }
-    const end = chime(c, hill, CRYSTAL_NOTES, at);
-    // Desliga a montanha quando o eco das notas acaba.
+    return list;
+  })();
+  const CRYSTAL_END = Math.max(CRYSTAL_S, ...CRYSTAL_TINKS.map(([t, , decay]) => t + decay));
+  // Sala macia (ruído já filtrado, sumindo em 1,2 s), montada uma vez por contexto de áudio.
+  const crystalRooms = new WeakMap();
+  function crystalRoom(c) {
+    let buffer = crystalRooms.get(c);
+    if (!buffer) {
+      const r = seeded(7), len = Math.round(c.sampleRate * 1.2);
+      buffer = c.createBuffer(1, len, c.sampleRate);
+      const d = buffer.getChannelData(0);
+      let y = 0;
+      for (let i = 0; i < len; i++) { y += 0.25 * ((r() * 2 - 1) - y); d[i] = y * Math.pow(1 - i / len, 2.5); }
+      crystalRooms.set(c, buffer);
+    }
+    const room = c.createConvolver();
+    room.normalize = true;
+    room.buffer = buffer;
+    return room;
+  }
+  function crystal(c, out, at) {
+    const curve = c.createGain();
+    curve.gain.setValueAtTime(0, at);
+    curve.gain.setValueCurveAtTime(CRYSTAL_CURVE, at, CRYSTAL_S);
+    const level = c.createGain();
+    level.gain.value = 0.0488;
+    const lowpass = c.createBiquadFilter();
+    lowpass.type = 'lowpass';
+    lowpass.frequency.value = 9000;
+    lowpass.Q.value = 0.5;
+    const room = crystalRoom(c);
+    const wet = c.createGain();
+    wet.gain.value = 0.3;
+    curve.connect(level).connect(lowpass).connect(out);
+    lowpass.connect(room).connect(wet).connect(out);
+    for (const [start, freq, decay, vol] of CRYSTAL_TINKS) {
+      const t0 = at + start;
+      for (const [ratio, part] of freq < 3000 ? [[1, 1], [2, 0.05]] : [[1, 1]]) {
+        const osc = c.createOscillator();
+        const gain = c.createGain();
+        osc.frequency.value = freq * ratio;
+        gain.gain.setValueAtTime(0.0001, t0);
+        gain.gain.exponentialRampToValueAtTime(Math.max(0.0002, part * vol), t0 + 0.012);
+        gain.gain.exponentialRampToValueAtTime(0.0001, t0 + decay * (ratio > 1 ? 0.4 : 1));
+        osc.connect(gain).connect(curve);
+        osc.start(t0);
+        osc.stop(t0 + decay + 0.02);
+        osc.onended = () => { osc.disconnect(); gain.disconnect(); };
+      }
+    }
+    // Desliga a cadeia depois que o último sininho e a sala acabam.
     const silence = c.createConstantSource();
     silence.offset.value = 0;
-    silence.connect(hill);
+    silence.connect(out);
     silence.start(at);
-    silence.stop(Math.max(end, at + CRYSTAL_S));
-    silence.onended = () => { silence.disconnect(); hill.disconnect(); };
+    silence.stop(at + CRYSTAL_END + 1.3);
+    silence.onended = () => { for (const node of [silence, curve, level, lowpass, room, wet]) node.disconnect(); };
   }
   const SPECIAL = { mudaeCrystal: crystal };
 
