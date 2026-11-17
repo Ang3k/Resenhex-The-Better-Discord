@@ -128,6 +128,8 @@ svg.forja-medal .fm-edge-run { animation: forja-edge-run calc(var(--motion-large
 /* A caixa tem sempre a mesma altura, com ou sem medalha forjada (e escolhendo o acabamento): os botões ficam no pé
    e a sobra vai para o meio. --panel-h cobre o caso mais alto (forjada, com Reforjar e Mostrar no perfil). */
 .forja-panel { --panel-h: 470px; height: var(--panel-h); }
+/* Lado a lado a cena fica alta: a forja cresce e o chão sobe, para não sobrar parede vazia em cima. */
+.forja-panel > .forja-scene { --anvil-w: 258px; --medal-w: 172px; --hearth-w: 368px; --lift: 16px; --anvil-b: 66px; }
 .forja-panel > .forja-detail { overflow-y: auto; scrollbar-width: thin; }
 /* A cena: a fornalha atrás, a bigorna no chão e a medalha flutuando por cima, num foco de luz.
    Tudo se posiciona a partir do chão: --anvil-w (largura da bigorna), --anvil-b (onde ela pisa),
@@ -170,7 +172,7 @@ svg.forja-medal .fm-edge-run { animation: forja-edge-run calc(var(--motion-large
 .forja-scene.hot .forja-tool .ft-rim { opacity: .9; }
 
 /* A fornalha: tijolos e pedras do tema; o fogo, as chamas e os carvões, do desenho. */
-.forja-hearth { position: absolute; left: 50%; bottom: calc(var(--anvil-b) + 12px); display: block; width: min(320px, 100%); height: auto; transform: translateX(-50%); }
+.forja-hearth { position: absolute; left: 50%; bottom: calc(var(--anvil-b) + 12px); display: block; width: var(--hearth-w, min(320px, 100%)); height: auto; transform: translateX(-50%); }
 .forja-hearth .fh-mortar { fill: color-mix(in srgb, var(--bg-rail) 70%, black); }
 .forja-hearth .fh-brick { fill: color-mix(in srgb, var(--bg-input) 88%, var(--text-muted)); }
 .forja-hearth .fh-brick.t1 { fill: color-mix(in srgb, var(--bg-input) 94%, var(--text-muted)); }
@@ -497,6 +499,9 @@ html:not(.touch) .forja-slot-cancel:hover { color: var(--text-strong); }
 
 /* ---------- larguras (pela largura da aba, que muda com o chat aberto ao lado) ---------- */
 @container forja (min-width: 1000px) {
+  /* Larga: o texto cabe em menos linhas, então a caixa pode ser mais baixa. */
+  .forja-panel { --panel-h: 400px; }
+  .forja-panel > .forja-scene { --anvil-b: 26px; }
   .forja-wall { grid-auto-columns: minmax(96px, 1fr); }
   .forja-slot > svg.forja-medal { width: 76px; }
 }
@@ -504,7 +509,7 @@ html:not(.touch) .forja-slot-cancel:hover { color: var(--text-strong); }
 @container forja (max-width: 640px) {
   .forja-panel { display: flex; flex-direction: column; height: auto; }
   .forja-panel > .forja-detail { min-height: var(--detail-h, 400px); overflow: visible; }
-  .forja-panel > .forja-scene { min-height: 0; height: 240px; --anvil-w: 176px; --anvil-b: 10px; --medal-w: 124px; --lift: 12px; box-shadow: inset 0 -1px 0 var(--divider); }
+  .forja-panel > .forja-scene { min-height: 0; height: 240px; --anvil-w: 176px; --anvil-b: 10px; --medal-w: 124px; --lift: 12px; --hearth-w: min(320px, 100%); box-shadow: inset 0 -1px 0 var(--divider); }
 }
 /* Estreito: as 7 medalhas se apertam numa fileira e o palco vira lista. */
 @container forja (max-width: 560px) {
