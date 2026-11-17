@@ -121,10 +121,14 @@ svg.forja-medal .fm-edge-run { animation: forja-edge-run calc(var(--motion-large
 
 /* ---------- o painel: a forja e o detalhe ---------- */
 .forja-panel {
-  display: grid; grid-template-columns: minmax(260px, .95fr) minmax(0, 1.05fr); min-width: 0; border-radius: 16px; overflow: hidden;
+  display: grid; grid-template-columns: minmax(250px, .85fr) minmax(0, 1.15fr); min-width: 0; border-radius: 16px; overflow: hidden;
   background: var(--bg-sidebar); box-shadow: inset 0 0 0 1px var(--divider);
 }
 .forja-panel > .forja-scene { height: auto; min-height: 300px; box-shadow: inset -1px 0 0 var(--divider); }
+/* A caixa tem sempre a mesma altura, com ou sem medalha forjada (e escolhendo o acabamento): os botões ficam no pé
+   e a sobra vai para o meio. --panel-h cobre o caso mais alto (forjada, com Reforjar e Mostrar no perfil). */
+.forja-panel { --panel-h: 470px; height: var(--panel-h); }
+.forja-panel > .forja-detail { overflow-y: auto; scrollbar-width: thin; }
 /* A cena: a fornalha atrás, a bigorna no chão e a medalha flutuando por cima, num foco de luz.
    Tudo se posiciona a partir do chão: --anvil-w (largura da bigorna), --anvil-b (onde ela pisa),
    --medal-w (largura da medalha) e --lift (quanto ela flutua acima da face). A face da bigorna fica a
@@ -315,7 +319,7 @@ svg.forja-medal .fm-edge-run { animation: forja-edge-run calc(var(--motion-large
 /* Os 4 níveis: os que já tem (verde, com o certo), o próximo (o que o botão forja, aceso) e os de depois (apagados). */
 .forja-perks { display: flex; flex-direction: column; gap: 4px; margin: 0; padding: 0; list-style: none; }
 .forja-perk {
-  display: grid; grid-template-columns: 24px minmax(0, 1fr) auto; align-items: center; gap: 10px; min-height: 36px; padding: 6px 10px;
+  display: grid; grid-template-columns: 24px minmax(0, 1fr) auto; align-items: center; gap: 10px; min-height: 34px; padding: 5px 10px;
   border-radius: 10px; color: var(--text-muted); font-size: 14px;
 }
 .forja-perk-level {
@@ -335,7 +339,7 @@ svg.forja-medal .fm-edge-run { animation: forja-edge-run calc(var(--motion-large
 .forja-perk.next .forja-perk-level { background: var(--yellow); color: var(--bg-rail); }
 .forja-perk.next .forja-perk-price { color: var(--text-strong); font-weight: 700; }
 
-.forja-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 2px; }
+.forja-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: auto; }
 /* Mostrar no perfil: uma linha com o interruptor do app, separada das ações. */
 .forja-show {
   display: flex; align-items: center; justify-content: space-between; gap: 12px; padding-top: 12px;
@@ -498,7 +502,8 @@ html:not(.touch) .forja-slot-cancel:hover { color: var(--text-strong); }
 }
 /* Estreito: a forja em cima do detalhe. */
 @container forja (max-width: 640px) {
-  .forja-panel { display: flex; flex-direction: column; }
+  .forja-panel { display: flex; flex-direction: column; height: auto; }
+  .forja-panel > .forja-detail { min-height: var(--detail-h, 400px); overflow: visible; }
   .forja-panel > .forja-scene { min-height: 0; height: 240px; --anvil-w: 176px; --anvil-b: 10px; --medal-w: 124px; --lift: 12px; box-shadow: inset 0 -1px 0 var(--divider); }
 }
 /* Estreito: as 7 medalhas se apertam numa fileira e o palco vira lista. */
@@ -521,6 +526,9 @@ html:not(.touch) .forja-slot-cancel:hover { color: var(--text-strong); }
   .forja-head { align-items: center; }
   .forja-flare-text { font-size: 17px; margin: 0 12px; }
 }
+/* Quanto mais estreito, mais o texto quebra: a altura fixa do detalhe cresce junto. */
+@container forja (max-width: 520px) { .forja-panel { --detail-h: 450px; } }
+@container forja (max-width: 440px) { .forja-panel { --detail-h: 490px; } }
 /* Celular: não cabem as 7; a fileira rola de lado e a ponta direita some aos poucos, mostrando que tem mais. */
 @container forja (max-width: 500px) {
   .forja-wall { grid-auto-columns: 78px; padding-right: 32px; -webkit-mask-image: linear-gradient(90deg, black calc(100% - 36px), transparent); mask-image: linear-gradient(90deg, black calc(100% - 36px), transparent); }
