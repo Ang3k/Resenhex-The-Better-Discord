@@ -3,11 +3,11 @@
 Histórico de versões. A mesma lista aparece dentro do app em **Novidades** (menu do servidor ou rodapé das Configurações).
 O Resenhex chegou à versão 1.0 em 4 de outubro de 2026.
 
-## v2.7.0 — Menos memória RAM, título nos clipes, "Seus jogos" no overlay, o dobro de cristais no Mudae e a tela do celular mais fluida
+## v2.7.0 — Menos memória RAM, título nos clipes, "Seus jogos" no overlay, mais cristais no Mudae e a tela do celular mais fluida
 
 16 de novembro de 2026.
 
-Esta versão junta cinco coisas. O Resenhex gasta bem menos memória RAM, sem mudar nada do que você vê ou usa: quem transmite a tela pelo app de Windows economiza cerca de 360 MB, e o DJ devolve uns 130 MB quando a música para. O overlay e o "Jogando agora" passam a funcionar no Minecraft, original ou pirata, e em qualquer jogo que você adicionar em "Seus jogos". No Salão do Mudae, o cristal passa o dobro de vezes, com um som novo, um aviso chega quando seus rolls voltam, e as fotos de personagens de jogos que apareciam cinza voltaram. Os clipes do Clipar ganham título, que todo mundo da chamada vê. E a tela do celular chega mais fluida na call. O Minecraft com qualquer Java e o "Seus jogos" precisam do app do Windows 1.4.8, que se atualiza sozinho; o formato novo da tela do celular vem com o app do Android 1.4.2.
+Esta versão junta cinco coisas. O Resenhex gasta bem menos memória RAM, sem mudar nada do que você vê ou usa: quem transmite a tela pelo app de Windows economiza cerca de 360 MB, e o DJ devolve uns 130 MB quando a música para. O overlay e o "Jogando agora" passam a funcionar no Minecraft, original ou pirata, e em qualquer jogo que você adicionar em "Seus jogos". No Salão do Mudae, o cristal passa mais vezes, com um som novo, um aviso chega quando seus rolls voltam, e as fotos de personagens de jogos que apareciam cinza voltaram. Os clipes do Clipar ganham título, que todo mundo da chamada vê. E a tela do celular chega mais fluida na call. O Minecraft com qualquer Java e o "Seus jogos" precisam do app do Windows 1.4.8, que se atualiza sozinho; o formato novo da tela do celular vem com o app do Android 1.4.2.
 
 ### Novidades
 
@@ -24,7 +24,7 @@ Esta versão junta cinco coisas. O Resenhex gasta bem menos memória RAM, sem mu
 - O seletor de emojis solta a memória ao fechar e monta tudo de novo ao abrir.
 - O Minecraft Java é reconhecido como jogo pelo launcher oficial, pelo TLauncher e pelos outros, com Forge, Fabric ou sem mods. Antes, o Resenhex só reconhecia o Minecraft do launcher antigo, de 2014.
 - Team Fortress 2, Garry's Mod e Half-Life 2, que dividem o mesmo programa da Valve, agora também são reconhecidos pelo nome certo.
-- O cristal errante aparece em média a cada 5 minutos com alguém no Salão (entre 3 e 7). Antes era a cada 10 (entre 5 e 15). Os valores continuam os mesmos, e os 15 primeiros cristais do dia continuam rendendo inteiro.
+- O cristal errante aparece mais vezes: em média a cada 7 minutos e meio com alguém no Salão (entre 5 e 10). Antes era a cada 10 (entre 5 e 15). Os valores continuam os mesmos, e os 15 primeiros cristais do dia continuam rendendo inteiro.
 - Forja e Poderes agora são duas abas no Salão, com visual novo. Na Forja, as 7 medalhas ficam numa fileira só e, embaixo, a forja e o detalhe lado a lado, com o próximo nível aceso e o botão de forjar sempre à vista; quando sai um acabamento novo, a escolha fica sozinha no painel. Em Poderes, o palco mostra os 3 poderes com o que cada um faz e um anel que enche com a carga; embaixo vêm os que estão fora do palco e os que faltam abrir, do mais perto ao mais longe. Para pôr um poder no palco, você escolhe o espaço no próprio palco. O botão do $poderes no chat abre a aba nova.
 - Som novo do cristal: em vez de um estalo curto, uma corrida de sininhos de vento que chega baixinho, vai crescendo e some devagar, com o mesmo volume de antes.
 - A tela do celular é capturada no tamanho que quem assiste está vendo: se todo mundo vê num quadro pequeno, o celular não gasta força com 720p. Quando alguém abre a tela grande, a captura cresce junto.

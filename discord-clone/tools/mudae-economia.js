@@ -34,7 +34,7 @@ const DK_AMOUNT = 250;
 const MIN_PER_DAY = 1440;
 const ROLLS_PER_WINDOW = 10; // a cada 30 min
 const STORM_CLICK_SHARE = 0.75; // quanto da chuva a pessoa realmente consegue clicar
-const KAKERA_PER_DAY_TARGET = 1700; // era 1000 até 14/11 (cristal a cada 5 a 15 min); o dono pediu kakera mais rápido
+const KAKERA_PER_DAY_TARGET = 1200; // cristal a cada 5 a 10 min (escolha do dono em 16/11); era 1700 com 3 a 7 min e 1000 com 5 a 15
 
 // Perfis de jogador. `visits`: quantas visitas por dia e quantos minutos cada uma; `windows`: janelas de 30 min usadas
 // (cada uma tem 10 rolls e 1 casamento); `reserveUses`: quantos casamentos de reserva da Esmeralda ele consegue usar por dia
@@ -249,10 +249,10 @@ const normal = SERVER_SIZES.map((s) => results[`normal/${s}`]);
 const vicio = SERVER_SIZES.map((s) => results[`viciado/${s}`]);
 const spread = (vals) => (vals.every((v) => v != null) ? (Math.max(...vals) - Math.min(...vals)) / Math.min(...vals) : null);
 const checks = [
-  ['normal: kakera por dia (dias 1 a 30) em 1500 a 1900', normal.every((r) => Math.abs(r.perDayFirst30 - KAKERA_PER_DAY_TARGET) <= 200)],
+  ['normal: kakera por dia (dias 1 a 30) em 1000 a 1400', normal.every((r) => Math.abs(r.perDayFirst30 - KAKERA_PER_DAY_TARGET) <= 200)],
   ['1ª medalha no dia 1 (normal, média até 1,25)', normal.every((r) => r.marks.primeira <= 1.25)],
-  ['todas no I entre os dias 6 e 10 (normal)', normal.every((r) => r.marks.todasI >= 6 && r.marks.todasI <= 10)],
-  ['todas no IV entre os dias 55 e 75 (normal)', normal.every((r) => r.marks.todasIV >= 55 && r.marks.todasIV <= 75)],
+  ['todas no I entre os dias 8 e 12 (normal)', normal.every((r) => r.marks.todasI >= 8 && r.marks.todasI <= 12)],
+  ['todas no IV entre os dias 70 e 95 (normal)', normal.every((r) => r.marks.todasIV >= 70 && r.marks.todasIV <= 95)],
   ['viciado chega ao IV no máximo 4x mais rápido que o normal', normal.every((r, i) => vicio[i].marks.todasIV != null && r.marks.todasIV / vicio[i].marks.todasIV <= 4)],
   ['servidor de 1 e de 20 pessoas: diferença até 10% (todas I e todas IV, normal)',
     spread([results['normal/1'].marks.todasI, results['normal/20'].marks.todasI]) <= 0.1 && spread([results['normal/1'].marks.todasIV, results['normal/20'].marks.todasIV]) <= 0.1],
