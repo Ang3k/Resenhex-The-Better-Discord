@@ -17,7 +17,11 @@ test('converte códigos de tecla do site para o gancho global', () => {
   assert.equal(uiohookKeycode('ControlLeft'), 29);
   assert.equal(uiohookKeycode('AltRight'), 3640);
   assert.equal(uiohookKeycode('Numpad0'), 82);
-  assert.equal(uiohookKeycode('IntlBackslash'), 86);
+  // Os códigos que o uiohook entrega no Windows para as teclas que ele não nomeia.
+  assert.equal(uiohookKeycode('IntlBackslash'), 0x0e46);
+  assert.equal(uiohookKeycode('IntlRo'), 0x0073);
+  assert.equal(uiohookKeycode('Pause'), 0x0e45);
+  assert.equal(uiohookKeycode('ContextMenu'), 0x0e5d);
   assert.equal(uiohookKeycode('MouseButton4'), null);
   assert.equal(uiohookKeycode('constructor'), null);
   assert.equal(uiohookKeycode(''), null);
@@ -149,6 +153,24 @@ test('o gancho global fica só no teclado, sem passar o mouse pelo app', () => {
   if (fs.existsSync(installed)) assert.ok(fs.readFileSync(installed, 'utf8').includes(MARK), 'rode npm install para corrigir o uiohook');
 });
 
+test('o gancho global reconhece a tecla /? do ABNT2', () => {
+  const { patchHelper, ABNT_MARK } = require('../tools/patch-uiohook');
+  const original = [
+    '    /* 192 */ { VC_BACKQUOTE,         0x0000                 }, // 0xC0 VK_OEM_3               Used for miscellaneous characters',
+    '    /* 193 */ { VC_UNDEFINED,         0x0000                 }, // 0xC1                        Reserved',
+    '    /* 194 */ { VC_UNDEFINED,         0x0000                 }, // 0xC2                        Reserved',
+  ].join('\n');
+  const { source, changed } = patchHelper(original);
+  assert.ok(changed);
+  assert.match(source, /\/\* 193 \*\/ \{ VC_UNDERSCORE, /);
+  assert.match(source, /\/\* 194 \*\/ \{ VC_UNDEFINED, /, 'só a linha da 0xC1 muda');
+  assert.deepEqual(patchHelper(source), { source, changed: false }, 'rodar de novo não muda nada');
+  assert.throws(() => patchHelper('código de outra versão'), /uiohook mudou/);
+
+  const installed = path.join(__dirname, '..', 'node_modules', 'uiohook-napi', 'libuiohook', 'src', 'windows', 'input_helper.c');
+  if (fs.existsSync(installed)) assert.ok(fs.readFileSync(installed, 'utf8').includes(ABNT_MARK), 'rode npm install para corrigir o uiohook');
+});
+
 test('atalhos com programa de administrador na frente: teclas que o RegisterHotKey aceita, sem repetir', () => {
   const { virtualKey, hotkeysFor } = require('../lib/elevated-hotkeys');
   assert.equal(virtualKey('KeyM'), 0x4d);
@@ -158,16 +180,28 @@ test('atalhos com programa de administrador na frente: teclas que o RegisterHotK
   assert.equal(virtualKey('F25'), null);
   assert.equal(virtualKey('Numpad3'), 0x63);
   assert.equal(virtualKey('ArrowUp'), 0x26);
-  assert.equal(virtualKey('Backquote'), null); // pontuação muda de lugar no ABNT2: fica só com o gancho
+  assert.equal(virtualKey('CapsLock'), 0x14);
+  assert.equal(virtualKey('Pause'), 0x13);
+  assert.equal(virtualKey('NumpadEnter'), null); // mesma tecla virtual do Enter: fica só com o gancho
   assert.equal(virtualKey('constructor'), null);
+  // Pontuação: a tecla virtual de cada posição vem do Windows (aqui, a do ABNT2).
+  const abnt2 = (scan) => ({ 0x29: 0xc0, 0x56: 0xe2, 0x73: 0xc1 })[scan] || 0;
+  assert.equal(virtualKey('Backquote'), null, 'sem o Windows para perguntar, fica só com o gancho');
+  assert.equal(virtualKey('Backquote', abnt2), 0xc0);
+  assert.equal(virtualKey('IntlBackslash', abnt2), 0xe2);
+  assert.equal(virtualKey('IntlRo', abnt2), 0xc1);
+  assert.equal(virtualKey('Quote', abnt2), null, 'posição que não existe no teclado em uso');
   const hotkeys = hotkeysFor(globalBindings([
     { id: 'toggleMute', combo: 'Ctrl+Shift+KeyM' },
     { id: 'toggleDeafen', combo: 'Alt+Meta+F13' },
     { id: 'toggleNoise', combo: 'Ctrl+Backquote' },
-  ]));
+    { id: 'clip', combo: 'IntlBackslash' },
+  ]), abnt2);
   assert.deepEqual(hotkeys, [
     { id: 'toggleMute', modifiers: 0x4000 | 0x0002 | 0x0004, vk: 0x4d },
     { id: 'toggleDeafen', modifiers: 0x4000 | 0x0001 | 0x0008, vk: 0x7c },
+    { id: 'toggleNoise', modifiers: 0x4000 | 0x0002, vk: 0xc0 },
+    { id: 'clip', modifiers: 0x4000, vk: 0xe2 },
   ]);
 });
 

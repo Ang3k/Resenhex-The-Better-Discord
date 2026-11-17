@@ -8,8 +8,10 @@ const ALIASES = {
   ShiftLeft: 'Shift', ShiftRight: 'ShiftRight',
   MetaLeft: 'Meta', MetaRight: 'MetaRight',
 };
-// Teclas extras do teclado ABNT2 (\| ao lado do Shift e /? ao lado do Shift direito).
-const EXTRA = { IntlBackslash: 86, IntlRo: 115 };
+// Teclas que o uiohook-napi não nomeia, com o código que o uiohook entrega no Windows: a \| ao lado do
+// Shift do ABNT2 chega como VC_LESSER_GREATER; a /? ao lado do Shift direito chega como VC_UNDERSCORE
+// (só com o remendo de tools/patch-uiohook.js); Pause e a tecla Menu.
+const EXTRA = { IntlBackslash: 0x0e46, IntlRo: 0x0073, Pause: 0x0e45, ContextMenu: 0x0e5d };
 
 function uiohookKeycode(code) {
   if (typeof code !== 'string' || !code) return null;
