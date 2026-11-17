@@ -5,7 +5,7 @@ O Resenhex chegou à versão 1.0 em 4 de outubro de 2026.
 
 ## v2.7.0 — Menos memória RAM, título nos clipes, "Seus jogos" no overlay, mais cristais no Mudae e a tela do celular mais fluida
 
-16 de novembro de 2026.
+17 de novembro de 2026.
 
 Esta versão junta cinco coisas. O Resenhex gasta bem menos memória RAM, sem mudar nada do que você vê ou usa: quem transmite a tela pelo app de Windows economiza cerca de 360 MB, e o DJ devolve uns 130 MB quando a música para. O overlay e o "Jogando agora" passam a funcionar no Minecraft, original ou pirata, e em qualquer jogo que você adicionar em "Seus jogos". No Salão do Mudae, o cristal passa mais vezes, com um som novo, um aviso chega quando seus rolls voltam, e as fotos de personagens de jogos que apareciam cinza voltaram. Os clipes do Clipar ganham título, que todo mundo da chamada vê. E a tela do celular chega mais fluida na call. O Minecraft com qualquer Java e o "Seus jogos" precisam do app do Windows 1.4.8, que se atualiza sozinho; o formato novo da tela do celular vem com o app do Android 1.4.2.
 
