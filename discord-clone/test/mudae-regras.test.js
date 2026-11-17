@@ -35,7 +35,7 @@ test('regras batem com a spec', () => {
   assert.equal(R.CRYSTAL.cardEveryMs, 30 * 60_000);
   assert.equal(R.CRYSTAL.storm.calledFactor, 0.1);
   assert.equal(R.CRYSTAL.storm.capCost, 2);
-  assert.equal(R.CRYSTAL.everyMinMs, 5 * 60_000);
+  assert.equal(R.CRYSTAL.everyMinMs, 6 * 60_000);
   assert.equal(R.CRYSTAL.everyMaxMs, 10 * 60_000);
   assert.equal(R.CRYSTAL.lifeMs, 10_000);
   assert.equal(R.CRYSTAL.graceMs, 1500);

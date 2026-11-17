@@ -45,9 +45,9 @@ const DAY_OFFSET_MS = 3 * HOUR;
 
 // Cristal errante. Valores e pesos saem da simulação (tools/mudae-economia.js).
 const CRYSTAL = {
-  // Um cristal novo a cada 5 a 10 min (média de 7,5), com alguém no Salão: escolha do dono em 16/11. No ar até a 2.6.0
-  // era 5 a 15 (~990 de kakera por dia no jogador normal); 3 a 7 dava ~1.670; 5 a 10 dá ~1.220 (ver tools/mudae-economia.js).
-  everyMinMs: 5 * MIN,
+  // Um cristal novo a cada 6 a 10 min (média de 8), com alguém no Salão: escolha do dono em 17/11. No ar até a 2.6.0
+  // era 5 a 15 (~990 de kakera por dia no jogador normal); 3 a 7 dava ~1.670; 6 a 10 dá ~1.160 (ver tools/mudae-economia.js).
+  everyMinMs: 6 * MIN,
   everyMaxMs: 10 * MIN,
   lifeMs: 10_000, // tempo de vida do cristal que passa
   graceMs: 1500, // folga para a internet lenta

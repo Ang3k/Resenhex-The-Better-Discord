@@ -34,7 +34,7 @@ const DK_AMOUNT = 250;
 const MIN_PER_DAY = 1440;
 const ROLLS_PER_WINDOW = 10; // a cada 30 min
 const STORM_CLICK_SHARE = 0.75; // quanto da chuva a pessoa realmente consegue clicar
-const KAKERA_PER_DAY_TARGET = 1200; // cristal a cada 5 a 10 min (escolha do dono em 16/11); era 1700 com 3 a 7 min e 1000 com 5 a 15
+const KAKERA_PER_DAY_TARGET = 1200; // cristal a cada 6 a 10 min (escolha do dono em 17/11); era 1700 com 3 a 7 min e 1000 com 5 a 15
 
 // Perfis de jogador. `visits`: quantas visitas por dia e quantos minutos cada uma; `windows`: janelas de 30 min usadas
 // (cada uma tem 10 rolls e 1 casamento); `reserveUses`: quantos casamentos de reserva da Esmeralda ele consegue usar por dia
