@@ -119,12 +119,22 @@ window.MudaeForge = function ({ el, call, onSocket, ui, Sounds, reducedMotion = 
       host.replaceChildren(el('div', { class: 'forja-loading', textContent: 'Acendendo a forja…' }));
       return;
     }
+    // A fileira de medalhas rola de lado no celular: redesenhar não pode jogá-la de volta para o começo.
+    const left = host.querySelector('.forja-wall')?.scrollLeft || 0;
     host.replaceChildren(
       el('div', { class: 'forja-head' },
         el('div', {}, el('h2', { class: 'forja-title', textContent: 'Forja' }),
           el('p', { class: 'forja-sub', textContent: 'Forje medalhas com kakera. Cada nível dá uma vantagem e sorteia um acabamento.' })),
         el('div', { class: 'forja-kakera', title: 'Seu kakera' }, kakera(), el('strong', { class: 'forja-kakera-value', textContent: num(view.kakera) }))),
       el('div', { class: 'forja-main' }, wall(), panel()));
+    const strip = host.querySelector('.forja-wall');
+    const on = strip?.querySelector('[aria-pressed="true"]');
+    if (strip && strip.scrollWidth > strip.clientWidth) {
+      strip.scrollLeft = left;
+      // A escolhida sempre à vista (ex.: ao abrir com o Diamante esperando o acabamento).
+      if (on && on.offsetLeft < strip.scrollLeft) strip.scrollLeft = on.offsetLeft - 12;
+      else if (on && on.offsetLeft + on.offsetWidth > strip.scrollLeft + strip.clientWidth) strip.scrollLeft = on.offsetLeft + on.offsetWidth - strip.clientWidth + 12;
+    }
   }
 
   function wall() {
@@ -132,9 +142,9 @@ window.MudaeForge = function ({ el, call, onSocket, ui, Sounds, reducedMotion = 
       const m = medalOf(key);
       const price = priceOf(key);
       const short = price != null ? price - (view.kakera || 0) : 0;
-      const label = m.offer ? 'escolha o acabamento' : m.level >= 4 ? 'completa' : short > 0 ? `faltam ${num(short)}` : num(price);
-      return follow(el('button', { type: 'button', class: 'forja-slot' + (m.level ? '' : ' unforged') + (m.offer ? ' offer' : '') + (short > 0 && !m.offer ? ' short' : ''),
-        data: { medal: key }, ariaPressed: String(selected === key), onclick: () => { selected = key; draw(); } },
+      const label = m.offer ? 'escolher' : m.level >= 4 ? 'completa' : short > 0 ? `faltam ${num(short)}` : num(price);
+      return follow(el('button', { type: 'button', class: 'forja-slot' + (m.level ? '' : ' unforged') + (m.offer ? ' offer' : '') + (short > 0 && !m.offer ? ' short' : '') + (m.level >= 4 ? ' full' : ''),
+        data: { medal: key }, ariaPressed: String(selected === key), onclick: () => { if (selected !== key) { selected = key; draw(); } } },
       el('span', { class: 'forja-hook', ariaHidden: 'true' }),
       medalSvg(key, m.level, m.finish, 104),
       el('span', { class: 'forja-slot-name', textContent: nameOf(key) }),
@@ -164,22 +174,26 @@ window.MudaeForge = function ({ el, call, onSocket, ui, Sounds, reducedMotion = 
         title: have < REFORGE_PRICE ? `Faltam ${num(REFORGE_PRICE - have)}` : 'Sorteia outro acabamento; você escolhe qual fica.', onclick: () => reforgeNow(key) },
       `Reforjar acabamento · ${num(REFORGE_PRICE)}`, kakera()));
     }
-    return el('div', { class: 'forja-panel' }, scene,
+    // Saiu um acabamento novo: a escolha fica sozinha no painel (forjar e reforjar só voltam depois dela).
+    const choosing = !!m.offer && !animating;
+    return el('div', { class: 'forja-panel' + (choosing ? ' choosing' : '') }, scene,
       el('div', { class: 'forja-detail' },
         el('div', { class: 'forja-detail-head' },
           el('h3', { class: 'forja-detail-title', textContent: titleOf(key) }),
           // Durante a forja o acabamento ainda é surpresa: ele aparece quando a medalha esfria.
           animating ? el('span', { class: 'forja-muted', textContent: 'na forja…' }) : m.level ? finishTag(m.finish) : el('span', { class: 'forja-muted', textContent: 'ainda não forjada' })),
         el('p', { class: 'forja-what', textContent: perks.what }),
-        el('ol', { class: 'forja-perks' }, [1, 2, 3, 4].map((n) => el('li', { class: 'forja-perk' + (n === m.level ? ' now' : n < m.level ? ' got' : '') },
+        choosing ? choice(key, m) : null,
+        // Os 4 níveis: os que já tem (com o certo), o próximo (o que o botão forja) e os que vêm depois.
+        choosing ? null : el('ol', { class: 'forja-perks', ariaLabel: 'O que cada nível dá' }, [1, 2, 3, 4].map((n) => el('li', { class: 'forja-perk' + (n <= m.level ? ' got' : n === m.level + 1 ? ' next' : '') },
           el('span', { class: 'forja-perk-level', textContent: ROMAN[n] }),
           el('span', { class: 'forja-perk-text', textContent: perks.at(n) }),
           n <= m.level ? el('span', { class: 'forja-perk-price got', ariaLabel: 'já tem' }, MI('check', 14))
             : el('span', { class: 'forja-perk-price' }, base ? num(base * n) : '', base ? kakera() : null)))),
-        m.offer && !animating ? choice(key, m) : null,
-        m.level >= 1 ? el('label', { class: 'forja-show' },
-          el('input', { type: 'checkbox', checked: shown().includes(key), disabled: busy, onchange: (e) => showNow(key, e.target.checked) }), 'Mostrar no perfil') : null,
-        actions));
+        choosing ? null : actions,
+        m.level >= 1 && !choosing ? el('label', { class: 'forja-show' },
+          el('span', { class: 'forja-show-text' }, el('strong', { textContent: 'Mostrar no perfil' }), el('small', { textContent: 'Aparece no seu cartão para a galera.' })),
+          el('input', { type: 'checkbox', class: 'ds-switch', checked: shown().includes(key), disabled: busy, onchange: (e) => showNow(key, e.target.checked) })) : null));
   }
 
   // Medalhas no cartão de perfil: o servidor manda a lista atual (ou a padrão); aqui troca uma e manda a lista inteira.
@@ -783,28 +797,41 @@ window.MudaeForge = function ({ el, call, onSocket, ui, Sounds, reducedMotion = 
   }
 
   // ---------- poderes ----------
+  const charge = (ms) => (ms > 0 ? `volta em ${minutes(ms)}` : 'pronto');
+  // Prazo cheio: "24 h" (hora redonda) ou o formato do relógio ("20h30").
+  const span = (ms) => (ms > 0 && ms % 3_600_000 === 0 ? `${ms / 3_600_000} h` : minutes(ms));
+  const pctOf = (key) => { const g = powers.progress?.[key] || { have: 0, need: 1 }; return Math.round(Math.min(1, g.have / (g.need || 1)) * 100); };
+
+  // Os 3 espaços do palco. Cada um mostra o poder, a carga (o anel em volta) e o que ele faz.
+  // Escolhendo um poder ("Pôr no palco"), os espaços viram botões.
   function stageSlots() {
+    const full = powers.rechargeMs || 0;
+    const bench = (powers.unlocked || []).some((k) => !powers.slots?.includes(k));
     return el('div', { class: 'forja-stage-slots' + (picking ? ' picking' : '') }, (powers.slots || []).map((key, i) => {
       const wait = key ? powers.readyIn?.[key] || 0 : 0;
-      const name = key ? POWER[key]?.name || key : 'espaço livre';
+      const p = key ? POWER[key] || { name: key } : null;
       const props = { class: 'forja-stage-slot' + (key ? '' : ' empty') + (key && !wait ? ' ready' : '') };
-      // Escolhendo um poder: o espaço vira botão (troca o que estiver nele).
+      if (key) props.data = { power: key };
       if (picking) Object.assign(props, { type: 'button', ariaLabel: `Pôr ${POWER[picking]?.name || picking} no espaço ${i + 1}`, onclick: () => equip(i, picking) });
+      const orb = el('span', { class: 'forja-stage-orb', ariaHidden: 'true' }, key ? powerIco(key, 30) : MI('plus', 22));
+      if (key) orb.style.setProperty('--charge', (full ? Math.max(0, Math.min(1, 1 - wait / full)) * 100 : wait ? 0 : 100).toFixed(1) + '%');
+      const status = picking ? (key ? 'trocar' : 'pôr aqui')
+        : key ? charge(wait) : bench ? 'escolha um poder abaixo' : 'abra mais poderes';
       return el(picking ? 'button' : 'div', props,
         el('span', { class: 'forja-stage-n', textContent: String(i + 1) }), ' ',
-        el('span', { class: 'forja-stage-orb', ariaHidden: 'true' }, key ? powerIco(key, 30) : null), ' ',
+        orb, ' ',
         el('span', { class: 'forja-stage-text' },
-          el('strong', { textContent: name }), ' ',
-          el('span', { class: 'forja-stage-charge', textContent: picking ? (key ? 'trocar por este' : 'pôr aqui') : key ? charge(wait) : 'ponha um poder aqui' })));
+          el('strong', { textContent: p ? p.name : 'Espaço livre' }), ' ',
+          el('span', { class: 'forja-stage-charge', textContent: status }),
+          p?.does && !picking ? el('span', { class: 'forja-stage-does', textContent: p.does }) : null));
     }));
   }
-  const charge = (ms) => (ms > 0 ? `volta em ${minutes(ms)}` : 'pronto');
 
+  // Um poder fora do palco: aberto (com "Pôr no palco") ou fechado (com quanto falta).
   function powerCard(key) {
     const p = POWER[key] || { name: key };
     const open = powers.unlocked?.includes(key);
-    const slot = powers.slots?.indexOf(key) ?? -1;
-    const node = el('li', { class: 'forja-power' + (open ? ' open' : ' locked') + (slot >= 0 ? ' staged' : ''), data: { power: key } },
+    const node = el('li', { class: 'forja-power' + (open ? ' open' : ' locked') + (picking === key ? ' picking' : ''), data: { power: key } },
       el('span', { class: 'forja-power-badge', ariaHidden: 'true' }, powerIco(key, 26)),
       el('div', { class: 'forja-power-body' },
         el('strong', { class: 'forja-power-name', textContent: p.name }),
@@ -812,23 +839,20 @@ window.MudaeForge = function ({ el, call, onSocket, ui, Sounds, reducedMotion = 
     const body = node.lastChild;
     if (!open) {
       const goal = powers.progress?.[key] || { have: 0, need: 1 };
-      const pct = Math.round(Math.min(1, goal.have / (goal.need || 1)) * 100);
-      body.append(el('span', { class: 'forja-power-goal', textContent: `${num(goal.have)}/${num(goal.need)} ${POWER_GOAL[key] || ''}`.trim() }),
-        el('span', { class: 'forja-bar', role: 'progressbar', ariaValuemin: '0', ariaValuemax: '100', ariaValuenow: String(pct), ariaLabel: 'Progresso de ' + p.name },
-          el('i', { style: { width: pct + '%' } })));
-      return node;
-    }
-    if (slot >= 0) {
-      body.append(el('span', { class: 'forja-power-state', textContent: `No palco · espaço ${slot + 1} · ${charge(powers.readyIn?.[key] || 0)}` }));
+      const pct = pctOf(key);
+      body.append(el('div', { class: 'forja-power-goal' },
+        el('span', { textContent: `${num(goal.have)}/${num(goal.need)} ${POWER_GOAL[key] || ''}`.trim() }), ' ',
+        el('span', { class: 'forja-power-pct', textContent: pct + '%' })),
+      el('span', { class: 'forja-bar', role: 'progressbar', ariaValuemin: '0', ariaValuemax: '100', ariaValuenow: String(pct), ariaLabel: 'Progresso de ' + p.name },
+        el('i', { style: { width: pct + '%' } })));
       return node;
     }
     if (picking !== key) {
-      body.append(el('button', { type: 'button', class: 'forja-power-equip', textContent: 'Pôr no palco', onclick: () => pick(key) }));
+      body.append(el('div', { class: 'forja-power-foot' }, el('button', { type: 'button', class: 'forja-power-equip', textContent: 'Pôr no palco', onclick: () => pick(key) })));
       return node;
     }
     // A escolha do espaço é no palco, lá em cima (que acende e vira botões).
-    node.classList.add('picking');
-    body.append(el('span', { class: 'forja-power-note', textContent: `Escolha o espaço no palco. Chega vazio e enche em ${minutes(powers.rechargeMs || 0)}.` }),
+    body.append(el('span', { class: 'forja-power-note', textContent: `Escolha o espaço no palco. Chega vazio e enche em ${span(powers.rechargeMs || 0)}.` }),
       el('button', { type: 'button', class: 'forja-slot-cancel', textContent: 'Cancelar', onclick: () => { picking = null; draw(); } }));
     return node;
   }
@@ -852,7 +876,8 @@ window.MudaeForge = function ({ el, call, onSocket, ui, Sounds, reducedMotion = 
   }
 
   // ---------- a aba Poderes ----------
-  // Em cima, o palco (os 3 espaços que aparecem na Mesa); embaixo, os poderes abertos e os que faltam abrir.
+  // Em cima, o palco (os 3 espaços que aparecem na Mesa); embaixo, os abertos que estão fora do palco e os que
+  // faltam abrir (os mais perto de abrir primeiro). Quem está no palco não se repete na lista.
   function drawPowers() {
     if (!powers) {
       host.replaceChildren(el('div', { class: 'forja-loading', textContent: 'Carregando os poderes…' }));
@@ -860,12 +885,15 @@ window.MudaeForge = function ({ el, call, onSocket, ui, Sounds, reducedMotion = 
     }
     const keys = Object.keys(POWER);
     const open = keys.filter((key) => powers.unlocked?.includes(key));
-    const locked = keys.filter((key) => !open.includes(key));
+    const bench = open.filter((key) => !powers.slots?.includes(key));
+    const locked = keys.filter((key) => !open.includes(key)).sort((a, b) => pctOf(b) - pctOf(a));
+    const head = (title, hint, count) => el('div', { class: 'forja-powers-head' },
+      el('h3', { class: 'forja-section-title' }, title, count == null ? null : el('span', { class: 'forja-section-count', textContent: String(count) })),
+      hint ? el('span', { class: 'forja-muted', textContent: hint }) : null);
     const section = (cls, title, hint, list) => el('section', { class: 'forja-powers ' + cls },
-      el('div', { class: 'forja-powers-head' },
-        el('h3', { class: 'forja-section-title' }, title, el('span', { class: 'forja-section-count', textContent: String(list.length) })),
-        el('span', { class: 'forja-muted', textContent: hint })),
+      head(title, hint, list.length),
       el('ul', { class: 'forja-power-list' }, list.map(powerCard)));
+    const stageTitle = picking ? `Em qual espaço vai ${POWER[picking]?.name || picking}?` : 'No palco';
     host.replaceChildren(
       el('div', { class: 'forja-head' },
         el('div', {}, el('h2', { class: 'forja-title', textContent: 'Poderes' }),
@@ -873,13 +901,13 @@ window.MudaeForge = function ({ el, call, onSocket, ui, Sounds, reducedMotion = 
         el('div', { class: 'forja-count', title: 'Poderes abertos' }, MI('spark', 18), el('strong', { textContent: `${open.length}/${keys.length}` }), ' abertos')),
       el('section', { class: 'forja-stage' + (picking ? ' picking' : '') },
         el('div', { class: 'forja-powers-head' },
-          el('h3', { class: 'forja-section-title', textContent: picking ? `Em qual espaço vai ${POWER[picking]?.name || picking}?` : 'No palco' }),
+          el('h3', { class: 'forja-section-title', textContent: stageTitle }),
           picking
             ? el('button', { type: 'button', class: 'forja-slot-cancel', textContent: 'Cancelar', onclick: () => { picking = null; draw(); } })
-            : el('span', { class: 'forja-muted', textContent: `Cada um recarrega em ${minutes(powers.rechargeMs || 0)} e chega vazio ao palco.` })),
+            : el('span', { class: 'forja-muted', textContent: `Aparecem na Mesa. Cada um recarrega em ${span(powers.rechargeMs || 0)}.` })),
         stageSlots()),
-      open.length ? section('open', 'Seus poderes', 'Escolha um e use "Pôr no palco" para levar à Mesa.', open) : null,
-      locked.length ? section('locked', 'Para abrir', 'Cada um abre sozinho quando a meta enche.', locked) : null);
+      bench.length ? section('open', 'Fora do palco', 'Use "Pôr no palco" para levar à Mesa.', bench) : null,
+      locked.length ? section('locked', 'Para abrir', 'Abrem sozinhos quando a meta enche.', locked) : null);
   }
 
   return { render, medalSvg, flare };

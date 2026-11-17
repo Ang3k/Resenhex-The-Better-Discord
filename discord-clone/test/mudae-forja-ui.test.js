@@ -134,14 +134,14 @@ test('a parede mostra as 7 medalhas com nível e preço', async (t) => {
   assert.equal(slot('esmeralda').querySelectorAll('.forja-pips i.on').length, 4);
   assert.match(app.text(slot('esmeralda').querySelector('.forja-slot-price')), /^completa$/);
 
-  // O detalhe: o que a medalha dá em cada nível, com a linha do nível atual destacada e o preço do próximo.
+  // O detalhe: o que a medalha dá em cada nível; os que já tem e o próximo (o que o botão forja) aceso.
   await app.pick('bronze');
   assert.equal(slot('bronze').getAttribute('aria-pressed'), 'true');
   assert.match(app.text(app.$('.forja-detail-title')), /^Bronze II$/);
   assert.match(app.text(app.$('.forja-detail .forja-finish-tag')), /Esmalte/);
   const perks = app.$$('.forja-detail .forja-perk');
   assert.equal(perks.length, 4);
-  assert.deepEqual(perks.map((p) => p.classList.contains('now')), [false, true, false, false]);
+  assert.deepEqual(perks.map((p) => p.className.replace('forja-perk', '').trim()), ['got', 'got', 'next', '']);
   assert.match(app.text(perks[1]), /II.*\+2 vagas de desejo/);
   assert.match(app.text(perks[3]), /IV.*\+4 vagas de desejo.*2\.000/);
   await app.pick('ouro');
@@ -237,7 +237,8 @@ test('Forjar chama mudae:forja:forge e, com oferta, mostra a escolha', async (t)
   assert.match(app.text(app.$('.forja-kakera')), /3\.000/, 'o saldo cai');
   assert.match(app.text(app.$('.salon-status-kakera')), /3\.000/, 'também na faixa de cima do Salão');
   assert.match(app.text(app.$('.forja-detail-title')), /^Ouro II$/);
-  assert.equal(app.$('.forja-forge').disabled, true, 'sem forjar de novo antes de escolher');
+  assert.equal(app.$('.forja-forge'), null, 'sem forjar de novo antes de escolher');
+  assert.equal(app.$('.forja-perks'), null, 'a escolha fica sozinha no painel');
 });
 
 test('escolher chama mudae:forja:finish com old ou new', async (t) => {
@@ -245,7 +246,7 @@ test('escolher chama mudae:forja:finish com old ou new', async (t) => {
     replies: { 'mudae:forja:finish': ({ medal, pick }) => ({ finish: { ouro: { old: 'metal', new: 'holo' }, bronze: { old: 'esmalte', new: 'galaxia' } }[medal][pick] }) } });
   await app.open();
   // Voltar à Forja com uma escolha pendente já mostra as duas medalhas.
-  assert.match(app.text(app.$('.forja-slot[data-medal="ouro"] .forja-slot-price')), /^escolha o acabamento$/);
+  assert.match(app.text(app.$('.forja-slot[data-medal="ouro"] .forja-slot-price')), /^escolher$/);
   await app.pick('ouro');
   const buttons = () => [...app.$$('.forja-choice button')];
   assert.deepEqual(buttons().map((b) => b.textContent), ['Ficar com Metal', 'Ficar com Holográfico']);
@@ -301,7 +302,7 @@ test('reforjar o acabamento custa 500 e abre a mesma escolha', async (t) => {
   assert.match(app.text(app.$('.forja-kakera')), /300/);
 });
 
-test('aba Poderes: o palco em cima, os abertos e os que faltam abrir; o palco escolhe o espaço', async (t) => {
+test('aba Poderes: o palco em cima, os de fora do palco e os que faltam abrir; o palco escolhe o espaço', async (t) => {
   const app = forja(t, { replies: { 'mudae:powers:equip': ({ slot, power }) => powersView({ slots: [null, 'videncia', null].map((p, i) => (i === slot ? power : i === 0 ? 'videncia' : null)),
     readyIn: { videncia: 0, [power]: 20 * HOUR } }) } });
   await app.openPowers();
@@ -310,19 +311,25 @@ test('aba Poderes: o palco em cima, os abertos e os que faltam abrir; o palco es
   assert.equal(app.sent('mudae:powers:get').length, 1);
   assert.match(app.text(app.$('.forja-count')), /2\/8 abertos/);
   const power = (key) => app.$(`.forja-power[data-power="${key}"]`);
-  assert.deepEqual(app.$$('.forja-powers.open .forja-power').map((p) => p.getAttribute('data-power')), ['videncia', 'amuleto'], 'Seus poderes');
-  assert.deepEqual(app.$$('.forja-powers.locked .forja-power').map((p) => p.getAttribute('data-power')), ['cadeado', 'chuva', 'desejo', 'eco', 'dupla', 'laco'], 'Para abrir');
+  // Quem está no palco não se repete na lista; os fechados vêm do mais perto de abrir ao mais longe.
+  assert.deepEqual(app.$$('.forja-powers.open .forja-power').map((p) => p.getAttribute('data-power')), ['amuleto'], 'Fora do palco');
+  assert.deepEqual(app.$$('.forja-powers.locked .forja-power').map((p) => p.getAttribute('data-power')), ['cadeado', 'desejo', 'dupla', 'eco', 'chuva', 'laco'], 'Para abrir');
+  assert.match(app.text(app.$('.forja-stage')), /Cada um recarrega em 20 h\./);
 
   // Fechados: o que falta e uma barra.
   assert.ok(power('cadeado').classList.contains('locked'));
-  assert.match(app.text(power('cadeado')), /14\/20 casamentos/);
+  assert.match(app.text(power('cadeado')), /14\/20 casamentos 70%/);
   const bar = power('cadeado').querySelector('[role="progressbar"]');
   assert.equal(bar.getAttribute('aria-valuenow'), '70');
   assert.match(app.text(power('laco')), /0\/7 medalhas no nível II/);
   assert.equal(power('cadeado').querySelector('button'), null, 'poder fechado não vai para o palco');
 
-  // Abertos: no palco, ou com o botão para ir.
-  assert.match(app.text(power('videncia')), /No palco · espaço 1 · pronto/);
+  // No palco: o espaço mostra o poder, a carga e o que ele faz; fora dele, o botão para ir.
+  const tiles = () => app.$$('.forja-stage-slot');
+  assert.match(app.text(tiles()[0]), /^1 Vidência pronto/);
+  assert.ok(tiles()[0].classList.contains('ready'));
+  assert.equal(tiles()[0].querySelector('.forja-stage-orb').style.getPropertyValue('--charge'), '100.0%');
+  assert.match(app.text(tiles()[1]), /^2 Espaço livre escolha um poder abaixo$/);
   const go = power('amuleto').querySelector('.forja-power-equip');
   assert.equal(go.textContent, 'Pôr no palco');
   assert.equal(app.$('button.forja-stage-slot'), null, 'fora da escolha, o palco não é botão');
@@ -332,17 +339,21 @@ test('aba Poderes: o palco em cima, os abertos e os que faltam abrir; o palco es
   const picks = app.$$('button.forja-stage-slot');
   assert.equal(picks.length, 3);
   assert.match(app.text(app.$('.forja-stage .forja-section-title')), /Em qual espaço vai Amuleto\?/);
-  assert.match(app.text(picks[0]), /1.*Vidência.*trocar por este/);
-  assert.match(app.text(picks[1]), /2.*espaço livre.*pôr aqui/);
+  assert.match(app.text(picks[0]), /1.*Vidência.*trocar$/);
+  assert.match(app.text(picks[1]), /2.*Espaço livre.*pôr aqui$/);
   assert.equal(app.d.activeElement, picks[0], 'o foco vai para o primeiro espaço');
-  assert.match(app.text(power('amuleto')), /Escolha o espaço no palco\. Chega vazio e enche em 20h00/);
+  assert.match(app.text(power('amuleto')), /Escolha o espaço no palco\. Chega vazio e enche em 20 h\./);
   picks[1].click();
   await app.flush();
   assert.deepEqual(app.sent('mudae:powers:equip'), [{ slot: 1, power: 'amuleto' }]);
-  assert.match(app.text(power('amuleto')), /No palco · espaço 2 · volta em 20h00/);
+  assert.equal(power('amuleto'), null, 'foi para o palco: sai da lista');
+  assert.equal(app.$('.forja-powers.open'), null, 'sem ninguém fora do palco, a seção some');
   assert.equal(app.$('button.forja-stage-slot'), null, 'a escolha fecha');
-  // Os 3 espaços do palco, em cima da lista.
-  assert.deepEqual(app.$$('.forja-stage-slot').map((s) => app.text(s)), ['1 Vidência pronto', '2 Amuleto volta em 20h00', '3 espaço livre ponha um poder aqui']);
+  // Os 3 espaços do palco: o Amuleto chega vazio (anel zerado) e o último espaço segue livre.
+  assert.match(app.text(tiles()[0]), /^1 Vidência pronto/);
+  assert.match(app.text(tiles()[1]), /^2 Amuleto volta em 20h00/);
+  assert.equal(tiles()[1].querySelector('.forja-stage-orb').style.getPropertyValue('--charge'), '0.0%');
+  assert.match(app.text(tiles()[2]), /^3 Espaço livre abra mais poderes$/);
   assert.deepEqual(app.$$('.forja-stage-slot svg.mi-power').map((s) => s.dataset.power), ['videncia', 'amuleto'], 'o ícone de cada poder no palco');
   assert.ok(app.$('.forja-power[data-power="laco"] .forja-power-badge svg.mi-laco'), 'o selo do poder é o ícone dele');
 });

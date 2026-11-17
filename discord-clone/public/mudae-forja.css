@@ -23,31 +23,36 @@
 .forja-count strong { color: var(--text-strong); font-size: 16px; }
 .forja-count svg { color: var(--rarity-epic); }
 
-/* A parede à esquerda e o painel à direita, com a mesma altura: as medalhas ficam no meio da parede. */
-.forja-main { display: grid; grid-template-columns: minmax(0, 1.3fr) minmax(320px, 1fr); gap: 18px; align-items: stretch; }
-.forja-main > .forja-wall { align-content: center; }
+/* Em cima, a fileira das 7 medalhas; embaixo, o painel da medalha escolhida (a forja e o detalhe lado a lado). */
+.forja-main { display: flex; flex-direction: column; gap: 14px; }
 
-/* ---------- a parede ---------- */
+/* ---------- a parede: uma fileira só (no celular, rola de lado) ---------- */
 .forja-wall {
-  --cols: 4;
-  position: relative; display: flex; flex-wrap: wrap; justify-content: center; gap: 6px; padding: 18px 14px 14px;
-  border-radius: 16px; overflow: hidden;
+  position: relative; display: grid; grid-auto-flow: column; grid-auto-columns: minmax(84px, 1fr); gap: 4px; padding: 8px;
+  border-radius: 16px; overflow-x: auto; overscroll-behavior-x: contain; scroll-snap-type: x proximity; scrollbar-width: none;
   background:
-    radial-gradient(120% 60% at 50% 115%, color-mix(in srgb, var(--yellow) 13%, transparent), transparent 70%),
+    radial-gradient(120% 70% at 50% 120%, color-mix(in srgb, var(--yellow) 12%, transparent), transparent 70%),
     radial-gradient(80% 50% at 50% -10%, color-mix(in srgb, var(--text-strong) 5%, transparent), transparent 70%),
     linear-gradient(180deg, var(--bg-floating), var(--bg-panel));
   box-shadow: inset 0 1px 0 color-mix(in srgb, var(--text-strong) 6%, transparent), inset 0 0 0 1px var(--divider);
 }
+.forja-wall::-webkit-scrollbar { display: none; }
 .forja-slot {
   --mx: 50%; --my: 50%;
-  position: relative; display: flex; flex: 0 0 calc((100% - (var(--cols) - 1) * 6px) / var(--cols)); flex-direction: column; align-items: center; gap: 3px; min-width: 0; padding: 20px 6px 12px;
-  border: 0; border-radius: 12px; background: transparent; color: var(--text); font: inherit; cursor: pointer;
+  position: relative; display: flex; flex-direction: column; align-items: center; gap: 3px; min-width: 0; padding: 20px 4px 10px;
+  border: 0; border-radius: 12px; background: transparent; color: var(--text); font: inherit; cursor: pointer; scroll-snap-align: start;
   transition: background-color var(--motion-fast) var(--ease-enter), box-shadow var(--motion-fast) var(--ease-enter);
   -webkit-tap-highlight-color: transparent;
 }
 html:not(.touch) .forja-slot:hover { background: var(--hover); }
-.forja-slot:focus-visible { outline: 2px solid var(--brand); outline-offset: 2px; }
-.forja-slot[aria-pressed="true"] { background: color-mix(in srgb, var(--brand) 13%, transparent); box-shadow: inset 0 0 0 2px color-mix(in srgb, var(--brand) 65%, transparent); }
+.forja-slot:active { transform: scale(.97); }
+.forja-slot:focus-visible { outline: 2px solid var(--brand); outline-offset: -2px; }
+.forja-slot[aria-pressed="true"] { background: color-mix(in srgb, var(--brand) 14%, transparent); box-shadow: inset 0 0 0 2px color-mix(in srgb, var(--brand) 70%, transparent); }
+/* Quem espera o acabamento chama a atenção com um ponto amarelo. */
+.forja-slot.offer::after {
+  content: ""; position: absolute; top: 8px; right: 10px; width: 8px; height: 8px; border-radius: 50%;
+  background: var(--yellow); box-shadow: 0 0 0 3px color-mix(in srgb, var(--yellow) 25%, transparent);
+}
 /* O prego e o cordão de onde a medalha pende. O cordão é curto e passa por trás da medalha, para a coroa
    do nível IV não encostar nele (nem no pulinho do hover). */
 .forja-hook {
@@ -61,14 +66,15 @@ html:not(.touch) .forja-slot:hover { background: var(--hover); }
 }
 .forja-hook::before { transform: rotate(28deg); }
 .forja-hook::after { transform: rotate(-28deg); }
-.forja-slot > svg.forja-medal { position: relative; width: 100%; max-width: 104px; height: auto; margin-top: 4px; transition: transform var(--motion-base) var(--ease-enter); }
+.forja-slot > svg.forja-medal { position: relative; width: 64px; max-width: 100%; height: auto; margin-top: 2px; transition: transform var(--motion-base) var(--ease-enter); }
 html:not(.touch) .forja-slot:hover > svg.forja-medal { transform: translateY(-2px) rotate(-2deg); }
-.forja-slot-name { margin-top: 2px; color: var(--text-strong); font-size: 14px; font-weight: 700; }
+.forja-slot-name { margin-top: 4px; color: var(--text-strong); font-size: 13px; font-weight: 700; }
 .forja-slot.unforged .forja-slot-name { color: var(--text-muted); }
-.forja-pips { display: flex; gap: 4px; }
-.forja-pips i { width: 7px; height: 7px; border-radius: 50%; background: var(--bg-input); box-shadow: inset 0 0 0 1px var(--divider); }
-.forja-pips i.on { background: var(--yellow); box-shadow: 0 0 6px color-mix(in srgb, var(--yellow) 70%, transparent); }
-.forja-slot-price { display: inline-flex; align-items: center; gap: 3px; min-height: 18px; color: var(--text); font-size: 12px; font-weight: 600; font-variant-numeric: tabular-nums; }
+/* Os 4 níveis em tracinhos (cheios = forjados). */
+.forja-pips { display: flex; gap: 3px; margin: 1px 0 2px; }
+.forja-pips i { width: 10px; height: 4px; border-radius: 2px; background: var(--bg-input); box-shadow: inset 0 0 0 1px var(--divider); }
+.forja-pips i.on { background: var(--yellow); box-shadow: 0 0 6px color-mix(in srgb, var(--yellow) 60%, transparent); }
+.forja-slot-price { display: inline-flex; align-items: center; gap: 3px; min-height: 18px; color: var(--text); font-size: 12px; font-weight: 600; font-variant-numeric: tabular-nums; white-space: nowrap; }
 .forja-slot-price .mudae-kakera { color: var(--rarity-epic); }
 .forja-slot-price .mudae-kakera svg { width: 12px; height: 12px; }
 .forja-slot.short .forja-slot-price { color: var(--text-muted); font-weight: 500; }
@@ -114,7 +120,11 @@ svg.forja-medal .fm-edge-run { animation: forja-edge-run calc(var(--motion-large
 .mudae-medal > svg.forja-medal { width: 24px; height: auto; margin-right: 6px; vertical-align: middle; filter: drop-shadow(0 1px 2px rgba(0, 0, 0, .5)); }
 
 /* ---------- o painel: a forja e o detalhe ---------- */
-.forja-panel { display: flex; flex-direction: column; min-width: 0; border-radius: 16px; overflow: hidden; background: var(--bg-sidebar); box-shadow: inset 0 0 0 1px var(--divider); }
+.forja-panel {
+  display: grid; grid-template-columns: minmax(260px, .95fr) minmax(0, 1.05fr); min-width: 0; border-radius: 16px; overflow: hidden;
+  background: var(--bg-sidebar); box-shadow: inset 0 0 0 1px var(--divider);
+}
+.forja-panel > .forja-scene { height: auto; min-height: 300px; box-shadow: inset -1px 0 0 var(--divider); }
 /* A cena: a fornalha atrás, a bigorna no chão e a medalha flutuando por cima, num foco de luz.
    Tudo se posiciona a partir do chão: --anvil-w (largura da bigorna), --anvil-b (onde ela pisa),
    --medal-w (largura da medalha) e --lift (quanto ela flutua acima da face). A face da bigorna fica a
@@ -294,27 +304,46 @@ svg.forja-medal .fm-edge-run { animation: forja-edge-run calc(var(--motion-large
   .forja-float, .forja-halo, .forja-cinder, .forja-medal-shadow, .forja-hearth .ff-heat, .forja-hearth .ff-flame { animation: none; }
 }
 
-.forja-detail { display: flex; flex-direction: column; gap: 12px; padding: 16px 18px 18px; }
+.forja-detail { display: flex; flex-direction: column; gap: 12px; min-width: 0; padding: 18px 20px 20px; }
 .forja-detail-head { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
 .forja-detail-title { margin: 0; color: var(--text-strong); font-size: 20px; font-weight: 800; }
 .forja-finish-tag {
   display: inline-flex; align-items: center; padding: 2px 9px; border-radius: 999px; font-size: 12px; font-weight: 700;
   color: color-mix(in srgb, var(--frame), white 25%); background: color-mix(in srgb, var(--frame) 16%, transparent); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--frame) 55%, transparent);
 }
-.forja-what { margin: 0; color: var(--text); font-size: 14px; }
-.forja-perks { display: flex; flex-direction: column; gap: 2px; margin: 0; padding: 0; list-style: none; }
-.forja-perk { display: grid; grid-template-columns: 30px minmax(0, 1fr) auto; align-items: center; gap: 8px; padding: 7px 10px; border-radius: 8px; color: var(--text-muted); font-size: 14px; }
-.forja-perk-level { color: var(--text-muted); font-weight: 800; font-size: 13px; }
-.forja-perk-price { display: inline-flex; align-items: center; gap: 3px; font-size: 13px; font-variant-numeric: tabular-nums; }
+.forja-what { margin: 0; color: var(--text); font-size: 14px; line-height: 1.4; }
+/* Os 4 níveis: os que já tem (verde, com o certo), o próximo (o que o botão forja, aceso) e os de depois (apagados). */
+.forja-perks { display: flex; flex-direction: column; gap: 4px; margin: 0; padding: 0; list-style: none; }
+.forja-perk {
+  display: grid; grid-template-columns: 24px minmax(0, 1fr) auto; align-items: center; gap: 10px; min-height: 36px; padding: 6px 10px;
+  border-radius: 10px; color: var(--text-muted); font-size: 14px;
+}
+.forja-perk-level {
+  display: inline-grid; place-items: center; width: 24px; height: 24px; border-radius: 50%;
+  background: var(--bg-input); color: var(--text-muted); font-size: 10px; font-weight: 800; letter-spacing: -.02em;
+}
+.forja-perk-price { display: inline-flex; align-items: center; gap: 3px; font-size: 13px; font-variant-numeric: tabular-nums; white-space: nowrap; }
 .forja-perk-price .mudae-kakera { color: var(--rarity-epic); }
 .forja-perk-price .mudae-kakera svg { width: 13px; height: 13px; }
 .forja-perk-price.got { color: var(--green); font-weight: 800; }
 .forja-perk.got { color: var(--text); }
-.forja-perk.now { background: color-mix(in srgb, var(--yellow) 12%, transparent); color: var(--text-strong); box-shadow: inset 3px 0 0 var(--yellow); }
-.forja-perk.now .forja-perk-level { color: var(--yellow); }
+.forja-perk.got .forja-perk-level { background: color-mix(in srgb, var(--green) 18%, transparent); color: var(--green); }
+.forja-perk.next {
+  background: color-mix(in srgb, var(--yellow) 9%, var(--bg-panel)); color: var(--text-strong);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--yellow) 38%, transparent);
+}
+.forja-perk.next .forja-perk-level { background: var(--yellow); color: var(--bg-rail); }
+.forja-perk.next .forja-perk-price { color: var(--text-strong); font-weight: 700; }
 
-.forja-actions { display: flex; flex-wrap: wrap; gap: 8px; }
-.forja-show { display: flex; align-items: center; gap: 8px; margin-bottom: 12px; color: var(--text-strong); font-size: 14px; cursor: pointer; }
+.forja-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 2px; }
+/* Mostrar no perfil: uma linha com o interruptor do app, separada das ações. */
+.forja-show {
+  display: flex; align-items: center; justify-content: space-between; gap: 12px; padding-top: 12px;
+  border-top: 1px solid var(--divider); cursor: pointer;
+}
+.forja-show-text { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.forja-show-text strong { color: var(--text-strong); font-size: 14px; font-weight: 600; }
+.forja-show-text small { color: var(--text-muted); font-size: 12px; }
 .forja-forge, .forja-reforge, .forja-choose, .forja-power-equip, .forja-slot-cancel {
   display: inline-flex; align-items: center; justify-content: center; gap: 5px; min-height: 40px; padding: 0 16px; border: 0; border-radius: 8px;
   font: inherit; font-size: 14px; font-weight: 700; cursor: pointer; transition: background-color var(--motion-fast) var(--ease-enter), filter var(--motion-fast) var(--ease-enter);
@@ -333,20 +362,22 @@ html:not(.touch) .forja-reforge:not(:disabled):hover { background: var(--hover-s
 .forja-forge:focus-visible, .forja-reforge:focus-visible, .forja-choose:focus-visible { outline: 2px solid var(--brand); outline-offset: 2px; }
 
 /* A escolha do acabamento: as duas medalhas lado a lado. */
-.forja-choice { padding: 12px; border-radius: 12px; background: var(--bg-panel); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--yellow) 35%, transparent); }
-.forja-choice-q { margin: 0 0 8px; color: var(--text-strong); font-size: 14px; font-weight: 700; text-align: center; }
+.forja-choice { padding: 14px 12px 12px; border-radius: 12px; background: color-mix(in srgb, var(--yellow) 5%, var(--bg-panel)); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--yellow) 38%, transparent); }
+.forja-choice-q { margin: 0 0 10px; color: var(--text-strong); font-size: 15px; font-weight: 800; text-align: center; }
 .forja-choice-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
-.forja-choice-side { display: flex; flex-direction: column; align-items: center; gap: 6px; min-width: 0; }
+.forja-choice-side { display: flex; flex-direction: column; align-items: center; gap: 6px; min-width: 0; padding: 10px 8px; border-radius: 10px; background: var(--bg-sidebar); }
 .forja-choice-medal { --mx: 50%; --my: 50%; }
-.forja-choice-medal > svg.forja-medal { width: 112px; height: auto; }
+.forja-choice-medal > svg.forja-medal { width: 104px; height: auto; }
 .forja-choice-tag { color: var(--text-muted); font-size: 11px; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; }
-.forja-choose { width: 100%; padding: 0 8px; background: var(--bg-input); color: var(--text-strong); }
+.forja-choose { width: 100%; margin-top: 4px; padding: 0 8px; background: var(--bg-input); color: var(--text-strong); font-size: 13px; line-height: 1.2; }
 .forja-choose.new { background: var(--brand); color: #fff; }
 html:not(.touch) .forja-choose:not(:disabled):hover { filter: brightness(1.12); }
 .forja-choose:disabled { opacity: .6; cursor: progress; }
 
 /* ---------- a aba Poderes ---------- */
-.forja-powers, .forja-stage { display: flex; flex-direction: column; gap: 14px; padding: 16px 18px 18px; border-radius: 16px; background: var(--bg-sidebar); box-shadow: inset 0 0 0 1px var(--divider); }
+/* As listas não têm moldura própria (só o palco tem): o título e os cartões direto na aba. */
+.forja-powers { display: flex; flex-direction: column; gap: 12px; }
+.forja-stage { display: flex; flex-direction: column; gap: 14px; padding: 16px 18px 18px; border-radius: 16px; }
 .forja-powers-head { display: flex; align-items: baseline; justify-content: space-between; gap: 6px 12px; flex-wrap: wrap; }
 .forja-section-title { display: flex; align-items: center; gap: 8px; margin: 0; color: var(--text-strong); font-size: 17px; font-weight: 800; }
 .forja-section-count {
@@ -358,35 +389,60 @@ html:not(.touch) .forja-choose:not(:disabled):hover { filter: brightness(1.12); 
   background: radial-gradient(90% 120% at 50% -20%, color-mix(in srgb, var(--rarity-epic) 16%, transparent), transparent 70%), var(--bg-sidebar);
   box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--rarity-epic) 28%, var(--divider));
 }
+.forja-stage.picking { box-shadow: inset 0 0 0 1.5px var(--brand), 0 0 0 4px color-mix(in srgb, var(--brand) 14%, transparent); }
 .forja-stage-slots { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
 .forja-stage-slot {
-  display: grid; grid-template-columns: auto auto minmax(0, 1fr); align-items: center; gap: 12px; min-width: 0; min-height: 78px; padding: 12px 14px;
-  border: 0; border-radius: 14px; background: var(--bg-panel); color: var(--text-strong); font: inherit; text-align: left;
-  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--brand) 40%, transparent);
+  position: relative; display: flex; flex-direction: column; align-items: center; gap: 10px; min-width: 0; padding: 18px 14px 16px;
+  border: 0; border-radius: 14px; background: var(--bg-panel); color: var(--text-strong); font: inherit; text-align: center;
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--rarity-epic) 30%, var(--divider));
 }
-.forja-stage-slot.empty { background: transparent; box-shadow: none; outline: 1.5px dashed var(--divider); outline-offset: -1.5px; }
-.forja-stage-n { display: inline-grid; place-items: center; flex-shrink: 0; width: 20px; height: 20px; border-radius: 50%; background: var(--bg-input); color: var(--text-muted); font-size: 11px; font-weight: 800; }
+.forja-stage-n {
+  position: absolute; top: 10px; left: 10px; display: inline-grid; place-items: center; width: 20px; height: 20px; border-radius: 50%;
+  background: var(--bg-input); color: var(--text-muted); font-size: 11px; font-weight: 800;
+}
+/* O anel em volta do ícone é a carga: enche até a volta toda (verde = pronto para usar). */
 .forja-stage-orb {
-  display: grid; place-items: center; width: 48px; height: 48px; border-radius: 50%;
-  background: radial-gradient(circle at 35% 30%, color-mix(in srgb, var(--rarity-epic) 45%, var(--bg-input)), var(--bg-floating));
-  box-shadow: inset 0 0 0 1.5px color-mix(in srgb, var(--rarity-epic) 60%, transparent), 0 0 14px color-mix(in srgb, var(--rarity-epic) 25%, transparent);
+  --charge: 100%; --ring: var(--rarity-epic);
+  display: grid; place-items: center; flex-shrink: 0; width: 62px; height: 62px; border: 3px solid transparent; border-radius: 50%;
+  background:
+    radial-gradient(circle at 35% 30%, color-mix(in srgb, var(--rarity-epic) 42%, var(--bg-input)), var(--bg-floating)) padding-box,
+    conic-gradient(var(--ring) var(--charge), color-mix(in srgb, var(--text-strong) 10%, transparent) 0) border-box;
+  box-shadow: 0 0 18px color-mix(in srgb, var(--rarity-epic) 22%, transparent);
 }
-.forja-stage-slot.empty .forja-stage-orb { background: var(--bg-input); box-shadow: inset 0 0 0 1.5px var(--divider); }
-.forja-stage-text { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
-.forja-stage-text strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 15px; }
+.forja-stage-slot.ready .forja-stage-orb { --ring: var(--green); }
+.forja-stage-text { display: flex; flex-direction: column; align-items: center; gap: 5px; width: 100%; min-width: 0; }
+.forja-stage-text strong { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 15px; }
+.forja-stage-charge {
+  display: inline-flex; max-width: 100%; padding: 2px 9px; border-radius: 999px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  background: var(--bg-input); color: var(--text-muted); font-size: 12px; font-weight: 600; font-variant-numeric: tabular-nums;
+}
+.forja-stage-slot.ready .forja-stage-charge { background: color-mix(in srgb, var(--green) 15%, transparent); color: var(--green); font-weight: 700; }
+.forja-stage-does {
+  display: -webkit-box; margin-top: 2px; overflow: hidden; color: var(--text-muted); font-size: 12px; line-height: 1.35;
+  -webkit-line-clamp: 2; -webkit-box-orient: vertical;
+}
+/* Espaço livre: tracejado, com um + no lugar do ícone. */
+.forja-stage-slot.empty { justify-content: center; background: transparent; box-shadow: none; outline: 1.5px dashed color-mix(in srgb, var(--text-muted) 45%, transparent); outline-offset: -1.5px; }
+.forja-stage-slot.empty .forja-stage-orb { background: var(--bg-input); box-shadow: none; color: var(--text-muted); }
 .forja-stage-slot.empty .forja-stage-text strong { color: var(--text-muted); font-weight: 600; }
-.forja-stage-charge { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text-muted); font-size: 12px; }
-.forja-stage-slot.ready .forja-stage-charge { color: var(--green); font-weight: 700; }
+.forja-stage-slot.empty .forja-stage-charge { padding: 0; background: transparent; font-weight: 500; }
 /* Escolhendo um poder: os espaços viram botões. */
-.forja-stage-slots.picking .forja-stage-slot { cursor: pointer; box-shadow: inset 0 0 0 1.5px var(--brand); outline: 0; transition: background .12s, transform .12s; }
-.forja-stage-slots.picking .forja-stage-charge { color: var(--brand); font-weight: 700; }
-html:not(.touch) .forja-stage-slots.picking .forja-stage-slot:hover { background: color-mix(in srgb, var(--brand) 18%, var(--bg-panel)); }
-.forja-stage-slots.picking .forja-stage-slot:active { transform: scale(.98); }
+.forja-stage-slots.picking .forja-stage-slot {
+  cursor: pointer; outline: 0; box-shadow: inset 0 0 0 1.5px var(--brand);
+  transition: background-color var(--motion-fast) var(--ease-enter), transform var(--motion-fast) var(--ease-enter);
+}
+.forja-stage-slots.picking .forja-stage-charge { padding: 2px 9px; background: color-mix(in srgb, var(--brand) 22%, transparent); color: var(--text-strong); font-weight: 700; }
+html:not(.touch) .forja-stage-slots.picking .forja-stage-slot:hover { background: color-mix(in srgb, var(--brand) 16%, var(--bg-panel)); }
+.forja-stage-slots.picking .forja-stage-slot:active { transform: scale(.97); }
 .forja-stage-slot:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px; }
-.forja-power-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 10px; margin: 0; padding: 0; list-style: none; }
-/* O cartão estica até a altura do vizinho da fileira (que pode ter a barra de progresso); o conteúdo fica no meio. */
-.forja-power { display: flex; align-items: center; gap: 12px; padding: 12px; border-radius: 12px; background: var(--bg-panel); }
-.forja-power.staged { box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--brand) 45%, transparent); }
+
+/* Os cartões: mesma altura na fileira; a meta (ou o botão) fica no pé. */
+.forja-power-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 10px; margin: 0; padding: 0; list-style: none; }
+.forja-power {
+  display: flex; gap: 12px; padding: 14px; border-radius: 12px; background: var(--bg-panel);
+  box-shadow: inset 0 0 0 1px var(--divider);
+}
+.forja-power.open { box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--rarity-epic) 26%, var(--divider)); }
 .forja-power.picking { box-shadow: inset 0 0 0 1.5px var(--brand); background: color-mix(in srgb, var(--brand) 10%, var(--bg-panel)); }
 .forja-power.picking .forja-slot-cancel { align-self: flex-start; padding-inline: 0; }
 .forja-power-badge {
@@ -395,17 +451,23 @@ html:not(.touch) .forja-stage-slots.picking .forja-stage-slot:hover { background
   box-shadow: inset 0 0 0 1.5px color-mix(in srgb, var(--rarity-epic) 60%, transparent), 0 0 12px color-mix(in srgb, var(--rarity-epic) 25%, transparent);
 }
 .forja-power.locked .forja-power-badge { background: var(--bg-input); box-shadow: inset 0 0 0 1.5px var(--divider); filter: grayscale(1); opacity: .55; }
-.forja-power-body { display: flex; flex-direction: column; gap: 4px; min-width: 0; flex: 1; }
+.forja-power-body { display: flex; flex-direction: column; gap: 4px; flex: 1; min-width: 0; }
 .forja-power-name { color: var(--text-strong); font-size: 14px; }
 .forja-power.locked .forja-power-name { color: var(--text); }
 .forja-power-does { color: var(--text-muted); font-size: 13px; line-height: 1.35; }
-.forja-power-goal { color: var(--text); font-size: 12px; font-weight: 600; font-variant-numeric: tabular-nums; }
+.forja-power-goal {
+  display: flex; align-items: baseline; justify-content: space-between; gap: 8px; margin-top: auto; padding-top: 6px;
+  color: var(--text); font-size: 12px; font-weight: 600; font-variant-numeric: tabular-nums;
+}
+.forja-power-pct { color: var(--text-muted); font-weight: 700; }
 .forja-bar { display: block; height: 6px; border-radius: 3px; overflow: hidden; background: var(--bg-input); }
 .forja-bar i { display: block; height: 100%; border-radius: 3px; background: var(--brand-gradient); }
-.forja-power-state { color: var(--green); font-size: 12px; font-weight: 700; }
-.forja-power-equip { align-self: flex-start; min-height: 32px; padding: 0 12px; background: var(--brand); color: #fff; font-size: 13px; }
+.forja-power-foot { display: flex; margin-top: auto; padding-top: 6px; }
+.forja-power-equip { min-height: 32px; padding: 0 12px; background: var(--brand); color: #fff; font-size: 13px; }
 html:not(.touch) .forja-power-equip:hover { background: var(--brand-hover); }
+.forja-power-equip:active { transform: scale(.97); }
 .forja-slot-cancel { min-height: 34px; padding: 0 10px; background: transparent; color: var(--text-muted); font-size: 13px; }
+html:not(.touch) .forja-slot-cancel:hover { color: var(--text-strong); }
 .forja-power-note { color: var(--yellow); font-size: 12px; }
 
 /* ---------- a faixa do nível IV, por cima do Salão ---------- */
@@ -430,32 +492,38 @@ html:not(.touch) .forja-power-equip:hover { background: var(--brand-hover); }
 }
 
 /* ---------- larguras (pela largura da aba, que muda com o chat aberto ao lado) ---------- */
-@container forja (max-width: 1000px) {
-  .forja-main { grid-template-columns: minmax(0, 1fr); }
-  .forja-wall { --cols: 7; }
-  .forja-slot > svg.forja-medal { max-width: 92px; }
-  .forja-panel { display: grid; grid-template-columns: minmax(240px, 1fr) minmax(0, 1.25fr); }
-  .forja-scene { height: auto; min-height: 290px; }
+@container forja (min-width: 1000px) {
+  .forja-wall { grid-auto-columns: minmax(96px, 1fr); }
+  .forja-slot > svg.forja-medal { width: 76px; }
 }
-@container forja (max-width: 700px) {
-  .forja-sub { display: none; }
-  .forja-wall { --cols: 4; padding: 14px 6px 8px; }
-  .forja-slot { padding: 16px 2px 8px; }
-  .forja-slot > svg.forja-medal { max-width: 78px; }
-  .forja-slot-name { font-size: 12px; }
-  .forja-slot-price { font-size: 11px; text-align: center; }
-  .forja-panel { display: flex; }
-  .forja-scene { min-height: 0; height: 248px; --anvil-w: 176px; --anvil-b: 10px; --medal-w: 124px; --lift: 12px; }
+/* Estreito: a forja em cima do detalhe. */
+@container forja (max-width: 640px) {
+  .forja-panel { display: flex; flex-direction: column; }
+  .forja-panel > .forja-scene { min-height: 0; height: 240px; --anvil-w: 176px; --anvil-b: 10px; --medal-w: 124px; --lift: 12px; box-shadow: inset 0 -1px 0 var(--divider); }
 }
+/* Estreito: as 7 medalhas se apertam numa fileira e o palco vira lista. */
 @container forja (max-width: 560px) {
-  .forja-stage-slots { grid-template-columns: minmax(0, 1fr); }
-  .forja-stage-slot { min-height: 64px; padding: 10px 12px; }
-  .forja-stage-orb { width: 40px; height: 40px; }
+  .forja-sub { display: none; }
+  .forja-wall { grid-auto-columns: minmax(72px, 1fr); }
+  .forja-slot-name { font-size: 12px; }
+  .forja-detail { padding: 16px; }
+  .forja-stage { padding: 14px; }
+  .forja-stage-slots { grid-template-columns: minmax(0, 1fr); gap: 8px; }
+  .forja-stage-slot { flex-direction: row; gap: 12px; padding: 10px 12px; text-align: left; }
+  .forja-stage-n { position: static; flex-shrink: 0; }
+  .forja-stage-orb { width: 50px; height: 50px; }
+  .forja-stage-text { align-items: flex-start; }
+  .forja-stage-does { -webkit-line-clamp: 1; }
+  .forja-stage-slot.empty { justify-content: flex-start; }
 }
 @media (max-width: 760px) {
   .forja { gap: 14px; padding: 14px 12px 24px; }
   .forja-head { align-items: center; }
   .forja-flare-text { font-size: 17px; margin: 0 12px; }
+}
+/* Celular: não cabem as 7; a fileira rola de lado e a ponta direita some aos poucos, mostrando que tem mais. */
+@container forja (max-width: 500px) {
+  .forja-wall { grid-auto-columns: 78px; padding-right: 32px; -webkit-mask-image: linear-gradient(90deg, black calc(100% - 36px), transparent); mask-image: linear-gradient(90deg, black calc(100% - 36px), transparent); }
 }
 /* No Salão estreito, o botão flutuante "Chat · No salão" fica por cima do fim da aba. */
 @media (max-width: 1000px) {
