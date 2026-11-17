@@ -459,7 +459,8 @@ window.MudaeUI = function ({ state, el, Icon, call, member, avatar, nameColor, F
         const have = d.progress?.[key];
         return el('li', {}, powerIcon(key), el('strong', { textContent: powerOf(key).name }),
           el('span', { class: 'mudae-muted', textContent: have ? ` · ${powerOf(key).goal}: ${num(have.have)} de ${num(have.need)}` : '' }));
-      })) : null);
+      })) : null,
+      el('div', { class: 'mudae-actions' }, el('button', { type: 'button', class: 'mudae-go', onclick: () => openForja('poderes') }, 'Abrir os Poderes')));
   }
 
   // $poder eco: um botão por personagem que passou sem dono.

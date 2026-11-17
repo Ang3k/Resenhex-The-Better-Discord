@@ -282,7 +282,7 @@ window.MudaeSalon = function ({ state, el, Icon, call, onSocket, member, avatar,
 
   function renderTabs() {
     const tab = (id, label) => el('button', { type: 'button', role: 'tab', class: 'salon-tab' + (S.tab === id ? ' active' : ''), ariaSelected: String(S.tab === id), onclick: () => setTab(id) }, label);
-    nodes.tabs.replaceChildren(tab('mesa', 'Mesa'), tab('harem', 'Meu harem'), forge ? tab('forja', 'Forja') : null, tab('chars', 'Personagens'), tab('ranking', 'Ranking'));
+    nodes.tabs.replaceChildren(tab('mesa', 'Mesa'), tab('harem', 'Meu harem'), ...(forge ? [tab('forja', 'Forja'), tab('poderes', 'Poderes')] : []), tab('chars', 'Personagens'), tab('ranking', 'Ranking'));
   }
 
   function setTab(id, opts = {}) {
@@ -298,8 +298,9 @@ window.MudaeSalon = function ({ state, el, Icon, call, onSocket, member, avatar,
     if (S.tab === 'mesa') return renderMesa();
     if (S.tab === 'harem') return renderAlbum();
     if (S.tab === 'chars') return renderChars();
-    // A Forja (mudae-forja.js) desenha a aba toda; o saldo que ela gasta também muda na faixa de cima.
+    // A Forja e os Poderes (mudae-forja.js) desenham a aba toda; o saldo que a Forja gasta também muda na faixa de cima.
     if (S.tab === 'forja' && forge) return forge.render(nodes.body, { onKakera: showKakera });
+    if (S.tab === 'poderes' && forge) return forge.render(nodes.body, { onKakera: showKakera, page: 'powers' });
     return renderRanking();
   }
 
@@ -372,7 +373,7 @@ window.MudaeSalon = function ({ state, el, Icon, call, onSocket, member, avatar,
     nodes.body.replaceChildren(el('div', { class: 'salon-mesa' },
       el('div', { class: 'salon-stage-box' }, nodes.stage), nodes.rollBar,
       el('section', { class: 'salon-live' }, el('h3', { textContent: 'Mesa ao vivo' }), nodes.live)));
-    // Ao voltar para a Mesa, os espaços podem ter mudado (a troca de poderes é feita na Forja).
+    // Ao voltar para a Mesa, os espaços podem ter mudado (a troca de poderes é feita na aba Poderes).
     powers?.refresh();
     renderStage();
     renderRollBar();
@@ -1279,7 +1280,7 @@ window.MudaeSalon = function ({ state, el, Icon, call, onSocket, member, avatar,
 
   const api = { sync, onMessage, onUpdate, onHistory, refreshStatus: () => { if (S.channel) refreshStatus(); }, show: (id) => { if (!S.channel) return; if (S.tab !== 'mesa') setTab('mesa'); S.stage = id; renderStage(); renderLive(); toggleSide(false); },
     openHarem, openChars, openRanking: () => { toggleSide(false); setTab('ranking'); },
-    // Abre o Salão na aba Forja. No modo simplificado, sai dele e abre quando o Salão montar.
-    openForja: () => { if (S.channel) { toggleSide(false); setTab('forja'); } else { wantTab = 'forja'; setSimple(false); } }, profileSection, get channel() { return S.channel; } };
+    // Abre o Salão na aba Forja (ou Poderes). No modo simplificado, sai dele e abre quando o Salão montar.
+    openForja: (tab = 'forja') => { const id = tab === 'poderes' ? 'poderes' : 'forja'; if (S.channel) { toggleSide(false); setTab(id); } else { wantTab = id; setSimple(false); } }, profileSection, get channel() { return S.channel; } };
   return api;
 };

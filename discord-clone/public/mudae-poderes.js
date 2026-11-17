@@ -99,7 +99,7 @@ window.MudaePowers = function ({ el, call, onSocket, ui, Sounds, reducedMotion =
   // ---------- o trilho ----------
   function slotNode(key, i) {
     if (!key) {
-      return el('div', { class: 'poder-slot empty', title: 'Os poderes abrem com conquistas. Veja quanto falta na Forja.' },
+      return el('div', { class: 'poder-slot empty', title: 'Os poderes abrem com conquistas. Veja quanto falta na aba Poderes.' },
         el('span', { class: 'poder-orb', ariaHidden: 'true' }), el('span', { class: 'poder-name', textContent: 'espaço livre' }), el('span', { class: 'poder-state' }));
     }
     const p = POWER[key] || { name: key, does: '' };
@@ -506,7 +506,7 @@ window.MudaePowers = function ({ el, call, onSocket, ui, Sounds, reducedMotion =
     const p = POWER[power];
     const i = view?.slots?.indexOf(power) ?? -1;
     Sounds.play('mudaeUnlock');
-    banner(`VOCÊ GANHOU ${FEMININE.includes(power) ? 'A' : 'O'} ${p.name.toUpperCase()}!`, power, i < 0 ? 'Seus 3 espaços estão cheios. Troque na Forja.' : null);
+    banner(`VOCÊ GANHOU ${FEMININE.includes(power) ? 'A' : 'O'} ${p.name.toUpperCase()}!`, power, i < 0 ? 'Seus 3 espaços estão cheios. Troque na aba Poderes.' : null);
     // Sem espaço para ele (ou sem animações), não há voo: fica só a faixa.
     const slot = i >= 0 ? nodes.rail.children[i] : null;
     if (!slot || reducedMotion()) return update();

@@ -140,7 +140,7 @@ test('o trilho mostra os 3 espaços com carga e nome', async (t) => {
   assert.match(app.text(cadeado.querySelector('.poder-state')), /^volta em 3h00$/);
   assert.equal(app.sent('mudae:powers:get').length, 1);
 
-  // Trocou um poder na Forja: ao voltar para a Mesa, o trilho mostra os espaços novos.
+  // Trocou um poder na aba Poderes: ao voltar para a Mesa, o trilho mostra os espaços novos.
   app.setPowers(powersView(['cadeado', 'videncia', 'eco'], { readyIn: { cadeado: 0, videncia: 0, eco: 24 * HOUR } }));
   app.$$('.salon-tab').find((b) => b.textContent === 'Ranking').click();
   await app.flush();
@@ -419,7 +419,7 @@ test('poder ganho anima para quem ganhou e vira linha para os outros', async (t)
   const full = app.$$('.poder-banner');
   assert.equal(full.length, 1);
   assert.match(app.text(full[0].querySelector('strong')), /^VOCÊ GANHOU O AMULETO!$/);
-  assert.match(app.text(full[0]), /Forja/);
+  assert.match(app.text(full[0]), /Troque na aba Poderes/);
   assert.equal(app.$('.poder-fly'), null);
   await app.advance(3000);
   assert.equal(app.$('.poder-banner'), null);

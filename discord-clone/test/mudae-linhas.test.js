@@ -33,7 +33,7 @@ function setup(t) {
     call: async (event, payload) => { calls.push(JSON.parse(JSON.stringify({ event, payload }))); return replies[event] ?? { ok: true }; },
     member: (id) => (people[id] ? { id, name: people[id] } : null), avatar: () => el('span'), nameColor: () => '',
     Format: { render: (text) => text }, fmtCtx: {}, openProfile() {}, openImage() {}, openChannel() {}, renderMessages() {}, keepBottom() {},
-    openForja: () => opened.push('forja'),
+    openForja: (tab = 'forja') => opened.push(tab),
   });
   // O texto de uma linha, com os espaços do jeito que a pessoa lê.
   const text = (mudae, extra = {}) => {
@@ -120,6 +120,8 @@ test('linhas novas do bot', async (t) => {
     progress: { cadeado: { have: 20, need: 20 }, eco: { have: 33, need: 60 }, videncia: { have: 0, need: 1 } } });
   assert.match(poderes.textContent, /Cadeado · volta em 3h00/);
   assert.match(poderes.textContent, /Eco · Casamentos: 33 de 60/);
+  [...poderes.querySelectorAll('button')].find((b) => b.textContent === 'Abrir os Poderes').click();
+  assert.deepEqual(opened.slice(-1), ['poderes'], 'o $poderes abre a aba Poderes');
   const tu = text({ kind: 'status', rollsLeft: 3, rollsMax: 10, rollResetIn: 60_000, claimReady: true, claimResetIn: 0, reserveReady: true, powersReady: ['cadeado', 'eco'] });
   assert.match(tu.textContent, /um casamento de reserva guardado/);
   assert.match(tu.textContent, /Poderes prontos: Cadeado, Eco\./);
