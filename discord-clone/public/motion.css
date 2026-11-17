@@ -386,13 +386,14 @@ html:not(.touch) .tile.screen.has-preview:hover .stream-preview .sp-img { transf
 /* ---------- Janela em segundo plano (motion.js liga .bg-window) ---------- */
 /* Só sobram animações infinitas de atividade real (quem fala, carregando, DJ tocando, chamada tocando, gravação,
    roleta do Mudae). Com a janela escondida ou sem foco elas param onde estão e voltam dali. Toda animação
-   infinita nova entra nesta lista (uma lista explícita não obriga o navegador a recalcular a página inteira). */
+   infinita nova entra nesta lista (uma lista explícita não obriga o navegador a recalcular a página inteira).
+   Animação de entrada (a carta virando, o orbe piscando uma vez) NÃO entra: pausada no começo, a coisa fica invisível. */
 .bg-window :is(.speak-bars i, .watch-spinner, .campv-spinner, .lb-spinner, .ic-pulse, .dcb-icon, .dm-call-flag, .keybind-wait,
-  .dj-stage-badge .ico, .ico-disc, .dj-avatar .ico, .dj-eq i, .salon-reel, .salon-card, .salon-card-back, .salon-card-back svg,
+  .dj-stage-badge .ico, .ico-disc, .dj-avatar .ico, .dj-eq i, .salon-reel, .salon-card-back, .salon-card-back svg,
   .voice-rec-dot, .typing-dots i, .boot-mark, .boot-glow, #conn-banner .ico,
   .mudae-crystal-glow, .mudae-crystal-gem, .mudae-crystal-gem .g-shine,
   .forja-medal .fm-holo, .forja-medal .fm-star, .forja-medal .fm-rays, .forja-medal .fm-glint, .forja-medal .fm-edge-run,
   .forja-float, .forja-halo, .forja-cinder, .forja-medal-shadow, .forja-hearth .ff-heat, .forja-hearth .ff-flame,
-  .poder-orb, .poder-capsule i, .mi .mi-spark, .mi .mi-key, .mi .mi-leaves, .mi .mi-drop, .mi .mi-star, .mi .mi-arrows, .mi .mi-front,
+  .poder-slot.armed .poder-orb, .poder-slot.timed.ready .poder-orb, .poder-capsule i, .mi .mi-spark, .mi .mi-key, .mi .mi-leaves, .mi .mi-drop, .mi .mi-star, .mi .mi-arrows, .mi .mi-front,
   .mi .mi-loop, .mi .mi-glint, .mi-flame) { animation-play-state: paused; }
 .bg-window :is(.salon-reel, .salon-card, .ic-pulse, .boot-mark)::after { animation-play-state: paused; }

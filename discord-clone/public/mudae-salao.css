@@ -531,6 +531,9 @@
 .salon-empty { display: flex; flex-direction: column; align-items: center; gap: 12px; padding: 48px 16px; color: var(--text-muted); text-align: center; }
 .salon-empty-icon { display: grid; place-items: center; width: 80px; height: 80px; border-radius: 50%; background: var(--bg-panel); color: var(--brand); }
 .salon-empty p { max-width: 380px; margin: 0; }
+.salon-rank-empty { padding-block: 32px 16px; }
+/* No celular os botões de rodar dividem a linha (flex: 1); aqui, numa coluna, isso achatava o botão. */
+.salon-empty .salon-roll { flex: none; padding-inline: 24px; }
 
 /* ---------- ranking ---------- */
 .salon-ranking { max-width: 760px; margin: 0 auto; padding: 20px; }
@@ -686,4 +689,21 @@
   .salon-status-full { display: none; }
   .salon-status-short { display: inline; }
   .salon-simple span { display: none; }
+}
+/* Com 6 abas, no notebook (1366 com o chat aberto) o status virava "11/11 · …": as abas apertam, "Meu harem"
+   vira "Harem" e o status fica sempre inteiro. Se ainda faltar espaço, a fileira de abas rola de lado. */
+@container salon-top (max-width: 760px) {
+  .salon-tabs { gap: 0; min-width: 0; overflow-x: auto; scrollbar-width: none; }
+  .salon-tabs::-webkit-scrollbar { display: none; }
+  .salon-tab { padding-inline: 6px; font-size: 14px; }
+  .salon-tab[data-short] { font-size: 0; }
+  .salon-tab[data-short]::after { content: attr(data-short); font-size: 14px; }
+  .salon-top-right { flex-shrink: 0; }
+  .salon-status-pill { padding-inline: 10px; }
+}
+/* Telas de 1001 a 1340 px com o chat aberto: nem assim cabe numa linha; o status sobe para cima das abas,
+   como no celular. */
+@media (min-width: 1001px) and (max-width: 1340px) {
+  .salon-top { flex-wrap: wrap-reverse; }
+  .salon-top-right { padding-top: 8px; }
 }

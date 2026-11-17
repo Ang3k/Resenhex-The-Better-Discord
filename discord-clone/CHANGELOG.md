@@ -35,6 +35,10 @@ Esta versão junta cinco coisas. O Resenhex gasta bem menos memória RAM, sem mu
 
 - Algumas pessoas viam uma imagem cinza com uma montanha no lugar da foto de vários personagens de jogos. As fotos vêm das wikis do Fandom, que às vezes bloqueia a imagem quando percebe que ela foi pedida por outro site. Agora o Resenhex pede as fotos sem dizer de onde veio, e, se a imagem cinza ainda aparecer, tenta de novo e, se não der, mostra o verso da carta.
 - Na chamada, o alfinete de fixar dos quadros pequenos ficava um pouco para a direita no botão. Agora fica no meio.
+- Na Mesa do Mudae, com o Resenhex aberto mas sem foco (você clicou em outra janela, como um jogo), a carta que alguém rodava ficava invisível até você voltar. Agora ela aparece na hora.
+- No notebook, com o chat do lado, o selo de rolls no topo do Salão aparecia cortado ("11/11 · …"). Agora ele aparece inteiro, e as abas se ajeitam para caber.
+- Ranking vazio no Salão com a medalha de ouro e o botão "Ir para a Mesa", como no harem. No celular, esse botão (no harem e no ranking) aparecia achatado.
+- Na Mesa ao vivo, as cartas pequenas mostram "Casado" com a foto de quem casou, em vez de "Casado …" cortado.
 
 ### Por dentro
 

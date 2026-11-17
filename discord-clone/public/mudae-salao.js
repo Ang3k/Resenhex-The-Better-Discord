@@ -281,8 +281,10 @@ window.MudaeSalon = function ({ state, el, Icon, call, onSocket, member, avatar,
   }
 
   function renderTabs() {
-    const tab = (id, label) => el('button', { type: 'button', role: 'tab', class: 'salon-tab' + (S.tab === id ? ' active' : ''), ariaSelected: String(S.tab === id), onclick: () => setTab(id) }, label);
-    nodes.tabs.replaceChildren(tab('mesa', 'Mesa'), tab('harem', 'Meu harem'), ...(forge ? [tab('forja', 'Forja'), tab('poderes', 'Poderes')] : []), tab('chars', 'Personagens'), tab('ranking', 'Ranking'));
+    // short: o nome curto que o CSS mostra quando a faixa de cima aperta (o nome lido continua o inteiro).
+    const tab = (id, label, short) => el('button', { type: 'button', role: 'tab', class: 'salon-tab' + (S.tab === id ? ' active' : ''), ariaSelected: String(S.tab === id), onclick: () => setTab(id),
+      ...(short ? { ariaLabel: label, data: { short } } : {}) }, label);
+    nodes.tabs.replaceChildren(tab('mesa', 'Mesa'), tab('harem', 'Meu harem', 'Harem'), ...(forge ? [tab('forja', 'Forja'), tab('poderes', 'Poderes')] : []), tab('chars', 'Personagens'), tab('ranking', 'Ranking'));
   }
 
   function setTab(id, opts = {}) {
@@ -820,7 +822,8 @@ window.MudaeSalon = function ({ state, el, Icon, call, onSocket, member, avatar,
       node = el('div', { class: 'salon-card small back', onclick: open }, el('div', { class: 'salon-card-back' }, Icon('dice', 32)), chip);
     } else {
       const overlay = p === 'owned'
-        ? el('div', { class: 'salon-ribbon' }, member(d.ownerId) ? avatar(member(d.ownerId), 'salon-chip-avatar') : null, el('span', { textContent: 'Casado com ' + whoName(d.ownerId) }))
+        // A carta pequena não cabe "Casado com Fulano" (virava "Casado …"): o avatar já diz com quem.
+        ? el('div', { class: 'salon-ribbon', title: 'Casado com ' + whoName(d.ownerId) }, member(d.ownerId) ? avatar(member(d.ownerId), 'salon-chip-avatar') : null, el('span', { textContent: 'Casado' }))
         : p === 'expired' ? el('div', { class: 'salon-expired', textContent: 'Tempo esgotado' })
           : el('div', { class: 'salon-timer', data: { id: m.id } }, secondsLeft(m) + 's');
       node = cardNode(d.card, { size: 'small', onclick: open, overlay: [chip, overlay] });
@@ -1117,9 +1120,9 @@ window.MudaeSalon = function ({ state, el, Icon, call, onSocket, member, avatar,
   }
 
   // Ouro, prata e bronze da Forja nos 3 primeiros (sem a Forja, a medalha simples na cor do lugar).
-  function rankMedal(i) {
-    if (ui.rankMedal) return ui.rankMedal(i, 28);
-    if (forge) { const svg = forge.medalSvg(['ouro', 'prata', 'bronze'][i], 1, 'metal', 28); svg.setAttribute('aria-label', `${i + 1}º lugar`); return svg; }
+  function rankMedal(i, size = 28) {
+    if (ui.rankMedal) return ui.rankMedal(i, size);
+    if (forge) { const svg = forge.medalSvg(['ouro', 'prata', 'bronze'][i], 1, 'metal', size); svg.setAttribute('aria-label', `${i + 1}º lugar`); return svg; }
     return el('span', { class: 'mudae-rank-medal p' + (i + 1) }, ico('medal', `${i + 1}º lugar`));
   }
 
@@ -1142,7 +1145,11 @@ window.MudaeSalon = function ({ state, el, Icon, call, onSocket, member, avatar,
     nodes.body.replaceChildren(el('div', { class: 'salon-ranking' },
       el('h2', { textContent: 'Ranking do servidor' }),
       el('p', { class: 'salon-muted', textContent: 'Pelo valor total do harem.' }),
-      r.rows.length ? el('div', { class: 'salon-rank-list' }, top) : el('div', { class: 'salon-empty-note', textContent: 'Ninguém casou ainda. O primeiro lugar está livre!' }),
+      // Ninguém no ranking: o mesmo vazio do harem, com a medalha de ouro esperando dono.
+      r.rows.length ? el('div', { class: 'salon-rank-list' }, top) : el('div', { class: 'salon-empty salon-rank-empty' },
+        el('div', { class: 'salon-empty-icon' }, rankMedal(0, 52)),
+        el('p', { textContent: 'Ninguém casou ainda. O primeiro lugar está livre!' }),
+        el('button', { type: 'button', class: 'salon-roll primary', onclick: () => setTab('mesa') }, 'Ir para a Mesa')),
       myIndex < 0 && r.rows.length ? el('div', { class: 'salon-empty-note', textContent: 'Você ainda não está no ranking: case com alguém na Mesa!' }) : null,
       el('h3', { textContent: `Lendários do servidor — ${r.legendaries.length}` }),
       r.legendaries.length
