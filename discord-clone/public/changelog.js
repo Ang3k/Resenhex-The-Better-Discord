@@ -34,6 +34,7 @@ window.CHANGELOG = [
         'No notebook, com o chat do lado, o selo de rolls no topo do Salão aparecia cortado ("11/11 · …"). Agora ele aparece inteiro, e as abas se ajeitam para caber.',
         'Ranking vazio no Salão com a medalha de ouro e o botão "Ir para a Mesa", como no harem. No celular, esse botão (no harem e no ranking) aparecia achatado.',
         'Na Mesa ao vivo, as cartas pequenas mostram "Casado" com a foto de quem casou, em vez de "Casado …" cortado.',
+        'No app de Windows (1.4.9), o atalho de microfone, áudio ou Clipar trocado para outra tecla agora funciona com o jogo na frente. Antes, algumas teclas só funcionavam com o Resenhex na frente: as de pontuação (como ç e ~), as duas teclas extras do teclado brasileiro (ao lado de cada Shift), Pause e Menu. Com o jogo aberto como administrador, o Windows só deixa chegar ao Resenhex atalho com Ctrl ou Alt, e as Configurações agora avisam isso.',
       ] },
       { kind: 'inside', items: [
         'O catálogo do Mudae (mais de 230 mil personagens) saiu da memória do servidor e foi para um banco de dados no disco. Com o servidor ligado e ninguém online, a memória caiu de 175 para 88 MB, e o pico ao ligar, de 412 para 106 MB. Rolls, harém, álbum e a busca do $im dão os mesmos resultados, e o $im ficou mais rápido.',
