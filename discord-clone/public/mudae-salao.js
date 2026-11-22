@@ -366,7 +366,7 @@ window.MudaeSalon = function ({ state, el, Icon, call, onSocket, member, avatar,
         + (c.storm > 1 ? ` A chuva conta ${c.storm}.` : '');
     // No celular não há dica ao passar o mouse: o toque mostra a explicação num aviso.
     return el('button', { type: 'button', class: 'salon-crystals' + (full ? ' full' : ''), title, ariaLabel: title, onclick: () => toast(title, 'info') },
-      ico('spark'), el('span', { class: 'salon-crystals-label', textContent: 'cristais ' }), el('strong', { textContent: `${taken}/${c.max}` }));
+      ico('spark'), el('span', { class: 'salon-crystals-label', textContent: 'cristais' }), el('strong', { textContent: `${taken}/${c.max}` }));
   }
 
   // Um cristal pagou: o saldo da faixa de cima muda e pula (e a conta dos cristais de hoje também).
