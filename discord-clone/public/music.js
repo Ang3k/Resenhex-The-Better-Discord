@@ -3,7 +3,7 @@
    mesmo ponto que o resto da sala. O player é um só (trocar um iframe de lugar no DOM recarrega o
    vídeo): ele fica num elemento fixo que acompanha o lugar visível do momento, o bloco do DJ no
    palco (a tela dele, quando o bloco está em destaque) ou a capinha no painel da chamada. */
-window.MusicDJ = function ({ state, el, Icon, toast, call, callInfo, callPerm, callMe, timedOut, callChannelName, pin }) {
+window.MusicDJ = function ({ state, el, Icon, toast, call, callInfo, callPerm, callMe, callMember = () => null, avatar = null, timedOut, callChannelName, pin }) {
   const $ = (sel) => document.querySelector(sel);
   const clamp01 = (v) => Math.min(1, Math.max(0, Number.isFinite(v) ? v : 0.4));
   state.djVolume = clamp01(Number(localStorage.getItem('djVolume') ?? 0.4));
@@ -416,8 +416,116 @@ window.MusicDJ = function ({ state, el, Icon, toast, call, callInfo, callPerm, c
         tip: state.djMuted ? 'Ativar a música para você' : 'Silenciar só para você', onclick: () => setMuted(!state.djMuted) }, Icon(state.djMuted ? 'volumeX' : 'volume', 18)), vol));
   }
 
-  const progress = (t) => el('div', { class: 'dj-progress' + (t.live ? ' is-live' : '') }, el('span', { class: 'dj-elapsed' }), el('div', { class: 'dj-bar' }, el('i')),
-    el('span', { class: 'dj-total', textContent: t.live ? 'AO VIVO' : t.duration ? clock(t.duration) : '' }));
+  function progress(t) {
+    const bar = el('div', { class: 'dj-bar' },
+      el('div', { class: 'dj-line' }, el('i', { class: 'dj-fill' })), el('span', { class: 'dj-knob' }),
+      el('div', { class: 'dj-marks' }), el('span', { class: 'dj-hover-time', ariaHidden: 'true' }));
+    seekable(bar, t);
+    return el('div', { class: 'dj-progress' + (t.live ? ' is-live' : '') }, el('span', { class: 'dj-elapsed' }), bar,
+      el('span', { class: 'dj-total', textContent: t.live ? 'AO VIVO' : t.duration ? clock(t.duration) : '' }));
+  }
+
+  // ---------- linha do tempo: mudar o ponto da música para todos ----------
+  // O pulo só vai quando a pessoa solta a barra (ou para de apertar as setas); enquanto arrasta, só a
+  // barra dela se mexe. Quem mudou aparece num balão com a foto em cima da barra, no ponto escolhido.
+  const canSeek = (t) => canUse() && !t.live && t.duration > 0;
+  let drag = null; // { bar, seconds }: a barra que alguém está arrastando (ou mexendo pelas setas)
+  let hold = null; // { trackId, seconds, until }: o ponto escolhido fica na barra até o servidor confirmar
+  let keyTimer = null;
+
+  async function seekTo(t, seconds) {
+    hold = { trackId: t.id, seconds, until: Date.now() + 2500 };
+    tickTimes();
+    if (!(await control('seek', { trackId: t.id, seconds }))) { hold = null; tickTimes(); }
+  }
+
+  function seekable(bar, t) {
+    const allowed = canSeek(t);
+    bar.classList.toggle('locked', !allowed);
+    Object.assign(bar, { role: 'slider', tabIndex: allowed ? 0 : -1 });
+    bar.setAttribute('aria-label', allowed ? 'Tempo da música: muda para todos da sala' : 'Tempo da música');
+    bar.setAttribute('aria-valuemin', 0);
+    bar.setAttribute('aria-valuemax', Math.round(t.duration || 0));
+    if (!allowed) return bar.setAttribute('aria-disabled', 'true');
+    const at = (x) => {
+      const r = bar.getBoundingClientRect();
+      return Math.min(1, Math.max(0, (x - r.left) / (r.width || 1))) * t.duration;
+    };
+    const hover = (seconds) => {
+      bar.style.setProperty('--h', seconds / t.duration);
+      bar.querySelector('.dj-hover-time').textContent = clock(seconds);
+    };
+    const move = (seconds) => {
+      drag = { bar, seconds: Math.min(t.duration - 1, Math.max(0, seconds)) };
+      bar.classList.add('dragging');
+      hover(drag.seconds);
+      tickTimes();
+    };
+    const release = (send) => {
+      if (drag?.bar !== bar) return;
+      const { seconds } = drag;
+      drag = null;
+      bar.classList.remove('dragging');
+      if (send) seekTo(t, seconds); else tickTimes();
+    };
+    bar.addEventListener('pointerdown', (e) => {
+      if (e.button !== 0) return;
+      e.preventDefault();
+      e.stopPropagation();
+      bar.focus({ preventScroll: true });
+      bar.setPointerCapture?.(e.pointerId);
+      move(at(e.clientX));
+    });
+    bar.addEventListener('pointermove', (e) => { if (drag?.bar === bar) move(at(e.clientX)); else hover(at(e.clientX)); });
+    bar.addEventListener('pointerup', () => release(true));
+    bar.addEventListener('pointercancel', () => release(false));
+    bar.addEventListener('lostpointercapture', () => { if (drag?.bar === bar && !keyTimer) release(false); });
+    // Setas: 5 s; Page Up/Down: 30 s; Home/End: começo e fim. O pulo vai quando a pessoa para de apertar.
+    bar.addEventListener('keydown', (e) => {
+      const step = { ArrowLeft: -5, ArrowDown: -5, ArrowRight: 5, ArrowUp: 5, PageDown: -30, PageUp: 30 }[e.key];
+      if (step === undefined && e.key !== 'Home' && e.key !== 'End') return;
+      e.preventDefault();
+      e.stopPropagation();
+      const base = drag?.bar === bar ? drag.seconds : shownPosition(music());
+      move(e.key === 'Home' ? 0 : e.key === 'End' ? t.duration - 1 : base + step);
+      clearTimeout(keyTimer);
+      keyTimer = setTimeout(() => { keyTimer = null; release(true); }, 700);
+    });
+  }
+
+  // Onde a barra mostra a música: o ponto que eu acabei de escolher, até o servidor confirmar.
+  function shownPosition(m) {
+    if (!m) return 0;
+    const t = m.current;
+    const pos = positionOf(m);
+    if (hold && (hold.trackId !== t.id || Date.now() > hold.until || Math.abs(pos - hold.seconds) < 1.5)) hold = null;
+    const shown = hold ? hold.seconds : pos;
+    return t.duration ? Math.min(shown, t.duration) : shown;
+  }
+
+  // Balões de quem mudou o tempo nesta música (o último pulo de cada pessoa). O mais novo fica na frente.
+  function renderMarks() {
+    const m = music();
+    const t = m?.current;
+    const marks = t?.duration && !t.live ? (m.marks || []).filter((mark) => mark.at < t.duration) : [];
+    const sig = JSON.stringify([t?.id, t?.duration, marks.map((mark) => [mark.by, mark.at, mark.when])]);
+    for (const box of document.querySelectorAll('.dj-marks')) {
+      if (box.dataset.sig === sig) continue;
+      box.dataset.sig = sig;
+      box.closest('.dj-progress')?.classList.toggle('has-marks', marks.length > 0);
+      box.replaceChildren(...marks.map((mark, i) => markPin(mark, t, i === marks.length - 1)));
+    }
+  }
+
+  function markPin(mark, t, newest) {
+    const who = callMember(mark.by);
+    const label = `${mark.name} pulou para ${clock(mark.at)}`;
+    const photo = avatar ? avatar({ ...(who || {}), name: who?.name || mark.name }, 'dj-mark-photo') : el('span', { class: 'avatar dj-mark-photo' });
+    // Pulo de agora há pouco: o balão chega com um pulinho (quem abre o painel depois não vê de novo).
+    const fresh = newest && serverNow() - mark.when < 4000;
+    return el('span', { class: 'dj-mark' + (newest ? ' newest' : '') + (fresh ? ' fresh' : ''), role: 'img', ariaLabel: label, tip: label,
+      style: { left: (mark.at / t.duration) * 100 + '%' } }, photo, el('i', { class: 'dj-mark-stem' }));
+  }
   const credits = (t) => [t.author, 'pedido por ' + t.byName, t.alt ? 'outra versão' : ''].filter(Boolean).join(' · ');
 
   function nowPlaying(m) {
@@ -482,6 +590,7 @@ window.MusicDJ = function ({ state, el, Icon, toast, call, callInfo, callPerm, c
           m.queue.length ? el('ul', { class: 'dj-list' }, m.queue.map((t, i) => trackRow(t, { index: i + 1, removable: canUse() })))
             : el('p', { class: 'dj-status', textContent: 'A fila está vazia. A próxima música que alguém pedir entra aqui.' })),
         ...(m.last ? [el('p', { class: 'dj-last' }, Icon('info', 14), m.last.text)] : []));
+      renderMarks();
     }
   }
 
@@ -585,6 +694,7 @@ window.MusicDJ = function ({ state, el, Icon, toast, call, callInfo, callPerm, c
         : el('p', { class: 'dj-next-empty' }, Icon('listMusic', 22), el('span', { textContent: 'Ninguém pediu a próxima ainda. Digite /play no chat ou busque aqui.' })),
       el('button', { type: 'button', class: 'dj-next-more', onclick: (e) => openPanel(e.currentTarget) },
         Icon(allowed ? 'plus' : 'listMusic', 16), m.queue.length > next.length ? `Ver a fila toda (${m.queue.length})` : allowed ? 'Pedir uma música' : 'Ver a fila'));
+    renderMarks();
     tickTimes();
   }
 
@@ -647,11 +757,23 @@ window.MusicDJ = function ({ state, el, Icon, toast, call, callInfo, callPerm, c
   function tickTimes() {
     const m = music();
     if (!m) return;
-    const pos = positionOf(m);
+    if (drag && !drag.bar.isConnected) drag = null; // a barra foi refeita no meio do arraste
     const t = m.current;
-    const shown = t.duration ? Math.min(pos, t.duration) : pos;
-    for (const node of document.querySelectorAll('.dj-elapsed')) node.textContent = t.live ? 'ao vivo' : clock(shown);
-    for (const bar of document.querySelectorAll('.dj-bar i')) bar.style.transform = `scaleX(${t.duration ? Math.min(1, shown / t.duration) : t.live ? 1 : 0})`;
+    const shown = shownPosition(m);
+    const fraction = (s) => (t.duration ? Math.min(1, s / t.duration) : t.live ? 1 : 0);
+    // Quem arrasta vê o ponto escolhido na própria barra (e no tempo ao lado dela); o resto segue a música.
+    for (const node of document.querySelectorAll('.dj-elapsed')) {
+      const mine = drag && node.parentElement.contains(drag.bar) ? drag.seconds : shown;
+      node.textContent = t.live ? 'ao vivo' : clock(mine);
+    }
+    for (const bar of document.querySelectorAll('.dj-bar')) {
+      const s = bar === drag?.bar ? drag.seconds : shown;
+      bar.style.setProperty('--p', fraction(s));
+      if (t.duration) {
+        bar.setAttribute('aria-valuenow', Math.round(s));
+        bar.setAttribute('aria-valuetext', `${clock(s)} de ${clock(t.duration)}`);
+      }
+    }
   }
 
   // Botão no palco e estado geral, a cada estado novo do servidor.
@@ -665,6 +787,7 @@ window.MusicDJ = function ({ state, el, Icon, toast, call, callInfo, callPerm, c
     renderMini();
     renderHost();
     renderPanel();
+    renderMarks();
     drive();
     keepPlacing();
     if (!music()) place();

@@ -791,6 +791,90 @@ test('microfone e fone ficam como a pessoa deixou, de uma vez que abre o app par
   assert.equal(last(deaf, 'voice:join').deafened, true);
 });
 
+// Pedido de 12/11: escolher o minuto do vídeo no DJ, para a sala toda.
+test('DJ: arrastar a linha do tempo leva a sala para o ponto e mostra a foto de quem mudou em cima da barra', async (t) => {
+  const app = await ui(t, false, {
+    storage: { noiseMode: 'off' }, reply: { 'voice:join': () => ({ peers: [] }), 'music:control': () => ({ at: 0 }) },
+    setup(w) { Object.defineProperty(w.navigator, 'mediaDevices', { value: { getUserMedia: async () => ({ getTracks: () => [], getAudioTracks: () => [] }) } }); },
+  });
+  await app.register();
+  app.w.Sounds.play = () => {};
+  const s = snapshot('server-1', 'Turma', [{ id: 'server-1', name: 'Turma', owner: true }]);
+  const room = { id: 'room-1', name: 'Sala 1', type: 'voice', categoryId: 'voice', allowedRoles: [] };
+  s.categories.push({ id: 'voice', name: 'Voz' });
+  s.channels.push(room);
+  s.myPerms.push('SPEAK', 'MUSIC');
+  app.setSnapshot(s); await settle();
+  app.d.querySelector('[data-channel-id="room-1"] .channel-entry').click(); await settle();
+
+  const maria = { id: 'b'.repeat(16), name: 'Maria', color: '#e91e63', roles: [], online: true, timeoutUntil: 0 };
+  const track = { id: 't1', videoId: 'ePjtnSPFWK8', title: 'Evidências', author: 'Chitãozinho & Xororó', duration: 281, live: false, by: maria.id, byName: 'Maria', alt: false };
+  const play = (music) => app.setSnapshot({ ...s, members: [...s.members, maria], call: {
+    serverId: s.serverId, serverName: s.serverName, channel: room, members: [...s.members, maria], voice: [], myPerms: s.myPerms, soundboard: [], music,
+  } });
+  const at = (seconds, marks, extra = {}) => ({ current: track, queue: [], startedAt: Date.now() - seconds * 1000, pausedAt: null, held: false,
+    marks, last: null, now: Date.now(), ...extra });
+  play(at(30, [{ by: maria.id, name: 'Maria', at: 180, when: Date.now() - 60_000 }])); await settle();
+  app.d.querySelector('#sc-music').click(); await settle();
+
+  const panel = app.d.querySelector('#dj-panel');
+  const bar = panel.querySelector('.dj-bar');
+  const elapsed = () => panel.querySelector('.dj-elapsed').textContent;
+  assert.equal(bar.getAttribute('role'), 'slider');
+  assert.equal(bar.getAttribute('aria-valuemax'), '281');
+  assert.equal(elapsed(), '0:30');
+  // O balão de quem mudou, no ponto escolhido, com a foto (aqui, a inicial) dentro.
+  const mark = panel.querySelector('.dj-mark');
+  assert.equal(mark.getAttribute('aria-label'), 'Maria pulou para 3:00');
+  assert.equal(mark.style.left, (180 / 281) * 100 + '%');
+  assert.equal(mark.querySelector('.avatar.dj-mark-photo').textContent, 'M');
+  assert.ok(mark.classList.contains('newest'));
+  assert.equal(mark.classList.contains('fresh'), false, 'pulo antigo não chega pulando');
+  assert.ok(panel.querySelector('.dj-progress').classList.contains('has-marks'));
+
+  // Arrastar: só a minha barra se mexe; o pulo vai para a sala quando eu solto.
+  bar.getBoundingClientRect = () => ({ left: 100, width: 281, top: 0, height: 16, right: 381, bottom: 16 });
+  const pointer = (type, x) => bar.dispatchEvent(new app.w.MouseEvent(type, { bubbles: true, cancelable: true, button: 0, clientX: x }));
+  const seeks = () => app.events.filter((e) => e.event === 'music:control').map((e) => ({ ...e.payload }));
+  pointer('pointerdown', 160);
+  pointer('pointermove', 220);
+  assert.equal(elapsed(), '2:00');
+  assert.equal(bar.querySelector('.dj-hover-time').textContent, '2:00');
+  assert.ok(bar.classList.contains('dragging'));
+  assert.deepEqual(seeks(), []);
+  pointer('pointerup', 220);
+  assert.deepEqual(seeks(), [{ action: 'seek', trackId: 't1', seconds: 120 }]);
+  assert.equal(bar.classList.contains('dragging'), false);
+  assert.equal(elapsed(), '2:00', 'o ponto escolhido fica na barra até o servidor confirmar');
+
+  // O servidor confirma: a sala vai para 2:00 e o meu balão aparece na frente, chegando agora.
+  play(at(120, [{ by: maria.id, name: 'Maria', at: 180, when: Date.now() - 60_000 }, { by: userId, name: 'Ana', at: 120, when: Date.now() }])); await settle();
+  const marks = [...app.d.querySelectorAll('#dj-panel .dj-mark')];
+  assert.deepEqual(marks.map((m) => m.getAttribute('aria-label')), ['Maria pulou para 3:00', 'Ana pulou para 2:00']);
+  assert.deepEqual(marks.map((m) => m.classList.contains('newest')), [false, true]);
+  assert.ok(marks[1].classList.contains('fresh'));
+
+  // Setas: 5 s por toque; o pulo vai uma vez só, quando a pessoa para de apertar.
+  const slider = app.d.querySelector('#dj-panel .dj-bar');
+  const key = (k) => slider.dispatchEvent(new app.w.KeyboardEvent('keydown', { key: k, bubbles: true, cancelable: true }));
+  key('ArrowRight'); key('ArrowRight');
+  assert.equal(app.d.querySelector('#dj-panel .dj-elapsed').textContent, '2:10');
+  assert.equal(seeks().length, 1);
+  await new Promise((r) => setTimeout(r, 800));
+  assert.equal(seeks().length, 2);
+  assert.equal(Math.round(seeks()[1].seconds), 130);
+
+  // Live não tem linha do tempo para mexer.
+  play({ ...at(10, []), current: { ...track, id: 't2', duration: null, live: true } }); await settle();
+  const live = app.d.querySelector('#dj-panel .dj-bar');
+  assert.ok(live.classList.contains('locked'));
+  assert.equal(live.getAttribute('aria-disabled'), 'true');
+  live.dispatchEvent(new app.w.MouseEvent('pointerdown', { bubbles: true, cancelable: true, button: 0, clientX: 150 }));
+  live.dispatchEvent(new app.w.MouseEvent('pointerup', { bubbles: true, cancelable: true, button: 0, clientX: 150 }));
+  assert.equal(seeks().length, 2);
+  assert.equal(app.d.querySelector('#dj-panel .dj-mark'), null);
+});
+
 test('aesthetic chat: deleting messages uses app confirmation and preserves Shift shortcut', async (t) => {
   const app = await ui(t);
   await app.register();

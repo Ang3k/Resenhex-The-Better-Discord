@@ -3,14 +3,15 @@
 Histórico de versões. A mesma lista aparece dentro do app em **Novidades** (menu do servidor ou rodapé das Configurações).
 O Resenhex chegou à versão 1.0 em 4 de outubro de 2026.
 
-## v2.7.1 — Chuva de cristais mais fácil, cristais do dia no Salão, câmera inteira no destaque e microfone lembrado
+## v2.7.1 — Escolher o minuto no DJ, chuva de cristais mais fácil, cristais do dia no Salão, câmera inteira e microfone lembrado
 
 22 de novembro de 2026.
 
-Esta versão atende pedidos que a galera mandou pela "Mensagem pro dev". A chuva de cristais do Mudae ficou mais fácil de pegar, o Salão mostra quantos cristais do dia você já pegou, a câmera em destaque aparece inteira, sem corte, e o Resenhex lembra se você deixou o microfone ou o áudio desligado.
+Esta versão atende pedidos que a galera mandou pela "Mensagem pro dev". A chuva de cristais do Mudae ficou mais fácil de pegar, o Salão mostra quantos cristais do dia você já pegou, a câmera em destaque aparece inteira, sem corte, e o Resenhex lembra se você deixou o microfone ou o áudio desligado. E, no DJ, dá para escolher o minuto do vídeo para a sala toda.
 
 ### Novidades
 
+- Escolher o minuto no DJ: arraste a linha do tempo, no painel do DJ ou com ele em destaque, e solte no ponto que quiser. O vídeo vai para esse ponto para todo mundo da sala. Em cima da barra aparece um balão com a foto de quem mudou, no ponto escolhido. Para ninguém ficar brigando pela barra, depois que alguém muda o tempo, os outros esperam 2 segundos para mudar de novo. Passando o mouse na barra, aparece o tempo daquele ponto; pelo teclado, as setas andam 5 segundos. Em live não dá para mudar o tempo.
 - Cristais do dia no Salão do Mudae: no topo, ao lado dos rolls, aparece quantos dos 15 cristais do dia você já pegou (por exemplo, 4/15). Os 15 primeiros valem inteiro; depois, cada um vale só 2% até a meia-noite. Passando o mouse ou clicando, aparece a explicação. A chuva conta 2. O $tu e o $k também mostram essa conta.
 
 ### Melhorias

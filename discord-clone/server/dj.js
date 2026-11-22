@@ -5,6 +5,17 @@ const MAX_QUEUE = 50;
 const END_GRACE = 2500; // folga para quem carregou um pouco depois terminar a música
 const IDLE_MS = 5 * 60_000; // sala vazia: o DJ espera a turma voltar e depois esquece a fila
 const EMBED_BLOCKED = new Set([100, 101, 150]);
+// Mudar o tempo: entre pulos de pessoas diferentes, a espera é mais ou menos o que o player de cada um
+// leva para carregar o ponto novo. Pular antes disso só deixa o vídeo travando para a sala toda.
+const SEEK_GAP_MS = 2000;
+const MAX_MARKS = 5; // balões na linha do tempo: o último pulo de cada pessoa, nesta música
+
+// 281 -> "4:41"; 3723 -> "1:02:03".
+function clockText(seconds) {
+  const s = Math.max(0, Math.floor(seconds));
+  const h = Math.floor(s / 3600), m = Math.floor(s / 60) % 60, r = String(s % 60).padStart(2, '0');
+  return h ? `${h}:${String(m).padStart(2, '0')}:${r}` : `${m}:${r}`;
+}
 
 function createDj({ newId, onChange = () => {}, now = Date.now, setTimer = setTimeout, clearTimer = clearTimeout }) {
   const rooms = new Map();
@@ -13,7 +24,7 @@ function createDj({ newId, onChange = () => {}, now = Date.now, setTimer = setTi
   function roomOf(key) {
     let room = rooms.get(key);
     if (!room) {
-      room = { current: null, queue: [], startedAt: 0, pausedAt: null, held: false, last: null, endTimer: null, idleTimer: null, count: 1 };
+      room = { current: null, queue: [], startedAt: 0, pausedAt: null, held: false, marks: [], last: null, endTimer: null, idleTimer: null, count: 1 };
       rooms.set(key, room);
     }
     return room;
@@ -46,6 +57,7 @@ function createDj({ newId, onChange = () => {}, now = Date.now, setTimer = setTi
     room.startedAt = now();
     room.pausedAt = null;
     room.held = false;
+    room.marks = [];
   }
 
   function next(room) {
@@ -105,6 +117,27 @@ function createDj({ newId, onChange = () => {}, now = Date.now, setTimer = setTi
     room.held = false;
     note(room, `${by.name} continuou a música`);
     changed(key, room);
+  }
+
+  // Leva a música para outro ponto, para todos. Pausada, continua pausada no ponto novo. Quem mudou
+  // vira um balão na linha do tempo. Outra pessoa só pode mudar de novo depois de SEEK_GAP_MS; a mesma
+  // pode corrigir na hora (errou o ponto ao arrastar).
+  function seek(key, by, seconds, trackId) {
+    const room = playing(key);
+    const track = room.current;
+    if (trackId && trackId !== track.id) throw new Error('A música mudou. Tente de novo.');
+    if (track.live) throw new Error('Numa live não dá para mudar o tempo.');
+    if (!track.duration) throw new Error('Espere a música começar a tocar para mudar o tempo.');
+    if (!Number.isFinite(seconds)) throw new Error('Tempo inválido.');
+    const last = room.marks.at(-1);
+    if (last && last.by !== by.id && now() - last.when < SEEK_GAP_MS) throw new Error(`${last.name} acabou de mudar o tempo. Espere um instante.`);
+    const at = Math.round(Math.min(Math.max(0, seconds), track.duration - 1));
+    if (room.pausedAt !== null) room.pausedAt = at * 1000;
+    else room.startedAt = now() - at * 1000;
+    room.marks = [...room.marks.filter((mark) => mark.by !== by.id), { by: by.id, name: by.name, at, when: now() }].slice(-MAX_MARKS);
+    note(room, `${by.name} pulou para ${clockText(at)}`);
+    changed(key, room);
+    return { at };
   }
 
   function stop(key, by) {
@@ -209,6 +242,7 @@ function createDj({ newId, onChange = () => {}, now = Date.now, setTimer = setTi
       startedAt: room.startedAt,
       pausedAt: room.pausedAt,
       held: room.held,
+      marks: room.marks.map((mark) => ({ ...mark })),
       last: room.last,
       now: now(),
     };
@@ -219,7 +253,7 @@ function createDj({ newId, onChange = () => {}, now = Date.now, setTimer = setTi
     return room?.current ? { title: room.current.title, paused: room.pausedAt !== null } : null;
   };
 
-  return { add, skip, pause, resume, stop, remove, ended, failed, measured, occupancy, drop, view, summary, keys: () => [...rooms.keys()] };
+  return { add, skip, pause, resume, seek, stop, remove, ended, failed, measured, occupancy, drop, view, summary, keys: () => [...rooms.keys()] };
 }
 
-module.exports = { createDj, MAX_QUEUE, IDLE_MS };
+module.exports = { createDj, MAX_QUEUE, IDLE_MS, SEEK_GAP_MS, MAX_MARKS };

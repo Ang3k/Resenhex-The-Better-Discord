@@ -1,6 +1,6 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { createDj, MAX_QUEUE, IDLE_MS } = require('../server/dj');
+const { createDj, MAX_QUEUE, IDLE_MS, SEEK_GAP_MS, MAX_MARKS } = require('../server/dj');
 const { parseSearch, parseDuration, videoIdFrom, youtubeSearch } = require('../server/youtube');
 
 // Relógio e timers falsos: dá para "avançar" minutos sem esperar.
@@ -82,6 +82,63 @@ test('pausar guarda o ponto e continuar retoma dele, sem a música acabar no mei
   assert.equal(dj.view('k').current.videoId, 'aaaaaaaaaaa');
   c.advance(1000);
   assert.equal(dj.view('k'), null);
+});
+
+test('mudar o tempo: leva todo mundo para o ponto, marca quem mudou e espera 2 s entre pessoas diferentes', () => {
+  const { dj, c, changes } = setup();
+  dj.add('k', song('aaaaaaaaaaa', 300), joao);
+  dj.add('k', song('bbbbbbbbbbb', 300), joao);
+  const first = dj.view('k').current.id;
+  c.advance(10_000);
+  changes.length = 0;
+  assert.deepEqual(dj.seek('k', maria, 180.4, first), { at: 180 });
+  assert.equal(c.now() - dj.view('k').startedAt, 180_000);
+  assert.deepEqual(dj.view('k').marks, [{ by: 'a2', name: 'Maria', at: 180, when: c.now() }]);
+  assert.match(dj.view('k').last.text, /Maria pulou para 3:00/);
+  assert.deepEqual(changes, ['k']);
+
+  // Outra pessoa logo em seguida: espera; a mesma pessoa pode corrigir na hora.
+  c.advance(SEEK_GAP_MS - 1);
+  assert.throws(() => dj.seek('k', joao, 60), /Maria acabou de mudar o tempo/);
+  dj.seek('k', maria, 150);
+  c.advance(SEEK_GAP_MS);
+  dj.seek('k', joao, 60);
+  assert.deepEqual(dj.view('k').marks.map((m) => [m.name, m.at]), [['Maria', 150], ['João', 60]], 'um balão por pessoa, o último pulo dela');
+
+  // Pausada: continua pausada, no ponto novo.
+  dj.pause('k', joao);
+  c.advance(SEEK_GAP_MS);
+  dj.seek('k', maria, 9999);
+  assert.equal(dj.view('k').pausedAt, 299_000, 'o fim da música é o limite');
+  dj.resume('k', maria);
+  assert.equal(c.now() - dj.view('k').startedAt, 299_000);
+  // O fim da música vem do ponto novo, e os balões saem com ela.
+  c.advance(1000 + 2500);
+  assert.equal(dj.view('k').current.videoId, 'bbbbbbbbbbb');
+  assert.deepEqual(dj.view('k').marks, []);
+
+  assert.throws(() => dj.seek('k', joao, 10, first), /A música mudou/);
+  assert.throws(() => dj.seek('k', joao, NaN), /Tempo inválido/);
+  assert.equal(dj.seek('k', joao, -5).at, 0);
+});
+
+test('mudar o tempo: no máximo 5 balões, e nada em live ou link sem duração', () => {
+  const { dj, c } = setup();
+  dj.add('k', song('aaaaaaaaaaa', 600), joao);
+  for (let i = 0; i < MAX_MARKS + 2; i++) {
+    dj.seek('k', { id: 'p' + i, name: 'P' + i }, i * 10);
+    c.advance(SEEK_GAP_MS);
+  }
+  assert.deepEqual(dj.view('k').marks.map((m) => m.name), ['P2', 'P3', 'P4', 'P5', 'P6']);
+  dj.stop('k', joao);
+  dj.add('k', song('lllllllllll', null, { live: true }), joao);
+  assert.throws(() => dj.seek('k', joao, 30), /Numa live/);
+  dj.stop('k', joao);
+  dj.add('k', song('ddddddddddd', null), joao);
+  assert.throws(() => dj.seek('k', joao, 30), /Espere a música começar/);
+  dj.measured('k', dj.view('k').current.id, 240);
+  assert.equal(dj.seek('k', joao, 30).at, 30);
+  assert.throws(() => setup().dj.seek('vazia', joao, 30), /Não tem nenhuma música/);
 });
 
 test('pular, tirar da fila e parar', () => {

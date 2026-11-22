@@ -478,7 +478,7 @@
   const callSounds = () => callInfo()?.soundboard || state.server.soundboard || [];
   const inCallServer = () => !callInfo() || callInfo().serverId === state.server.serverId;
   // DJ da chamada (music.js): fila de músicas do YouTube tocando junto para a sala.
-  const dj = MusicDJ({ state, el, Icon, toast, call, callInfo, callPerm, callMe, timedOut, callChannelName, pin: (key, force) => togglePin(key, force) });
+  const dj = MusicDJ({ state, el, Icon, toast, call, callInfo, callPerm, callMe, callMember, avatar, timedOut, callChannelName, pin: (key, force) => togglePin(key, force) });
   // Chamada nas conversas privadas (dm-call.js): toque, mensagem de chamada e quem ainda não entrou.
   const dmCall = DmCallUI({ state, el, Icon, avatar, person: (id) => person(id), call, toast, Sounds,
     join: (dm, opts) => startDmCall(dm, opts), openDm: (dm) => openDm(dm), openProfile: (id, anchor) => openProfile(id, anchor) });

@@ -108,6 +108,13 @@ test('DJ: buscar, tocar para a sala toda, controlar e respeitar a permissão', a
   assert.match(ana.last.call.music.last.text, /Beto pausou/);
   assert.ok(!(await ana.call('music:control', { action: 'resume' })).error);
 
+  // Mudar o tempo: a sala toda vai para o ponto, com o nome de quem mudou; outra pessoa espera 2 s.
+  const playingId = ana.last.call.music.current.id;
+  assert.deepEqual(await ana.call('music:control', { action: 'seek', trackId: playingId, seconds: 100 }), { at: 100 });
+  await eventually(() => assert.deepEqual(beto.last.call.music.marks.map((m) => [m.name, m.at]), [['Ana', 100]]));
+  assert.ok(Math.abs(beto.last.call.music.now - beto.last.call.music.startedAt - 100_000) < 2000);
+  assert.match((await beto.call('music:control', { action: 'seek', trackId: playingId, seconds: 10 })).error, /Ana acabou de mudar o tempo/);
+
   // Um clipe bloqueado fora do YouTube troca pela outra versão da mesma busca, quando a sala toda avisa.
   const blocked = ana.last.call.music.current.id;
   await ana.call('music:report', { trackId: blocked, error: 150 });

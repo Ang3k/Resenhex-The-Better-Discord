@@ -3439,8 +3439,9 @@ io.on('connection', (socket) => {
     return dj.add(key, track, by, typeof query === 'string' ? youtube.alternatives(query, videoId) : []);
   }, { voice: true });
 
-  on('music:control', (acc, { action, trackId }) => {
+  on('music:control', (acc, { action, trackId, seconds }) => {
     const { key, by } = djUser(acc);
+    if (action === 'seek') return dj.seek(key, by, Number(seconds), typeof trackId === 'string' ? trackId : null);
     if (action === 'remove') dj.remove(key, trackId, by);
     else if (['skip', 'pause', 'resume', 'stop'].includes(action)) dj[action](key, by);
     else fail('Comando do DJ desconhecido.');

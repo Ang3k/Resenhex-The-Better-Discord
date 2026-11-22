@@ -122,7 +122,7 @@
   background: rgba(0, 0, 0, .55); border: 1px solid rgba(255, 255, 255, .08); /* sem blur: o progresso muda a cada quadro */
 }
 .dj-stage-bar .dj-progress { padding: 0 0 8px; }
-.dj-stage-bar.paused .dj-bar i { background: var(--text-muted); }
+.dj-stage-bar .dj-progress.has-marks { padding-top: 26px; }
 .dj-stage-row { display: flex; align-items: center; gap: 12px; min-width: 0; }
 .dj-stage-art { flex-shrink: 0; width: 64px; height: 36px; border-radius: 6px; object-fit: cover; background: #000; }
 .dj-stage-track { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
@@ -254,12 +254,63 @@
 .dj-now-row { display: flex; gap: 12px; align-items: center; padding: 4px 8px 0; }
 .dj-now-art { width: 96px; height: 54px; border-radius: 8px; object-fit: cover; background: var(--bg-input); flex-shrink: 0; }
 .dj-now .dj-track-text strong { font-size: 14px; color: var(--text-strong); }
-.dj-progress { display: flex; align-items: center; gap: 8px; padding: 10px 8px 4px; font-size: 11px; color: var(--text-muted); font-variant-numeric: tabular-nums; }
-.dj-bar { flex: 1; height: 4px; border-radius: 999px; background: color-mix(in srgb, var(--text) 16%, transparent); overflow: hidden; }
-/* O JS escala no eixo X a cada meio segundo; a transição linear do mesmo tempo deixa a barra andando sem parar. */
-.dj-bar i { display: block; height: 100%; border-radius: inherit; background: var(--brand); transform: scaleX(0); transform-origin: left; transition: transform .5s linear; }
-.dj-now.paused .dj-bar i { background: var(--text-muted); }
-.dj-progress.is-live .dj-bar i { background: var(--red); }
+.dj-progress {
+  display: flex; align-items: center; gap: 8px; padding: 10px 8px 4px; font-size: 11px; color: var(--text-muted); font-variant-numeric: tabular-nums;
+  transition: padding-top .2s var(--ease-enter, ease-out);
+}
+/* Os balões de quem mudou o tempo sobem acima da barra: o espaço deles só aparece quando há algum. */
+.dj-progress.has-marks { padding-top: 34px; }
+
+/* A barra: a linha fina no meio de uma faixa de 16 px, mais fácil de acertar com o dedo ou o mouse. */
+.dj-bar { position: relative; flex: 1; min-width: 0; height: 16px; display: flex; align-items: center; outline: none; touch-action: pan-y; }
+.dj-bar:not(.locked) { cursor: pointer; }
+.dj-bar:focus-visible { border-radius: 4px; box-shadow: 0 0 0 2px var(--focus-ring); }
+.dj-line {
+  flex: 1; height: 4px; border-radius: 999px; overflow: hidden; background: color-mix(in srgb, var(--text) 16%, transparent);
+  transition: height .12s var(--ease-enter, ease-out);
+}
+/* O JS move --p a cada meio segundo; a transição linear do mesmo tempo deixa a barra andando sem parar. */
+.dj-fill { display: block; height: 100%; border-radius: inherit; background: var(--brand); transform: scaleX(var(--p, 0)); transform-origin: left; transition: transform .5s linear; }
+.dj-now.paused .dj-fill, .dj-stage-bar.paused .dj-fill { background: var(--text-muted); }
+.dj-progress.is-live .dj-fill { background: var(--red); }
+.dj-knob {
+  position: absolute; top: 50%; left: calc(var(--p, 0) * 100%); z-index: 2; width: 12px; height: 12px; margin: -6px 0 0 -6px; border-radius: 50%;
+  background: #fff; box-shadow: 0 1px 4px rgba(0, 0, 0, .45); pointer-events: none; transform: scale(0);
+  transition: transform .15s var(--spring-snappy, ease-out), left .5s linear;
+}
+.dj-bar.dragging :is(.dj-fill, .dj-knob) { transition: none; }
+.dj-bar.dragging .dj-knob { transition: transform .15s var(--spring-snappy, ease-out); }
+.dj-bar:not(.locked):is(.dragging, :focus-visible) .dj-line,
+html:not(.touch) .dj-bar:not(.locked):hover .dj-line { height: 6px; }
+.dj-bar:not(.locked):is(.dragging, :focus-visible) .dj-knob,
+html:not(.touch) .dj-bar:not(.locked):hover .dj-knob { transform: scale(1); }
+/* O tempo de onde o mouse está (ou de onde a pessoa está arrastando). */
+.dj-hover-time {
+  position: absolute; bottom: calc(100% + 2px); left: calc(var(--h, 0) * 100%); z-index: 4; transform: translateX(-50%);
+  padding: 3px 7px; border-radius: 6px; background: var(--bg-floating); color: var(--text-strong); font-size: 11.5px; font-weight: 700;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, .35); white-space: nowrap; pointer-events: none; opacity: 0; transition: opacity .12s;
+}
+.dj-bar:not(.locked).dragging .dj-hover-time, html:not(.touch) .dj-bar:not(.locked):hover .dj-hover-time { opacity: 1; }
+/* Em cima de um balão, o aviso dele já diz o tempo: o do mouse sairia por cima da foto. */
+.dj-bar:not(.dragging):has(.dj-mark:hover) .dj-hover-time { opacity: 0; }
+
+/* Balão com a foto de quem mudou o tempo, preso no ponto escolhido. Os mais antigos ficam apagadinhos. */
+.dj-marks { position: absolute; inset: 0; pointer-events: none; }
+.dj-mark {
+  position: absolute; bottom: 50%; z-index: 1; display: flex; flex-direction: column; align-items: center; transform: translateX(-50%);
+  pointer-events: auto; opacity: .6; transition: opacity .15s;
+}
+.dj-mark.newest { z-index: 3; opacity: 1; }
+.dj-mark:hover { z-index: 3; opacity: 1; }
+.avatar.dj-mark-photo {
+  width: 22px; height: 22px; font-size: 9px; background-clip: padding-box;
+  box-shadow: 0 0 0 2px var(--brand), 0 3px 8px rgba(0, 0, 0, .45);
+}
+.dj-mark:not(.newest) .avatar.dj-mark-photo { box-shadow: 0 0 0 2px color-mix(in srgb, var(--text) 45%, transparent), 0 3px 8px rgba(0, 0, 0, .35); }
+.dj-mark-stem { width: 2px; height: 7px; margin-top: 2px; border-radius: 0 0 2px 2px; background: var(--brand); }
+.dj-mark:not(.newest) .dj-mark-stem { background: color-mix(in srgb, var(--text) 45%, transparent); }
+.dj-mark.fresh { animation: dj-mark-in .45s var(--spring-pop, ease-out) both; transform-origin: 50% 100%; }
+@keyframes dj-mark-in { from { opacity: 0; transform: translateX(-50%) translateY(8px) scale(.3); } }
 .dj-progress.is-live .dj-total { color: var(--red); font-weight: 700; }
 .dj-controls { display: flex; align-items: center; gap: 6px; padding: 4px 8px 0; }
 .dj-ctl {
@@ -287,6 +338,6 @@
   .dj-volume input { width: 72px; }
 }
 @media (prefers-reduced-motion: reduce) {
-  .dj-avatar.spinning .ico, .sc-btn#sc-music .ico-disc, .dj-stage-badge .ico, .dj-eq i, .tile.dj.focus .dj-stage { animation: none !important; }
+  .dj-avatar.spinning .ico, .sc-btn#sc-music .ico-disc, .dj-stage-badge .ico, .dj-eq i, .tile.dj.focus .dj-stage, .dj-mark.fresh { animation: none !important; }
 }
-:root[data-reduce-motion="true"] :is(.dj-avatar.spinning .ico, .sc-btn#sc-music .ico-disc, .dj-stage-badge .ico, .dj-eq i, .tile.dj.focus .dj-stage) { animation: none !important; }
+:root[data-reduce-motion="true"] :is(.dj-avatar.spinning .ico, .sc-btn#sc-music .ico-disc, .dj-stage-badge .ico, .dj-eq i, .tile.dj.focus .dj-stage, .dj-mark.fresh) { animation: none !important; }
