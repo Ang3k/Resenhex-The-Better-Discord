@@ -42,7 +42,7 @@ test('regras batem com a spec', () => {
   assert.equal(R.CRYSTAL.tickMs, 5000);
   assert.equal(R.CRYSTAL.colors.length, 7);
   assert.equal(R.CRYSTAL.storm.gems, 16);
-  assert.equal(R.CRYSTAL.storm.lifeMs, 7000);
+  assert.equal(R.CRYSTAL.storm.lifeMs, 10_000);
   assert.equal(R.CRYSTAL.storm.valueFactor, 0.25);
   assert.equal(R.CRYSTAL.chain.gapMs, 1200);
   assert.equal(R.CRYSTAL.chain.lifeMs, 6000);

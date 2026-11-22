@@ -284,3 +284,27 @@ test('small updates about a private voice room reach only who can see it, and ke
   assert.ok(!outsiderEvents.some((p) => p.channel === room), JSON.stringify(outsiderEvents));
   assert.ok(!outsider.snapshot.voice.some((v) => v.channel === room));
 });
+
+// Pedido de 20/11: o app guarda o microfone e o fone e manda na entrada; a sala já vê a pessoa como ela está.
+test('voice:join already carries the saved mic and headset state', { timeout: 20000 }, async (t) => {
+  const app = await startServer(t);
+  const owner = await app.connect('Owner');
+  const member = await app.connect('Member');
+  const room = (await owner.call('channel', { action: 'create', type: 'voice', name: 'Sala', categoryId: 'voice' })).id;
+  await until(() => member.snapshot.channels.some((c) => c.id === room));
+  const entry = () => owner.snapshot.voice.find((v) => v.accountId === member.authResult.accountId);
+  assert.ok(!(await member.call('voice:join', { channel: room, muted: true, deafened: false })).error);
+  await until(() => entry());
+  assert.equal(entry().muted, true, 'chega mutado, sem passar desmutado');
+  assert.equal(entry().deafened, false);
+  // Ensurdecido também conta como mudo.
+  assert.ok(!(await member.call('voice:join', { channel: room, muted: false, deafened: true })).error);
+  await until(() => entry()?.deafened === true);
+  assert.equal(entry().muted, true);
+  // Página antiga (sem os campos): fica como estava, e o voice:state acerta depois.
+  assert.ok(!(await member.call('voice:state', { muted: false, deafened: false })).error);
+  await until(() => entry()?.muted === false);
+  assert.ok(!(await member.call('voice:join', { channel: room })).error);
+  await delay(80);
+  assert.equal(entry().muted, false);
+});

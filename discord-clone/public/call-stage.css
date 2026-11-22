@@ -28,6 +28,11 @@
   grid-column: auto; border-radius: 12px;
 }
 #main #voice-view #stage[data-layout="focus"] #stage-primary > .tile:not(:fullscreen, .immersive, .cinema) { height: 100%; aspect-ratio: auto; }
+/* Câmera em destaque ou em tela cheia: aparece inteira, com faixas pretas quando a proporção não bate com a do bloco.
+   Antes ela preenchia o bloco e cortava as beiradas conforme o tamanho da janela (quem usa a câmera para mostrar o
+   console perdia o menu do jogo). Na grade e nas miniaturas continua preenchendo, como no Discord. */
+#stage[data-layout="focus"] #stage-primary > .tile video.cam,
+#stage .tile:is(:fullscreen, .immersive, .cinema) video.cam { object-fit: contain; }
 #stage-primary > .tile.screen::after {
   content: 'AO VIVO'; position: absolute; top: 12px; left: 12px; padding: 3px 6px;
   border-radius: 4px; background: var(--red-dark); color: #fff; font-size: 10px; font-weight: 700;

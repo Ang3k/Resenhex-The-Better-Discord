@@ -3,14 +3,15 @@
 
 .mudae-crystal-layer { position: absolute; inset: 0; z-index: 6; overflow: hidden; pointer-events: none; }
 
-/* O alvo do clique é maior que o desenho: 60 px no cristal e 44 px na gota da chuva. */
+/* O alvo do clique é maior que o desenho: 60 px no cristal e na gota da chuva (e o mudae-cristal.js ainda aceita o
+   clique um pouco fora dele). */
 .mudae-crystal {
   --c: var(--brand);
   position: absolute; left: 0; top: 0; display: grid; place-items: center; width: 60px; height: 60px; padding: 0;
   border: 0; border-radius: 50%; background: none; cursor: pointer; pointer-events: auto; will-change: transform, opacity;
   touch-action: manipulation; -webkit-tap-highlight-color: transparent; user-select: none;
 }
-.mudae-crystal.drop { width: 44px; height: 44px; }
+.mudae-crystal.drop { width: 60px; height: 60px; }
 .mudae-crystal:focus-visible { outline: 2px solid var(--c); outline-offset: 2px; }
 .mudae-crystal > span { grid-area: 1 / 1; }
 .mudae-crystal-glow {
@@ -19,7 +20,10 @@
   animation: mudae-crystal-halo 1.6s ease-in-out infinite;
 }
 .mudae-crystal-body { display: block; width: 46px; height: 46px; transition: transform var(--motion-fast) var(--spring-snappy); }
-.mudae-crystal.drop .mudae-crystal-body { width: 28px; height: 28px; }
+/* A gota era um desenho de 28 px com um brilho bem maior em volta, e só o meio contava: o brilho enganava. Agora o
+   desenho é maior e o brilho fica do tamanho do que se pode clicar. */
+.mudae-crystal.drop .mudae-crystal-body { width: 38px; height: 38px; }
+.mudae-crystal.drop .mudae-crystal-glow { animation-name: mudae-crystal-halo-drop; }
 html:not(.touch) .mudae-crystal:hover .mudae-crystal-body { transform: scale(1.14); }
 .mudae-crystal.pending .mudae-crystal-body { transform: scale(.86); }
 
@@ -91,12 +95,13 @@ html.touch .mudae-go.mudae-crystal-take { height: 44px; padding: 0 18px; }
 /* Animações reduzidas no sistema (a opção do app já para tudo no experience.css): o cristal fica parado, só com fade. */
 @media (prefers-reduced-motion: reduce) {
   .mudae-crystal-glow, .mudae-crystal-gem, .mudae-crystal-gem .g-shine, .mudae-crystal-banner,
-  .salon-status-pill.bump, .salon-status-pill.bump .salon-status-kakera { animation: none !important; }
+  .salon-status-pill.bump, .salon-status-pill.bump .salon-status-kakera, .salon-crystals.bump strong { animation: none !important; }
   .mudae-crystal-body { transition: none; }
 }
 
 @keyframes mudae-crystal-pulse { 0%, 100% { transform: scale(1) rotate(-5deg); } 50% { transform: scale(1.12) rotate(5deg); } }
 @keyframes mudae-crystal-halo { 0%, 100% { transform: scale(1.35); opacity: .5; } 50% { transform: scale(1.7); opacity: .85; } }
+@keyframes mudae-crystal-halo-drop { 0%, 100% { transform: scale(1); opacity: .55; } 50% { transform: scale(1.25); opacity: .9; } }
 @keyframes mudae-crystal-twinkle { 0%, 100% { opacity: .15; transform: scale(.5); } 50% { opacity: 1; transform: scale(1.15); } }
 @keyframes mudae-crystal-banner {
   0% { opacity: 0; transform: translate(-50%, -8px) scale(.85); }

@@ -7,13 +7,19 @@ window.MudaeCrystals = function ({ el, call, onSocket, Sounds, ui, member, reduc
   const now = () => ui.serverNow();
   const FADE_IN = 0.12; // surge nos primeiros 12% da vida...
   const FADE_OUT = 0.2; // ...e esmaece nos últimos 20%
-  const DROP_MS = 2600; // quanto cada gota da chuva leva para cair
-  const SIZE = { gem: 60, drop: 44 }; // alvo do clique (o desenho é menor que isso)
+  // Quanto cada gota da chuva leva para cair. Era 2,6 s, acelerando no fim: rápido demais para pegar (pedido de 19/11).
+  const DROP_MS = 4200;
+  const SIZE = { gem: 60, drop: 60 }; // alvo do clique (o desenho é menor que isso)
   const PAD = 8;
+  // Clique perto também vale: quem mira num cristal que anda chega um instante atrasado. Conta o alvo mais REACH px
+  // em volta, e também o trecho que ele percorreu nos últimos TRAIL_MS (onde a pessoa ainda o via).
+  const REACH = 18;
+  const TRAIL_MS = 160;
 
   let host = null; // onde o cristal aparece agora: { container, channel, hooks, layer }
   const crystals = new Map(); // id -> { v, timers, sprites, mine }
   const sprites = new Set(); // tudo que se mexe a cada quadro
+  const bySprite = new WeakMap(); // botão -> cristal (ou gota)
   let frame = 0;
 
   // ---------- sorteio do caminho: o mesmo seed dá o mesmo voo em todas as telas ----------
@@ -58,8 +64,9 @@ window.MudaeCrystals = function ({ el, call, onSocket, Sounds, ui, member, reduc
   }
   function dropPath(r) {
     const x = 0.04 + r() * 0.92, dx = (r() - 0.5) * 0.15, phase = r() * Math.PI * 2;
-    // Cai acelerando, balançando um pouco (nasce na beira de cima da área, sem passar por cima das abas).
-    return (k) => ({ x: x + dx * k + Math.sin(phase + k * 7) * 0.012, y: -0.02 + 1.07 * (0.4 * k + 0.6 * k * k) });
+    // Cai acelerando só um pouco, balançando de leve (nasce na beira de cima da área, sem passar por cima das abas).
+    // No fim, a gota anda a 1,25× a média; antes andava a 1,6× (e a média era 60% mais rápida).
+    return (k) => ({ x: x + dx * k + Math.sin(phase + k * 7) * 0.012, y: -0.02 + 1.07 * (0.75 * k + 0.25 * k * k) });
   }
   // Com "Reduzir animações": parado num ponto que também sai do seed.
   const still = (r) => ({ x: 0.12 + r() * 0.76, y: 0.12 + r() * 0.7 });
@@ -108,10 +115,11 @@ window.MudaeCrystals = function ({ el, call, onSocket, Sounds, ui, member, reduc
     node.append(el('span', { class: 'mudae-crystal-glow' }), el('span', { class: 'mudae-crystal-body' }));
     node.lastChild.innerHTML = GEM_SVG;
     if (v.kind === 'chain') node.append(el('span', { class: 'mudae-crystal-step' }, MI('link', 12), String(v.step)));
-    const sp = { c, gem, node, size, start, dur, path, fixed, fade, drop, x: 0, y: 0, spark: 0, pending: false };
-    // No toque e no mouse, o clique vale ao apertar (o cristal está se mexendo); no teclado, Enter ou espaço.
-    node.addEventListener('pointerdown', (e) => { if (e.button > 0) return; e.preventDefault(); take(sp); });
+    const sp = { c, gem, node, size, start, dur, path, fixed, fade, drop, x: 0, y: 0, trail: [], spark: 0, pending: false };
+    // No toque e no mouse, o clique vale ao apertar (o cristal está se mexendo): quem cuida é o press() da tela
+    // toda, que também aceita o clique perto. No teclado, Enter ou espaço no próprio botão.
     node.addEventListener('click', (e) => { if (e.detail === 0) take(sp); });
+    bySprite.set(node, sp);
     c.sprites.add(sp);
     sprites.add(sp);
     host.layer.append(node);
@@ -132,6 +140,9 @@ window.MudaeCrystals = function ({ el, call, onSocket, Sounds, ui, member, reduc
     const scale = reduced ? 1 : p.s ?? 1;
     sp.x = x;
     sp.y = y;
+    // Por onde passou há pouco (para o clique atrasado ainda pegar).
+    sp.trail.push({ t, x, y });
+    while (sp.trail.length > 1 && t - sp.trail[0].t > TRAIL_MS) sp.trail.shift();
     sp.node.style.transform = `translate3d(${x.toFixed(1)}px, ${y.toFixed(1)}px, 0)` + (scale !== 1 ? ` scale(${scale.toFixed(3)})` : '');
     const opacity = Math.round(sp.fade(k) * 1000) / 1000;
     sp.node.style.opacity = String(opacity);
@@ -216,6 +227,49 @@ window.MudaeCrystals = function ({ el, call, onSocket, Sounds, ui, member, reduc
   }
 
   // ---------- clique ----------
+  // Distância de um ponto até o trecho a–b (o caminho recente do cristal).
+  function distance(px, py, ax, ay, bx, by) {
+    const dx = bx - ax, dy = by - ay;
+    const k = dx || dy ? clamp(((px - ax) * dx + (py - ay) * dy) / (dx * dx + dy * dy)) : 0;
+    return Math.hypot(px - (ax + k * dx), py - (ay + k * dy));
+  }
+  // O cristal mais perto do ponto (em pixels da tela), contando a folga e o trecho que ele acabou de percorrer.
+  function nearest(clientX, clientY) {
+    const lr = host.layer.getBoundingClientRect();
+    const x = clientX - lr.left, y = clientY - lr.top;
+    let best = null, bestD = Infinity;
+    for (const sp of sprites) {
+      // Quase invisível (surgindo ou sumindo) só vale clicando nele mesmo.
+      if (sp.pending || !sp.node.isConnected || Number(sp.node.style.opacity) < 0.15) continue;
+      const r = sp.size / 2, from = sp.trail[0] || sp;
+      const d = distance(x, y, from.x + r, from.y + r, sp.x + r, sp.y + r);
+      if (d <= r + REACH && d < bestD) { best = sp; bestD = d; }
+    }
+    return best;
+  }
+  // Aperto em qualquer lugar do Salão: em cima de um cristal ou perto dele, pega o cristal. O clique que viria
+  // depois não chega ao que está embaixo (uma carta ou o botão Casar não disparam sem querer durante a chuva).
+  let swallowClick = false;
+  function press(e) {
+    swallowClick = false;
+    if (e.button > 0 || !host?.layer || !sprites.size) return;
+    if (e.target.closest?.('input, textarea, select, [contenteditable="true"]')) return;
+    // Apertou um cristal que ainda espera a resposta do servidor: vale outro que esteja perto, ou nada.
+    const own = bySprite.get(e.target.closest?.('.mudae-crystal'));
+    const sp = own && !own.pending ? own : nearest(e.clientX, e.clientY);
+    if (!sp && !own) return;
+    e.preventDefault();
+    e.stopPropagation();
+    swallowClick = true;
+    if (sp) take(sp);
+  }
+  function swallow(e) {
+    if (!swallowClick || e.detail === 0) return;
+    swallowClick = false;
+    e.preventDefault();
+    e.stopPropagation();
+  }
+
   async function take(sp) {
     if (sp.pending || !sp.node.isConnected) return;
     const c = sp.c;
@@ -229,7 +283,7 @@ window.MudaeCrystals = function ({ el, call, onSocket, Sounds, ui, member, reduc
     c.mine.add(sp.gem);
     burst(sp, res);
     removeSprite(sp);
-    host?.hooks.onKakera?.(res.kakera, res.amount);
+    host?.hooks.onKakera?.(res.kakera, res.amount, res.crystals);
   }
 
   // ---------- cada cristal: quando aparece, quando some ----------
@@ -320,13 +374,20 @@ window.MudaeCrystals = function ({ el, call, onSocket, Sounds, ui, member, reduc
     detach();
     const layer = container ? el('div', { class: 'mudae-crystal-layer' }) : null;
     host = { container, channel, hooks, layer };
-    if (layer) container.append(layer);
+    if (!layer) return;
+    container.append(layer);
+    // Na captura: o Salão inteiro ouve, antes de qualquer carta ou botão embaixo do cristal.
+    container.addEventListener('pointerdown', press, true);
+    container.addEventListener('click', swallow, true);
   }
   function detach() {
     if (!host) return;
     for (const c of [...crystals.values()]) forget(c);
     if (frame) cancelFrame(frame);
     frame = 0;
+    host.container?.removeEventListener('pointerdown', press, true);
+    host.container?.removeEventListener('click', swallow, true);
+    swallowClick = false;
     host.layer?.remove();
     host = null;
   }

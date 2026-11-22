@@ -4,6 +4,22 @@
 // O título deve destacar as principais funcionalidades ou correções, com termos objetivos.
 window.CHANGELOG = [
   {
+    version: '2.7.1', date: '2026-11-22', name: 'Chuva de cristais mais fácil, cristais do dia no Salão, câmera inteira no destaque e microfone lembrado',
+    summary: 'Esta versão atende pedidos que a galera mandou pela "Mensagem pro dev". A chuva de cristais do Mudae ficou mais fácil de pegar, o Salão mostra quantos cristais do dia você já pegou, a câmera em destaque aparece inteira, sem corte, e o Resenhex lembra se você deixou o microfone ou o áudio desligado.',
+    sections: [
+      { kind: 'new', items: [
+        'Cristais do dia no Salão do Mudae: no topo, ao lado dos rolls, aparece quantos dos 15 cristais do dia você já pegou (por exemplo, 4/15). Os 15 primeiros valem inteiro; depois, cada um vale só 2% até a meia-noite. Passando o mouse ou clicando, aparece a explicação. A chuva conta 2. O $tu e o $k também mostram essa conta.',
+      ] },
+      { kind: 'improved', items: [
+        'Chuva de cristais mais fácil de pegar: as gotas estão maiores, caem mais devagar e a chuva dura 10 segundos em vez de 7. O clique vale um pouco em volta da gota e também no caminho por onde ela acabou de passar, então clicar um tiquinho atrás dela ainda pega. E clicar na chuva não aperta mais, sem querer, a carta ou o botão que está embaixo.',
+        'O Resenhex lembra se você deixou o microfone mudo ou o áudio desligado. Ao abrir o app de novo ou recarregar a página, você entra na call do mesmo jeito, e a galera não ouve nada nem por um instante.',
+      ] },
+      { kind: 'fixed', items: [
+        'Com a câmera de alguém em destaque ou em tela cheia, a imagem aparecia cortada e com zoom quando a janela mudava de tamanho. Agora a câmera aparece inteira, no formato certo, com faixas pretas onde sobra espaço. Na grade com todo mundo, nada muda.',
+      ] },
+    ],
+  },
+  {
     version: '2.7.0', date: '2026-11-17', name: 'Menos memória RAM, título nos clipes, "Seus jogos" no overlay, mais cristais no Mudae e a tela do celular mais fluida',
     summary: 'Esta versão junta cinco coisas. O Resenhex gasta bem menos memória RAM, sem mudar nada do que você vê ou usa: quem transmite a tela pelo app de Windows economiza cerca de 360 MB, e o DJ devolve uns 130 MB quando a música para. O overlay e o "Jogando agora" passam a funcionar no Minecraft, original ou pirata, e em qualquer jogo que você adicionar em "Seus jogos". No Salão do Mudae, o cristal passa mais vezes, com um som novo, um aviso chega quando seus rolls voltam, e as fotos de personagens de jogos que apareciam cinza voltaram. Os clipes do Clipar ganham título, que todo mundo da chamada vê. E a tela do celular chega mais fluida na call. O Minecraft com qualquer Java e o "Seus jogos" precisam do app do Windows 1.4.8, que se atualiza sozinho; o formato novo da tela do celular vem com o app do Android 1.4.2.',
     sections: [

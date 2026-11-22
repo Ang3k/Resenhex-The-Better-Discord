@@ -88,6 +88,31 @@ test('teto do dia: os 15 primeiros valem inteiro, depois quase nada', () => {
   assert.equal(r2.full, true);
 });
 
+test('cristais de hoje: a conta que a pessoa vê, com a chuva valendo 2 e a virada à meia-noite', () => {
+  const { crystals, store, mudae, advance, now } = setup();
+  const view = () => mudae.crystalsToday(store, 'a');
+  assert.deepEqual({ ...view(), resetIn: undefined }, { used: 0, max: CRYSTAL.dailyFull, after: CRYSTAL.afterCap, storm: CRYSTAL.storm.capCost, resetIn: undefined });
+  // 15 h UTC = meio-dia em Brasília: faltam 12 h para a meia-noite de lá.
+  assert.equal(view().resetIn, 12 * 60 * 60 * 1000);
+  for (let i = 0; i < 3; i++) crystals.take(store, 's1', crystals.spawn('s1').id, 'a');
+  assert.equal(view().used, 3);
+  const storm = crystals.spawn('s1', { kind: 'storm' });
+  crystals.take(store, 's1', storm.id, 'a', { gem: 0 });
+  crystals.take(store, 's1', storm.id, 'a', { gem: 1 });
+  assert.equal(view().used, 3 + CRYSTAL.storm.capCost, 'a chuva gasta 2 do teto, já na primeira gota');
+  // O $tu e o Salão (mudae:presence) trazem a mesma conta.
+  assert.deepEqual(mudae.status(store, 'a').crystals, view());
+  assert.equal(mudae.crystalsToday(store, 'ninguem').used, 0);
+  // Meia-noite em Brasília: zera.
+  advance(view().resetIn - 1);
+  assert.equal(view().used, 5);
+  assert.equal(view().resetIn, 1);
+  advance(1);
+  assert.equal(view().used, 0);
+  assert.equal(view().resetIn, 24 * 60 * 60 * 1000);
+  assert.equal(dayOf(now()), dayOf(Date.UTC(2026, 10, 10, 3)));
+});
+
 test('Ouro aumenta só o que a pessoa ganha', () => {
   const { crystals, store } = setup();
   const c = crystals.spawn('s1');

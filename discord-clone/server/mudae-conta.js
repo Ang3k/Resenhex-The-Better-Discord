@@ -1,6 +1,6 @@
 // Mudae: a conta de cada pessoa (kakera, contadores que destravam poderes e o teto do divórcio).
 // Tudo mora no store da comunidade; aqui só ficam as contas, sem relógio nem sorteio próprios.
-const { DIVORCE_CAP, DIVORCE_CAP_MS, DAY_MS, DAY_OFFSET_MS } = require('./mudae-regras');
+const { DIVORCE_CAP, DIVORCE_CAP_MS, DAY_MS, DAY_OFFSET_MS, CRYSTAL } = require('./mudae-regras');
 
 const kakeraOf = (store, accountId) => store.kakera?.[accountId] || 0;
 function addKakera(store, accountId, amount) {
@@ -12,6 +12,14 @@ function addKakera(store, accountId, amount) {
 
 // O dia do Mudae vira à meia-noite de Brasília (3 h da manhã em UTC).
 const dayOf = (t) => Math.floor((t - DAY_OFFSET_MS) / DAY_MS);
+
+// Cristais de hoje que valem inteiro (o teto do dia), para a pessoa ver quanto falta. A chuva gasta mais de 1, então
+// `used` pode passar de `max`. resetIn: quanto falta para a meia-noite de Brasília zerar a conta.
+function crystalsToday(store, accountId, t) {
+  const day = store.usage?.[accountId]?.crystalDay;
+  const used = Array.isArray(day) && day[0] === dayOf(t) ? day[1] : 0;
+  return { used, max: CRYSTAL.dailyFull, after: CRYSTAL.afterCap, storm: CRYSTAL.storm.capCost, resetIn: (dayOf(t) + 1) * DAY_MS + DAY_OFFSET_MS - t };
+}
 
 // Contadores: claims (casamentos), rolls, crystals (cristais pegos) e legendary (lendários casados).
 // Na primeira leitura, o harém de hoje vira o crédito de claims e legendary.
@@ -43,4 +51,4 @@ function refundOf(store, accountId, value, t) {
   return { refund, capped, refundIn, cap: DIVORCE_CAP };
 }
 
-module.exports = { kakeraOf, addKakera, dayOf, statsOf, bumpStat, refundOf };
+module.exports = { kakeraOf, addKakera, dayOf, crystalsToday, statsOf, bumpStat, refundOf };

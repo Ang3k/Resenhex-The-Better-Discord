@@ -3,6 +3,25 @@
 Histórico de versões. A mesma lista aparece dentro do app em **Novidades** (menu do servidor ou rodapé das Configurações).
 O Resenhex chegou à versão 1.0 em 4 de outubro de 2026.
 
+## v2.7.1 — Chuva de cristais mais fácil, cristais do dia no Salão, câmera inteira no destaque e microfone lembrado
+
+22 de novembro de 2026.
+
+Esta versão atende pedidos que a galera mandou pela "Mensagem pro dev". A chuva de cristais do Mudae ficou mais fácil de pegar, o Salão mostra quantos cristais do dia você já pegou, a câmera em destaque aparece inteira, sem corte, e o Resenhex lembra se você deixou o microfone ou o áudio desligado.
+
+### Novidades
+
+- Cristais do dia no Salão do Mudae: no topo, ao lado dos rolls, aparece quantos dos 15 cristais do dia você já pegou (por exemplo, 4/15). Os 15 primeiros valem inteiro; depois, cada um vale só 2% até a meia-noite. Passando o mouse ou clicando, aparece a explicação. A chuva conta 2. O $tu e o $k também mostram essa conta.
+
+### Melhorias
+
+- Chuva de cristais mais fácil de pegar: as gotas estão maiores, caem mais devagar e a chuva dura 10 segundos em vez de 7. O clique vale um pouco em volta da gota e também no caminho por onde ela acabou de passar, então clicar um tiquinho atrás dela ainda pega. E clicar na chuva não aperta mais, sem querer, a carta ou o botão que está embaixo.
+- O Resenhex lembra se você deixou o microfone mudo ou o áudio desligado. Ao abrir o app de novo ou recarregar a página, você entra na call do mesmo jeito, e a galera não ouve nada nem por um instante.
+
+### Correções
+
+- Com a câmera de alguém em destaque ou em tela cheia, a imagem aparecia cortada e com zoom quando a janela mudava de tamanho. Agora a câmera aparece inteira, no formato certo, com faixas pretas onde sobra espaço. Na grade com todo mundo, nada muda.
+
 ## v2.7.0 — Menos memória RAM, título nos clipes, "Seus jogos" no overlay, mais cristais no Mudae e a tela do celular mais fluida
 
 17 de novembro de 2026.

@@ -519,6 +519,15 @@ window.MudaeUI = function ({ state, el, Icon, call, member, avatar, nameColor, F
     return line('crystal', crystalIcon(v), ...who, ` ${ids.length === 1 ? 'pegou' : 'pegaram'} o cristal ${v.colorKey}`);
   }
 
+  // Os cristais de hoje que valem inteiro (o teto do dia), no $tu e no $k.
+  function crystalsLine(c) {
+    if (!c) return null;
+    const after = Math.round((c.after ?? 0.02) * 100) + '%';
+    return el('div', {}, c.used >= c.max
+      ? ['Você já pegou os ', el('strong', { textContent: String(c.max) }), ` cristais de hoje que valem inteiro. Até a meia-noite, cada um vale ${after}.`]
+      : ['Cristais de hoje: ', el('strong', { textContent: `${c.used} de ${c.max}` }), ` valendo inteiro (depois, ${after} até a meia-noite).`]);
+  }
+
   function statusLines(d) {
     return el('div', { class: 'mudae-status' },
       el('div', {}, d.rollsLeft
@@ -531,6 +540,7 @@ window.MudaeUI = function ({ state, el, Icon, call, member, avatar, nameColor, F
         : d.reserveIn ? el('div', {}, 'Seu casamento de reserva volta em ', el('strong', { textContent: minutes(d.reserveIn) }), '.') : null,
       d.powersReady?.length ? el('div', {}, 'Poderes prontos: ', el('strong', { class: 'mudae-ok' }, ...powerNames(d.powersReady)), '.') : null,
       d.kakera !== undefined ? el('div', {}, 'Você tem ', el('strong', { textContent: num(d.kakera) }), ' kakera.') : null,
+      crystalsLine(d.crystals),
       d.dailyIn !== undefined ? el('div', {}, d.dailyIn ? ['O $daily volta em ', el('strong', { textContent: minutes(d.dailyIn) }), '.'] : ['O ', el('strong', { class: 'mudae-ok', textContent: '$daily' }), ' está pronto: os rolls voltam na hora.']) : null,
       d.dkIn !== undefined ? el('div', {}, d.dkIn ? ['O $dk volta em ', el('strong', { textContent: minutes(d.dkIn) }), '.'] : ['O ', el('strong', { class: 'mudae-ok', textContent: '$dk' }), ` está pronto: +${num(d.dkAmount)} kakera.`]) : null,
       d.buysLeft !== undefined ? el('div', {}, d.buysLeft
@@ -598,7 +608,7 @@ window.MudaeUI = function ({ state, el, Icon, call, member, avatar, nameColor, F
     else if (d.kind === 'dk') content = line('kakera', kakera(), strongName(d.ownerId), ` pegou o kakera do dia: +${num(d.amount)} (agora tem ${num(d.kakera)}).`);
     else if (d.kind === 'daily') content = line('daily', ico('dice'), strongName(d.ownerId), ' usou o $daily: os rolls voltaram!');
     else if (d.kind === 'rolls') content = line('daily', ico('dice'), strongName(d.ownerId), ` comprou os rolls de volta por ${num(d.price)} kakera.`);
-    else if (d.kind === 'kakera') content = el('div', { class: 'msg-text' }, kakera(), 'Você tem ', el('strong', { textContent: num(d.kakera) }), ' kakera.');
+    else if (d.kind === 'kakera') content = el('div', { class: 'msg-text' }, el('div', {}, kakera(), 'Você tem ', el('strong', { textContent: num(d.kakera) }), ' kakera.'), crystalsLine(d.crystals));
     else if (d.kind === 'wish') {
       content = el('div', { class: 'msg-text' }, ico('wish'), el('strong', { textContent: d.card.name }), ` entrou na sua lista de desejos (${d.total}/${d.max}). `,
         d.ownerId ? ['Já é de ', strongName(d.ownerId), '. Que tal propor uma troca?'] : 'Você recebe um aviso quando alguém rodar.');

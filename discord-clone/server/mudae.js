@@ -5,7 +5,7 @@
 // na memória (só números) e o nome e a foto vêm de um banco SQLite local (server/mudae-catalogo-banco.js).
 // As fotos vão direto do site de cada fonte para o navegador. Cada comunidade guarda
 // { claims, usage, favorites } e os limites são contados pelo relógio, sem nenhum timer rodando.
-const { kakeraOf, addKakera, statsOf, bumpStat, refundOf } = require('./mudae-conta');
+const { kakeraOf, addKakera, crystalsToday, statsOf, bumpStat, refundOf } = require('./mudae-conta');
 const { openCatalog } = require('./mudae-catalogo-banco');
 const { perksOf } = require('./mudae-forja');
 const { POWERS, AMULETO, DESEJO_CHANCE } = require('./mudae-regras');
@@ -222,7 +222,7 @@ function createMudae({ catalog = null, catalogFile = null, catalogDb = null, now
     const perks = perksOf(store, accountId);
     return { rollsLeft: rollsLeft(u, perks), rollsMax: rollsMaxOf(u, perks), wishMax: WISH_LIMIT + perks.wishSlots,
       reserveReady: reserveReady(u, perks), reserveIn: perks.reserveEveryMs > 0 ? waitFor(u.reserveAt, perks.reserveEveryMs) : 0, rollResetIn: rollResetIn(), claimReady: claimReady(u), claimResetIn: claimResetIn(),
-      kakera: kakeraOf(store, accountId), dailyIn: waitFor(u.daily, DAILY_MS), dkIn: waitFor(u.dk, DAILY_MS), dkAmount: DK_AMOUNT,
+      kakera: kakeraOf(store, accountId), crystals: crystalsToday(store, accountId, now()), dailyIn: waitFor(u.daily, DAILY_MS), dkIn: waitFor(u.dk, DAILY_MS), dkAmount: DK_AMOUNT,
       buysLeft: ROLLS_BUYS - buys.length, buysMax: ROLLS_BUYS, buysIn: buys.length >= ROLLS_BUYS ? DAY_MS - (now() - buys[0]) : 0, rollsPrice: ROLLS_PRICE };
   }
 
@@ -943,7 +943,7 @@ function createMudae({ catalog = null, catalogFile = null, catalogDb = null, now
   const sources = Object.fromEntries(srcOrder.map((s) => [s, pools['m' + s].length]).filter(([, len]) => len));
 
   return { size: ativos.length, sources, parse, status, ranOut, roll, foresee, arm, armedView, warmup, spin, claim, claimError, harem, album, summary, setFavorite, ranking, info, divorce, divorceId,
-    kakeraOf, addKakera, countCrystal: (store, accountId) => bump(store, accountId, 'crystals'), stats, daily, dailyKakera, buyRolls, giveKakera, wish, wishToggle, unwish, wishlist, wishersOf, give, firstMarry, topFilter, list,
+    kakeraOf, addKakera, crystalsToday: (store, accountId) => crystalsToday(store, accountId, now()), countCrystal: (store, accountId) => bump(store, accountId, 'crystals'), stats, daily, dailyKakera, buyRolls, giveKakera, wish, wishToggle, unwish, wishlist, wishersOf, give, firstMarry, topFilter, list,
     tradeOpen, tradeOffer, tradeConfirm, tradeCancel, tradeExpire, tradeOf, tradeView, otherSide, sweepTrades: sweep,
     card: (id) => { const k = lookup(id); return k !== undefined ? card(k) : null; },
     // Ao ligar: deixa no cache as cartas que já têm dono, para o primeiro harém ou álbum não esperar o disco.

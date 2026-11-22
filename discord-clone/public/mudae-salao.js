@@ -313,6 +313,7 @@ window.MudaeSalon = function ({ state, el, Icon, call, onSocket, member, avatar,
   const usesReserve = (s) => !!s && !s.claimReady && !!s.reserveReady;
   function setStatus(s) {
     if (s?.sources) S.sources = s.sources;
+    if (s?.crystals) setCrystals(s.crystals);
     if (!s || s.rollsLeft === undefined) return;
     S.status = s;
     S.statusAt = Date.now();
@@ -334,28 +335,57 @@ window.MudaeSalon = function ({ state, el, Icon, call, onSocket, member, avatar,
     const short = () => [ico('dice'), s.rollsLeft ? `${s.rollsLeft}/${s.rollsMax}` : minutes(s.rollResetIn - passed), ' · ', ico('ring'), s.claimReady ? '' : minutes(s.claimResetIn - passed)];
     // O saldo fica num pedaço à parte, para pular quando um cristal paga.
     const kak = () => (s.kakera !== undefined ? [' · ', kakera(), el('span', { class: 'salon-status-kakera', textContent: num(s.kakera) })] : []);
-    if (nodes.status.title !== text) {
+    const cr = crystalsNow();
+    const key = text + (cr ? `|${cr.used}/${cr.max}` : '');
+    if (nodes.status.dataset.key !== key) {
+      nodes.status.dataset.key = key;
       nodes.status.title = text;
       nodes.status.replaceChildren(el('span', { class: 'salon-status-pill' + (s.rollsLeft ? '' : ' empty') },
         el('span', { class: 'salon-status-full' }, `${rolls} · ${claim}`, s.claimReady ? [' ', ico('ring')] : null, ...kak()),
-        el('span', { class: 'salon-status-short', ariaHidden: 'true' }, ...short(), ...kak())));
+        el('span', { class: 'salon-status-short', ariaHidden: 'true' }, ...short(), ...kak())),
+      cr ? crystalsChip(cr) : null);
     }
   }
 
-  // Um cristal pagou: o saldo da faixa de cima muda e pula.
+  // Cristais de hoje que valem inteiro (pedido de 18/11: ninguém sabia que havia um teto). A conta zera à meia-noite
+  // de Brasília; com o Salão aberto na virada, ela zera sozinha aqui também.
+  function setCrystals(c) {
+    S.crystals = { ...c, at: Date.now() };
+    updateStatus();
+  }
+  function crystalsNow() {
+    const c = S.crystals;
+    return c && Date.now() - c.at >= c.resetIn ? { ...c, used: 0 } : c;
+  }
+  function crystalsChip(c) {
+    const taken = Math.min(c.used, c.max), full = c.used >= c.max;
+    const after = Math.round((c.after ?? 0.02) * 100) + '%';
+    const title = full
+      ? `Você já pegou os ${c.max} cristais de hoje que valem inteiro. Até a meia-noite, cada cristal vale ${after} do valor.`
+      : `Cristais de hoje: ${taken} de ${c.max}. Os ${c.max} primeiros do dia valem inteiro; depois, ${after} do valor até a meia-noite.`
+        + (c.storm > 1 ? ` A chuva conta ${c.storm}.` : '');
+    // No celular não há dica ao passar o mouse: o toque mostra a explicação num aviso.
+    return el('button', { type: 'button', class: 'salon-crystals' + (full ? ' full' : ''), title, ariaLabel: title, onclick: () => toast(title, 'info') },
+      ico('spark'), el('span', { class: 'salon-crystals-label', textContent: 'cristais ' }), el('strong', { textContent: `${taken}/${c.max}` }));
+  }
+
+  // Um cristal pagou: o saldo da faixa de cima muda e pula (e a conta dos cristais de hoje também).
   let bumpTimer = 0;
-  function showKakera(kakera) {
+  function showKakera(kakera, amount, crystals) {
+    if (crystals) S.crystals = { ...crystals, at: Date.now() };
     if (!S.status || kakera === undefined) return;
     S.status = { ...S.status, kakera };
     updateStatus();
-    const pill = nodes.status?.querySelector('.salon-status-pill');
-    if (!pill) return;
-    pill.classList.remove('bump');
-    void pill.offsetWidth;
-    pill.classList.add('bump');
+    const bumped = [nodes.status?.querySelector('.salon-status-pill'), crystals && nodes.status?.querySelector('.salon-crystals')].filter(Boolean);
+    if (!bumped.length) return;
+    for (const node of bumped) {
+      node.classList.remove('bump');
+      void node.offsetWidth;
+      node.classList.add('bump');
+    }
     // Pelo relógio (e não pelo fim da animação): o número acaba antes da faixa, e com "Reduzir animações" não há animação.
     clearTimeout(bumpTimer);
-    bumpTimer = setTimeout(() => pill.classList.remove('bump'), 700);
+    bumpTimer = setTimeout(() => bumped.forEach((node) => node.classList.remove('bump')), 700);
   }
 
   // De onde sai o cristal que nasce de um roll: a carta no palco ou, se ela não está lá, a da Mesa ao vivo.

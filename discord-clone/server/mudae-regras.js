@@ -66,7 +66,9 @@ const CRYSTAL = {
   ],
   // Chuva: muitos cristais pequenos; cada um vale valueFactor do valor da cor (a que nasce sozinha, rara) ou
   // calledFactor (a do poder Chuva, uma por dia: ~210 se pegar todas). Conta capCost no teto do dia.
-  storm: { chance: 0.04, gems: 16, lifeMs: 7000, valueFactor: 0.25, calledFactor: 0.1, capCost: 2 },
+  // lifeMs: 10 s (era 7 s). Com as gotas caindo mais devagar (4,2 s cada, public/mudae-cristal.js), as 16 continuam
+  // espaçadas (uma a cada ~0,4 s) em vez de caírem quase todas juntas.
+  storm: { chance: 0.04, gems: 16, lifeMs: 10_000, valueFactor: 0.25, calledFactor: 0.1, capCost: 2 },
   // Corrente: pegar um cristal faz nascer outro, valendo mais, enquanto alguém pegar o anterior.
   chain: { chance: 0.04, values: [40, 75, 140, 280, 560], gapMs: 1200, lifeMs: 6000 },
 };

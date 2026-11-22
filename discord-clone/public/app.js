@@ -64,8 +64,9 @@
     view: 'chat', // 'chat' | 'voice'
     voiceChannel: null,
     callStartedAt: null,
-    muted: false,
-    deafened: false,
+    // Microfone e fone ficam como a pessoa deixou da última vez, neste aparelho (saveVoicePrefs).
+    muted: localStorage.getItem('selfMuted') === 'true',
+    deafened: localStorage.getItem('selfDeafened') === 'true',
     micStream: null,
     local: { screen: null, camera: null }, // meus streams de vídeo
     sharePreset: MediaPolicy.sharePresetFor(localStorage.getItem('sharePreset'), PHONE_SHARE),
@@ -6092,7 +6093,9 @@
       syncAndroidCall();
       if (abandoned() || dropped()) return;
       // opts.serverId: sala de outro servidor (reconectar ou ser movido enquanto olha outro servidor).
-      const res = await call('voice:join', isDm(channel) ? { dm: channel, silent: !!opts.silent, mediaVersion: 1 } : { channel, serverId: opts.serverId ?? state.server.serverId, mediaVersion: 1 });
+      // O microfone e o fone já vão na entrada: os outros nunca veem a pessoa chegar desmutada por um instante.
+      const voice = { muted: state.muted || state.deafened, deafened: state.deafened, mediaVersion: 1 };
+      const res = await call('voice:join', isDm(channel) ? { dm: channel, silent: !!opts.silent, ...voice } : { channel, serverId: opts.serverId ?? state.server.serverId, ...voice });
       if (abandoned() || dropped() || !res) return;
       joined = true;
       if (res.iceServers) state.iceServers = res.iceServers; // senha do retransmissor nova a cada entrada
@@ -7068,6 +7071,13 @@
     if (state.voiceChannel) renderStage();
   }
 
+  // Microfone e fone valem também na próxima vez que o app abrir: quem sempre entra na call mutado não entra mais
+  // com o microfone aberto depois de fechar o app. Fica só neste aparelho.
+  function saveVoicePrefs() {
+    localStorage.setItem('selfMuted', String(state.muted));
+    localStorage.setItem('selfDeafened', String(state.deafened));
+  }
+
   $('#btn-mute').onclick = () => {
     if (state.deafened) {
       setDeafened(false);
@@ -7075,6 +7085,7 @@
     } else {
       state.muted = !state.muted;
     }
+    saveVoicePrefs();
     Sounds.play(state.muted ? 'mute' : 'unmute');
     applyAudio();
     sendVoiceState();
@@ -7083,6 +7094,7 @@
 
   $('#btn-deafen').onclick = () => {
     setDeafened(!state.deafened);
+    saveVoicePrefs();
     Sounds.play(state.deafened ? 'deafen' : 'undeafen');
     applyAudio();
     sendVoiceState();

@@ -69,7 +69,18 @@
 .salon-tab:hover { color: var(--text); }
 .salon-tab.active { color: var(--text-strong); border-bottom-color: var(--brand); }
 .salon-top-right { display: flex; align-items: center; gap: 8px; min-width: 0; padding-bottom: 8px; }
-.salon-status { min-width: 0; }
+.salon-status { display: flex; align-items: center; gap: 6px; min-width: 0; }
+/* Cristais de hoje que valem inteiro (7/15). Neutro enquanto há cristal cheio; amarelo quando o teto do dia chega. */
+.salon-crystals {
+  display: inline-flex; flex-shrink: 0; align-items: center; height: 28px; padding: 0 10px; border: 1px solid var(--divider); border-radius: 999px;
+  background: transparent; color: var(--text-muted); font: inherit; font-size: 13px; font-weight: 600; white-space: nowrap; cursor: pointer; transition: none;
+}
+.salon-crystals strong { color: var(--text-strong); font-variant-numeric: tabular-nums; }
+.salon-crystals .mi-inline > .mi { color: var(--brand); }
+.salon-crystals:hover { background: var(--hover); color: var(--text); }
+.salon-crystals.full { color: var(--yellow); border-color: color-mix(in srgb, var(--yellow) 35%, transparent); background: color-mix(in srgb, var(--yellow) 10%, transparent); }
+.salon-crystals.full strong, .salon-crystals.full .mi-inline > .mi { color: var(--yellow); }
+.salon-crystals.bump strong { display: inline-block; animation: mudae-crystal-bump .45s var(--spring-pop); }
 .salon-simple, .salon-open-btn {
   display: inline-flex; align-items: center; gap: 6px; height: 28px; padding: 0 10px; border: 1px solid var(--divider); border-radius: 999px;
   background: transparent; color: var(--interactive); font: inherit; font-size: 13px; font-weight: 600; white-space: nowrap; cursor: pointer;
@@ -689,6 +700,7 @@
   .salon-status-full { display: none; }
   .salon-status-short { display: inline; }
   .salon-simple span { display: none; }
+  .salon-crystals-label { display: none; }
 }
 /* Com 6 abas, no notebook (1366 com o chat aberto) o status virava "11/11 · …": as abas apertam, "Meu harem"
    vira "Harem" e o status fica sempre inteiro. Se ainda faltar espaço, a fileira de abas rola de lado. */

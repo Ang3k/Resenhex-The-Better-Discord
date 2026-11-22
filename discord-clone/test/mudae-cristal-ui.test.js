@@ -8,12 +8,12 @@ const publicDir = path.join(__dirname, '..', 'public');
 const read = (file) => fs.readFileSync(path.join(publicDir, file), 'utf8');
 
 // ---------- o cristal no Salão, com relógio e quadros controlados (como em mudae-salao-animation) ----------
-function salon(t, { reduced = false, take = null } = {}) {
+function salon(t, { reduced = false, take = null, presence = {} } = {}) {
   const dom = new JSDOM('<div id="main"><div id="salon-view"></div><div id="chat-view"></div></div>', { runScripts: 'outside-only' });
   const w = dom.window, d = w.document;
   t.after(() => w.close());
   let time = 100_000, nextTimer = 0;
-  const timers = new Map(), frames = [], calls = [], sounds = [], handlers = new Map(), lines = [], animations = [];
+  const timers = new Map(), frames = [], calls = [], sounds = [], handlers = new Map(), lines = [], animations = [], toasts = [];
   w.Date.now = () => time;
   w.setTimeout = (fn, delay = 0) => { const id = ++nextTimer; timers.set(id, { fn, at: time + Math.max(0, delay) }); return id; };
   w.clearTimeout = (id) => timers.delete(id);
@@ -58,7 +58,7 @@ function salon(t, { reduced = false, take = null } = {}) {
   }
   const call = async (name, payload) => {
     calls.push({ name, payload: JSON.parse(JSON.stringify(payload ?? null)) });
-    if (name === 'mudae:presence') return { ok: true, rollsLeft: 9, rollsMax: 10, rollResetIn: 1, claimReady: true, claimResetIn: 1, kakera: 1200 };
+    if (name === 'mudae:presence') return { ok: true, rollsLeft: 9, rollsMax: 10, rollResetIn: 1, claimReady: true, claimResetIn: 1, kakera: 1200, ...presence };
     if (name === 'mudae:crystal:take') return take ? take(payload) : null;
     return null;
   };
@@ -72,7 +72,7 @@ function salon(t, { reduced = false, take = null } = {}) {
     reducedMotion: () => reduced, addLiveLine: (channel, mudae) => lines.push({ channel, mudae }) });
   const state = { me: { accountId: 'me' }, messages: { room: [] } };
   const api = w.MudaeSalon({ state, el, Icon: () => el('svg'), call, onSocket, member: () => null,
-    ui, Sounds: { play() {} }, crystals });
+    ui, Sounds: { play() {} }, crystals, toast: (text) => toasts.push(text), nameColor: () => '', avatar: () => el('div') });
   api.sync({ id: 'room' });
   const crystal = (over = {}) => ({ id: 'c1', serverId: 's1', kind: 'drifter', color: '#3b82f6', colorKey: 'azul', value: 100, appearAt: time,
     life: 10_000, seed: 12345, gems: 1, step: 1, from: null, by: null, ...over });
@@ -82,7 +82,7 @@ function salon(t, { reduced = false, take = null } = {}) {
     state.messages.room.push(msg); api.onMessage('room', msg); return msg;
   }
   return {
-    d, api, advance, flush, paint, crystal, sounds, lines, animations, roll,
+    d, w, api, advance, flush, paint, crystal, sounds, lines, animations, roll, toasts,
     layout: (map) => { boxes = map; },
     get time() { return time; },
     deliver: (event, payload) => handlers.get(event)(payload),
@@ -203,6 +203,92 @@ test('com Reduzir animações, o cristal fica parado e dá para clicar', async (
   assert.equal(app.d.querySelector('.mudae-crystal-pop strong').textContent, '+130');
   assert.equal(app.d.querySelector('.mudae-crystal-shard'), null, 'sem estilhaços voando');
   assert.equal(app.animations.some((a) => a.keyframes.some((frame) => frame.transform)), false, 'nada se mexe: o valor só esmaece');
+});
+
+test('chuva: a gota cai mais devagar e o clique perto dela também pega, sem chegar ao que está embaixo', async (t) => {
+  const app = salon(t, { take: () => ({ ok: true, amount: 25, kakera: 1225, full: true }) });
+  await app.flush();
+  app.layout({ '.salon-body, .mudae-crystal-layer': [0, 0, 800, 600] });
+  app.deliver('mudae:crystal', app.crystal({ id: 'chuva', kind: 'storm', gems: 16, life: 10_000 }));
+  // Só a primeira gota caiu (a segunda vem ~0,39 s depois) e ela já aparece inteira.
+  await app.advance(380); app.paint();
+  assert.equal(app.gems().length, 1);
+  const [x, y] = app.gems()[0].style.transform.match(/-?[\d.]+(?=px)/g).map(Number);
+  const [cx, cy] = [x + 30, y + 30]; // o meio da gota (o alvo tem 60 px)
+  const body = app.d.querySelector('.salon-body');
+  let clicks = 0;
+  body.addEventListener('click', () => clicks++);
+  const press = (clientX, clientY) => {
+    const e = new app.w.MouseEvent('pointerdown', { bubbles: true, cancelable: true, button: 0, clientX, clientY });
+    body.dispatchEvent(e);
+    return e;
+  };
+  const click = () => body.dispatchEvent(new app.w.MouseEvent('click', { bubbles: true, cancelable: true, detail: 1 }));
+
+  // Longe da gota: o clique é do Salão, como sempre.
+  assert.equal(press(cx + 70, cy).defaultPrevented, false);
+  click();
+  assert.equal(clicks, 1);
+  assert.deepEqual(app.takes(), []);
+
+  // Fora do desenho, mas perto (44 px do meio): pega a gota, e o clique que vem depois não abre o que está embaixo.
+  assert.equal(press(cx + 44, cy).defaultPrevented, true);
+  assert.deepEqual(app.takes(), [{ id: 'chuva', gem: 0 }]);
+  click();
+  assert.equal(clicks, 1, 'o clique do aperto não chega à carta embaixo');
+  click();
+  assert.equal(clicks, 2, 'o próximo, sim');
+  await app.flush();
+  assert.equal(app.gems().length, 0, 'a gota quebrou');
+
+  // Cada gota leva 4,2 s para cair (eram 2,6 s): a segunda ainda está na tela 4 s depois de nascer.
+  await app.advance(4000);
+  assert.ok(app.d.querySelector('.mudae-crystal[data-gem="1"]'), 'a gota 1 ainda cai');
+  await app.advance(400);
+  assert.equal(app.d.querySelector('.mudae-crystal[data-gem="1"]'), null, 'e some no fim da queda');
+});
+
+test('cristais de hoje na faixa de cima: a conta, o pulo, o teto e a virada da meia-noite', async (t) => {
+  const crystals = { used: 7, max: 15, after: 0.02, storm: 2, resetIn: 60_000 };
+  const app = salon(t, { presence: { crystals }, take: () => ({ ok: true, amount: 100, kakera: 1300, full: true, crystals: { ...crystals, used: 8, resetIn: 58_000 } }) });
+  await app.flush();
+  const chip = () => app.d.querySelector('.salon-status .salon-crystals');
+  assert.equal(chip().querySelector('strong').textContent, '7/15');
+  assert.match(chip().title, /Cristais de hoje: 7 de 15\. Os 15 primeiros do dia valem inteiro; depois, 2% do valor até a meia-noite\. A chuva conta 2\./);
+  assert.equal(chip().classList.contains('full'), false);
+  // No celular não há dica ao passar o mouse: o toque mostra a explicação.
+  chip().click();
+  assert.deepEqual(app.toasts, [chip().title]);
+
+  // Pegou um cristal: a conta sobe e pula junto com o saldo.
+  app.deliver('mudae:crystal', app.crystal());
+  await app.advance(2000); app.paint();
+  app.press(app.gems()[0]);
+  await app.flush();
+  assert.equal(chip().querySelector('strong').textContent, '8/15');
+  assert.ok(chip().classList.contains('bump'));
+  assert.match(app.d.querySelector('.salon-status-kakera').textContent, /1300/);
+  await app.advance(700);
+  assert.equal(chip().classList.contains('bump'), false);
+
+  // A lista de quem está no Salão não traz a conta: ela continua.
+  const people = [{ id: 'me', rollsLeft: 8, rollsMax: 10, rollResetIn: 1, claimReady: true, claimResetIn: 1 }];
+  app.deliver('mudae:presence', { channel: 'room', people });
+  assert.equal(chip().querySelector('strong').textContent, '8/15');
+
+  // Meia-noite em Brasília com o Salão aberto: zera sozinha.
+  await app.advance(58_000);
+  app.deliver('mudae:presence', { channel: 'room', people });
+  assert.equal(chip().querySelector('strong').textContent, '0/15');
+});
+
+test('cristais de hoje: com o teto cheio, a faixa avisa que agora valem pouco', async (t) => {
+  const app = salon(t, { presence: { crystals: { used: 16, max: 15, after: 0.02, storm: 2, resetIn: 60_000 } } });
+  await app.flush();
+  const chip = app.d.querySelector('.salon-crystals');
+  assert.equal(chip.querySelector('strong').textContent, '15/15', 'a chuva pode passar do teto, mas a conta para em 15');
+  assert.ok(chip.classList.contains('full'));
+  assert.equal(chip.title, 'Você já pegou os 15 cristais de hoje que valem inteiro. Até a meia-noite, cada cristal vale 2% do valor.');
 });
 
 test('o cristal que nasce de um roll sai de dentro da carta no palco', async (t) => {

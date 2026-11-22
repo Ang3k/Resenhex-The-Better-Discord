@@ -742,6 +742,55 @@ test('tempo de call acompanha entrada, navegação e reconexão, e zera ao sair'
   assert.equal(timer.textContent, '00:01', 'uma nova chamada começa do zero');
 });
 
+// Pedido de 20/11: quem sempre entra na call mutado abria o app e entrava com o microfone aberto.
+test('microfone e fone ficam como a pessoa deixou, de uma vez que abre o app para a outra', async (t) => {
+  const open = async (storage) => {
+    const app = await ui(t, false, {
+      storage: { noiseMode: 'off', ...storage }, reply: { 'voice:join': () => ({ peers: [] }) },
+      setup(w) { Object.defineProperty(w.navigator, 'mediaDevices', { value: { getUserMedia: async () => ({ getTracks: () => [], getAudioTracks: () => [] }) } }); },
+    });
+    await app.register();
+    app.w.Sounds.play = () => {};
+    const s = snapshot('server-1', 'Turma', [{ id: 'server-1', name: 'Turma', owner: true }]);
+    s.categories.push({ id: 'voice', name: 'Voz' });
+    s.channels.push({ id: 'room-1', name: 'Sala 1', type: 'voice', categoryId: 'voice', allowedRoles: [] });
+    s.myPerms.push('SPEAK');
+    app.setSnapshot(s); await settle();
+    return app;
+  };
+  const last = (app, event) => app.events.filter((e) => e.event === event).at(-1)?.payload;
+
+  // Primeira vez: tudo aberto. Muta e ensurdece fora da call, como quem se prepara antes de entrar.
+  const first = await open({});
+  // O botão de baixo diz o que o clique vai fazer ("Silenciar" quando o microfone está aberto).
+  const tip = (app, id) => app.d.querySelector(id).dataset.tip;
+  assert.equal(tip(first, '#sc-mic'), 'Silenciar');
+  first.d.querySelector('#btn-mute').click();
+  assert.equal(first.w.localStorage.getItem('selfMuted'), 'true');
+  first.d.querySelector('#btn-deafen').click();
+  assert.equal(first.w.localStorage.getItem('selfDeafened'), 'true');
+  // Tirar a surdez pelo microfone abre os dois, e isso também fica guardado.
+  first.d.querySelector('#btn-mute').click();
+  assert.equal(first.w.localStorage.getItem('selfMuted'), 'false');
+  assert.equal(first.w.localStorage.getItem('selfDeafened'), 'false');
+  first.d.querySelector('#btn-mute').click();
+
+  // O app abre de novo (mesmo aparelho): continua mutado e entra na sala assim, já na entrada.
+  const again = await open({ selfMuted: first.w.localStorage.getItem('selfMuted'), selfDeafened: first.w.localStorage.getItem('selfDeafened') });
+  assert.equal(tip(again, '#sc-mic'), 'Ativar microfone', 'o botão já abre mutado');
+  assert.equal(tip(again, '#sc-deaf'), 'Ensurdecer');
+  again.d.querySelector('[data-channel-id="room-1"] .channel-entry').click(); await settle();
+  assert.deepEqual({ ...last(again, 'voice:join') }, { channel: 'room-1', serverId: 'server-1', muted: true, deafened: false, mediaVersion: 1 });
+  assert.equal(last(again, 'voice:state').muted, true);
+
+  // Ensurdecido também volta ensurdecido (e mudo, porque quem não ouve não fala).
+  const deaf = await open({ selfMuted: 'false', selfDeafened: 'true' });
+  assert.equal(tip(deaf, '#sc-deaf'), 'Desativar surdez');
+  deaf.d.querySelector('[data-channel-id="room-1"] .channel-entry').click(); await settle();
+  assert.equal(last(deaf, 'voice:join').muted, true);
+  assert.equal(last(deaf, 'voice:join').deafened, true);
+});
+
 test('aesthetic chat: deleting messages uses app confirmation and preserves Shift shortcut', async (t) => {
   const app = await ui(t);
   await app.register();
@@ -1297,7 +1346,7 @@ test('Salão do Mudae: tela própria com palco, mesa ao vivo, presença, álbum 
   assert.equal(app.d.querySelector('#salon-view').classList.contains('hidden'), false);
   assert.ok(app.d.querySelector('#main').classList.contains('salon-mode'));
   assert.ok(app.d.querySelector('#app').classList.contains('hide-members'), 'a coluna do chat fica no lugar da lista de membros');
-  assert.deepEqual([...app.d.querySelectorAll('.salon-tab')].map((b) => b.textContent), ['Mesa', 'Meu harem', 'Forja', 'Personagens', 'Ranking']);
+  assert.deepEqual([...app.d.querySelectorAll('.salon-tab')].map((b) => b.textContent), ['Mesa', 'Meu harem', 'Forja', 'Poderes', 'Personagens', 'Ranking']);
   assert.equal(app.d.querySelector('.salon-status-full').textContent.trim(), '9/10 rolls · casamento disponível');
   assert.ok(app.d.querySelector('.salon-status-full svg.mi-ring'), 'o anel desenhado no lugar do emoji');
   assert.equal(app.d.querySelector('.salon-status-short').textContent.trim(), '9/10 ·', 'versão curta para a faixa apertada');

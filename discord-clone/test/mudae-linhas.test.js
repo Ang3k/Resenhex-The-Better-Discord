@@ -159,3 +159,15 @@ test('linhas do bot usam os ícones próprios, sem emoji', (t) => {
     assert.doesNotMatch(node.textContent, EMOJI, mudae.kind + ': sem emoji');
   }
 });
+
+test('$k e $tu mostram os cristais de hoje que valem inteiro', (t) => {
+  const { say } = setup(t);
+  const crystals = { used: 7, max: 15, after: 0.02, storm: 2, resetIn: 1000 };
+  assert.equal(say({ kind: 'kakera', kakera: 1200, crystals }), 'Você tem 1.200 kakera.Cristais de hoje: 7 de 15 valendo inteiro (depois, 2% até a meia-noite).');
+  assert.equal(say({ kind: 'kakera', kakera: 1200, crystals: { ...crystals, used: 16 } }),
+    'Você tem 1.200 kakera.Você já pegou os 15 cristais de hoje que valem inteiro. Até a meia-noite, cada um vale 2%.');
+  // Resposta de um servidor antigo, sem a conta: só o saldo.
+  assert.equal(say({ kind: 'kakera', kakera: 1200 }), 'Você tem 1.200 kakera.');
+  const status = say({ kind: 'status', rollsLeft: 3, rollsMax: 10, rollResetIn: 60_000, claimReady: true, kakera: 50, crystals: { ...crystals, used: 2 } });
+  assert.match(status, /Você tem 50 kakera\.Cristais de hoje: 2 de 15 valendo inteiro/);
+});

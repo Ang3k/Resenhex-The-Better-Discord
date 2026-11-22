@@ -2347,7 +2347,7 @@ io.on('connection', (socket) => {
       const powers = powersView(acc);
       return only({ kind: 'status', ...mudae.status(store, acc.id), powersReady: powers.slots.filter((key) => key && !powers.readyIn[key]) });
     } else if (cmd === 'k') {
-      return only({ kind: 'kakera', kakera: mudae.kakeraOf(store, acc.id) });
+      return only({ kind: 'kakera', kakera: mudae.kakeraOf(store, acc.id), crystals: mudae.crystalsToday(store, acc.id) });
     } else if (cmd === 'dk') {
       const r = mudae.dailyKakera(store, acc.id);
       if (r.error) return error(r.error);
@@ -2504,7 +2504,7 @@ io.on('connection', (socket) => {
     if (r.next) crystalToSalons(serverId, 'mudae:crystal', r.next);
     if (s.salon) pushSalon(serverId, s.salon);
     afterProgress(acc, null);
-    return { ok: true, amount: r.amount, kakera: r.kakera, full: r.full };
+    return { ok: true, amount: r.amount, kakera: r.kakera, full: r.full, crystals: mudae.crystalsToday(store, acc.id) };
   });
 
   on('mudae:claim', (acc, { channel, id }) => {
@@ -3134,9 +3134,12 @@ io.on('connection', (socket) => {
   }, { voice: true });
   // serverId é opcional: sem ele, a sala é do servidor que a pessoa está vendo. Com ele, dá para
   // voltar à chamada de outro servidor (ao reconectar ou ao ser movido enquanto olha outro servidor).
-  on('voice:join', (acc, { channel, serverId, dm, silent, mediaVersion }) => {
+  on('voice:join', (acc, { channel, serverId, dm, silent, mediaVersion, muted, deafened }) => {
     if (media.enabled && mediaVersion !== 1) fail('Recarregue o Resenhex para usar o novo servidor de mídia.');
     const s = online.get(socket.id);
+    // O app guarda o microfone e o fone de uma vez para outra e já manda na entrada: a sala vê a pessoa chegar como
+    // ela está. Página antiga não manda nada e continua como antes (o voice:state logo depois acerta).
+    if (typeof muted === 'boolean') { s.muted = muted || deafened === true; s.deafened = deafened === true; }
     if (dm !== undefined) return joinDmCall(acc, s, dm, silent === true);
     const target = serverId === undefined ? s.serverId : serverId;
     if (target !== s.serverId && (typeof target !== 'string' || !communities.joined(acc.id, target))) fail('Canal não encontrado');
