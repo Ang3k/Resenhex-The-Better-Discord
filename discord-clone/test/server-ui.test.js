@@ -792,7 +792,7 @@ test('microfone e fone ficam como a pessoa deixou, de uma vez que abre o app par
 });
 
 // Pedido de 12/11: escolher o minuto do vídeo no DJ, para a sala toda.
-test('DJ: arrastar a linha do tempo leva a sala para o ponto e mostra a foto de quem mudou em cima da barra', async (t) => {
+test('DJ: arrastar a linha do tempo leva a sala para o ponto e a foto de quem mudou pula na barra e some', async (t) => {
   const app = await ui(t, false, {
     storage: { noiseMode: 'off' }, reply: { 'voice:join': () => ({ peers: [] }), 'music:control': () => ({ at: 0 }) },
     setup(w) { Object.defineProperty(w.navigator, 'mediaDevices', { value: { getUserMedia: async () => ({ getTracks: () => [], getAudioTracks: () => [] }) } }); },
@@ -814,7 +814,11 @@ test('DJ: arrastar a linha do tempo leva a sala para o ponto e mostra a foto de 
   } });
   const at = (seconds, marks, extra = {}) => ({ current: track, queue: [], startedAt: Date.now() - seconds * 1000, pausedAt: null, held: false,
     marks, last: null, now: Date.now(), ...extra });
-  play(at(30, [{ by: maria.id, name: 'Maria', at: 180, when: Date.now() - 60_000 }])); await settle();
+  // Maria mudou para 3:00 há 3 s; o Caio, há um minuto (o balão dele já sumiu).
+  const mariaWhen = Date.now() - 3000;
+  const old = { by: 'c'.repeat(16), name: 'Caio', at: 60, when: Date.now() - 60_000 };
+  const maria3 = { by: maria.id, name: 'Maria', at: 180, when: mariaWhen };
+  play(at(30, [old, maria3])); await settle();
   app.d.querySelector('#sc-music').click(); await settle();
 
   const panel = app.d.querySelector('#dj-panel');
@@ -823,14 +827,15 @@ test('DJ: arrastar a linha do tempo leva a sala para o ponto e mostra a foto de 
   assert.equal(bar.getAttribute('role'), 'slider');
   assert.equal(bar.getAttribute('aria-valuemax'), '281');
   assert.equal(elapsed(), '0:30');
-  // O balão de quem mudou, no ponto escolhido, com a foto (aqui, a inicial) dentro.
+  // O balão de quem mudou, no ponto escolhido, com a foto (aqui, a inicial) dentro. Quem abre o painel
+  // depois vê o balão no ponto da animação em que ele está para todo mundo (3 s dos 4,5 s).
   const mark = panel.querySelector('.dj-mark');
+  assert.equal(panel.querySelectorAll('.dj-mark').length, 1);
   assert.equal(mark.getAttribute('aria-label'), 'Maria pulou para 3:00');
   assert.equal(mark.style.left, (180 / 281) * 100 + '%');
   assert.equal(mark.querySelector('.avatar.dj-mark-photo').textContent, 'M');
   assert.ok(mark.classList.contains('newest'));
-  assert.equal(mark.classList.contains('fresh'), false, 'pulo antigo não chega pulando');
-  assert.ok(panel.querySelector('.dj-progress').classList.contains('has-marks'));
+  assert.ok(Math.abs(parseInt(mark.style.animationDelay, 10) + 3000) < 300, mark.style.animationDelay);
 
   // Arrastar: só a minha barra se mexe; o pulo vai para a sala quando eu solto.
   bar.getBoundingClientRect = () => ({ left: 100, width: 281, top: 0, height: 16, right: 381, bottom: 16 });
@@ -847,14 +852,17 @@ test('DJ: arrastar a linha do tempo leva a sala para o ponto e mostra a foto de 
   assert.equal(bar.classList.contains('dragging'), false);
   assert.equal(elapsed(), '2:00', 'o ponto escolhido fica na barra até o servidor confirmar');
 
-  // O servidor confirma: a sala vai para 2:00 e o meu balão aparece na frente, chegando agora.
-  play(at(120, [{ by: maria.id, name: 'Maria', at: 180, when: Date.now() - 60_000 }, { by: userId, name: 'Ana', at: 120, when: Date.now() }])); await settle();
-  const marks = [...app.d.querySelectorAll('#dj-panel .dj-mark')];
-  assert.deepEqual(marks.map((m) => m.getAttribute('aria-label')), ['Maria pulou para 3:00', 'Ana pulou para 2:00']);
-  assert.deepEqual(marks.map((m) => m.classList.contains('newest')), [false, true]);
-  assert.ok(marks[1].classList.contains('fresh'));
+  // O servidor confirma: a sala vai para 2:00 e o meu balão pula na frente do da Maria.
+  play(at(120, [old, maria3, { by: userId, name: 'Ana', at: 120, when: Date.now() }])); await settle();
+  const labels = () => [...app.d.querySelectorAll('#dj-panel .dj-mark')].map((m) => m.getAttribute('aria-label') + (m.classList.contains('newest') ? ' (na frente)' : ''));
+  assert.deepEqual(labels(), ['Maria pulou para 3:00', 'Ana pulou para 2:00 (na frente)']);
+  assert.ok(Math.abs(parseInt(app.d.querySelector('#dj-panel .dj-mark.newest').style.animationDelay, 10)) < 300, 'o meu começa do zero');
+  // Passados os 4,5 s do balão da Maria, ele sai; o meu continua até completar os dele.
+  await new Promise((r) => setTimeout(r, Math.max(0, mariaWhen + 4500 - Date.now()) + 600));
+  assert.deepEqual(labels(), ['Ana pulou para 2:00 (na frente)']);
 
   // Setas: 5 s por toque; o pulo vai uma vez só, quando a pessoa para de apertar.
+  play(at(120, [])); await settle();
   const slider = app.d.querySelector('#dj-panel .dj-bar');
   const key = (k) => slider.dispatchEvent(new app.w.KeyboardEvent('keydown', { key: k, bubbles: true, cancelable: true }));
   key('ArrowRight'); key('ArrowRight');

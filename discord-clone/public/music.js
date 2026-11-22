@@ -472,7 +472,6 @@ window.MusicDJ = function ({ state, el, Icon, toast, call, callInfo, callPerm, c
       if (e.button !== 0) return;
       e.preventDefault();
       e.stopPropagation();
-      bar.focus({ preventScroll: true });
       bar.setPointerCapture?.(e.pointerId);
       move(at(e.clientX));
     });
@@ -503,28 +502,29 @@ window.MusicDJ = function ({ state, el, Icon, toast, call, callInfo, callPerm, c
     return t.duration ? Math.min(shown, t.duration) : shown;
   }
 
-  // Balões de quem mudou o tempo nesta música (o último pulo de cada pessoa). O mais novo fica na frente.
+  // Balão de quem mudou o tempo: é só um aviso para a sala ver quem mexeu. Ele pula para cima da barra
+  // no ponto escolhido, fica uns segundos e some (a animação no music.css dura MARK_MS). Quem abre o
+  // painel no meio vê o balão no ponto da animação em que ele está para todo mundo.
+  const MARK_MS = 4500;
   function renderMarks() {
     const m = music();
     const t = m?.current;
-    const marks = t?.duration && !t.live ? (m.marks || []).filter((mark) => mark.at < t.duration) : [];
+    const now = serverNow();
+    const marks = t?.duration && !t.live ? (m.marks || []).filter((mark) => mark.at < t.duration && now - mark.when < MARK_MS) : [];
     const sig = JSON.stringify([t?.id, t?.duration, marks.map((mark) => [mark.by, mark.at, mark.when])]);
     for (const box of document.querySelectorAll('.dj-marks')) {
       if (box.dataset.sig === sig) continue;
       box.dataset.sig = sig;
-      box.closest('.dj-progress')?.classList.toggle('has-marks', marks.length > 0);
-      box.replaceChildren(...marks.map((mark, i) => markPin(mark, t, i === marks.length - 1)));
+      box.replaceChildren(...marks.map((mark, i) => markPin(mark, t, i === marks.length - 1, now)));
     }
   }
 
-  function markPin(mark, t, newest) {
+  function markPin(mark, t, newest, now) {
     const who = callMember(mark.by);
-    const label = `${mark.name} pulou para ${clock(mark.at)}`;
     const photo = avatar ? avatar({ ...(who || {}), name: who?.name || mark.name }, 'dj-mark-photo') : el('span', { class: 'avatar dj-mark-photo' });
-    // Pulo de agora há pouco: o balão chega com um pulinho (quem abre o painel depois não vê de novo).
-    const fresh = newest && serverNow() - mark.when < 4000;
-    return el('span', { class: 'dj-mark' + (newest ? ' newest' : '') + (fresh ? ' fresh' : ''), role: 'img', ariaLabel: label, tip: label,
-      style: { left: (mark.at / t.duration) * 100 + '%' } }, photo, el('i', { class: 'dj-mark-stem' }));
+    return el('span', { class: 'dj-mark' + (newest ? ' newest' : ''), role: 'img', ariaLabel: `${mark.name} pulou para ${clock(mark.at)}`,
+      style: { left: (mark.at / t.duration) * 100 + '%', animationDelay: -Math.min(MARK_MS, Math.max(0, now - mark.when)) + 'ms' } },
+    photo, el('i', { class: 'dj-mark-stem' }));
   }
   const credits = (t) => [t.author, 'pedido por ' + t.byName, t.alt ? 'outra versão' : ''].filter(Boolean).join(' · ');
 
@@ -797,6 +797,7 @@ window.MusicDJ = function ({ state, el, Icon, toast, call, callInfo, callPerm, c
   setInterval(() => {
     if (!music()) return;
     tickTimes();
+    renderMarks(); // tira o balão quando o tempo dele acaba
     if (++ticks % 2 === 0) drive();
   }, 500);
   addEventListener('resize', positionPanel);

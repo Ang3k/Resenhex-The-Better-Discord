@@ -8,7 +8,7 @@ const EMBED_BLOCKED = new Set([100, 101, 150]);
 // Mudar o tempo: entre pulos de pessoas diferentes, a espera é mais ou menos o que o player de cada um
 // leva para carregar o ponto novo. Pular antes disso só deixa o vídeo travando para a sala toda.
 const SEEK_GAP_MS = 2000;
-const MAX_MARKS = 5; // balões na linha do tempo: o último pulo de cada pessoa, nesta música
+const MAX_MARKS = 5; // pulos recentes desta música, o último de cada pessoa (o navegador mostra cada um por uns segundos)
 
 // 281 -> "4:41"; 3723 -> "1:02:03".
 function clockText(seconds) {

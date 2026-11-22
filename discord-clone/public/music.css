@@ -122,7 +122,6 @@
   background: rgba(0, 0, 0, .55); border: 1px solid rgba(255, 255, 255, .08); /* sem blur: o progresso muda a cada quadro */
 }
 .dj-stage-bar .dj-progress { padding: 0 0 8px; }
-.dj-stage-bar .dj-progress.has-marks { padding-top: 26px; }
 .dj-stage-row { display: flex; align-items: center; gap: 12px; min-width: 0; }
 .dj-stage-art { flex-shrink: 0; width: 64px; height: 36px; border-radius: 6px; object-fit: cover; background: #000; }
 .dj-stage-track { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
@@ -254,12 +253,7 @@
 .dj-now-row { display: flex; gap: 12px; align-items: center; padding: 4px 8px 0; }
 .dj-now-art { width: 96px; height: 54px; border-radius: 8px; object-fit: cover; background: var(--bg-input); flex-shrink: 0; }
 .dj-now .dj-track-text strong { font-size: 14px; color: var(--text-strong); }
-.dj-progress {
-  display: flex; align-items: center; gap: 8px; padding: 10px 8px 4px; font-size: 11px; color: var(--text-muted); font-variant-numeric: tabular-nums;
-  transition: padding-top .2s var(--ease-enter, ease-out);
-}
-/* Os balões de quem mudou o tempo sobem acima da barra: o espaço deles só aparece quando há algum. */
-.dj-progress.has-marks { padding-top: 34px; }
+.dj-progress { display: flex; align-items: center; gap: 8px; padding: 10px 8px 4px; font-size: 11px; color: var(--text-muted); font-variant-numeric: tabular-nums; }
 
 /* A barra: a linha fina no meio de uma faixa de 16 px, mais fácil de acertar com o dedo ou o mouse. */
 .dj-bar { position: relative; flex: 1; min-width: 0; height: 16px; display: flex; align-items: center; outline: none; touch-action: pan-y; }
@@ -291,26 +285,30 @@ html:not(.touch) .dj-bar:not(.locked):hover .dj-knob { transform: scale(1); }
   box-shadow: 0 4px 12px rgba(0, 0, 0, .35); white-space: nowrap; pointer-events: none; opacity: 0; transition: opacity .12s;
 }
 .dj-bar:not(.locked).dragging .dj-hover-time, html:not(.touch) .dj-bar:not(.locked):hover .dj-hover-time { opacity: 1; }
-/* Em cima de um balão, o aviso dele já diz o tempo: o do mouse sairia por cima da foto. */
-.dj-bar:not(.dragging):has(.dj-mark:hover) .dj-hover-time { opacity: 0; }
 
-/* Balão com a foto de quem mudou o tempo, preso no ponto escolhido. Os mais antigos ficam apagadinhos. */
+/* Balão com a foto de quem mudou o tempo: pula para cima da barra no ponto escolhido, fica uns
+   segundos e some (4,5 s no total, o MARK_MS do music.js). Passa por cima do que está acima da barra,
+   sem empurrar nada, e não pega clique: quem quiser mexer na barra mexe normalmente. */
 .dj-marks { position: absolute; inset: 0; pointer-events: none; }
 .dj-mark {
-  position: absolute; bottom: 50%; z-index: 1; display: flex; flex-direction: column; align-items: center; transform: translateX(-50%);
-  pointer-events: auto; opacity: .6; transition: opacity .15s;
+  position: absolute; bottom: 50%; z-index: 1; display: flex; flex-direction: column; align-items: center;
+  transform: translateX(-50%); transform-origin: 50% 100%; animation: dj-mark-life 4.5s linear both;
 }
-.dj-mark.newest { z-index: 3; opacity: 1; }
-.dj-mark:hover { z-index: 3; opacity: 1; }
-.avatar.dj-mark-photo {
-  width: 22px; height: 22px; font-size: 9px; background-clip: padding-box;
-  box-shadow: 0 0 0 2px var(--brand), 0 3px 8px rgba(0, 0, 0, .45);
-}
+.dj-mark.newest { z-index: 3; }
+.avatar.dj-mark-photo { width: 20px; height: 20px; font-size: 9px; box-shadow: 0 0 0 2px var(--brand), 0 3px 8px rgba(0, 0, 0, .45); }
+.dj-mark-stem { width: 2px; height: 6px; margin-top: 2px; border-radius: 0 0 2px 2px; background: var(--brand); }
+/* Dois pulos seguidos de pessoas diferentes: o anterior fica cinza atrás do novo até sumir. */
 .dj-mark:not(.newest) .avatar.dj-mark-photo { box-shadow: 0 0 0 2px color-mix(in srgb, var(--text) 45%, transparent), 0 3px 8px rgba(0, 0, 0, .35); }
-.dj-mark-stem { width: 2px; height: 7px; margin-top: 2px; border-radius: 0 0 2px 2px; background: var(--brand); }
 .dj-mark:not(.newest) .dj-mark-stem { background: color-mix(in srgb, var(--text) 45%, transparent); }
-.dj-mark.fresh { animation: dj-mark-in .45s var(--spring-pop, ease-out) both; transform-origin: 50% 100%; }
-@keyframes dj-mark-in { from { opacity: 0; transform: translateX(-50%) translateY(8px) scale(.3); } }
+@keyframes dj-mark-life {
+  0% { opacity: 0; transform: translateX(-50%) translateY(10px) scale(.3); animation-timing-function: cubic-bezier(.34, 1.56, .64, 1); }
+  9% { opacity: 1; transform: translateX(-50%) translateY(0) scale(1); }
+  86% { opacity: 1; transform: translateX(-50%) translateY(0) scale(1); animation-timing-function: cubic-bezier(.4, 0, 1, 1); }
+  100% { opacity: 0; transform: translateX(-50%) translateY(-6px) scale(.5); }
+}
+/* Sem animação (acessibilidade): o balão só aparece e some. */
+@media (prefers-reduced-motion: reduce) { .dj-mark { animation: none; } }
+:root[data-reduce-motion="true"] .dj-mark { animation: none; }
 .dj-progress.is-live .dj-total { color: var(--red); font-weight: 700; }
 .dj-controls { display: flex; align-items: center; gap: 6px; padding: 4px 8px 0; }
 .dj-ctl {
@@ -338,6 +336,6 @@ html:not(.touch) .dj-bar:not(.locked):hover .dj-knob { transform: scale(1); }
   .dj-volume input { width: 72px; }
 }
 @media (prefers-reduced-motion: reduce) {
-  .dj-avatar.spinning .ico, .sc-btn#sc-music .ico-disc, .dj-stage-badge .ico, .dj-eq i, .tile.dj.focus .dj-stage, .dj-mark.fresh { animation: none !important; }
+  .dj-avatar.spinning .ico, .sc-btn#sc-music .ico-disc, .dj-stage-badge .ico, .dj-eq i, .tile.dj.focus .dj-stage { animation: none !important; }
 }
-:root[data-reduce-motion="true"] :is(.dj-avatar.spinning .ico, .sc-btn#sc-music .ico-disc, .dj-stage-badge .ico, .dj-eq i, .tile.dj.focus .dj-stage, .dj-mark.fresh) { animation: none !important; }
+:root[data-reduce-motion="true"] :is(.dj-avatar.spinning .ico, .sc-btn#sc-music .ico-disc, .dj-stage-badge .ico, .dj-eq i, .tile.dj.focus .dj-stage) { animation: none !important; }
