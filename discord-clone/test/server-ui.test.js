@@ -1805,3 +1805,33 @@ test('enquete no chat da sala de voz: o + cria, a mensagem mostra as opções co
   options[1].click(); await settle();
   assert.deepEqual({ ...app.events.find((e) => e.event === 'poll:vote').payload }, { channel: 'room-1', id: 'poll-1', option: 1 });
 });
+
+test('Novidades: a 2.7.1 mostra a cena do minuto no DJ e, sem animação, a foto parada no ponto escolhido', async (t) => {
+  const app = await ui(t);
+  const { d } = app;
+  await app.register();
+  // Com animação, a cena começa com a música tocando, antes de alguém mexer na barra.
+  d.querySelector('#settings-version').click(); await settle();
+  assert.equal(d.querySelector('#changelog .djd-stage .dj-elapsed').textContent, '0:42');
+  assert.equal(d.querySelector('#changelog .djd-stage .dj-marks').children.length, 0);
+  assert.match(d.querySelector('#changelog .djd-stage .dj-last').textContent, /^Bia colocou/);
+  d.querySelector('#changelog .cl-close').click();
+  d.documentElement.dataset.reduceMotion = 'true';
+  d.querySelector('#settings-version').click(); await settle();
+  const showcase = d.querySelector('#changelog .cl-showcase');
+  assert.ok(showcase, 'a versão atual tem a cena');
+  assert.match(showcase.querySelector('figcaption').textContent, /^Escolher o minuto no DJ\. Arraste a barra e solte/);
+  const stage = showcase.querySelector('.djd-stage');
+  assert.equal(stage.getAttribute('role'), 'img');
+  assert.match(stage.getAttribute('aria-label'), /arrasta a linha do tempo do DJ/);
+  assert.equal(stage.querySelectorAll('button, input, a, [tabindex]').length, 0, 'é só desenho: nada para clicar');
+  assert.equal(stage.querySelector('.dj-elapsed').textContent, '2:51');
+  assert.equal(stage.querySelector('.dj-total').textContent, '3:58');
+  assert.equal(stage.querySelectorAll('.dj-mark').length, 1);
+  assert.equal(stage.querySelector('.dj-mark').style.left, '72%');
+  assert.equal(stage.querySelector('.dj-mark .avatar').textContent, 'A', 'a foto (ou a inicial) de quem está lendo');
+  assert.equal(stage.querySelector('.dj-last').textContent, 'Ana pulou para 2:51');
+  // Outra versão, sem cena: a janela não mostra nada no lugar.
+  [...d.querySelectorAll('#changelog .cl-version')].find((b) => b.textContent.includes('v2.7.0')).click(); await settle();
+  assert.equal(d.querySelector('#changelog .cl-showcase'), null);
+});

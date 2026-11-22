@@ -804,3 +804,137 @@ window.MusicDJ = function ({ state, el, Icon, toast, call, callInfo, callPerm, c
 
   return { render, stageTile, voiceRow, command, suggestions, openPanel, closePanel };
 };
+
+// ---------- Novidades: a cena do "escolher o minuto" ----------
+// Uma cena em loop montada com as peças de verdade do DJ (a barra, a bolinha, o tempo e o balão com a foto),
+// para a janela de Novidades mostrar a novidade funcionando: você arrasta a barra, solta e a sua foto pula no
+// ponto escolhido; uns segundos depois, a Bia volta a música e a foto dela aparece. É só desenho: nada aqui
+// fala com o servidor. A cena para sozinha quando a janela fecha ou troca de versão.
+window.NovidadesDemos = Object.assign(window.NovidadesDemos || {}, {
+  'dj-minuto'({ el, Icon, avatar, me }) {
+    const DURATION = 238; // 3:58
+    const CYCLE = 11500; // ms de uma volta da cena
+    const MARK_MS = 4500; // o mesmo tempo do balão de verdade (dj-mark-life no music.css)
+    const YOU_TO = 0.72;
+    const BIA_TO = 0.3;
+    const clock = (s) => { const v = Math.max(0, Math.floor(s)); return Math.floor(v / 60) + ':' + String(v % 60).padStart(2, '0'); };
+    const you = { ...(me || {}), name: String(me?.name || 'Você').trim().split(/\s+/)[0] || 'Você' };
+    const bia = { name: 'Bia', color: '#e8590c' };
+    const reduce = !!window.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches || document.documentElement.dataset.reduceMotion === 'true';
+
+    const fill = el('i', { class: 'dj-fill' });
+    const marks = el('div', { class: 'dj-marks' });
+    const chip = el('span', { class: 'dj-hover-time' });
+    const bar = el('div', { class: 'dj-bar' }, el('div', { class: 'dj-line' }, fill), el('span', { class: 'dj-knob' }), marks, chip);
+    const elapsed = el('span', { class: 'dj-elapsed' });
+    const last = el('span');
+    const ctl = (icon, primary = false) => el('span', { class: 'dj-ctl' + (primary ? ' primary' : '') }, Icon(icon, 18));
+    const pointer = el('span', { class: 'djd-pointer' }, el('span', { class: 'djd-pointer-shape' }));
+    const stage = el('div', { class: 'djd-stage', role: 'img',
+      ariaLabel: 'Animação: alguém arrasta a linha do tempo do DJ e solta num ponto; a foto dessa pessoa aparece num balão em cima da barra, no ponto escolhido, e some depois de alguns segundos.' },
+    el('div', { class: 'djd-panel' },
+      el('header', { class: 'dj-panel-head' }, el('span', { class: 'dj-badge' }, Icon('disc', 18)),
+        el('div', {}, el('strong', { textContent: 'DJ da sala' }), el('small', { textContent: 'Sala de voz · só toca para quem está na sala' }))),
+      el('section', { class: 'dj-now' },
+        el('div', { class: 'dj-section-title', textContent: 'TOCANDO AGORA' }),
+        el('div', { class: 'dj-now-row' },
+          el('span', { class: 'dj-now-art djd-art' }, el('span', { class: 'dj-eq' }, el('i'), el('i'), el('i'), el('i'))),
+          el('div', { class: 'dj-track-text' }, el('strong', { textContent: 'Sessão acústica de sexta' }), el('small', { textContent: 'Canal da Resenha · pedido por Bia' }))),
+        el('div', { class: 'dj-progress' }, elapsed, bar, el('span', { class: 'dj-total', textContent: clock(DURATION) })),
+        el('div', { class: 'dj-controls' }, ctl('pauseBars', true), ctl('skip'), ctl('stop'))),
+      el('p', { class: 'dj-last' }, Icon('info', 14), last)),
+    pointer);
+
+    let pos = 42; // segundos: onde a música está tocando
+    const pins = []; // { node, until }
+    const show = (seconds) => {
+      bar.style.setProperty('--p', seconds / DURATION);
+      const text = clock(seconds);
+      if (elapsed.textContent !== text) elapsed.textContent = text;
+    };
+    const hover = (seconds) => {
+      bar.style.setProperty('--h', seconds / DURATION);
+      chip.textContent = clock(seconds);
+    };
+    const jump = (who, seconds, now) => {
+      pos = seconds;
+      for (const pin of pins) pin.node.classList.remove('newest');
+      const node = el('span', { class: 'dj-mark newest', style: { left: (seconds / DURATION) * 100 + '%' } },
+        avatar ? avatar(who, 'dj-mark-photo') : el('span', { class: 'avatar dj-mark-photo' }), el('i', { class: 'dj-mark-stem' }));
+      marks.append(node);
+      pins.push({ node, until: now + MARK_MS });
+      last.textContent = `${who.name} pulou para ${clock(seconds)}`;
+    };
+    last.textContent = 'Bia colocou “Sessão acústica de sexta” para tocar';
+    show(pos);
+    // Sem animação (acessibilidade): fica a foto do momento em que você soltou a barra.
+    if (reduce) { jump(you, YOU_TO * DURATION, 0); show(pos); return stage; }
+
+    const clamp = (x) => Math.min(1, Math.max(0, x));
+    const part = (t, a, b) => clamp((t - a) / (b - a));
+    const ease = (x) => (x < 0.5 ? 4 * x * x * x : 1 - Math.pow(-2 * x + 2, 3) / 2);
+    const mix = (a, b, k) => a + (b - a) * k;
+    let start = null;
+    let prev = 0;
+    let round = -1;
+    let fired = new Set();
+    let grabbed = 0;
+    let seen = false;
+    let waits = 0;
+    const once = (name, when, c) => c >= when && !fired.has(name) && !!fired.add(name);
+
+    function frame(now) {
+      // Espera a janela abrir; depois que ela some (fechou ou trocou de versão), a cena para de vez.
+      if (!(stage.isConnected && stage.getClientRects().length)) {
+        if (!seen && ++waits < 120) requestAnimationFrame(frame);
+        return;
+      }
+      seen = true;
+      if (start === null) { start = now; prev = now; }
+      // Aba escondida (o navegador para de desenhar): a cena continua de onde estava, sem pular etapas.
+      if (now - prev > 500) { const gap = now - prev - 16; start += gap; for (const pin of pins) pin.until += gap; prev = now - 16; }
+      const dt = Math.min(100, now - prev);
+      prev = now;
+      const c = (now - start) % CYCLE;
+      const r = Math.floor((now - start) / CYCLE);
+      if (r !== round) { round = r; fired = new Set(); }
+
+      // 1,3 s: a seta pega a bolinha; até 2,7 s arrasta; 2,9 s solta e a sala vai junto (com a sua foto).
+      if (once('grab', 1300, c)) grabbed = pos;
+      const dragging = c >= 1300 && c < 2900;
+      const dragAt = mix(grabbed, YOU_TO * DURATION, ease(part(c, 1300, 2700)));
+      if (once('release', 2900, c)) jump(you, YOU_TO * DURATION, now);
+      // 6 s: a Bia volta a música; o seu balão fica cinza atrás do dela até sumir.
+      if (once('bia', 6000, c)) jump(bia, BIA_TO * DURATION, now);
+      if (!dragging) pos = Math.min(DURATION - 1, pos + dt / 1000);
+      const shown = dragging ? dragAt : pos;
+      show(shown);
+      const near = c >= 1000 && c < 2900;
+      bar.classList.toggle('dragging', near);
+      if (near) hover(shown);
+      for (let i = pins.length - 1; i >= 0; i--) if (now >= pins[i].until) { pins[i].node.remove(); pins.splice(i, 1); }
+
+      // A seta (ou o dedo, no celular): chega na bolinha, arrasta e sai de lado depois de soltar.
+      const s = stage.getBoundingClientRect();
+      const b = bar.getBoundingClientRect();
+      const y = b.top + b.height / 2 - s.top;
+      const x = (k) => b.left - s.left + k * b.width;
+      const knob = { x: x(shown / DURATION), y };
+      // O dedo não desliza pela tela: encosta em cima da bolinha e levanta no mesmo lugar.
+      const touch = document.documentElement.classList.contains('touch');
+      const from = touch ? knob : { x: x(0.88), y: y + 48 };
+      const away = touch ? knob : { x: x(YOU_TO) + 36, y: y + 54 };
+      let p = from;
+      let alpha = 0;
+      if (c < 1100) { const k = ease(part(c, 200, 1100)); p = { x: mix(from.x, knob.x, k), y: mix(from.y, knob.y, k) }; alpha = touch ? part(c, 850, 1100) : part(c, 200, 450); }
+      else if (c < 2900) { p = knob; alpha = 1; }
+      else if (c < 3700) { const k = ease(part(c, 2900, 3700)); p = { x: mix(knob.x, away.x, k), y: mix(knob.y, away.y, k) }; alpha = touch ? 1 - part(c, 2900, 3150) : 1 - part(c, 3300, 3700); }
+      pointer.style.opacity = alpha;
+      pointer.style.transform = `translate(${p.x}px, ${p.y}px)`;
+      pointer.classList.toggle('pressed', dragging);
+      requestAnimationFrame(frame);
+    }
+    requestAnimationFrame(frame);
+    return stage;
+  },
+});

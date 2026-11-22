@@ -4069,6 +4069,15 @@
   };
   const formatReleaseDate = (iso) => new Date(iso + 'T12:00:00').toLocaleDateString('pt-BR', { day: 'numeric', month: 'long', year: 'numeric' });
 
+  // A novidade principal da versão pode ganhar uma cena animada logo abaixo do topo. As cenas ficam no arquivo
+  // da própria função (a do DJ mora no music.js), feitas com as peças de verdade dela.
+  function showcase(release) {
+    const make = release.demo && window.NovidadesDemos?.[release.demo.id];
+    if (!make) return null;
+    return el('figure', { class: 'cl-showcase' }, make({ el, Icon, avatar, me: meMember() }),
+      el('figcaption', {}, el('strong', { textContent: release.demo.title }), ' ', release.demo.caption));
+  }
+
   let confettiTimer = null;
   function openChangelog(version = window.APP_VERSION) {
     const list = window.CHANGELOG || [];
@@ -4092,6 +4101,7 @@
           el('span', { class: 'cl-date', textContent: formatReleaseDate(release.date) })),
         el('h2', { id: 'changelog-title', textContent: release.name }),
         el('p', { textContent: release.summary })),
+      showcase(release),
       release.sections.map((sec) => el('section', { class: 'cl-section ' + CHANGE_KINDS[sec.kind].cls },
         el('h3', {}, el('span', { textContent: CHANGE_KINDS[sec.kind].label })),
         el('ul', {}, sec.items.map((item) => el('li', { textContent: item }))))),
