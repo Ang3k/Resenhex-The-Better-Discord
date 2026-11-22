@@ -285,6 +285,8 @@ html:not(.touch) .dj-bar:not(.locked):hover .dj-knob { transform: scale(1); }
   box-shadow: 0 4px 12px rgba(0, 0, 0, .35); white-space: nowrap; pointer-events: none; opacity: 0; transition: opacity .12s;
 }
 .dj-bar:not(.locked).dragging .dj-hover-time, html:not(.touch) .dj-bar:not(.locked):hover .dj-hover-time { opacity: 1; }
+/* Com a foto de quem mudou em cima da barra, o tempo do mouse some (só volta ao arrastar), para não ficar uma coisa atrás da outra. */
+.dj-bar:not(.dragging):has(.dj-mark) .dj-hover-time { opacity: 0 !important; }
 
 /* Balão com a foto de quem mudou o tempo: pula para cima da barra no ponto escolhido, fica uns
    segundos e some (4,5 s no total, o MARK_MS do music.js). Passa por cima do que está acima da barra,
