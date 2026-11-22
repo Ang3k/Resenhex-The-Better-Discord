@@ -1806,7 +1806,7 @@ test('enquete no chat da sala de voz: o + cria, a mensagem mostra as opções co
   assert.deepEqual({ ...app.events.find((e) => e.event === 'poll:vote').payload }, { channel: 'room-1', id: 'poll-1', option: 1 });
 });
 
-test('Novidades: a 2.7.1 mostra a cena do minuto no DJ e, sem animação, a foto parada no ponto escolhido', async (t) => {
+test('Novidades: a 2.7.5 mostra a cena do minuto no DJ e, sem animação, a foto parada no ponto escolhido', async (t) => {
   const app = await ui(t);
   const { d } = app;
   await app.register();

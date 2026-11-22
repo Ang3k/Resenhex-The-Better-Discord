@@ -4,7 +4,7 @@
 // O título deve destacar as principais funcionalidades ou correções, com termos objetivos.
 window.CHANGELOG = [
   {
-    version: '2.7.1', date: '2026-11-22', name: 'Escolher o minuto no DJ, chuva de cristais mais fácil, cristais do dia no Salão, câmera inteira e microfone lembrado',
+    version: '2.7.5', date: '2026-11-22', name: 'Escolher o minuto no DJ, chuva de cristais mais fácil, cristais do dia no Salão, câmera inteira e microfone lembrado',
     summary: 'Esta versão atende pedidos que a galera mandou pela "Mensagem pro dev". A chuva de cristais do Mudae ficou mais fácil de pegar, o Salão mostra quantos cristais do dia você já pegou, a câmera em destaque aparece inteira, sem corte, e o Resenhex lembra se você deixou o microfone ou o áudio desligado. E, no DJ, dá para escolher o minuto do vídeo para a sala toda.',
     demo: { id: 'dj-minuto', title: 'Escolher o minuto no DJ.', caption: 'Arraste a barra e solte: o vídeo vai para esse ponto para toda a sala, e a foto de quem mudou pula em cima da barra por alguns segundos.' },
     sections: [
