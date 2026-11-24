@@ -55,6 +55,7 @@ window.MudaeUI = function ({ state, el, Icon, call, member, avatar, nameColor, F
     { name: 'rolls', note: 'compra os rolls de volta com kakera' },
     { name: 'fm', args: true, hint: 'nome', note: 'escolhe o favorito do harem' },
     { name: 'divorce', args: true, hint: 'nome', note: 'solta um personagem e devolve o valor em kakera' },
+    { name: 'divorcio', note: 'quanto o divórcio ainda devolve e quando o limite volta (também $dt)' },
     { name: 'tu', note: 'rolls, casamento, kakera, reserva e poderes prontos' },
     { name: 'forja', note: 'suas medalhas da Forja (também $badges)' },
     { name: 'forjar', args: true, hint: 'medalha', note: 'forja o próximo nível de uma medalha' },
@@ -68,6 +69,7 @@ window.MudaeUI = function ({ state, el, Icon, call, member, avatar, nameColor, F
     c: { label: 'Quadrinhos', icon: 'comic', of: 'de quadrinhos' },
     d: { label: 'Desenhos', icon: 'tv', of: 'de desenho' },
     s: { label: 'Séries', icon: 'clapperboard', of: 'de série' },
+    v: { label: 'Visual novels', icon: 'sparkles', of: 'de visual novel' },
   };
   for (const [letter, src] of Object.entries(SOURCES)) {
     COMMANDS.push({ name: 'w' + letter, note: 'waifu ' + src.of }, { name: 'h' + letter, note: 'husbando ' + src.of }, { name: 'm' + letter, note: 'qualquer personagem ' + src.of });
@@ -528,6 +530,15 @@ window.MudaeUI = function ({ state, el, Icon, call, member, avatar, nameColor, F
       : ['Cristais de hoje: ', el('strong', { textContent: `${c.used} de ${c.max}` }), ` valendo inteiro (depois, ${after} até a meia-noite).`]);
   }
 
+  // O teto de reembolso do divórcio: quanto ainda devolve e quando abre espaço de novo.
+  function divorceLine(d) {
+    if (d.divorceLeft === undefined) return null;
+    const when = d.divorceIn ? [' O limite abre espaço em ', el('strong', { textContent: minutes(d.divorceIn) }), '.'] : [];
+    return el('div', {}, d.divorceLeft
+      ? ['O divórcio ainda devolve ', el('strong', { class: 'mudae-ok', textContent: num(d.divorceLeft) }), ` de ${num(d.divorceCap)} kakera nas próximas 24 h.`, ...when]
+      : ['O divórcio já devolveu o máximo de kakera. Ele devolve de novo em ', el('strong', { textContent: minutes(d.divorceIn) }), '.']);
+  }
+
   function statusLines(d) {
     return el('div', { class: 'mudae-status' },
       el('div', {}, d.rollsLeft
@@ -543,6 +554,7 @@ window.MudaeUI = function ({ state, el, Icon, call, member, avatar, nameColor, F
       crystalsLine(d.crystals),
       d.dailyIn !== undefined ? el('div', {}, d.dailyIn ? ['O $daily volta em ', el('strong', { textContent: minutes(d.dailyIn) }), '.'] : ['O ', el('strong', { class: 'mudae-ok', textContent: '$daily' }), ' está pronto: os rolls voltam na hora.']) : null,
       d.dkIn !== undefined ? el('div', {}, d.dkIn ? ['O $dk volta em ', el('strong', { textContent: minutes(d.dkIn) }), '.'] : ['O ', el('strong', { class: 'mudae-ok', textContent: '$dk' }), ` está pronto: +${num(d.dkAmount)} kakera.`]) : null,
+      divorceLine(d),
       d.buysLeft !== undefined ? el('div', {}, d.buysLeft
         ? `O $rolls custa ${num(d.rollsPrice)} kakera (${d.buysLeft} de ${d.buysMax} nas próximas 24 h).`
         : ['O $rolls libera de novo em ', el('strong', { textContent: minutes(d.buysIn) }), '.']) : null);
@@ -634,6 +646,7 @@ window.MudaeUI = function ({ state, el, Icon, call, member, avatar, nameColor, F
         d.refund ? ` (+${num(d.refund)} kakera)` : '',
         d.capped ? ` O divórcio já devolveu ${d.cap ? num(d.cap) + " de kakera" : "o máximo de kakera"} hoje; o próximo devolve em ${minutes(d.refundIn)}.` : '');
     } else if (d.kind === 'status') content = statusLines(d);
+    else if (d.kind === 'divorceTime') content = el('div', { class: 'mudae-status' }, divorceLine(d));
     else if (d.kind === 'error') content = el('div', { class: 'msg-text' }, Format.render(d.text || '', fmtCtx));
     else content = el('div', { class: 'mudae-hint', textContent: 'Resposta do Mudae.' });
     const parts = [].concat(content);
@@ -675,7 +688,7 @@ window.MudaeUI = function ({ state, el, Icon, call, member, avatar, nameColor, F
   }
 
   // ---------- comandos ----------
-  const ALIASES = 'w|waifu|h|husbando|m|marry|mm|mma|mms|mmr|harem|im|info|divorce|divorciar|tu|top|topserv|obra|give|dar|givek|givekakera|wish|desejar'
+  const ALIASES = 'w|waifu|h|husbando|m|marry|mm|mma|mms|mmr|harem|im|info|divorce|divorciar|divorcio|dt|tu|top|topserv|obra|give|dar|givek|givekakera|wish|desejar'
     + '|wl|wishlist|wr|wishremove|k|kakera|dk|dailykakera|daily|rolls|fm|favorito|trade|trocar|troca|forja|badges|forjar|poderes|poder|[whm][agcds]';
   const COMMAND_RE = new RegExp(`^\\$(${ALIASES})(\\s|$)`, 'i');
   const isCommand = (text) => COMMAND_RE.test(text.trim());

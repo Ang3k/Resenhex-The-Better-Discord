@@ -104,7 +104,7 @@ function forja(t, { reduced = false, view = forjaView(1200), powers = powersView
 
 test('a parede mostra as 7 medalhas com nível e preço', async (t) => {
   const app = forja(t, { view: forjaView(1200, { bronze: [2, 'esmalte'], ouro: [1, 'metal'], esmeralda: [4, 'galaxia'] }) });
-  assert.deepEqual(app.$$('.salon-tab').map((b) => b.textContent), ['Mesa', 'Meu harem', 'Forja', 'Poderes', 'Personagens', 'Ranking'], 'Forja e Poderes ficam entre Meu harem e Personagens');
+  assert.deepEqual(app.$$('.salon-tab').map((b) => b.textContent), ['Mesa', 'Meu harem', 'Forja', 'Poderes', 'Personagens', 'Desejos', 'Ranking'], 'Forja e Poderes ficam entre Meu harem e Personagens');
   await app.open();
   assert.ok(app.$('.salon-body .forja'), 'a Forja abre dentro do Salão');
   assert.equal(app.$('.forja-power, .forja-stage'), null, 'os poderes têm a aba deles');

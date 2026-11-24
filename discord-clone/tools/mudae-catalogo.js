@@ -7,6 +7,7 @@ const { igdb } = require('./mudae-fontes/igdb');
 const { comicvine } = require('./mudae-fontes/comicvine');
 const { fandom, GAME_FRANCHISES } = require('./mudae-fontes/fandom');
 const { tmdb } = require('./mudae-fontes/tmdb');
+const { aplicarImagens, lerImagens, marcarMesmoPersonagem, lerPaginas } = require('./mudae-fontes/personagens-series');
 const { createCollection, preserveRows, mergeByRank, validateRows, writeJson } = require('./mudae-fontes/coleta');
 const { correctCatalog, isAuxiliaryRow } = require('./mudae-fontes/qualidade');
 const { realPeopleExclusions, isRealPersonRow } = require('./mudae-fontes/pessoas-reais');
@@ -35,7 +36,8 @@ async function runSource(name, { keys, previous, resume, options }) {
     let rows;
     if (name === 'anime') rows = await anilist({ previous, collection, popularPages: options.animePages });
     if (name === 'quadrinhos') rows = await comicvine({ keys, previous, collection, nativePages: options.comicPages });
-    if (name === 'series') rows = await tmdb({ keys, previous, collection, showCount: options.showCount });
+    // O TMDB só tem foto de ator: a imagem do personagem (node tools/mudae-fontes/personagens-series.js) é posta por cima.
+    if (name === 'series') rows = aplicarImagens(await tmdb({ keys, previous, collection, showCount: options.showCount }), lerImagens(CACHE)).rows;
     if (name === 'desenhos') rows = await fandom({ previous, collection });
     if (name === 'jogos') {
       const igdbReport = child('jogos-igdb');
@@ -95,7 +97,7 @@ async function main(args = process.argv.slice(2)) {
   if (args.includes('--limpar')) {
     const limpeza = marcarForaDaRoleta(previous, { cacheDir: CACHE });
     writeJson(path.join(CACHE, 'relatorios', 'limpeza.json'), { finishedAt: new Date().toISOString(), ...limpeza.report });
-    writeJson(OUT, limpeza.rows, true);
+    writeJson(OUT, marcarMesmoPersonagem(limpeza.rows, lerPaginas(CACHE)).rows, true);
     console.log('Pronto: ' + limpeza.report.naRoleta + ' na roleta, ' + limpeza.report.foraDaRoleta + ' fora (de ' + limpeza.report.total + ')');
     return limpeza.report;
   }
@@ -128,7 +130,7 @@ async function main(args = process.argv.slice(2)) {
   writeJson(path.join(CACHE, 'relatorios', 'qualidade.json'), { finishedAt: new Date().toISOString(), ...quality.report });
   const limpeza = marcarForaDaRoleta(all, { cacheDir: CACHE });
   writeJson(path.join(CACHE, 'relatorios', 'limpeza.json'), { finishedAt: new Date().toISOString(), ...limpeza.report });
-  writeJson(OUT, limpeza.rows, true);
+  writeJson(OUT, marcarMesmoPersonagem(limpeza.rows, lerPaginas(CACHE)).rows, true);
   const latestReports = Object.keys(SOURCES).map((name) => path.join(CACHE, 'relatorios', name + '.json'))
     .filter((file) => fs.existsSync(file)).map((file) => JSON.parse(fs.readFileSync(file, 'utf8')));
   const summary = { finishedAt: new Date().toISOString(), scope: 'elencos completos das obras atuais + obras/personagens conhecidos', previous: previous.length,

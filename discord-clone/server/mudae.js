@@ -5,7 +5,7 @@
 // na memória (só números) e o nome e a foto vêm de um banco SQLite local (server/mudae-catalogo-banco.js).
 // As fotos vão direto do site de cada fonte para o navegador. Cada comunidade guarda
 // { claims, usage, favorites } e os limites são contados pelo relógio, sem nenhum timer rodando.
-const { kakeraOf, addKakera, crystalsToday, statsOf, bumpStat, refundOf } = require('./mudae-conta');
+const { kakeraOf, addKakera, crystalsToday, statsOf, bumpStat, refundOf, refundStatus } = require('./mudae-conta');
 const { openCatalog } = require('./mudae-catalogo-banco');
 const { perksOf } = require('./mudae-forja');
 const { POWERS, AMULETO, DESEJO_CHANCE } = require('./mudae-regras');
@@ -39,7 +39,7 @@ const HIST_KEEP = 5;
 const IMG_PREFIX = 'https://s4.anilist.co/file/anilistcdn/character/large/';
 
 // Fontes de personagens. A letra é o sufixo do comando ($wa, $hg…), como no Mudae do Discord.
-const SOURCES = { a: 'Anime', g: 'Jogos', c: 'Quadrinhos', d: 'Desenhos', s: 'Séries' };
+const SOURCES = { a: 'Anime', g: 'Jogos', c: 'Quadrinhos', d: 'Desenhos', s: 'Séries', v: 'Visual novels' };
 // As faixas de raridade e valor foram pensadas para uma fonte de 15 mil personagens. Fontes menores
 // usam a mesma proporção (os 0,67% do topo são lendários), então a chance de lendário não muda.
 const REF_SIZE = 15000;
@@ -53,6 +53,7 @@ const COMMANDS = {
   im: 'im', info: 'im',
   divorce: 'divorce', divorciar: 'divorce',
   tu: 'tu',
+  divorcio: 'dt', dt: 'dt',
   // $mm com ordem: a = de A a Z, s = por obra, r = mais recentes (o padrão é o valor).
   mma: 'mma', mms: 'mms', mmr: 'mmr',
   top: 'top', topserv: 'topserv', obra: 'obra',
@@ -85,13 +86,13 @@ const normalize = (s) => String(s || '').normalize('NFD').replace(/\p{M}/gu, '')
 // "Outros" são os sem gênero no catálogo (bichos e robôs, mas também gente cujo gênero a fonte não diz).
 const FILTER_WORDS = {
   F: 'w waifu waifus mulher mulheres', M: 'h husbando husbandos homem homens', O: 'o outro outros',
-  a: 'a anime animes manga', g: 'g jogo jogos game games', c: 'c quadrinho quadrinhos hq hqs comic comics', d: 'd desenho desenhos cartoon cartoons', s: 's serie series tv',
+  a: 'a anime animes manga', g: 'g jogo jogos game games', c: 'c quadrinho quadrinhos hq hqs comic comics', d: 'd desenho desenhos cartoon cartoons', s: 's serie series tv', v: 'v vn vns',
 };
 const FILTER_OF = new Map(Object.entries(FILTER_WORDS).flatMap(([k, words]) => words.split(' ').map((w) => [w, k])));
 const GENDER_LABEL = { F: 'Waifus', M: 'Husbandos', O: 'Sem gênero definido' };
 // O catálogo ainda não diz a espécie: para "animais" ou "pessoas", o bot explica em vez de errar.
 const SPECIES_WORDS = new Set('animal animais bicho bichos pessoa pessoas humano humanos'.split(' '));
-const SOURCE_OF = { a: 'de anime', g: 'de jogos', c: 'de quadrinhos', d: 'de desenhos', s: 'de séries' };
+const SOURCE_OF = { a: 'de anime', g: 'de jogos', c: 'de quadrinhos', d: 'de desenhos', s: 'de séries', v: 'de visual novels' };
 
 function minutes(ms) {
   const m = Math.max(1, Math.ceil(ms / 60_000));
@@ -223,7 +224,8 @@ function createMudae({ catalog = null, catalogFile = null, catalogDb = null, now
     return { rollsLeft: rollsLeft(u, perks), rollsMax: rollsMaxOf(u, perks), wishMax: WISH_LIMIT + perks.wishSlots,
       reserveReady: reserveReady(u, perks), reserveIn: perks.reserveEveryMs > 0 ? waitFor(u.reserveAt, perks.reserveEveryMs) : 0, rollResetIn: rollResetIn(), claimReady: claimReady(u), claimResetIn: claimResetIn(),
       kakera: kakeraOf(store, accountId), crystals: crystalsToday(store, accountId, now()), dailyIn: waitFor(u.daily, DAILY_MS), dkIn: waitFor(u.dk, DAILY_MS), dkAmount: DK_AMOUNT,
-      buysLeft: ROLLS_BUYS - buys.length, buysMax: ROLLS_BUYS, buysIn: buys.length >= ROLLS_BUYS ? DAY_MS - (now() - buys[0]) : 0, rollsPrice: ROLLS_PRICE };
+      buysLeft: ROLLS_BUYS - buys.length, buysMax: ROLLS_BUYS, buysIn: buys.length >= ROLLS_BUYS ? DAY_MS - (now() - buys[0]) : 0, rollsPrice: ROLLS_PRICE,
+      ...refundStatus(store, accountId, now()) };
   }
 
   // A reserva da Esmeralda: no máximo 1 guardado, pronto de novo depois de reserveEveryMs.
@@ -640,10 +642,40 @@ function createMudae({ catalog = null, catalogFile = null, catalogDb = null, now
     return { ...out, ...r };
   }
 
+  // Quem tem cartas mas não está mais no servidor (isMember diz quem está): dono, quantas cartas e o valor delas.
+  function orphans(store, isMember) {
+    const byOwner = new Map();
+    const entries = Object.entries(store.claims);
+    const ks = cat.lookupMany(entries.map(([id]) => id));
+    entries.forEach(([, cl], i) => {
+      if (isMember(cl.ownerId)) return;
+      const row = byOwner.get(cl.ownerId) || { ownerId: cl.ownerId, total: 0, value: 0 };
+      row.total++;
+      if (ks[i] !== undefined) row.value += valueOfChar(ks[i]);
+      byOwner.set(cl.ownerId, row);
+    });
+    return [...byOwner.values()].sort((a, b) => b.value - a.value || b.total - a.total);
+  }
+
+  // Solta todas as cartas de quem saiu, sem devolver kakera (as cartas voltam para a roleta). Devolve quantas soltou.
+  function releaseAll(store, accountId) {
+    let total = 0;
+    for (const [id, cl] of Object.entries(store.claims)) {
+      if (cl.ownerId !== accountId) continue;
+      delete store.claims[id];
+      total++;
+    }
+    if (store.favorites) delete store.favorites[accountId];
+    return total;
+  }
+
   function divorce(store, accountId, query) {
     const k = find(query, owned(store, accountId));
     return k !== null ? release(store, accountId, k) : null;
   }
+
+  // $divorcio: quanto o divórcio ainda devolve e quando o teto de 24 h abre espaço de novo.
+  const divorceStatus = (store, accountId) => refundStatus(store, accountId, now());
 
   function divorceId(store, accountId, charId) {
     const k = lookup(charId);
@@ -813,18 +845,67 @@ function createMudae({ catalog = null, catalogFile = null, catalogDb = null, now
   }
 
   // Uma página do ranking de personagens, com o dono de cada um. Numa obra, quantos já têm dono e quantos são seus.
-  function list(store, key, page = 0, viewerId = null) {
+  function list(store, key, page = 0, viewerId = null, focusId = null) {
     const f = parseKey(key);
     if (!f) return null;
     const all = listOf(f);
     const total = f.series ? all.length : Math.min(all.length, TOP_LIMIT);
     const pages = Math.max(1, Math.ceil(total / LIST_PAGE));
-    const p = Math.min(Math.max(0, Math.floor(Number(page)) || 0), pages - 1);
+    // focusId: abre na página onde está esse personagem (a busca da aba Personagens leva direto a ele).
+    const fk = focusId === null || focusId === undefined ? undefined : lookup(focusId);
+    const at = fk === undefined ? -1 : Array.prototype.indexOf.call(all, fk);
+    const p = at >= 0 && at < total ? Math.floor(at / LIST_PAGE) : Math.min(Math.max(0, Math.floor(Number(page)) || 0), pages - 1);
     const shown = Array.prototype.slice.call(all, p * LIST_PAGE, Math.min(total, (p + 1) * LIST_PAGE));
     const rows = cat.rows(shown);
     const chars = shown.map((k, i) => ({ ...card(k, rows[i]), pos: p * LIST_PAGE + i + 1, ownerId: store.claims[rows[i].id]?.ownerId || null }));
     const out = { key: filterKey(f), label: labelOf(f), series: f.series || null, total, page: p, pages, chars };
+    if (at >= 0 && at < total) out.focus = String(idOf(fk));
     if (f.series) Object.assign(out, seriesOwners(store, all, f.series, viewerId));
+    return out;
+  }
+
+  // Sugestões da busca da aba Personagens: obras, personagens (pelo nome) e, se o texto for só "waifus jogos",
+  // o filtro correspondente. Gênero e fonte (os mesmos chips da tela) valem para os personagens; a fonte, para as obras.
+  const SUGGEST_MAX = 6;
+  const GENDER_CODE = { F: 1, M: 2, O: 0 };
+  function suggest(store, text, { gender = '', source = '', limit = SUGGEST_MAX } = {}) {
+    const q = normalize(String(text || '').slice(0, 80));
+    const out = { series: [], chars: [], filter: null };
+    if (q.length < 2) return out;
+    const max = Math.min(Math.max(1, Math.floor(Number(limit)) || SUGGEST_MAX), 10);
+    const words = q.split(' ');
+    const g = GENDER_CODE[gender];
+    const src = SOURCES[source] ? source : '';
+    if (words.every((w) => FILTER_OF.has(w))) {
+      const f = parseFilter(q);
+      out.filter = { key: filterKey(f), label: labelOf(f), gender: f.gender || '', source: f.source || '' };
+    }
+    // Obras: igual > começa com > uma palavra começa com > contém > tem todas as palavras. Dentro de cada nível, as mais populares.
+    const ranked = [];
+    seriesKeys.forEach(([key, name], i) => {
+      const score = key === q ? 5 : key.startsWith(q) ? 4 : key.includes(' ' + q) ? 3 : key.includes(q) ? 2 : words.length > 1 && words.every((w) => key.includes(w)) ? 1 : 0;
+      if (score) ranked.push([score, i, name]);
+    });
+    ranked.sort((a, b) => b[0] - a[0] || a[1] - b[1]);
+    for (const [, , name] of ranked) {
+      const ks = bySeries.get(name);
+      if (src && sourceOf(ks[0]) !== src) continue;
+      out.series.push({ name, count: ks.length, source: sourceOf(ks[0]) });
+      if (out.series.length >= max) break;
+    }
+    // Personagens: o mesmo trio igual > começa com > contém; com mais de uma palavra, também fora de ordem ("naruto uzumaki").
+    const ok = (k) => !fora[k] && (g === undefined || gen[k] === g) && (!src || sourceOf(k) === src);
+    let ks = cat.searchMany(q, ok, max);
+    if (ks.length < max && words.length > 1) {
+      const longest = words.reduce((a, b) => (b.length > a.length ? b : a));
+      for (const k of cat.searchMany(longest, (x) => ok(x) && words.every((w) => cat.keyOf(x).includes(w)), max)) if (!ks.includes(k)) ks.push(k);
+      ks = ks.slice(0, max);
+    }
+    const rows = cat.rows(ks);
+    out.chars = ks.map((k, i) => {
+      const c = card(k, rows[i]);
+      return { id: c.id, name: c.name, series: c.series, image: c.image, rarity: c.rarity, source: c.source, rank: c.rank, ownerId: store.claims[c.id]?.ownerId || null };
+    });
     return out;
   }
 
@@ -942,8 +1023,8 @@ function createMudae({ catalog = null, catalogFile = null, catalogDb = null, now
   // Quantos personagens há em cada fonte na roleta (a tela mostra só os filtros que existem).
   const sources = Object.fromEntries(srcOrder.map((s) => [s, pools['m' + s].length]).filter(([, len]) => len));
 
-  return { size: ativos.length, sources, parse, status, ranOut, roll, foresee, arm, armedView, warmup, spin, claim, claimError, harem, album, summary, setFavorite, ranking, info, divorce, divorceId,
-    kakeraOf, addKakera, crystalsToday: (store, accountId) => crystalsToday(store, accountId, now()), countCrystal: (store, accountId) => bump(store, accountId, 'crystals'), stats, daily, dailyKakera, buyRolls, giveKakera, wish, wishToggle, unwish, wishlist, wishersOf, give, firstMarry, topFilter, list,
+  return { size: ativos.length, sources, parse, status, ranOut, roll, foresee, arm, armedView, warmup, spin, claim, claimError, harem, album, summary, setFavorite, ranking, info, divorce, divorceStatus, divorceId, orphans, releaseAll,
+    kakeraOf, addKakera, crystalsToday: (store, accountId) => crystalsToday(store, accountId, now()), countCrystal: (store, accountId) => bump(store, accountId, 'crystals'), stats, daily, dailyKakera, buyRolls, giveKakera, wish, wishToggle, unwish, wishlist, wishersOf, give, firstMarry, topFilter, list, suggest,
     tradeOpen, tradeOffer, tradeConfirm, tradeCancel, tradeExpire, tradeOf, tradeView, otherSide, sweepTrades: sweep,
     card: (id) => { const k = lookup(id); return k !== undefined ? card(k) : null; },
     // Ao ligar: deixa no cache as cartas que já têm dono, para o primeiro harém ou álbum não esperar o disco.

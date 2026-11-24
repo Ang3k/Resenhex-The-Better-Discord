@@ -67,7 +67,7 @@ function classifyFandomBiography(page) {
 
 function realPeopleExclusions(cacheDir) {
   const entries = new Map(reviewedById);
-  if (cacheDir) for (const provider of ['desenhos', 'jogos-fandom']) {
+  if (cacheDir) for (const provider of ['desenhos', 'jogos-fandom', 'desenhos-extra-fandom', 'jogos-extra-fandom', 'quadrinhos-extra-fandom', 'series-extra-fandom']) {
     const file = path.join(cacheDir, 'relatorios', provider + '.json');
     if (!fs.existsSync(file)) continue;
     const report = JSON.parse(fs.readFileSync(file, 'utf8'));

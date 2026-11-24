@@ -138,12 +138,17 @@ const cardImage = (url) => url.replace(/\/revision\/latest(\/[^?]*)?/, '/revisio
 async function franchise(f, letter, collection, apiCall) {
   const pages = new Map();
   // Inclui NPCs da categoria geral, além da categoria específica de jogáveis/heróis.
-  for (const p of await listCategory(f.wiki, [...new Set(['Characters', f.category || 'Characters'])], apiCall)) pages.set(p.id, p);
+  for (const p of await listCategory(f.wiki, [...new Set(['Characters', ...[].concat(f.category || 'Characters')])], apiCall)) pages.set(p.id, p);
+  // paginas: personagens que a wiki não põe em nenhuma categoria coletada (o protagonista costuma ficar de fora). Redirecionamentos são seguidos.
+  if (f.paginas?.length) {
+    const data = await apiCall(f.wiki, { action: 'query', titles: f.paginas.join('|'), redirects: '1', prop: 'info' });
+    for (const p of data.query?.pages || []) if (!p.missing && (p.ns === undefined || p.ns === 0)) pages.set(p.pageid, { id: p.pageid, title: p.title, length: p.length || 0 });
+  }
   collection.count('listed', pages.size);
   const listed = [...pages.values()].filter((p) => {
     if (!SKIP.test(p.title) && !isAuxiliaryTitle(p.title)) return true;
     collection.skip('paginaAuxiliar'); return false;
-  }).sort((a, b) => b.length - a.length);
+  }).sort((a, b) => b.length - a.length).slice(0, f.maxPages || Infinity); // maxPages: wikis gigantes (Marvel) ficam com as páginas mais longas
   const rows = [];
   for (let i = 0; i < listed.length; i += 50) {
     const batch = listed.slice(i, i + 50);

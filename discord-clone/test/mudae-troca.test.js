@@ -100,6 +100,11 @@ test('Mudae com duas contas: desejo, cristal, $top, troca confirmada pelos dois,
   const page = await beto.call('mudae:list', { key: top.mudae.key, page: 0 });
   assert.deepEqual(page.chars.map((c) => [c.name, c.ownerId]), [['Mikasa Ackerman', A], ['Link', B]]);
   assert.equal((await beto.call('mudae:filter', { text: 'husbandos' })).label, 'Husbandos');
+  // Busca da aba Personagens: sugestões pelo nome (com o dono), filtros de gênero e o foco que abre a página do escolhido.
+  assert.deepEqual((await beto.call('mudae:suggest', { text: 'mika' })).chars.map((c) => [c.name, c.ownerId]), [['Mikasa Ackerman', A]]);
+  assert.deepEqual((await beto.call('mudae:suggest', { text: 'mika', gender: 'M' })).chars, []);
+  assert.deepEqual(await beto.call('mudae:suggest', { text: 'a' }), { series: [], chars: [], filter: null });
+  assert.equal((await beto.call('mudae:list', { key: top.mudae.key, page: 0, focus: page.chars[1].id })).focus, String(page.chars[1].id));
   assert.match((await send(beto, '$top animais')).ephemeral.text, /ainda não separa/);
   assert.match((await send(beto, '$obra pokemon')).ephemeral.text, /Nenhuma obra/);
 

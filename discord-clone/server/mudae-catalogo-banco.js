@@ -528,10 +528,28 @@ function abrir(db) {
     return undefined;
   }
   const search = (q, ok) => primeiro('\n' + q + '\n', ok, 1) ?? primeiro('\n' + q, ok, 1) ?? primeiro(q, ok, 0);
+  // A mesma busca, mas devolvendo até "limite" personagens (k em ordem de popularidade dentro de cada nível):
+  // primeiro os de nome igual, depois os que começam com q, depois os que contêm q.
+  function varios(agulha, ok, ajuste, limite, out) {
+    let p = chaves.indexOf(agulha, 0, 'utf8');
+    while (p !== -1 && out.length < limite) {
+      const k = idxAt(p + ajuste);
+      if (!out.includes(k) && ok(k)) out.push(k);
+      if (k + 1 >= chavesInicio.length) break;
+      p = chaves.indexOf(agulha, chavesInicio[k + 1] - ajuste, 'utf8');
+    }
+  }
+  function searchMany(q, ok, limite) {
+    const out = [];
+    varios('\n' + q + '\n', ok, 1, limite, out);
+    varios('\n' + q, ok, 1, limite, out);
+    varios(q, ok, 0, limite, out);
+    return out;
+  }
   // A chave de busca de um personagem (o nome normalizado), lida do Buffer.
   const keyOf = (k) => chaves.toString('utf8', chavesInicio[k], (k + 1 < n ? chavesInicio[k + 1] : chaves.length) - 1);
 
-  return { n, src, gen, fora, pos, sid, srcOrder, srcLen, obras, row, rows, imgs, lookup, lookupMany, preload, search, keyOf, close: () => db.close() };
+  return { n, src, gen, fora, pos, sid, srcOrder, srcLen, obras, row, rows, imgs, lookup, lookupMany, preload, search, searchMany, keyOf, close: () => db.close() };
 }
 
 module.exports = { openCatalog };

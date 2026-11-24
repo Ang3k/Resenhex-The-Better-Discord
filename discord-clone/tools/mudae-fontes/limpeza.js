@@ -64,6 +64,8 @@ const POR_RELACAO = new RegExp([
   '^(?:mother|father|wife|husband|son|daughter|brother|sister|friend|parents|family|boss|mom|dad) of ',
   '\\bno (?:haha|chichi|hahaoya|chichioya|musume|musuko|tsuma|otto|ani|ane|imouto|otouto|sofu|sobo|kanojo|kareshi|tomodachi|obaasan|ojiisan|oneesan|oniisan)$',
 ].join('|'), 'i');
+// Conferidos à mão: não são personagens (God of War: deuses gregos, olimpianos e as Moiras em conjunto).
+const GRUPOS_CONFERIDOS = new Set(['g-godofwar-1775', 'g-godofwar-38218', 'g-godofwar-1875']);
 const NOME_DE_GRUPO = /\s(?:and|&)\s|\b(?:brothers|sisters|twins|triplets|family|gang|crew|team|squad|clan|army|minions|villagers|people|students|guards|soldiers|kids|children|workers|members|couple|parents|band|duo|trio|group|council|committee|squadron|platoon|troops|staff|corps|knights|warriors|pirates|thugs|henchmen|goons|ninjas|citizens|residents|aliens|zombies|monsters|robots|fans|crowd|audience|cheerleaders|cultists|followers|elders|guardians|spirits)$/i;
 // Dupla ou trio com nome próprio ("Heebee & Jeebee", "Babkak, Omar, and Kassim"): nenhuma parte é um papel ("Rebecca and Her Mother").
 function duplaComNome(name) {
@@ -182,7 +184,7 @@ const FOTO_PADRAO_COM_OUTRA = new Set(['g-thelastofus-52626', 'g-thelastofus-532
 const ANILIST = 'https://s4.anilist.co/file/anilistcdn/character/large/';
 const fotoSemVersao = (r) => (/^https?:/.test(r[3]) ? r[3] : ANILIST + r[3]).replace(/\?.*$/, '').replace(/\/revision\/latest.*$/, '');
 const arquivoDaFoto = (r) => { const f = fotoSemVersao(r).split('/').pop(); try { return decodeURIComponent(f); } catch { return f; } };
-const wikiDe = (r) => (String(r[0]).match(/^[gd]-(.+)-\d+$/) || [])[1];
+const wikiDe = (r) => (String(r[0]).match(/^[gdcs]-(.+)-\d+$/) || [])[1];
 
 // Diz quem sai e quem fica em dúvida, com os motivos. fichas: { id: { cats, fields, desc } } das wikis;
 // episodios: { id: { eps } } dos papéis do TMDB (lerFichas e lerEpisodios montam os dois a partir do cache).
@@ -286,6 +288,8 @@ function conferir(rows, { fichas = {}, episodios = {} } = {}) {
     const fica = g.sort((a, b) => b[5] - a[5])[0];
     for (const r of g) if (r !== fica && wikiDe(r) !== undefined) marca(r, 'revisar', 'duplicado_igdb_wiki');
   }
+  // 7. Grupos que são conhecidos demais para a regra automática (ela só manda "revisar") e já foram conferidos à mão.
+  for (const r of rows) if (GRUPOS_CONFERIDOS.has(String(r[0]))) marca(r, 'sai', 'grupo_ou_especie');
   return marcas;
 }
 
@@ -293,8 +297,10 @@ function conferir(rows, { fichas = {}, episodios = {} } = {}) {
 function lerFichas(cacheDir) {
   const fichas = {};
   const texto = (v) => String(v || '').replace(/<[^>]+>/g, '').replace(/&amp;/g, '&').replace(/&#0?39;/g, "'").replace(/&quot;/g, '"').replace(/\s+/g, ' ').trim();
-  for (const [dir, letter] of [['desenhos', 'd'], ['jogos-fandom', 'g']]) {
+  // Os grupos de fandom-expandido.js têm as suas próprias pastas de consultas (se existirem).
+  for (const [dir, letter] of [['desenhos', 'd'], ['jogos-fandom', 'g'], ['desenhos-extra-fandom', 'd'], ['jogos-extra-fandom', 'g'], ['quadrinhos-extra-fandom', 'c'], ['series-extra-fandom', 's']]) {
     const base = path.join(cacheDir, 'consultas', dir);
+    if (!fs.existsSync(base)) continue;
     for (const f of fs.readdirSync(base)) {
       let d;
       try { d = JSON.parse(fs.readFileSync(path.join(base, f), 'utf8')); } catch { continue; }

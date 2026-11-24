@@ -23,7 +23,7 @@ const ANCHORS = {
 };
 
 function wikiOf(row) {
-  const match = String(row[0]).match(/^[gd]-(.+)-\d+$/);
+  const match = String(row[0]).match(/^[gdcs]-(.+)-\d+$/);
   return match?.[1];
 }
 

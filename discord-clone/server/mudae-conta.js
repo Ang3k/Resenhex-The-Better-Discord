@@ -51,4 +51,12 @@ function refundOf(store, accountId, value, t) {
   return { refund, capped, refundIn, cap: DIVORCE_CAP };
 }
 
-module.exports = { kakeraOf, addKakera, dayOf, crystalsToday, statsOf, bumpStat, refundOf };
+// O que o divórcio ainda devolve agora, sem gastar nada: quanto sobra do teto e, se já usou algum,
+// em quanto tempo o reembolso mais antigo sai da janela de 24 h e abre espaço de novo.
+function refundStatus(store, accountId, t) {
+  const recent = (store.usage?.[accountId]?.refunds || []).filter(([at]) => t - at < DIVORCE_CAP_MS);
+  const used = recent.reduce((total, [, amount]) => total + amount, 0);
+  return { divorceLeft: Math.max(0, DIVORCE_CAP - used), divorceCap: DIVORCE_CAP, divorceIn: recent.length ? Math.max(1, recent[0][0] + DIVORCE_CAP_MS - t) : 0 };
+}
+
+module.exports = { kakeraOf, addKakera, dayOf, crystalsToday, statsOf, bumpStat, refundOf, refundStatus };

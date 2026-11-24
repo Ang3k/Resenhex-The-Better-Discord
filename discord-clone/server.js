@@ -89,6 +89,7 @@ const PERMS = {
   MANAGE_EMOJIS: 'Gerenciar emojis',
   MUSIC: 'Usar o DJ (pedir e controlar músicas)',
   MUDAE: 'Usar o Mudae (rodar e casar com personagens)',
+  MANAGE_MUDAE: 'Gerenciar o Mudae (liberar as cartas de quem saiu)',
 };
 // Efeitos sonoros que podem ser tocados na chamada (o som é gerado no navegador de cada um).
 const SOUNDBOARD = ['grilo', 'trovao', 'aplausos', 'badumtss', 'buzina', 'fail', 'vitoria', 'suspense'];
@@ -2343,6 +2344,8 @@ io.on('connection', (socket) => {
       const card = mudae.divorce(store, acc.id, arg);
       if (!card) return error(`Você não tem ninguém chamado **${short(arg)}** no seu harem.`);
       postMudae(c, acc, command, { kind: 'divorce', card, ownerId: acc.id, refund: card.refund, capped: card.capped, refundIn: card.refundIn, cap: card.cap });
+    } else if (cmd === 'dt') {
+      return only({ kind: 'divorceTime', ...mudae.divorceStatus(store, acc.id) });
     } else if (cmd === 'tu') {
       const powers = powersView(acc);
       return only({ kind: 'status', ...mudae.status(store, acc.id), powersReady: powers.slots.filter((key) => key && !powers.readyIn[key]) });
@@ -2469,10 +2472,16 @@ io.on('connection', (socket) => {
   on('mudae:trade:cancel', (acc, { id }) => afterTrade(mudae.tradeCancel(tradeId(id), acc.id, acc.name)));
 
   // Ranking de personagens ($top, $obra e a aba Personagens), página a página.
-  on('mudae:list', (acc, { key, page }) => {
+  on('mudae:list', (acc, { key, page, focus }) => {
     if (!allow('mudae-list:' + acc.id, 30, 5000)) fail('Calma! Páginas rápidas demais.');
     if (typeof key !== 'string' && key !== undefined) fail('Lista inválida.');
-    return mudae.list(mudaeStore(), (key ?? '').slice(0, 300), page, acc.id) || fail('Lista inválida.');
+    return mudae.list(mudaeStore(), (key ?? '').slice(0, 300), page, acc.id, typeof focus === 'string' || typeof focus === 'number' ? focus : null) || fail('Lista inválida.');
+  });
+  // Sugestões da busca da aba Personagens (obras e personagens pelo nome), enquanto a pessoa digita.
+  // Passou do limite, devolve vazio: a busca ao vivo não deve encher a tela de avisos.
+  on('mudae:suggest', (acc, { text, gender, source }) => {
+    if (!allow('mudae-suggest:' + acc.id, 40, 5000)) return { series: [], chars: [], filter: null };
+    return mudae.suggest(mudaeStore(), String(text ?? '').slice(0, 80), { gender: String(gender || ''), source: String(source || '') });
   });
   // Filtro digitado na aba Personagens ("waifus jogos", "Naruto") vira a chave da lista.
   on('mudae:filter', (acc, { text }) => {
@@ -2570,6 +2579,19 @@ io.on('connection', (socket) => {
 
   on('mudae:harem', (acc, { ownerId }) => mudae.album(mudaeStore(), memberId(ownerId) || acc.id, mudaeMember));
   on('mudae:ranking', () => mudae.ranking(mudaeStore(), (id) => communities.joined(id)));
+  // Quem saiu do servidor continua dono das cartas até alguém com a permissão libertá-las.
+  const mudaeLeavers = () => mudae.orphans(mudaeStore(), (id) => communities.joined(id)).map((r) => ({ ...r, name: db.accounts[r.ownerId]?.name || 'Conta removida' }));
+  on('mudae:leavers', (acc) => {
+    if (!can(acc, 'MANAGE_MUDAE')) fail('Você não pode gerenciar o Mudae neste servidor.');
+    return { rows: mudaeLeavers() };
+  });
+  on('mudae:purge', (acc, { accountId }) => {
+    if (!can(acc, 'MANAGE_MUDAE')) fail('Você não pode gerenciar o Mudae neste servidor.');
+    if (typeof accountId !== 'string' || communities.joined(accountId)) fail('Essa pessoa ainda está no servidor.');
+    const released = mudae.releaseAll(mudaeStore(), accountId);
+    if (released) save(chunk.server());
+    return { released, rows: mudaeLeavers() };
+  });
   on('mudae:profile', (acc, { accountId }) => ({ summary: memberId(accountId) ? mudae.summary(mudaeStore(), accountId, forja.shownOf(mudaeStore(), accountId)) : null }));
 
   on('mudae:favorite', (acc, { charId }) => {

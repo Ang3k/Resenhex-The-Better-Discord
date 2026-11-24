@@ -181,6 +181,7 @@ O Mudae mora no **Salão do Mudae**, um canal de texto com `mudae: true` (crie e
 | `$forja` / `$forjar bronze` | mostra as medalhas, o kakera e os preços; forja o próximo nível de uma medalha |
 | `$poderes` / `$poder cadeado` | mostra os poderes (abertos, no palco, recarga e o que falta); usa um poder |
 | `$dk` / `$daily` / `$rolls` | 250 kakera a cada 20 h; os rolls de volta uma vez a cada 20 h; os rolls de volta por 500 kakera (até 3 vezes em 24 h) |
+| `$divorcio` / `$dt` | quanto o divórcio ainda devolve e quando o limite de 24 h abre espaço (só você vê; o `$tu` também mostra) |
 | `$k` / `$tu` | o seu kakera; rolls, casamento, `$daily`, `$dk`, kakera e compras que sobram (só você vê) |
 
 - **Só no Salão:** em outro canal, os comandos respondem (só para quem pediu) com o caminho até o Salão.

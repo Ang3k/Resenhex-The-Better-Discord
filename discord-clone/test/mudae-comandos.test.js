@@ -105,6 +105,19 @@ test('divórcio devolve o valor da carta em kakera', () => {
   assert.equal(mudae.kakeraOf(store, 'a'), first.refund + second.refund);
 });
 
+test('$divorcio e $tu mostram quanto o divórcio ainda devolve e quando o limite abre', () => {
+  const { mudae, store, marry } = setup();
+  assert.deepEqual(mudae.parse('$divorcio'), { cmd: 'dt', arg: '' });
+  assert.equal(mudae.parse('$dt').cmd, 'dt');
+  assert.deepEqual(mudae.divorceStatus(store, 'a'), { divorceLeft: DIVORCE_CAP, divorceCap: DIVORCE_CAP, divorceIn: 0 });
+  marry('a', 3);
+  const r = mudae.divorce(store, 'a', 'zero');
+  const s = mudae.divorceStatus(store, 'a');
+  assert.equal(s.divorceLeft, DIVORCE_CAP - r.refund);
+  assert.ok(s.divorceIn > 0, 'depois de um divórcio, mostra quando o reembolso sai da janela');
+  assert.equal(mudae.status(store, 'a').divorceLeft, s.divorceLeft, 'o $tu traz a mesma conta');
+});
+
 test('lista de desejos: até 10, sem repetir, sem os seus; quem casa sai da lista; o álbum mostra quem deseja', () => {
   const { mudae, store, marry } = setup();
   const w = mudae.wish(store, 'a', 'mikasa');

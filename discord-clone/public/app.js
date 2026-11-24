@@ -4766,6 +4766,7 @@
     SEND_MESSAGES: ['Enviar mensagens', 'Permite enviar mensagens, arquivos e reações nos canais de texto.'],
     MANAGE_MESSAGES: ['Gerenciar mensagens', 'Permite apagar mensagens de outros membros.'],
     MUDAE: ['Usar o Mudae', 'Permite rodar personagens ($w, $h, $m), casar com eles e ver haréns nos canais de texto.'],
+    MANAGE_MUDAE: ['Gerenciar o Mudae', 'Permite liberar as cartas de quem saiu do servidor, na aba Ranking do Salão. As cartas voltam para a roleta.'],
     MENTION_EVERYONE: ['Mencionar @everyone e @here', 'Permite notificar todo mundo do servidor de uma vez.'],
     CONNECT: ['Conectar', 'Permite entrar nos canais de voz.'],
     SPEAK: ['Falar', 'Permite falar nos canais de voz. Sem ela, o membro só escuta.'],
@@ -4780,7 +4781,7 @@
   const PERM_GROUPS = [
     ['Permissões gerais do servidor', ['ADMIN', 'MANAGE_ROLES', 'MANAGE_CHANNELS', 'MANAGE_SOUNDBOARD', 'MANAGE_EMOJIS']],
     ['Permissões de membros', ['KICK', 'BAN', 'TIMEOUT']],
-    ['Permissões de canais de texto', ['SEND_MESSAGES', 'MANAGE_MESSAGES', 'MENTION_EVERYONE', 'MUDAE']],
+    ['Permissões de canais de texto', ['SEND_MESSAGES', 'MANAGE_MESSAGES', 'MENTION_EVERYONE', 'MUDAE', 'MANAGE_MUDAE']],
     ['Permissões de canais de voz', ['CONNECT', 'SPEAK', 'STREAM', 'SOUNDBOARD', 'MUSIC', 'MUTE_MEMBERS', 'MOVE_MEMBERS']],
   ];
   const ROLE_COLORS = ['#1abc9c', '#2ecc71', '#3498db', '#9b59b6', '#e91e63', '#f1c40f', '#e67e22', '#e74c3c', '#95a5a6', '#607d8b',

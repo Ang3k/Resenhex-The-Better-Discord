@@ -35,7 +35,7 @@ window.MudaeSalon = function ({ state, el, Icon, call, onSocket, member, avatar,
     stage: null, spinning: null, queue: [], arriving: new Set(), legendaryUntil: 0, legendaryBy: null,
     album: null, albumOwner: null, query: '', filter: 'all', albumSource: 'all', sort: 'value', shown: PAGE,
     sources: null, source: savedSource(),
-    ranking: null, favorite: null,
+    ranking: null, favorite: null, leavers: null,
     // Personagens: o filtro (gênero e fonte, ou uma obra), a página que veio do servidor e os meus desejos.
     chars: { gender: '', source: '', series: null, page: 0, data: null, text: '' }, wishes: null,
   };
@@ -284,7 +284,7 @@ window.MudaeSalon = function ({ state, el, Icon, call, onSocket, member, avatar,
     // short: o nome curto que o CSS mostra quando a faixa de cima aperta (o nome lido continua o inteiro).
     const tab = (id, label, short) => el('button', { type: 'button', role: 'tab', class: 'salon-tab' + (S.tab === id ? ' active' : ''), ariaSelected: String(S.tab === id), onclick: () => setTab(id),
       ...(short ? { ariaLabel: label, data: { short } } : {}) }, label);
-    nodes.tabs.replaceChildren(tab('mesa', 'Mesa'), tab('harem', 'Meu harem', 'Harem'), ...(forge ? [tab('forja', 'Forja'), tab('poderes', 'Poderes')] : []), tab('chars', 'Personagens'), tab('ranking', 'Ranking'));
+    nodes.tabs.replaceChildren(tab('mesa', 'Mesa'), tab('harem', 'Meu harem', 'Harem'), ...(forge ? [tab('forja', 'Forja'), tab('poderes', 'Poderes')] : []), tab('chars', 'Personagens'), tab('desejos', 'Desejos'), tab('ranking', 'Ranking'));
   }
 
   function setTab(id, opts = {}) {
@@ -293,6 +293,7 @@ window.MudaeSalon = function ({ state, el, Icon, call, onSocket, member, avatar,
     if (id === 'harem') return loadAlbum(opts.ownerId || me());
     if (id === 'ranking') loadRanking();
     if (id === 'chars') { loadChars(); loadWishes(); }
+    if (id === 'desejos') loadWishes();
     renderBody();
   }
 
@@ -300,6 +301,7 @@ window.MudaeSalon = function ({ state, el, Icon, call, onSocket, member, avatar,
     if (S.tab === 'mesa') return renderMesa();
     if (S.tab === 'harem') return renderAlbum();
     if (S.tab === 'chars') return renderChars();
+    if (S.tab === 'desejos') return renderWishes();
     // A Forja e os Poderes (mudae-forja.js) desenham a aba toda; o saldo que a Forja gasta também muda na faixa de cima.
     if (S.tab === 'forja' && forge) return forge.render(nodes.body, { onKakera: showKakera });
     if (S.tab === 'poderes' && forge) return forge.render(nodes.body, { onKakera: showKakera, page: 'powers' });
@@ -899,6 +901,169 @@ window.MudaeSalon = function ({ state, el, Icon, call, onSocket, member, avatar,
     }
   }
 
+  // ---------- busca com sugestões ----------
+  // Caixa de busca com lista suspensa: obras, personagens e (na aba Personagens) filtros como "waifus jogos".
+  // suggest(texto) devolve { filter, series, chars } (pode ser uma Promise); pick(item) trata a escolha.
+  // Teclado: ↑ ↓ andam, Enter escolhe, Esc fecha. O primeiro resultado já vem marcado, então Enter vai direto nele.
+  let comboSeq = 0;
+  const plainText = (text) => String(text || '').normalize('NFD').replace(/\p{M}/gu, '').toLowerCase();
+  // Destaca no texto o pedaço que bateu com a busca (sem diferenciar acento nem maiúscula).
+  function mark(text, query) {
+    const q = plainText(query).replace(/\s+/g, ' ').trim();
+    const chars = Array.from(String(text || ''));
+    if (!q) return [chars.join('')];
+    let norm = '';
+    const at = [];
+    chars.forEach((ch, i) => { for (const n of plainText(ch)) { norm += n; at.push(i); } });
+    const hit = norm.indexOf(q);
+    if (hit < 0) return [chars.join('')];
+    const from = at[hit];
+    const to = at[hit + q.length - 1] + 1;
+    return [chars.slice(0, from).join(''), el('mark', { class: 'salon-sug-mark', textContent: chars.slice(from, to).join('') }), chars.slice(to).join('')];
+  }
+
+  function searchBox({ placeholder, label, value = '', suggest, pick, delay = 180, tag = null }) {
+    const listId = 'salon-sug-' + (++comboSeq);
+    const input = el('input', { type: 'search', class: 'salon-search', placeholder, value, ariaLabel: label, autocomplete: 'off', spellcheck: false });
+    input.setAttribute('role', 'combobox');
+    input.setAttribute('aria-autocomplete', 'list');
+    input.setAttribute('aria-controls', listId);
+    input.setAttribute('aria-expanded', 'false');
+    const panel = el('div', { class: 'salon-sug-panel', id: listId, hidden: true });
+    panel.setAttribute('role', 'listbox');
+    panel.setAttribute('aria-label', label);
+    // Clicar na lista não pode tirar o foco da caixa.
+    panel.addEventListener('pointerdown', (e) => e.preventDefault());
+    const box = el('div', { class: 'salon-combo' }, Icon('search', 16), input, panel);
+    let items = [];
+    let active = -1;
+    let shown = false;
+    let busy = false;
+    let seq = 0;
+    let timer = null;
+
+    const optionId = (i) => listId + '-' + i;
+    function setActive(i, scroll = true) {
+      active = i;
+      for (const node of panel.querySelectorAll('.salon-sug')) {
+        const on = Number(node.dataset.i) === i;
+        node.classList.toggle('active', on);
+        node.setAttribute('aria-selected', String(on));
+      }
+      if (i >= 0) input.setAttribute('aria-activedescendant', optionId(i)); else input.removeAttribute('aria-activedescendant');
+      if (scroll && i >= 0) panel.querySelector(`[data-i="${i}"]`)?.scrollIntoView?.({ block: 'nearest' });
+    }
+    function close() {
+      shown = false;
+      panel.hidden = true;
+      input.setAttribute('aria-expanded', 'false');
+      input.removeAttribute('aria-activedescendant');
+    }
+    function row(item, i) {
+      const q = input.value;
+      let lead;
+      let name;
+      let sub;
+      let end = null;
+      if (item.kind === 'filter') {
+        lead = el('span', { class: 'salon-sug-icon' }, ico('sparkles'));
+        name = [item.label];
+        sub = 'Filtrar o ranking';
+      } else if (item.kind === 'series') {
+        lead = el('span', { class: 'salon-sug-icon' }, ico('obra'));
+        name = mark(item.name, q);
+        const where = ui.SOURCES[item.source]?.label;
+        sub = `${num(item.count)} ${item.count === 1 ? 'personagem' : 'personagens'}${where ? ' · ' + where : ''}`;
+      } else {
+        lead = MudaeFotos.guard(el('img', { class: 'salon-sug-thumb', referrerPolicy: MudaeFotos.POLICY, src: item.image, alt: '', loading: 'lazy', decoding: 'async', draggable: false }));
+        name = mark(item.name, q);
+        sub = item.series;
+        end = tag ? tag(item) : null;
+      }
+      const node = el('div', { class: 'salon-sug ' + item.kind + (item.kind === 'char' ? ' r-' + item.rarity : ''), id: optionId(i), data: { i: String(i) },
+        onclick: () => choose(i), onmousemove: () => { if (active !== i) setActive(i, false); } },
+      lead, el('span', { class: 'salon-sug-main' }, el('span', { class: 'salon-sug-name' }, ...name), el('span', { class: 'salon-sug-sub', textContent: sub })), end);
+      node.setAttribute('role', 'option');
+      node.setAttribute('aria-selected', String(i === active));
+      return node;
+    }
+    function render() {
+      const parts = [];
+      const section = (kind, title) => {
+        const list = items.map((item, i) => [item, i]).filter(([item]) => item.kind === kind);
+        if (!list.length) return;
+        const head = el('div', { class: 'salon-sug-head', textContent: title });
+        head.setAttribute('role', 'presentation');
+        parts.push(head, ...list.map(([item, i]) => row(item, i)));
+      };
+      section('filter', 'Filtro');
+      section('series', 'Obras');
+      section('char', 'Personagens');
+      if (!parts.length) parts.push(el('div', { class: 'salon-sug-empty', textContent: busy ? 'Buscando…' : `Nada encontrado para “${input.value.trim()}”.` }));
+      panel.replaceChildren(...parts);
+      panel.hidden = false;
+      shown = true;
+      input.setAttribute('aria-expanded', 'true');
+      setActive(active, false);
+    }
+    function choose(i) {
+      const item = items[i];
+      if (!item) return;
+      close();
+      input.value = item.kind === 'filter' ? '' : item.name;
+      pick(item);
+    }
+    async function refresh() {
+      const text = input.value.trim();
+      const mine = ++seq;
+      if (plainText(text).length < 2) { items = []; active = -1; close(); return; }
+      busy = true;
+      if (!items.length) render();
+      let res = null;
+      try { res = await suggest(text); } catch { res = null; }
+      if (mine !== seq) return;
+      busy = false;
+      items = [...(res?.filter ? [{ kind: 'filter', ...res.filter }] : []), ...(res?.series || []).map((x) => ({ kind: 'series', ...x })), ...(res?.chars || []).map((x) => ({ kind: 'char', ...x }))];
+      active = items.length ? 0 : -1;
+      if (document.activeElement === input) render();
+    }
+    input.addEventListener('input', () => { clearTimeout(timer); timer = delay ? setTimeout(refresh, delay) : null; if (!delay) refresh(); });
+    input.addEventListener('focus', () => { if (items.length && plainText(input.value).length >= 2) render(); });
+    box.addEventListener('focusout', (e) => { if (!box.contains(e.relatedTarget)) { seq++; clearTimeout(timer); close(); } });
+    input.addEventListener('keydown', (e) => {
+      if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+        if (!items.length) return;
+        e.preventDefault();
+        if (!shown) { render(); return; }
+        setActive((active + (e.key === 'ArrowDown' ? 1 : -1) + items.length) % items.length);
+      } else if (e.key === 'Enter') {
+        e.preventDefault();
+        if (shown && active >= 0) choose(active);
+      } else if (e.key === 'Escape' && shown) {
+        e.preventDefault();
+        e.stopPropagation();
+        close();
+      }
+    });
+    return { box, input };
+  }
+
+  // Sugestões do harem (a pessoa já tem tudo na tela, então a busca é local): obras e personagens do álbum aberto.
+  function haremSuggest(text) {
+    const q = plainText(text).replace(/\s+/g, ' ').trim();
+    const a = S.album;
+    if (!a || q.length < 2) return {};
+    const list = a.chars.filter(chipMatch);
+    const counts = new Map();
+    for (const c of list) if (plainText(c.series).includes(q)) counts.set(c.series, (counts.get(c.series) || 0) + 1);
+    const lead = (name) => (plainText(name).startsWith(q) ? 0 : plainText(name).includes(' ' + q) ? 1 : 2);
+    const series = [...counts].sort((x, y) => lead(x[0]) - lead(y[0]) || y[1] - x[1]).slice(0, 5)
+      .map(([name, count]) => ({ name, count, source: list.find((c) => c.series === name)?.source || 'a' }));
+    const chars = list.filter((c) => plainText(c.name).includes(q)).sort((x, y) => lead(x.name) - lead(y.name) || x.rank - y.rank).slice(0, 6)
+      .map((c) => ({ id: c.id, name: c.name, series: c.series, image: c.image, rarity: c.rarity, source: c.source, rank: c.rank }));
+    return { series, chars };
+  }
+
   // ---------- álbum ----------
   async function loadAlbum(ownerId) {
     const channel = S.channel;
@@ -921,10 +1086,10 @@ window.MudaeSalon = function ({ state, el, Icon, call, onSocket, member, avatar,
     loadAlbum(ownerId);
   }
 
+  const chipMatch = (c) => (S.filter === 'all' || c.rarity === S.filter) && (S.albumSource === 'all' || (c.source || 'a') === S.albumSource);
   function filtered() {
-    const q = S.query.trim().toLowerCase();
-    const list = S.album.chars.filter((c) => (S.filter === 'all' || c.rarity === S.filter) && (S.albumSource === 'all' || (c.source || 'a') === S.albumSource)
-      && (!q || c.name.toLowerCase().includes(q) || c.series.toLowerCase().includes(q)));
+    const q = plainText(S.query).replace(/\s+/g, ' ').trim();
+    const list = S.album.chars.filter((c) => chipMatch(c) && (!q || plainText(c.name).includes(q) || plainText(c.series).includes(q)));
     const sorters = {
       value: (a, b) => a.rank - b.rank,
       recent: (a, b) => b.claimedAt - a.claimedAt,
@@ -959,8 +1124,11 @@ window.MudaeSalon = function ({ state, el, Icon, call, onSocket, member, avatar,
         el('p', { textContent: mine ? 'Você ainda não casou com ninguém. Rode na Mesa e seja rápido no Casar!' : whoName(a.ownerId) + ' ainda não casou com ninguém.' }),
         el('button', { type: 'button', class: 'salon-roll primary', onclick: () => setTab('mesa') }, 'Ir para a Mesa'))));
     }
-    const search = el('input', { type: 'search', class: 'salon-search', placeholder: 'Buscar personagem ou obra…', value: S.query, ariaLabel: 'Buscar no harem' });
-    search.oninput = () => { S.query = search.value; S.shown = PAGE; renderGrid(); };
+    const finder = searchBox({ placeholder: 'Buscar personagem ou obra…', label: 'Buscar no harem', value: S.query, delay: 0, suggest: haremSuggest,
+      tag: (c) => el('span', { class: 'salon-sug-tag r-' + c.rarity, textContent: RARITY[c.rarity] }),
+      pick: (item) => { S.query = item.kind === 'filter' ? '' : item.name; S.shown = PAGE; renderGrid(); } });
+    const search = finder.box;
+    finder.input.addEventListener('input', () => { S.query = finder.input.value; S.shown = PAGE; renderGrid(); });
     const chip = (id, label) => el('button', { type: 'button', class: 'salon-filter ' + (id === 'all' ? '' : 'f-' + id) + (S.filter === id ? ' active' : ''),
       onclick: () => { S.filter = id; S.shown = PAGE; renderAlbum(); } }, label);
     const sort = el('select', { class: 'salon-sort', ariaLabel: 'Ordenar' },
@@ -1030,6 +1198,8 @@ window.MudaeSalon = function ({ state, el, Icon, call, onSocket, member, avatar,
     if (!res) return;
     S.wishes = new Set(res.chars.map((c) => String(c.id)));
     S.wishMax = res.max;
+    S.wishData = res;
+    if (S.tab === 'desejos') renderWishes();
     if (S.tab === 'chars') renderCharGrid();
     if (S.tab === 'harem' && S.album?.ownerId !== me()) renderGrid();
   }
@@ -1046,7 +1216,11 @@ window.MudaeSalon = function ({ state, el, Icon, call, onSocket, member, avatar,
           S.wishes ||= new Set();
           if (on) S.wishes.delete(String(c.id)); else S.wishes.add(String(c.id));
           toast(on ? `${c.name} saiu da sua lista de desejos (${res.total}/${res.max}).` : `${c.name} entrou na sua lista de desejos (${res.total}/${res.max}).`, 'info');
-          if (S.tab === 'chars') renderCharGrid(); else renderGrid();
+          if (S.tab === 'desejos') {
+            // Na própria lista, quem sai some da tela na hora.
+            if (S.wishData) { S.wishData.chars = S.wishData.chars.filter((x) => String(x.id) !== String(c.id)); S.wishData.total = res.total; }
+            renderWishes();
+          } else if (S.tab === 'chars') renderCharGrid(); else renderGrid();
         } }, ico('wish'), on ? 'Desejado' : 'Desejar'),
       c.ownerId && c.ownerId !== me() ? el('button', { type: 'button', class: 'icon', title: 'Propor troca para ' + whoName(c.ownerId), ariaLabel: 'Propor troca para ' + whoName(c.ownerId),
         onclick: (e) => { e.stopPropagation(); trade.start(c.ownerId, S.channel); } }, Icon('refresh', 16)) : null);
@@ -1059,13 +1233,14 @@ window.MudaeSalon = function ({ state, el, Icon, call, onSocket, member, avatar,
 
   // ---------- personagens ($top e $obra na tela) ----------
   const charKey = () => [S.chars.gender, S.chars.source, S.chars.series || ''].join('|');
-  async function loadChars(page = 0) {
+  async function loadChars(page = 0, focus = null) {
     const channel = S.channel;
     const key = charKey();
     S.chars.loading = true;
-    const res = await call('mudae:list', { key, page });
+    const res = await call('mudae:list', { key, page, ...(focus !== null ? { focus } : {}) });
     S.chars.loading = false;
     if (!res || S.channel !== channel || key !== charKey()) return;
+    S.chars.focus = res.focus ?? null;
     S.chars.data = res;
     S.chars.page = res.page;
     if (S.tab === 'chars') renderChars();
@@ -1094,9 +1269,18 @@ window.MudaeSalon = function ({ state, el, Icon, call, onSocket, member, avatar,
   function renderChars() {
     if (S.tab !== 'chars') return;
     const c = S.chars;
-    const search = el('input', { type: 'search', class: 'salon-search', placeholder: 'Buscar uma obra… (ex.: Naruto, Zelda)', value: c.text, ariaLabel: 'Buscar uma obra' });
-    search.onkeydown = (e) => { if (e.key === 'Enter') { e.preventDefault(); searchChars(search.value); } };
-    search.onsearch = () => { if (!search.value) searchChars(''); };
+    const finder = searchBox({ placeholder: 'Buscar personagem ou obra… (ex.: Naruto, Zelda, Mikasa)', label: 'Buscar personagem ou obra', value: c.text,
+      suggest: (text) => call('mudae:suggest', { text, gender: c.series ? '' : c.gender, source: c.series ? '' : c.source }),
+      tag: (x) => el('span', { class: 'salon-sug-tag' + (x.ownerId ? ' owned' : ''), textContent: x.ownerId ? (x.ownerId === me() ? 'Seu' : whoName(x.ownerId)) : 'Livre' }),
+      pick: (item) => {
+        if (item.kind === 'filter') Object.assign(c, { series: null, text: '', gender: item.gender, source: item.source, data: null, focus: null });
+        else if (item.kind === 'series') Object.assign(c, { series: item.name, text: item.name, gender: '', source: '', data: null, focus: null });
+        else Object.assign(c, { series: item.series, text: item.name, gender: '', source: '', data: null, focus: null });
+        renderChars();
+        loadChars(0, item.kind === 'char' ? item.id : null);
+      } });
+    const search = finder.box;
+    finder.input.addEventListener('search', () => { if (!finder.input.value && (c.series || c.text)) searchChars(''); });
     const chip = (field, value, label) => el('button', { type: 'button', class: 'salon-filter' + (!c.series && c[field] === value ? ' active' : ''), ariaPressed: String(!c.series && c[field] === value),
       onclick: () => { Object.assign(c, { series: null, text: '', [field]: value, data: null }); renderChars(); loadChars(); } }, label);
     const sources = Object.keys(S.sources || ui.SOURCES).filter((k) => ui.SOURCES[k]);
@@ -1131,13 +1315,41 @@ window.MudaeSalon = function ({ state, el, Icon, call, onSocket, member, avatar,
         el('div', { class: 'salon-pos', textContent: c.pos + 'º' }),
         c.ownerId ? el('div', { class: 'salon-ribbon' }, owner ? avatar(owner, 'salon-chip-avatar') : null, el('span', { textContent: c.ownerId === me() ? 'Seu' : whoName(c.ownerId) }))
           : null];
-      return el('div', { class: 'salon-album-item' }, cardNode(c, { size: 'album', overlay, onclick: c.ownerId && c.ownerId !== me() ? () => openHarem(c.ownerId) : null }), wishButton(c));
+      return el('div', { class: 'salon-album-item' + (S.chars.focus !== null && S.chars.focus !== undefined && String(c.id) === S.chars.focus ? ' found' : ''), data: { id: String(c.id) } },
+        cardNode(c, { size: 'album', overlay, onclick: c.ownerId && c.ownerId !== me() ? () => openHarem(c.ownerId) : null }), wishButton(c));
     }));
+    // Veio de uma busca por personagem: leva a tela até ele (o destaque some quando a pessoa muda de página).
+    nodes.charGrid.querySelector('.salon-album-item.found')?.scrollIntoView?.({ block: 'center', behavior: reducedMotion() ? 'auto' : 'smooth' });
     if (!d.chars.length) nodes.charGrid.append(el('div', { class: 'salon-empty-note', textContent: 'Ninguém nesta lista.' }));
     nodes.charPager.replaceChildren(...(d.pages > 1 ? [
       el('button', { type: 'button', class: 'salon-filter', disabled: d.page === 0, onclick: () => loadChars(d.page - 1) }, '‹ Anterior'),
       el('span', { textContent: `Página ${d.page + 1} de ${d.pages}` }),
       el('button', { type: 'button', class: 'salon-filter', disabled: d.page >= d.pages - 1, onclick: () => loadChars(d.page + 1) }, 'Próxima ›')] : []));
+  }
+
+  // ---------- aba Desejos (a minha lista de desejos) ----------
+  function renderWishes() {
+    if (S.tab !== 'desejos') return;
+    const d = S.wishData;
+    if (!d) return nodes.body.replaceChildren(el('div', { class: 'salon-loading', textContent: 'Abrindo a lista de desejos…' }));
+    const head = el('div', { class: 'salon-album-head' },
+      el('div', {}, el('h2', {}, ico('wish'), 'Seus desejos'),
+        el('div', { class: 'salon-album-stats' }, el('strong', { textContent: `${d.total}/${d.max}` }), d.max === 1 ? ' vaga' : ' vagas usadas'),
+        el('p', { class: 'salon-muted', textContent: 'Você recebe um aviso quando alguém da sua lista sair em um roll.' })));
+    if (!d.chars.length) {
+      return nodes.body.replaceChildren(el('div', { class: 'salon-album salon-wishes' }, head, el('div', { class: 'salon-empty' },
+        el('div', { class: 'salon-empty-icon' }, Icon('star', 40)),
+        el('p', { textContent: 'Sua lista está vazia. Toque em Desejar numa carta de Personagens ou use $wish nome.' }),
+        el('button', { type: 'button', class: 'salon-roll primary', onclick: () => setTab('chars') }, 'Ver personagens'))));
+    }
+    const items = d.chars.map((c) => {
+      const owner = c.ownerId ? member(c.ownerId) : null;
+      const overlay = c.ownerId ? [el('div', { class: 'salon-ribbon' }, owner ? avatar(owner, 'salon-chip-avatar') : null,
+        el('span', { textContent: c.ownerId === me() ? 'Seu' : whoName(c.ownerId) }))] : [el('div', { class: 'salon-ribbon' }, el('span', { textContent: 'Livre' }))];
+      return el('div', { class: 'salon-album-item' },
+        cardNode(c, { size: 'album', overlay, onclick: c.ownerId && c.ownerId !== me() ? () => openHarem(c.ownerId) : null }), wishButton(c));
+    });
+    nodes.body.replaceChildren(el('div', { class: 'salon-album salon-wishes' }, head, el('div', { class: 'salon-grid' }, ...items)));
   }
 
   // ---------- ranking ----------
@@ -1147,6 +1359,35 @@ window.MudaeSalon = function ({ state, el, Icon, call, onSocket, member, avatar,
     if (!res || S.channel !== channel) return;
     S.ranking = res;
     if (S.tab === 'ranking') renderRanking();
+    if (canManage()) loadLeavers();
+  }
+
+  // Quem saiu do servidor ainda é dono das cartas: quem tem "Gerenciar o Mudae" pode liberá-las para a roleta.
+  const canManage = () => !!state.server?.myPerms?.includes('MANAGE_MUDAE');
+  async function loadLeavers() {
+    const channel = S.channel;
+    const res = await call('mudae:leavers');
+    if (!res || S.channel !== channel) return;
+    S.leavers = res.rows;
+    if (S.tab === 'ranking') renderRanking();
+  }
+  async function purgeLeaver(row) {
+    if (!await confirmDialog({ title: 'Liberar as cartas?', text: `${row.name} saiu do servidor. As ${num(row.total)} ${row.total === 1 ? 'carta dele volta' : 'cartas dele voltam'} para a roleta e qualquer pessoa pode casar com elas de novo. Ninguém recebe kakera por isso.`, confirm: 'Liberar' })) return;
+    const res = await call('mudae:purge', { accountId: row.ownerId });
+    if (!res) return;
+    S.leavers = res.rows;
+    toast(`${num(res.released)} ${res.released === 1 ? 'carta liberada' : 'cartas liberadas'}.`, 'info');
+    loadRanking();
+  }
+  function leaversSection() {
+    if (!canManage() || !S.leavers?.length) return null;
+    return el('div', { class: 'salon-leavers' },
+      el('h3', { textContent: `Quem saiu do servidor — ${S.leavers.length}` }),
+      el('p', { class: 'salon-muted', textContent: 'Essas pessoas saíram, mas as cartas continuam com elas. Libere para voltarem à roleta.' }),
+      S.leavers.map((r) => el('div', { class: 'salon-leaver' },
+        el('div', { class: 'salon-rank-who' }, el('strong', { textContent: r.name }),
+          el('span', { textContent: `${num(r.total)} ${r.total === 1 ? 'personagem' : 'personagens'} · ${num(r.value)} de valor` })),
+        el('button', { type: 'button', class: 'salon-roll', onclick: () => purgeLeaver(r) }, 'Liberar cartas'))));
   }
 
   // Ouro, prata e bronze da Forja nos 3 primeiros (sem a Forja, a medalha simples na cor do lugar).
@@ -1186,6 +1427,7 @@ window.MudaeSalon = function ({ state, el, Icon, call, onSocket, member, avatar,
         ? el('div', { class: 'salon-legends' }, r.legendaries.map((c) => cardNode(c, { size: 'mini', extra: el('div', { class: 'salon-chip' },
           member(c.ownerId) ? avatar(member(c.ownerId), 'salon-chip-avatar') : null, el('span', { textContent: whoName(c.ownerId) })) })))
         : el('div', { class: 'salon-empty-note', textContent: 'Nenhum lendário com dono ainda.' }),
+      leaversSection(),
       // Créditos das fontes (o TMDB pede este aviso em quem usa a API dele).
       el('p', { class: 'salon-credits', textContent: 'Personagens e imagens: AniList, IGDB, Comic Vine, TMDB e wikis do Fandom. Este produto usa a API do TMDB, mas não é endossado nem certificado pelo TMDB.' })));
   }

@@ -161,6 +161,40 @@ test('Salão do Mudae: comandos só no Salão, giro, prioridade, roubo, presenç
   assert.match((await send(beto, '$w')).error, /permissão para usar o Mudae/);
 });
 
+test('Salão do Mudae: quem tem "Gerenciar o Mudae" libera as cartas de quem saiu', async (t) => {
+  const { connect } = await fixture(t);
+  const ana = await connect('Ana');
+  const beto = await connect('Beto');
+  const cleo = await connect('Cleo');
+  const created = await ana.call('channel', { action: 'create', type: 'mudae', name: 'Salão Mudae' });
+  await eventually(() => assert.ok(beto.last.channels.find((ch) => ch.id === created.id)));
+  const send = (s, text) => s.call('chat:send', { channel: created.id, text });
+  await ana.call('mudae:presence', { channel: created.id });
+  await send(ana, '$w');
+  const roll = await eventually(() => { const m = beto.messages.filter((x) => x.bot === 'mudae').at(-1); assert.equal(m?.mudae.kind, 'roll'); return m; });
+  await wait(roll.mudae.priorityUntil - Date.now() + 50);
+  assert.ok(!(await beto.call('mudae:claim', { channel: created.id, id: roll.id })).error);
+  assert.equal((await ana.call('mudae:leavers')).rows.length, 0, 'ninguém saiu ainda');
+
+  // Beto sai: a carta continua com ele, e só quem tem a permissão enxerga e libera.
+  assert.ok(!(await beto.call('server:leave')).error);
+  assert.match((await cleo.call('mudae:leavers')).error, /gerenciar o Mudae/);
+  assert.match((await cleo.call('mudae:purge', { accountId: beto.auth.accountId })).error, /gerenciar o Mudae/);
+  const { rows } = await ana.call('mudae:leavers');
+  assert.deepEqual(rows.map((r) => [r.ownerId, r.name, r.total]), [[beto.auth.accountId, 'Beto', 1]]);
+  assert.match((await ana.call('mudae:purge', { accountId: cleo.auth.accountId })).error, /ainda está no servidor/);
+
+  // Dar a permissão a um cargo vale para quem o tem.
+  const role = await ana.call('role', { action: 'create', name: 'Zelador', color: '#99aab5', perms: ['MANAGE_MUDAE'] });
+  assert.ok(!role.error, role.error);
+  assert.ok(!(await ana.call('mod', { action: 'setRoles', target: cleo.auth.accountId, value: [role.id] })).error);
+  await eventually(() => assert.ok(cleo.last.myPerms.includes('MANAGE_MUDAE')));
+  const purged = await cleo.call('mudae:purge', { accountId: beto.auth.accountId });
+  assert.deepEqual([purged.released, purged.rows], [1, []]);
+  await send(ana, '$im eren');
+  await eventually(() => assert.equal(ana.messages.filter((x) => x.bot === 'mudae').at(-1).mudae.ownerId, null));
+});
+
 test('Salão do Mudae: o app não carrega 3D e os módulos antigos permanecem separados', async (t) => {
   const { base } = await fixture(t);
   for (const url of ['/vendor/three/build/three.module.min.js', '/vendor/three/build/three.core.min.js',

@@ -10,7 +10,10 @@ const suffix = (value) => createHash('sha256').update(String(value)).digest('hex
 function writeJson(file, value, rows = false) {
   fs.mkdirSync(path.dirname(file), { recursive: true });
   const temp = file + '.tmp';
-  fs.writeFileSync(temp, rows ? '[\n' + value.map((r) => JSON.stringify(r)).join(',\n') + '\n]\n' : JSON.stringify(value, null, 2) + '\n');
+  const texto = rows ? '[\n' + value.map((r) => JSON.stringify(r)).join(',\n') + '\n]\n' : JSON.stringify(value, null, 2) + '\n';
+  // fsync antes de renomear: sem ele, uma queda de luz ou um processo morto deixa o arquivo cheio de bytes nulos.
+  const fd = fs.openSync(temp, 'w');
+  try { fs.writeSync(fd, texto); fs.fsyncSync(fd); } finally { fs.closeSync(fd); }
   // Antivírus/indexadores do Windows podem manter o destino aberto por alguns milissegundos.
   for (let attempt = 0; ; attempt++) {
     try { fs.renameSync(temp, file); break; }
@@ -58,8 +61,9 @@ function createCollection(name, { cacheDir, resume = false } = {}) {
       const file = path.join(directory, 'consultas', name, suffix(key) + '.json');
       // Identificadores de consultas não incluem chaves/tokens.
       if (resume && fs.existsSync(file)) {
-        const cached = JSON.parse(fs.readFileSync(file, 'utf8'));
-        if (cached.key === key) { count('cacheHits'); return cached.data; }
+        let cached = null;
+        try { cached = JSON.parse(fs.readFileSync(file, 'utf8')); } catch { count('cacheCorrompido'); } // arquivo cortado por queda: busca de novo
+        if (cached && cached.key === key) { count('cacheHits'); return cached.data; }
       }
       const data = await loader();
       writeJson(file, { key, fetchedAt: new Date().toISOString(), data });

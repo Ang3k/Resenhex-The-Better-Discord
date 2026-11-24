@@ -127,6 +127,11 @@ test('linhas novas do bot', async (t) => {
   assert.match(tu.textContent, /Poderes prontos: Cadeado, Eco\./);
   assert.deepEqual([...tu.querySelectorAll('svg.mi-power')].map((s) => s.dataset.power), ['cadeado', 'eco']);
 
+  const dt = text({ kind: 'divorceTime', divorceLeft: 150, divorceCap: 200, divorceIn: 90 * 60_000 });
+  assert.match(dt.textContent, /ainda devolve 150 de 200 kakera/);
+  assert.match(dt.textContent, /abre espaço em 1h30/);
+  assert.match(text({ kind: 'divorceTime', divorceLeft: 0, divorceCap: 200, divorceIn: 60_000 }).textContent, /já devolveu o máximo/);
+
   // $poder eco: um botão por personagem, cada um usa o Eco.
   const eco = text({ kind: 'eco', cards: [{ id: 7, name: 'Zero Two' }, { id: 8, name: 'Kyubey' }] });
   assert.deepEqual([...eco.querySelectorAll('button')].map((b) => b.textContent), ['Zero Two', 'Kyubey']);
