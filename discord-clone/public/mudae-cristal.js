@@ -291,6 +291,7 @@ window.MudaeCrystals = function ({ el, call, onSocket, Sounds, ui, member, reduc
     // Recusado (o aviso já apareceu): se ainda está na tela, dá para tentar de novo.
     if (!res?.ok) return;
     c.mine.add(sp.gem);
+    if (res.power) document.dispatchEvent(new CustomEvent('mudae:reaction', { detail: res.power }));
     burst(sp, res);
     removeSprite(sp);
     host?.hooks.onKakera?.(res.kakera, res.amount, res.crystals);

@@ -610,6 +610,7 @@ window.MudaeUI = function ({ state, el, Icon, call, member, avatar, nameColor, F
       btn.disabled = true;
       const res = await call('mudae:crystal:take', { id: v.id, gem });
       // "já pegou": essa gota foi pega em outro aparelho, então passa para a próxima.
+      if (res?.power) document.dispatchEvent(new CustomEvent('mudae:reaction', { detail: res.power }));
       if (res?.ok || /já pegou/.test(res?.error || '')) {
         gem++; total += res?.amount || 0;
         if (total) label.textContent = `+${num(total)}`;

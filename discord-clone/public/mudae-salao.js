@@ -194,7 +194,10 @@ window.MudaeSalon = function ({ state, el, Icon, call, onSocket, member, avatar,
       onclick: () => setSimple(true) }, Icon('message', 16), el('span', { textContent: 'Modo simplificado' }));
     // Ajuda: um popup com o que cada coisa faz e todos os comandos (public/mudae-ajuda.js), com busca.
     const helpButton = el('button', { type: 'button', class: 'salon-help', title: 'Como o Mudae funciona e o que cada comando faz', onclick: () => window.MudaeAjuda?.open() }, Icon('info', 16), el('span', { textContent: 'Ajuda' }));
-    root.replaceChildren(el('div', { class: 'salon-top' }, nodes.tabs, el('div', { class: 'salon-top-right' }, nodes.status, helpButton, simple)), nodes.body, nodes.sideToggle);
+    root.replaceChildren(el('div', { class: 'salon-top' }, nodes.tabs, el('div', { class: 'salon-top-right' }, nodes.status)), nodes.body, nodes.sideToggle);
+    // Ajuda e Modo simplificado ficam no cabeçalho do app (ao lado de "Abrir o Salão"): a faixa das abas já está cheia.
+    nodes.headTools = [helpButton, simple];
+    $('.header-tools')?.prepend(...nodes.headTools);
     // O cristal errante voa por cima da área das abas, em qualquer aba.
     crystals?.attach(root, channel.id, { area: () => nodes.body, origin: crystalOrigin, onKakera: showKakera, shapes: () => S.status?.kakeraIcons || {} });
     mountSide();
@@ -223,6 +226,8 @@ window.MudaeSalon = function ({ state, el, Icon, call, onSocket, member, avatar,
     clearInterval(ticker);
     ticker = null;
     root.replaceChildren();
+    nodes.headTools?.forEach((n) => n.remove());
+    nodes.headTools = null;
     nodes.sideTabs?.remove();
     nodes.people?.remove();
     $('#chat-view').classList.remove('salon-people-open');

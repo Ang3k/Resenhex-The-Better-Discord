@@ -81,12 +81,12 @@
 .salon-crystals.full { color: var(--yellow); border-color: color-mix(in srgb, var(--yellow) 35%, transparent); background: color-mix(in srgb, var(--yellow) 10%, transparent); }
 .salon-crystals.full strong, .salon-crystals.full .mi-inline > .mi { color: var(--yellow); }
 .salon-crystals.bump strong { display: inline-block; animation: mudae-crystal-bump .45s var(--spring-pop); }
-.salon-simple, .salon-open-btn {
+.salon-simple, .salon-help, .salon-open-btn {
   display: inline-flex; align-items: center; gap: 6px; height: 28px; padding: 0 10px; border: 1px solid var(--divider); border-radius: 999px;
   background: transparent; color: var(--interactive); font: inherit; font-size: 13px; font-weight: 600; white-space: nowrap; cursor: pointer;
   transition: none;
 }
-.salon-simple:hover, .salon-open-btn:hover { background: var(--hover); color: var(--text-strong); }
+.salon-simple:hover, .salon-help:hover, .salon-open-btn:hover { background: var(--hover); color: var(--text-strong); }
 .salon-open-btn { margin-right: 6px; border-color: color-mix(in srgb, var(--brand) 45%, transparent); color: var(--text); }
 .mudae-claim.waiting { opacity: .75; cursor: progress; }
 .salon-status-pill {
@@ -681,7 +681,7 @@ html[data-reduce-motion=true] .salon-sug-panel { animation: none; }
   /* Com a aba Forja são 5 abas: na tela estreita a fileira rola de lado. */
   .salon-tabs { max-width: 100%; overflow-x: auto; scrollbar-width: none; }
   .salon-tabs::-webkit-scrollbar { display: none; }
-  .salon-simple span { display: none; }
+  .salon-simple span, .salon-help span { display: none; }
   .salon-mesa { padding: 12px 12px 72px; }
   .salon-album, .salon-ranking { padding-inline: 12px; }
 }
@@ -755,14 +755,12 @@ html[data-reduce-motion=true] .salon-sug-panel { animation: none; }
 .salon-status-text { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
 .salon-status-kakera { flex: none; }
 /* Faixa apertada: "Ajuda" e "Modo simplificado" ficam só com o ícone. */
-@container salon-top (max-width: 1150px) {
-  .salon-help span { display: none; }
-  .salon-simple span { display: none; }
-}
-@container salon-top (max-width: 900px) {
+/* O texto inteiro (rolls, casamento e kakera) precisa de ~1250 px (sem Ajuda e Modo simplificado, que foram para o cabeçalho); abaixo disso ele virava "rolls…" cortado. */
+@container salon-top (max-width: 1250px) {
   .salon-status-full { display: none; }
   .salon-status-short { display: inline; }
-  .salon-simple span { display: none; }
+}
+@container salon-top (max-width: 900px) {
   .salon-crystals-label { display: none; }
 }
 /* Com 6 abas, no notebook (1366 com o chat aberto) o status virava "11/11 · …": as abas apertam, "Meu harem"
@@ -786,8 +784,9 @@ html[data-reduce-motion=true] .salon-sug-panel { animation: none; }
 .salon-leavers { margin-top: 24px; }
 .salon-leaver { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 8px 0; }
 /* Ajuda (popup) */
-.salon-help { display: inline-flex; align-items: center; gap: 6px; height: 32px; padding: 0 10px; border: 0; border-radius: 8px; background: var(--bg-input); color: var(--text); font: inherit; cursor: pointer; }
-.salon-help:hover, .salon-help:focus-visible { background: color-mix(in srgb, var(--brand) 30%, var(--bg-input)); }
+/* Ajuda e Modo simplificado moram no cabeçalho do app; em janela estreita ficam só com o ícone. */
+.header-tools > :is(.salon-help, .salon-simple) { margin-right: 6px; }
+@media (max-width: 900px) { .header-tools > :is(.salon-help, .salon-simple) span { display: none; } }
 .mudae-help-overlay { position: fixed; inset: 0; z-index: 3000; display: flex; align-items: center; justify-content: center; padding: 16px; background: rgba(0, 0, 0, .62); backdrop-filter: blur(3px); }
 .mudae-help-panel { display: flex; flex-direction: column; width: min(1000px, 100%); height: min(780px, 100%); border-radius: 16px; background: var(--bg-secondary, #2b2d31); color: var(--text); box-shadow: 0 24px 70px rgba(0, 0, 0, .55), 0 0 0 1px color-mix(in srgb, var(--brand) 22%, transparent); overflow: hidden; }
 .mudae-help-top { display: flex; align-items: center; gap: 14px; padding: 14px 18px; background: linear-gradient(120deg, color-mix(in srgb, var(--brand) 26%, transparent), transparent 70%); border-bottom: 1px solid color-mix(in srgb, var(--text-muted) 22%, transparent); }

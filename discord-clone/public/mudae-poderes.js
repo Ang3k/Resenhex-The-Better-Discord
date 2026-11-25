@@ -41,6 +41,11 @@ window.MudaePowers = function ({ el, call, onSocket, ui, Sounds, reducedMotion =
   const timers = new Set();
   const nodes = {
     rail: el('div', { class: 'poder-rail', role: 'group', ariaLabel: 'Seus poderes' }),
+    // O poder de reação (gasto ao pegar cristais de carta) fica no topo do trilho, acima dos espaços.
+    react: el('div', { class: 'poder-react', role: 'status' },
+      el('span', { class: 'poder-react-label', textContent: 'Reação' }),
+      el('span', { class: 'poder-react-value' }),
+      el('span', { class: 'poder-react-bar' }, el('i'))),
     fx: el('div', { class: 'poder-fx', ariaHidden: 'true' }),
     future: null, banner: null,
   };
@@ -110,17 +115,44 @@ window.MudaePowers = function ({ el, call, onSocket, ui, Sounds, reducedMotion =
       el('span', { class: 'poder-state' }));
   }
 
+  // Poder de reação agora: o valor do servidor mais o que voltou desde então (limitado ao máximo).
+  function reactNow() {
+    const r = view?.reaction;
+    if (!r) return null;
+    const value = Math.min(r.max, r.value + ((Date.now() - viewAt) / 3_600_000) * (r.perHour || 0));
+    return { value: Math.floor(value), max: r.max, full: value >= r.max, fullIn: value >= r.max ? 0 : Math.ceil(((r.max - value) / (r.perHour || 1)) * 3_600_000) };
+  }
+  function drawReact() {
+    const r = reactNow();
+    nodes.react.hidden = !r;
+    if (!r) return;
+    const [, value, bar] = nodes.react.children;
+    const text = `${r.value}/${r.max}`;
+    if (value.textContent !== text) value.textContent = text;
+    bar.firstChild.style.width = Math.round((r.value / r.max) * 100) + '%';
+    nodes.react.classList.toggle('low', r.value < 15);
+    nodes.react.title = `Poder de reação: ${text}. Cada cristal de carta gasta um pouco; o roxo é de graça.` + (r.full ? '' : ` Enche em ${minutes(r.fullIn)}.`);
+  }
+  // Pegou um cristal: o servidor devolveu o poder que sobrou.
+  document.addEventListener('mudae:reaction', (e) => {
+    if (!view || !e.detail) return;
+    view.reaction = { ...view.reaction, ...e.detail };
+    viewAt = Date.now();
+    drawReact();
+  });
+
   function update() {
     if (!view) return;
+    drawReact();
     const slots = view.slots || [];
     const key = slots.join('|');
-    if (key !== drawn || nodes.rail.childElementCount !== slots.length) {
+    if (key !== drawn || nodes.rail.childElementCount !== slots.length + 1) {
       drawn = key;
-      nodes.rail.replaceChildren(...slots.map(slotNode));
+      nodes.rail.replaceChildren(nodes.react, ...slots.map(slotNode));
     }
     slots.forEach((power, i) => {
       if (!power) return;
-      const node = nodes.rail.children[i];
+      const node = nodes.rail.children[i + 1];
       const orb = node.firstChild;
       const s = stateOf(power);
       const was = node.dataset.state;

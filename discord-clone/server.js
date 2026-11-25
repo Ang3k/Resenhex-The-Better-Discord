@@ -2815,7 +2815,7 @@ io.on('connection', (socket) => {
   });
   const powersView = (acc) => {
     const store = mudaeStore();
-    return { ...poderes.powersOf(store, acc.id, powerCtx(store, acc.id), perksOf(store, acc.id)), ...mudae.armedView(store, acc.id) };
+    return { ...poderes.powersOf(store, acc.id, powerCtx(store, acc.id), perksOf(store, acc.id)), ...mudae.armedView(store, acc.id), reaction: { ...require('./server/mudae-conta').powerView(store, acc.id, Date.now()), perHour: CRYSTAL.power.regenPerHour } };
   };
   function afterProgress(acc, c, derive = false) {
     achievementsRefresh(acc, c, derive);
