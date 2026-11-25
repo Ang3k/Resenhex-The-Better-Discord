@@ -49,6 +49,15 @@ test('roll: filtra por gênero e devolve o card com foto do AniList', () => {
   assert.equal(onlyMen.roll({ claims: {}, usage: {} }, 'a', 'w').card.name, 'Satoru Gojou', 'sem ninguém do gênero, roda qualquer um');
 });
 
+test('roll: $o só sorteia personagem sem gênero (e cai em qualquer um se não houver)', () => {
+  const { mudae, store } = setup({ pick: 0 });
+  assert.deepEqual(parse('$o'), { cmd: 'o', arg: '' });
+  assert.deepEqual(parse('$semgenero'), { cmd: 'o', arg: '' });
+  assert.equal(mudae.roll(store, 'a', 'o').card.name, 'Kyubey');
+  const noOthers = createMudae({ catalog: [CATALOG[0]], random: () => 0, refSize: 1 });
+  assert.equal(noOthers.roll({ claims: {}, usage: {} }, 'a', 'o').card.name, 'Satoru Gojou', 'sem ninguém sem gênero, roda qualquer um');
+});
+
 test('roll: 10 a cada 30 min, renovando junto com o casamento', () => {
   assert.equal(ROLL_RESET_MS, 30 * 60_000);
   assert.equal(ROLL_RESET_MS, CLAIM_RESET_MS);

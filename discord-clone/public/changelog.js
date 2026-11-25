@@ -4,6 +4,32 @@
 // O título deve destacar as principais funcionalidades ou correções, com termos objetivos.
 window.CHANGELOG = [
   {
+    version: '2.8.0', date: '2026-11-24', name: 'Conquistas, chaves e soulmates, curtidas, desejos novos, ajuda dentro do Salão e muito mais no Mudae',
+    summary: 'O Mudae ganhou muita coisa nesta versão. Agora há 97 conquistas com títulos e prêmios, chaves que crescem quando você rola um personagem seu, cristais que dependem da chave, curtidas, desejos melhores, um botão de Ajuda que explica tudo dentro do Salão e várias ferramentas para cuidar do harém e do servidor. É a maior atualização do Mudae até agora.',
+    sections: [
+      { kind: 'new', items: [
+        'Conquistas: uma aba nova no Salão com 97 conquistas por servidor, em trilhas de três níveis (bronze, prata e ouro), algumas escondidas e três do servidor inteiro (quando o servidor chega a 100, 1.000 e 10.000 casamentos, quem jogou no último mês ganha). Cada uma paga kakera uma vez e dá um título, que você escolhe com $titulo ou na própria aba e aparece ao lado do seu nome. O ouro de Casamenteiro dá +1 vaga de desejo, o de Obra completa dá +1 roll guardado e o de Sequência do $dk deixa o $rolls 10% mais barato. As conquistas pagam no máximo 1.500 de kakera por dia (o resto espera na fila), e quem já joga abre de uma vez o que já tinha feito, só que sem prêmio. $conquistas mostra as que estão mais perto de abrir.',
+        'Chaves e soulmates: quando você rola um personagem que já é seu, a chave dele sobe (uns 2% dos seus rolls caem num personagem seu). Bronze, prata, ouro e caos aumentam o valor dele e mudam os cristais que nascem dele: cor, chance de um segundo cristal e mais kakera. A chave fica com o personagem, mesmo se ele trocar de dono. Do nível 6, rolar o personagem devolve o valor dele em kakera (até 100 por dia). Com 10 chaves rolladas por você, ele vira soulmate. Comandos: $infokeys, $sl, $removekeys e $embedcolor (a cor própria do personagem).',
+        'Cristais dos personagens que já têm dono: quando alguém rola um personagem com dono, nasce um cristal da carta. A cor e o bônus dependem da chave do personagem, e ele pode vir arco-íris. Para pegar, você gasta poder de reação (até 100, volta 50 por hora; o roxo é de graça), que o $tu mostra. O $kakerareact escolhe a forma do cristal de cada cor na sua tela: gema, coração, estrela, gota ou losango.',
+        'Curtidas e desejos novos: a aba Desejos ganhou uma aba Curtidas, e cada carta de Personagens ganhou um coração. Quando alguém rola um personagem que você curtiu, aparece um coração na Mesa. Com 5 curtidas, o $daily guarda 2 usos. Nos desejos: $starwish (a starwish tem mais chance no Rubi e no Chamar desejo), $wishk (desejo quieto, que paga kakera quando outra pessoa casa), $wishseries (avisa por uma obra inteira), $wishdm (lista privada), $wishsort, $wishpurge e vários desejos de uma vez ($wish a $ b).',
+        'Ajuda dentro do Salão: o botão Ajuda, na barra de cima, abre uma janela com busca que explica como o Mudae funciona e todos os comandos, com os números reais do jogo. No chat, $ajuda lista os assuntos e $ajuda comando explica um comando.',
+        'Cuidar do harém: notas em cada personagem ($note, $noteseries, $notepage e $fn), que também aparecem no álbum; ordem guardada ($sm) que dá para arrumar arrastando as cartas no álbum; filtros por gênero e "Com nota" no álbum; divórcio em lote ($divorceseries, $divorcepage, $divorceall e $divorceallbut, sempre com $confirmar); e o $mm com filtros ($mm w anime, $mm abc inverso).',
+        'O seu jeito de ver o harém: imagens extras por personagem, só do imgur ($addimg, $changeimg e $randomimg), título e cor do harém ($renameharem e $colormm), o texto do seu casamento e do seu divórcio ($renameclaim e $renamedivorce) e o $profile.',
+        'Ajustes e moderação do servidor, para quem tem "Gerenciar o Mudae": $settings, o tempo para casar ($settimer), os rolls por janela ($setrolls), o limite do harém ($haremlimit), ligar e desligar o casamento no roll dos outros ($togglesnipe) e os cristais ($togglecrystals), tirar uma obra ou personagem da roleta de todo mundo ($serverdisable), $forcedivorce, $userdivorce e $restore para desfazer.',
+        'Mais utilidades: $mu e $ru (quando você casa de novo e quando os rolls voltam), $bonus, $overview, $left, os rankings do servidor por kakera ($tsk), chaves ($tsy), personagens ($tsn) e último casamento ($tslc), e $o, que roda um personagem sem gênero definido.',
+      ] },
+      { kind: 'improved', items: [
+        'O valor dos personagens agora soma as chaves e sobe até 20% com o tamanho do servidor (+5% a cada 500 casamentos). Vale no álbum, no harém, no $im, no ranking e no divórcio.',
+        'No topo do Salão, o saldo de kakera fica sempre à vista: quando falta espaço, quem encolhe é o texto de rolls e casamento. Com a faixa apertada, o botão Ajuda mostra só o ícone.',
+      ] },
+      { kind: 'inside', items: [
+        'Os comandos novos do Mudae moram numa tabela (server/mudae-comandos.js) e todos os números novos ficam em mudae-regras.js. Foram mais de 100 testes novos.',
+        'A ajuda vive num arquivo só (public/mudae-ajuda.js), usado pela janela e pelo $ajuda. Um teste confere que todo comando tem explicação e que os números do texto batem com as regras do jogo, para o texto não envelhecer.',
+        'O kakera de todas as conquistas soma 11.250, que é 10% do custo da Forja inteira. A simulação da economia (tools/mudae-economia.js) confere isso e que as chaves e as conquistas não desequilibram o ganho diário.',
+      ] },
+    ],
+  },
+  {
     version: '2.7.5', date: '2026-11-22', name: 'Escolher o minuto no DJ, chuva de cristais mais fácil, cristais do dia no Salão, câmera inteira e microfone lembrado',
     summary: 'Esta versão atende pedidos que a galera mandou pela "Mensagem pro dev". A chuva de cristais do Mudae ficou mais fácil de pegar, o Salão mostra quantos cristais do dia você já pegou, a câmera em destaque aparece inteira, sem corte, e o Resenhex lembra se você deixou o microfone ou o áudio desligado. E, no DJ, dá para escolher o minuto do vídeo para a sala toda.',
     demo: { id: 'dj-minuto', title: 'Escolher o minuto no DJ.', caption: 'Arraste a barra e solte: o vídeo vai para esse ponto para toda a sala, e a foto de quem mudou pula em cima da barra por alguns segundos.' },

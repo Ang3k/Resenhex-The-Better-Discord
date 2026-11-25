@@ -261,6 +261,34 @@ console.log('\nMetas da spec:');
 for (const [label, ok] of checks) console.log(`${ok ? 'OK  ' : 'FALHA'} ${label}`);
 console.log(`Viciado/normal (todas IV), servidor de 5: ${(results['normal/5'].marks.todasIV / results['viciado/5'].marks.todasIV).toFixed(2)}x`);
 
+// Chaves (Lote B). O prêmio do nível 6 tem teto diário (KEYS.goldCap) e o divórcio já tem o dele (DIVORCE_CAP), então o pior caso é fixo:
+// quem rola personagens de chave alta todo dia soma goldCap ao que já ganha. Os rolls que caem num personagem seu não casam com ninguém:
+// o custo é a chance própria (ownChance) de cada roll.
+console.log('\nChaves:');
+console.log(`  prêmio do nível ${R.KEYS.goldFrom}: até ${R.KEYS.goldCap} kakera por dia (pior caso); divórcio: até ${R.DIVORCE_CAP} por dia`);
+for (const [key, p] of Object.entries(PROFILES)) {
+  const rollsPerDay = p.rolls * p.visits.length;
+  console.log(`  ${p.label}: ~${(rollsPerDay * R.KEYS.ownChance).toFixed(1)} chaves por dia (${rollsPerDay} rolls × ${R.KEYS.ownChance * 100}%), ${(rollsPerDay * (1 - R.KEYS.ownChance)).toFixed(0)} rolls seguem normais`);
+}
+const worstCase = normal.map((r) => r.perDayFirst30 + R.KEYS.goldCap);
+checks.push(['chaves: com o prêmio do nível 6 todo dia (pior caso), o normal fica em 1000 a 1400', worstCase.every((v) => Math.abs(v - KAKERA_PER_DAY_TARGET) <= 200)]);
+checks.push(['chaves: o prêmio diário é no máximo 10% da meta de kakera/dia', R.KEYS.goldCap <= KAKERA_PER_DAY_TARGET * 0.1]);
+checks.push(['chaves: a chance de cair num personagem seu é de no máximo 5% dos rolls', R.KEYS.ownChance <= 0.05]);
+for (const [label, ok] of checks.slice(-3)) console.log(`${ok ? 'OK  ' : 'FALHA'} ${label}`);
+
+// Conquistas (Fase 9): o kakera de todas juntas e o teto diário.
+const forgeTotal = R.MEDAL_KEYS.reduce((sum, key) => sum + [1, 2, 3, 4].reduce((s, level) => s + R.priceOf(key, level), 0), 0);
+const achievementTotal = R.ACHIEVEMENTS.trails.length * R.ACHIEVEMENTS.kakera.reduce((a, b) => a + b, 0) + R.ACHIEVEMENTS.hidden.length * R.ACHIEVEMENTS.hiddenKakera
+  + R.ACHIEVEMENTS.serverTrail[6].reduce((a, b) => a + b, 0); // as coletivas ("Do servidor")
+console.log(`\nConquistas: ${R.ACHIEVEMENTS.trails.length * 3 + R.ACHIEVEMENTS.hidden.length + R.ACHIEVEMENTS.serverTrail[4].length} no total, ${achievementTotal} de kakera (a Forja inteira custa ${forgeTotal}), até ${R.ACHIEVEMENTS.dailyKakera} por dia`);
+const achievementChecks = [
+  ['conquistas: o kakera de todas juntas é no máximo 10% da Forja inteira', achievementTotal <= forgeTotal * 0.1],
+  ['conquistas: o teto diário é no máximo 2% da Forja inteira (nenhum dia paga uma medalha cara)', R.ACHIEVEMENTS.dailyKakera <= forgeTotal * 0.02],
+  ['conquistas: no máximo 3 vantagens permanentes', Object.keys(R.ACHIEVEMENTS.perks).length <= 3],
+];
+checks.push(...achievementChecks);
+for (const [label, ok] of achievementChecks) console.log(`${ok ? 'OK  ' : 'FALHA'} ${label}`);
+
 if (args.includes('--md')) {
   console.log('\n' + '| ' + head.join(' | ') + ' |\n|' + head.map(() => '---').join('|') + '|');
   for (const row of rows) console.log('| ' + row.join(' | ') + ' |');

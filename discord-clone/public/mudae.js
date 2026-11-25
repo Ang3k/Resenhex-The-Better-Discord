@@ -34,6 +34,7 @@ window.MudaeUI = function ({ state, el, Icon, call, member, avatar, nameColor, F
   const COMMANDS = [
     { name: 'w', note: 'roda uma waifu' },
     { name: 'h', note: 'roda um husbando' },
+    { name: 'o', note: 'roda um personagem sem gênero' },
     { name: 'm', note: 'roda um personagem qualquer' },
     { name: 'mm', args: true, hint: '@pessoa', note: 'mostra o harem (o seu ou de alguém)' },
     { name: 'mma', args: true, hint: '@pessoa', note: 'harem de A a Z' },
@@ -61,6 +62,59 @@ window.MudaeUI = function ({ state, el, Icon, call, member, avatar, nameColor, F
     { name: 'forjar', args: true, hint: 'medalha', note: 'forja o próximo nível de uma medalha' },
     { name: 'poderes', note: 'seus poderes, as cargas e o que falta para abrir cada um' },
     { name: 'poder', args: true, hint: 'cadeado · laço · eco…', note: 'usa um poder' },
+    { name: 'infokeys', note: 'suas chaves, o prêmio do dia e como virar soulmate (também $keys)' },
+    { name: 'ajuda', args: true, hint: 'comando ou assunto', note: 'explica um comando ou um assunto (sozinho, lista os assuntos)' },
+    { name: 'conquistas', note: 'suas conquistas, as mais perto de abrir e o kakera na fila (também $marcos)' },
+    { name: 'titulo', args: true, hint: 'nome · none', note: 'escolhe o título (uma conquista aberta) que aparece ao lado do seu nome' },
+    { name: 'kakerareact', args: true, hint: 'cor forma · list · reset', note: 'forma do cristal de cada cor na sua tela' },
+    { name: 'mu', note: 'quanto falta para você casar de novo' },
+    { name: 'ru', note: 'seus rolls e quando voltam' },
+    { name: 'bonus', note: 'seus bônus da Forja, das chaves e da likelist' },
+    { name: 'overview', note: 'suas configurações do Mudae' },
+    { name: 'left', note: 'quantos personagens ainda estão livres' },
+    { name: 'settings', note: 'ajustes do Mudae neste servidor' },
+    { name: 'settimer', args: true, hint: 'segundos', note: '[gerente] tempo para casar com um roll' },
+    { name: 'setrolls', args: true, hint: '2 a 10', note: '[gerente] rolls por janela' },
+    { name: 'haremlimit', args: true, hint: 'número · 0', note: '[gerente] limite de personagens no harém' },
+    { name: 'togglesnipe', note: '[gerente] liga ou desliga casar no roll dos outros' },
+    { name: 'togglecrystals', note: '[gerente] liga ou desliga os cristais' },
+    { name: 'serverdisable', args: true, hint: 'obra ou personagem', note: '[gerente] tira da roleta de todo mundo' },
+    { name: 'forcedivorce', args: true, hint: 'nome', note: '[gerente] divorcia sem kakera (dá para restaurar)' },
+    { name: 'restorelist', note: '[gerente] o que dá para restaurar' },
+    { name: 'restore', args: true, hint: 'nome', note: '[gerente] devolve ao dono anterior' },
+    { name: 'like', args: true, hint: 'nome $ nome', note: 'põe na sua likelist (com 5, o $daily guarda 2 usos)' },
+    { name: 'likelist', args: true, hint: '@pessoa', note: 'mostra a likelist (também $ll)' },
+    { name: 'likeremove', args: true, hint: 'nome', note: 'tira da likelist' },
+    { name: 'likepos', args: true, hint: 'nome $ posição', note: 'muda o lugar na likelist' },
+    { name: 'likedm', args: true, hint: '0 ou 1', note: 'esconde a likelist dos outros' },
+    { name: 'starwish', args: true, hint: 'nome', note: 'desejo com estrela (mais chance no Rubi e no Chamar desejo)' },
+    { name: 'starslot', note: 'troca vagas de desejo por mais uma starwish' },
+    { name: 'wishk', args: true, hint: 'nome', note: 'desejo quieto: sem aviso, mas paga kakera se outra pessoa casar' },
+    { name: 'wishseries', args: true, hint: 'obra', note: 'avisa quando qualquer personagem da obra sair' },
+    { name: 'wishdm', args: true, hint: '0 ou 1', note: 'esconde sua lista de desejos dos outros' },
+    { name: 'wishsort', note: 'põe os desejos em ordem alfabética' },
+    { name: 'wishpurge', note: 'tira dos desejos quem já tem dono' },
+    { name: 'embedcolor', args: true, hint: 'nome $ #ff4d94', note: 'cor do personagem (precisa de chave nível 1)' },
+    { name: 'sl', args: true, hint: '@pessoa', note: 'lista de soulmates' },
+    { name: 'removekeys', args: true, hint: 'nome $ quantas', note: 'tira chaves de um personagem seu' },
+    { name: 'note', args: true, hint: 'nome $ texto', note: 'anota algo no personagem (vazio apaga)' },
+    { name: 'noteseries', args: true, hint: 'obra $ texto', note: 'a mesma nota para uma obra inteira' },
+    { name: 'notepage', args: true, hint: 'página $ texto', note: 'a mesma nota para uma página do harém' },
+    { name: 'fn', args: true, hint: 'texto', note: 'procura nas suas notas' },
+    { name: 'sm', args: true, hint: 'abc · obra · recentes · nota · inverso · valor', note: 'ordena o harém e guarda a ordem' },
+    { name: 'divorceseries', args: true, hint: 'obra', note: 'divorcia uma obra inteira (pede confirmação)' },
+    { name: 'divorcepage', args: true, hint: 'página', note: 'divorcia uma página do harém (pede confirmação)' },
+    { name: 'divorceall', note: 'divorcia o harém inteiro (pede confirmação)' },
+    { name: 'divorceallbut', args: true, hint: 'nome $ nome', note: 'divorcia tudo menos esses (pede confirmação)' },
+    { name: 'confirmar', note: 'confirma o divórcio em lote' },
+    { name: 'addimg', args: true, hint: 'nome $ link do imgur', note: 'adiciona imagens extras ao personagem' },
+    { name: 'changeimg', args: true, hint: 'nome $ posição', note: 'escolhe a imagem que aparece primeiro' },
+    { name: 'randomimg', args: true, hint: '0 ou 1', note: 'sorteia a imagem nos seus rolls' },
+    { name: 'renameharem', args: true, hint: 'título', note: 'muda o título do seu harém' },
+    { name: 'colormm', args: true, hint: '#ff4d94', note: 'muda a cor do seu harém' },
+    { name: 'renameclaim', args: true, hint: '{usuario} casou com {personagem}', note: 'texto do seu casamento' },
+    { name: 'renamedivorce', args: true, hint: '{usuario} soltou {personagem}', note: 'texto do seu divórcio' },
+    { name: 'profile', args: true, hint: '@pessoa', note: 'resumo da pessoa (também $pr)' },
   ];
   // Fontes de personagens: a letra filtra o roll ($wg = waifu de jogo), como no Mudae do Discord.
   const SOURCES = {
@@ -72,7 +126,7 @@ window.MudaeUI = function ({ state, el, Icon, call, member, avatar, nameColor, F
     v: { label: 'Visual novels', icon: 'sparkles', of: 'de visual novel' },
   };
   for (const [letter, src] of Object.entries(SOURCES)) {
-    COMMANDS.push({ name: 'w' + letter, note: 'waifu ' + src.of }, { name: 'h' + letter, note: 'husbando ' + src.of }, { name: 'm' + letter, note: 'qualquer personagem ' + src.of });
+    COMMANDS.push({ name: 'w' + letter, note: 'waifu ' + src.of }, { name: 'h' + letter, note: 'husbando ' + src.of }, { name: 'o' + letter, note: 'sem gênero ' + src.of }, { name: 'm' + letter, note: 'qualquer personagem ' + src.of });
   }
   const sourceOf = (card) => SOURCES[card.source || 'a'];
   // Ícones próprios (mudae-icones.js). Sem o arquivo (testes que só carregam este), um espaço vazio no lugar.
@@ -197,11 +251,13 @@ window.MudaeUI = function ({ state, el, Icon, call, member, avatar, nameColor, F
     const { card } = d;
     const roll = d.kind === 'roll';
     const wishers = (d.wishedBy || []).filter(Boolean);
-    const node = el('div', { class: 'mudae-card' + (d.ownerId ? ' owned' : '') },
-      el('div', { class: 'mudae-name', textContent: card.name }),
+    const node = el('div', { class: 'mudae-card' + (d.ownerId ? ' owned' : ''), style: card.color ? { borderLeft: '4px solid ' + card.color } : {} },
+      el('div', { class: 'mudae-name' }, card.name, keyBadge(card.keys)),
       el('div', { class: 'mudae-series' }, sourceIcon(card), seriesLine(card)),
       el('div', { class: 'mudae-value' }, el('strong', { textContent: num(card.value) }), kakera(),
         card.rarity ? el('span', { class: 'mudae-rarity-tag ' + card.rarity, textContent: RARITY[card.rarity] }) : null),
+      keyGainLine(d.keyGain),
+      luckLine(d.luck),
       !d.ownerId && roll ? el('div', { class: 'mudae-hint', textContent: 'Clique em Casar antes dos outros!' }) : null,
       d.kind === 'info' ? el('div', { class: 'mudae-hint', textContent: `#${num(card.rank)} entre os personagens ${sourceOf(card).of}` }) : null,
       portrait(card),
@@ -221,7 +277,7 @@ window.MudaeUI = function ({ state, el, Icon, call, member, avatar, nameColor, F
   const pages = new Map();
   function haremCard(msg, d) {
     const owner = member(d.ownerId);
-    const node = el('div', { class: 'mudae-card harem' });
+    const node = el('div', { class: 'mudae-card harem', style: d.look?.color ? { borderLeft: '4px solid ' + d.look.color } : {} });
     const draw = () => {
       const total = Math.ceil(d.chars.length / PAGE);
       const page = Math.min(pages.get(msg.id) || 0, Math.max(0, total - 1));
@@ -233,15 +289,17 @@ window.MudaeUI = function ({ state, el, Icon, call, member, avatar, nameColor, F
       node.replaceChildren(...[
         el('div', { class: 'mudae-harem-head' },
           owner ? avatar(owner, 'mudae-head-avatar') : null,
-          el('span', { class: 'mudae-name', textContent: 'Harem de ' + whoName(d.ownerId) })),
+          el('span', { class: 'mudae-name', textContent: (d.look?.title || 'Harem de ' + whoName(d.ownerId)) + (d.look?.badge ? ' · ' + d.look.badge : '') })),
         el('div', { class: 'mudae-value' },
-          el('span', { textContent: `${num(d.total)} ${d.total === 1 ? 'personagem' : 'personagens'} · ` }), el('strong', { textContent: num(d.value) }), kakera()),
+          el('span', { textContent: `${num(d.total)}${d.filtered ? ' de ' + num(d.all) : ''} ${d.total === 1 ? 'personagem' : 'personagens'} · ` }), el('strong', { textContent: num(d.value) }), kakera()),
         d.chars.length
           ? el('div', { class: 'mudae-harem-body' },
             el('ol', { class: 'mudae-harem-list' }, slice.map((c, i) => el('li', { onmouseenter: () => show(c), onfocus: () => show(c), tabIndex: 0 },
-              el('span', { class: 'mudae-li-rank', textContent: page * PAGE + i + 1 }), el('strong', { textContent: c.name }), el('span', { class: 'mudae-muted', textContent: ' · ' + c.series }), el('span', { class: 'mudae-li-value', textContent: num(c.value) })))),
+              el('span', { class: 'mudae-li-rank', textContent: page * PAGE + i + 1 }), el('strong', { textContent: c.name }), el('span', { class: 'mudae-muted', textContent: ' · ' + c.series }),
+              c.note ? el('span', { class: 'mudae-muted', title: c.note, textContent: ' · “' + (c.note.length > 40 ? c.note.slice(0, 40) + '…' : c.note) + '”' }) : null,
+              el('span', { class: 'mudae-li-value', textContent: num(c.value) })))),
             thumb)
-          : el('div', { class: 'mudae-hint', textContent: 'Ninguém aqui ainda. Use $w, $h ou $m para rodar personagens e casar!' }),
+          : el('div', { class: 'mudae-hint', textContent: d.filtered ? 'Ninguém do seu harem combina com esse filtro.' : 'Ninguém aqui ainda. Use $w, $h ou $m para rodar personagens e casar!' }),
         total > 1 ? el('div', { class: 'mudae-pager' },
           el('button', { type: 'button', ariaLabel: 'Página anterior', onclick: () => go(-1) }, Icon('chevronLeft', 18)),
           el('span', { textContent: `${page + 1} / ${total}` + (d.total > d.chars.length ? ` · mostrando os ${num(d.chars.length)} mais valiosos` : '') }),
@@ -250,6 +308,49 @@ window.MudaeUI = function ({ state, el, Icon, call, member, avatar, nameColor, F
     };
     draw();
     return node;
+  }
+
+  // Texto escolhido pela pessoa para o casamento ou divórcio: {personagem} e {usuario} viram nome em negrito (sempre texto puro).
+  const templated = (template, name, ownerId) => String(template).split(/({personagem}|{usuario})/).filter(Boolean)
+    .map((p) => (p === '{personagem}' ? el('strong', { textContent: name }) : p === '{usuario}' ? strongName(ownerId) : p));
+
+  // Selo da chave de um personagem (bronze, prata, ouro, caos). Devolve null sem chave.
+  const KEY_TIERS = { bronze: 'bronze', prata: 'prata', ouro: 'ouro', caos: 'caos' };
+  const keyTier = (level) => (level >= 10 ? 'caos' : level >= 6 ? 'ouro' : level >= 3 ? 'prata' : level >= 1 ? 'bronze' : '');
+  function keyBadge(level) {
+    const tier = keyTier(level);
+    if (!tier) return null;
+    return el('span', { class: 'mudae-key key-' + tier, title: `Chave ${KEY_TIERS[tier]}, nível ${level}`, ariaLabel: `Chave nível ${level}` }, Icon('key', 12), el('b', { textContent: String(level) }));
+  }
+  // Roll de personagem que já tinha dono: o consolo do lendário (roll de volta e metade do valor) e o caminho até o pity.
+  function luckLine(l) {
+    if (!l) return null;
+    if (l.pity) return el('div', { class: 'mudae-footer key' }, el('span', { textContent: 'Pity! Depois de tanto azar, esse veio livre e de raridade alta. Corre para casar!' }));
+    const parts = [];
+    if (l.rollBack) parts.push(`Consolo de lendário: o roll voltou${l.kakera ? ` e +${num(l.kakera)} kakera` : ''}.`);
+    parts.push(l.points >= l.at ? 'O próximo roll vem livre e de raridade alta!' : `Azar acumulado: ${l.points} de ${l.at} para o pity.`);
+    return el('div', { class: 'mudae-footer key' }, el('span', { textContent: parts.join(' ') }));
+  }
+  // O que a chave deu neste roll: "Chave nível 3 (prata)!", e o kakera do prêmio, se veio.
+  function keyGainLine(g) {
+    if (!g?.gained) return null;
+    const parts = [`Chave nível ${g.level} (${KEY_TIERS[g.tier] || 'nova'})${g.tierUp ? ', mudou de cor!' : '!'}`];
+    if (g.soulmate) parts.push('Virou soulmate!');
+    if (g.gold) parts.push(`+${num(g.gold)} kakera${g.goldCapped ? ' (o teto de hoje cortou o resto)' : ''}.`);
+    return el('div', { class: 'mudae-footer key' }, keyBadge(g.level), el('span', { textContent: parts.join(' ') }));
+  }
+
+  // $profile: um resumo curto da pessoa.
+  function profileCard(d) {
+    const owner = member(d.ownerId);
+    const s = d.stats || {};
+    return el('div', { class: 'mudae-card profile' },
+      el('div', { class: 'mudae-harem-head' }, owner ? avatar(owner, 'mudae-head-avatar') : null,
+        el('span', { class: 'mudae-name', textContent: 'Perfil de ' + whoName(d.ownerId) + (d.title ? ' · ' + d.title : '') + (d.badge ? ' · ' + d.badge : '') })),
+      el('div', { class: 'mudae-value' }, el('span', { textContent: `${num(d.total)} ${d.total === 1 ? 'personagem' : 'personagens'} · ` }), el('strong', { textContent: num(d.value) }), kakera(),
+        el('span', { textContent: ` · ${num(d.kakera)} guardados` })),
+      d.favorite ? el('div', { class: 'mudae-muted' }, ico('wish'), 'Favorito: ', el('strong', { textContent: d.favorite.name }), ' · ' + d.favorite.series) : null,
+      el('div', { class: 'mudae-hint', textContent: `Casamentos ${num(s.claims || 0)} · Rolls ${num(s.rolls || 0)} · Lendários ${num(s.legendary || 0)} · Cristais ${num(s.crystals || 0)} · Divórcios ${num(s.divorces || 0)} · Notas ${num(s.notes || 0)} · Chaves ${num(s.keys || 0)} · Soulmates ${num(d.soulmates || 0)}` + (d.medals?.length ? ` · ${d.medals.length} medalha(s) na vitrine` : '') }));
   }
 
   function line(cls, ...parts) {
@@ -318,13 +419,20 @@ window.MudaeUI = function ({ state, el, Icon, call, member, avatar, nameColor, F
 
   // $wl: a lista de desejos, com quem já casou com cada um.
   function wishCard(msg, d) {
+    const like = d.kind === 'likelist';
     const node = el('div', { class: 'mudae-card harem list' });
     const owner = member(d.ownerId);
+    const mine = d.ownerId === state.me.accountId;
+    const stars = (d.stars || []).length;
+    const extra = [stars ? `${stars} starwish(es)` : '', d.chars.some((c) => c.quiet) ? 'com wishk' : '', d.series?.length ? 'obras: ' + d.series.join(', ') : ''].filter(Boolean).join(' · ');
+    const hint = d.private ? (like ? 'Essa likelist é privada.' : 'Essa lista de desejos é privada.')
+      : like ? `${d.total} de ${d.max}. Com ${d.dailyFrom} ou mais, o $daily guarda 2 usos.`
+        : `${d.total} de ${d.max}. Quando alguém rodar um deles, ${mine ? 'você recebe' : 'a pessoa recebe'} um aviso.` + (extra ? ' ' + extra + '.' : '');
     charList(node, d.chars, {
       head: [el('div', { class: 'mudae-harem-head' }, owner ? avatar(owner, 'mudae-head-avatar') : null,
-        el('span', { class: 'mudae-name' }, ico('wish'), 'Desejos de ' + whoName(d.ownerId))),
-      el('div', { class: 'mudae-hint', textContent: `${d.total} de ${d.max}. Quando alguém rodar um deles, ${d.ownerId === state.me.accountId ? 'você recebe' : 'a pessoa recebe'} um aviso.` })],
-      empty: 'A lista está vazia. Use $wish nome para desejar alguém.',
+        el('span', { class: 'mudae-name' }, ico(like ? 'heart' : 'wish'), like ? (d.title || 'Likelist de ' + whoName(d.ownerId)) : 'Desejos de ' + whoName(d.ownerId))),
+      el('div', { class: 'mudae-hint', textContent: hint })],
+      empty: d.private ? '' : like ? 'A likelist está vazia. Use $like nome para curtir alguém.' : 'A lista está vazia. Use $wish nome para desejar alguém.',
     });
     return node;
   }
@@ -341,13 +449,14 @@ window.MudaeUI = function ({ state, el, Icon, call, member, avatar, nameColor, F
   // $topserv: os 10 haréns mais valiosos do servidor.
   function topservCard(d) {
     return el('div', { class: 'mudae-card harem' },
-      el('div', { class: 'mudae-name' }, ico('trophy'), 'Ranking dos haréns'),
+      el('div', { class: 'mudae-name' }, ico('trophy'), d.title || 'Ranking dos haréns'),
+      d.roast && d.rows.length ? el('div', { class: 'mudae-hint' }, strongName(d.rows[0].ownerId), ' lidera. ' + d.roast) : null,
       d.rows.length
         ? el('ol', { class: 'mudae-harem-list mudae-serv-list' }, d.rows.map((r, i) => el('li', {},
           i < 3 ? el('span', { class: 'mudae-li-rank medal' }, rankMedal(i)) : el('span', { class: 'mudae-li-rank', textContent: String(i + 1) }),
           el('span', { class: 'mudae-li-name' }, strongName(r.ownerId), el('span', { class: 'mudae-muted', textContent: ' · ' + plural(r.total, 'personagem', 'personagens') })),
-          el('span', { class: 'mudae-li-value' }, num(r.value), kakera()))))
-        : el('div', { class: 'mudae-hint', textContent: 'Ninguém casou ainda. O primeiro lugar está livre!' }));
+          el('span', { class: 'mudae-li-value' }, r.label || num(r.value), d.unit ? el('span', { class: 'mudae-muted', textContent: ' ' + d.unit }) : r.label ? null : kakera()))))
+        : el('div', { class: 'mudae-hint', textContent: d.title ? 'Ninguém tem nada aqui ainda.' : 'Ninguém casou ainda. O primeiro lugar está livre!' }));
   }
 
   // Troca: aberta (com o botão para os dois), feita (o que cada um deu) ou cancelada.
@@ -552,7 +661,9 @@ window.MudaeUI = function ({ state, el, Icon, call, member, avatar, nameColor, F
       d.powersReady?.length ? el('div', {}, 'Poderes prontos: ', el('strong', { class: 'mudae-ok' }, ...powerNames(d.powersReady)), '.') : null,
       d.kakera !== undefined ? el('div', {}, 'Você tem ', el('strong', { textContent: num(d.kakera) }), ' kakera.') : null,
       crystalsLine(d.crystals),
+      d.kakeraPower ? el('div', {}, 'Poder de reação: ', el('strong', { textContent: `${d.kakeraPower.value}/${d.kakeraPower.max}` }), d.kakeraPower.fullIn ? [' (enche em ', el('strong', { textContent: minutes(d.kakeraPower.fullIn) }), '). Cada cristal de carta gasta um pouco; o roxo é de graça.'] : '.') : null,
       d.dailyIn !== undefined ? el('div', {}, d.dailyIn ? ['O $daily volta em ', el('strong', { textContent: minutes(d.dailyIn) }), '.'] : ['O ', el('strong', { class: 'mudae-ok', textContent: '$daily' }), ' está pronto: os rolls voltam na hora.']) : null,
+      d.dailyMax > 1 ? el('div', { class: 'mudae-muted', textContent: `Com a likelist, o $daily guarda ${d.dailyMax} usos: você tem ${d.dailyCharges}.` }) : null,
       d.dkIn !== undefined ? el('div', {}, d.dkIn ? ['O $dk volta em ', el('strong', { textContent: minutes(d.dkIn) }), '.'] : ['O ', el('strong', { class: 'mudae-ok', textContent: '$dk' }), ` está pronto: +${num(d.dkAmount)} kakera.`]) : null,
       divorceLine(d),
       d.buysLeft !== undefined ? el('div', {}, d.buysLeft
@@ -613,7 +724,7 @@ window.MudaeUI = function ({ state, el, Icon, call, member, avatar, nameColor, F
     else if (d.kind === 'harem') content = haremCard(msg, d);
     else if (d.kind === 'top' || d.kind === 'obra') content = topCard(msg, d);
     else if (d.kind === 'topserv') content = topservCard(d);
-    else if (d.kind === 'wishlist') content = wishCard(msg, d);
+    else if (d.kind === 'wishlist' || d.kind === 'likelist') content = wishCard(msg, d);
     else if (d.kind === 'trade') content = tradeCard(msg, d);
     else if (d.kind === 'give') content = line('married', ico('gift'), strongName(d.ownerId), ' deu ', el('strong', { textContent: d.card.name }), ' de presente para ', strongName(d.to), '!');
     else if (d.kind === 'givek') content = line('kakera', kakera(), strongName(d.ownerId), ` deu ${num(d.amount)} kakera para `, strongName(d.to), '.');
@@ -628,6 +739,8 @@ window.MudaeUI = function ({ state, el, Icon, call, member, avatar, nameColor, F
     else if (d.kind === 'fm') content = el('div', { class: 'msg-text' }, ico('wish'), el('strong', { textContent: d.card.name }), ' agora é o seu favorito.');
     else if (d.kind === 'married' && d.from) {
       content = line('married stolen', ico('thief', 'roubo'), strongName(d.ownerId), ' roubou ', el('strong', { textContent: d.card.name }), ' do roll de ', strongName(d.from), '!', ...lassoTag(d));
+    } else if (d.kind === 'married' && d.template) {
+      content = line('married', ico('heart'), ...templated(d.template, d.card.name, d.ownerId), ...lassoTag(d));
     } else if (d.kind === 'married') {
       content = line('married', ico('heart'), strongName(d.ownerId), ' e ', el('strong', { textContent: d.card.name }), ' agora são casados!', ...lassoTag(d));
     } else if (d.kind === 'forja') content = forjaCard(d);
@@ -642,12 +755,18 @@ window.MudaeUI = function ({ state, el, Icon, call, member, avatar, nameColor, F
     else if (d.kind === 'crystalEnd') content = crystalEndLine(d);
     else if (d.kind === 'redirect') content = redirect(d);
     else if (d.kind === 'divorce') {
-      content = line('divorce', ico('heartBreak', 'divórcio'), el('strong', { textContent: whoName(d.ownerId) }), ' e ', el('strong', { textContent: d.card.name }), ' se divorciaram.',
+      content = line('divorce', ico('heartBreak', 'divórcio'), ...(d.template ? templated(d.template, d.card.name, d.ownerId)
+        : [el('strong', { textContent: whoName(d.ownerId) }), ' e ', el('strong', { textContent: d.card.name }), ' se divorciaram.']),
         d.refund ? ` (+${num(d.refund)} kakera)` : '',
         d.capped ? ` O divórcio já devolveu ${d.cap ? num(d.cap) + " de kakera" : "o máximo de kakera"} hoje; o próximo devolve em ${minutes(d.refundIn)}.` : '');
-    } else if (d.kind === 'status') content = statusLines(d);
+    } else if (d.kind === 'profile') content = profileCard(d);
+    else if (d.kind === 'achievement') {
+      content = line('unlock', ico('sparkles'), strongName(d.ownerId), d.hidden ? ' abriu uma conquista escondida: ' : ' abriu a conquista ', el('strong', { textContent: d.name }),
+        d.hidden ? '!' : ` (${['bronze', 'prata', 'ouro'][d.tier - 1] || ''}) da trilha ${d.trailName}!`);
+    }
+    else if (d.kind === 'status') content = statusLines(d);
     else if (d.kind === 'divorceTime') content = el('div', { class: 'mudae-status' }, divorceLine(d));
-    else if (d.kind === 'error') content = el('div', { class: 'msg-text' }, Format.render(d.text || '', fmtCtx));
+    else if (d.kind === 'error' || d.kind === 'notice') content = el('div', { class: 'msg-text' }, Format.render(d.text || '', fmtCtx));
     else content = el('div', { class: 'mudae-hint', textContent: 'Resposta do Mudae.' });
     const parts = [].concat(content);
     if (msg.ephemeral) {
@@ -688,8 +807,11 @@ window.MudaeUI = function ({ state, el, Icon, call, member, avatar, nameColor, F
   }
 
   // ---------- comandos ----------
-  const ALIASES = 'w|waifu|h|husbando|m|marry|mm|mma|mms|mmr|harem|im|info|divorce|divorciar|divorcio|dt|tu|top|topserv|obra|give|dar|givek|givekakera|wish|desejar'
-    + '|wl|wishlist|wr|wishremove|k|kakera|dk|dailykakera|daily|rolls|fm|favorito|trade|trocar|troca|forja|badges|forjar|poderes|poder|[whm][agcds]';
+  const ALIASES = 'w|waifu|h|husbando|o|outro|semgenero|m|marry|mm|mma|mms|mmr|harem|im|info|divorce|divorciar|divorcio|dt|tu|top|topserv|obra|give|dar|givek|givekakera|wish|desejar'
+    + '|wl|wishlist|wr|wishremove|k|kakera|dk|dailykakera|daily|rolls|fm|favorito|trade|trocar|troca|forja|badges|forjar|poderes|poder|[whmo][agcds]'
+    + '|note|n|noteseries|notepage|noteremoveall|fn|fnall|sortmarry|sm|organizar|divorceseries|divorcepage|divorceall|divorceallbut|confirmar|confirm|cancelar'
+    + '|addimg|ai|changeimg|randomimg|renameharem|rh|colormm|renameclaim|rc|renamedivorce|rd|profile|pr|perfil'
+    + '|ajuda|help|comandos|conquistas|marcos|titulo|title|serverdisable|sd|settings|settimer|setrolls|haremlimit|togglesnipe|togglecrystals|forcedivorce|userdivorce|restorelist|rl|restore|left|mu|marryup|ru|rollsup|overview|bonus|kakerareact|like|likeremove|lr|likepos|likeclear|likelist|ll|likedm|renamelikelist|rll|starwish|sw|starremove|swr|starslot|wishk|wishseries|wishdm|wishsort|wishpurge|infokeys|keys|chaves|embedcolor|ec|sl|soulmates|removekeys|rk|ts|tsv|tsk|tsy|tsn|tslc|topservv|topservk|topservy|topservn|topservlc';
   const COMMAND_RE = new RegExp(`^\\$(${ALIASES})(\\s|$)`, 'i');
   const isCommand = (text) => COMMAND_RE.test(text.trim());
   const divorceTarget = (text) => /^\$(?:divorce|divorciar)\s+([\s\S]+)$/i.exec(text.trim())?.[1].trim() || null;
@@ -708,10 +830,10 @@ window.MudaeUI = function ({ state, el, Icon, call, member, avatar, nameColor, F
   function suggestions(typed) {
     const q = typed.toLowerCase();
     // Sem nada digitado, só os comandos principais; com "$w", aparecem também $wa, $wg…
-    return COMMANDS.filter((c) => c.name.startsWith(q) && (q || !/^[whm][agcds]$/.test(c.name)))
+    return COMMANDS.filter((c) => c.name.startsWith(q) && (q || !/^[whmo][agcds]$/.test(c.name)))
       .map((c) => ({ command: true, icon: 'heart', insert: '$' + c.name, label: '$' + c.name + (c.args ? ' ' : ''), hint: c.args ? c.hint : '', note: c.note, args: !!c.args }));
   }
 
-  return { body, invocation, botAvatar, ephemeral, sync, serverNow, suggestions, isCommand, divorceTarget, confirmFor, kakera, num, minutes, RARITY, SOURCES, seriesLine, sourceIcon, ownerTag,
+  return { body, invocation, botAvatar, ephemeral, sync, serverNow, suggestions, isCommand, divorceTarget, confirmFor, kakera, num, minutes, RARITY, SOURCES, seriesLine, sourceIcon, ownerTag, keyBadge,
     MEDALS, FINISHES, ROMAN, POWER, ico, rankMedal };
 };

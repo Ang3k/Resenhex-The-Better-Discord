@@ -140,8 +140,8 @@ test('Mudae com duas contas: desejo, cristal, $top, troca confirmada pelos dois,
   assert.deepEqual((await ana.call('mudae:harem', {})).chars.map((c) => c.name), ['Link']);
   assert.deepEqual((await beto.call('mudae:harem', {})).chars.map((c) => c.name), ['Mikasa Ackerman']);
   // (o saldo pelo evento de status: os comandos têm limite de 8 a cada 5 s)
-  assert.equal((await ana.call('mudae:status')).kakera, 20);
-  assert.equal((await beto.call('mudae:status')).kakera, 230);
+  assert.equal((await ana.call('mudae:status')).kakera, 56, '20 da troca e mais 36 de duas conquistas de bronze (Negociante e Sorte de principiante, 18 cada), que pagam na hora');
+  assert.equal((await beto.call('mudae:status')).kakera, 266, '230 da troca e do $dk e mais 36 das mesmas duas conquistas de bronze');
   assert.equal((await beto.call('mudae:wishlist', {})).total, 0, 'ganhar na troca quem desejava tira da lista');
   await send(ana, '$im mikasa');
   const info = await eventually(() => { const m = lastBot(ana, 'info'); assert.ok(m); return m; });
@@ -156,10 +156,10 @@ test('Mudae com duas contas: desejo, cristal, $top, troca confirmada pelos dois,
 
   // $dk sai no Salão e soma no saldo; o segundo do dia é recusado.
   await send(ana, '$dk');
-  await eventually(() => assert.equal(lastBot(beto, 'dk')?.mudae.kakera, 270));
+  await eventually(() => assert.equal(lastBot(beto, 'dk')?.mudae.kakera, 306)); // 20 da troca + 36 das conquistas de bronze + 250 do $dk
   assert.match((await send(ana, '$dk')).ephemeral.text, /volta em/);
   const tu = (await send(ana, '$tu')).ephemeral;
-  assert.equal(tu.kakera, 270);
+  assert.equal(tu.kakera, 306);
   assert.ok(tu.dkIn > 0);
 
   // Cancelar: qualquer um dos dois cancela e a mensagem do Salão mostra o fim.

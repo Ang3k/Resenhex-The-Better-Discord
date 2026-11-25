@@ -19,9 +19,12 @@ const { downloadRoutes } = require('./server/downloads');
 const { feedbackRoutes } = require('./server/feedback');
 const { createDj } = require('./server/dj');
 const { createMudae, ROLL_RESET_MS, CLAIM_WINDOW_MS, revealDelay, PRIORITY_MS, isRoll, normalize: mudaeNormalize } = require('./server/mudae');
+const { parseFlags } = require('./server/mudae-flags');
 const { createForja, perksOf, forgedCount, levelOf, atLeast } = require('./server/mudae-forja');
 const { createPoderes } = require('./server/mudae-poderes');
-const { MEDAL_KEYS, MEDALS, priceOf, CRYSTAL, ECO, POWERS } = require('./server/mudae-regras');
+const { MEDAL_KEYS, MEDALS, priceOf, CRYSTAL, ECO, POWERS, KEYS, ACHIEVEMENTS } = require('./server/mudae-regras');
+const { createCommands } = require('./server/mudae-comandos');
+const { createConquistas } = require('./server/mudae-conquistas');
 const { createCrystals } = require('./server/mudae-cristal');
 const { youtubeSearch } = require('./server/youtube');
 const { createDmCalls } = require('./server/dm-calls');
@@ -948,10 +951,23 @@ const dj = createDj({ newId, onChange: (key) => notifyMusic(key) });
 // sozinho na primeira subida e quando o JSON muda; na memória ficam só números (server/mudae-catalogo-banco.js).
 // Sem o arquivo, os comandos só avisam que não tem personagens.
 const MUDAE_CATALOG = process.env.MUDAE_CATALOG || path.join(__dirname, 'server', 'mudae-catalogo.json');
-const mudae = createMudae({ catalogFile: MUDAE_CATALOG, catalogDb: path.join(path.dirname(DATA_DB), 'mudae-catalogo.db') });
+const mudae = createMudae({ catalogFile: MUDAE_CATALOG, catalogDb: path.join(path.dirname(DATA_DB), 'mudae-catalogo.db'), ownChance: KEYS.ownChance,
+  // Um personagem ficou livre (divórcio ou $forcedivorce): quem o deseja (ou deseja a obra) recebe um aviso, menos quem o soltou.
+  // No máximo 5 avisos por pessoa a cada minuto, para um divórcio em lote não virar chuva de toques.
+  onFree: (store, card, ownerId) => {
+    const t = Date.now();
+    for (const id of mudae.wishAlerts(store, card.id, (who) => communities.joined(who))) {
+      if (id === ownerId) continue;
+      const r = freeNoticeAt.get(id);
+      if (!r || t - r[0] > 60_000) freeNoticeAt.set(id, [t, 1]); else if (r[1] >= 5) continue; else r[1]++;
+      for (const s of socketsOf(id, true)) s.emit('mudae:free', { card: { id: card.id, name: card.name, image: card.image }, by: ownerId });
+    }
+  } });
+const freeNoticeAt = new Map(); // accountId -> [início da janela, avisos nela]
 mudae.preload(Object.values(communities.root.servers).flatMap((s) => Object.keys(s.mudae?.claims || {})));
 const forja = createForja({ now: Date.now, random: Math.random });
 const poderes = createPoderes({ now: Date.now });
+const conquistas = createConquistas({ now: Date.now });
 // Cristal errante: um relógio só para todas as comunidades. MUDAE_CRYSTAL_MS="min,max" (só os testes) encurta a espera.
 const crystalRules = (() => {
   const [min, max] = String(process.env.MUDAE_CRYSTAL_MS || '').split(',').map(Number);
@@ -980,7 +996,8 @@ function salonSocketsOf(serverId) {
 }
 const crystalToSalons = (serverId, event, payload) => deliver(salonSocketsOf(serverId).map(([sid]) => sid), event, payload);
 function crystalTick() {
-  const present = [...online.viewing.keys()].filter((id) => salonSocketsOf(id).length);
+  // Servidor que desligou os cristais ($togglecrystals) não recebe nenhum.
+  const present = [...online.viewing.keys()].filter((id) => salonSocketsOf(id).length && communities.run(id, () => mudae.setting(mudaeData(), 'crystals')));
   const { spawned, ended } = crystals.tick(present);
   for (const c of spawned) crystalToSalons(c.serverId, 'mudae:crystal', crystals.view(c));
   for (const e of ended) crystalToSalons(e.serverId, 'mudae:crystal:end', { id: e.id, kind: e.kind, colorKey: e.colorKey, color: e.color, takers: e.takers });
@@ -2282,30 +2299,93 @@ io.on('connection', (socket) => {
   const charKey = (id) => (typeof id === 'number' || typeof id === 'string' ? String(id).slice(0, 64) : fail('Personagem inválido.'));
 
   const mudaeMember = (id) => communities.joined(id);
+  // O texto que a pessoa escolheu para a mensagem de casamento ou divórcio (com {personagem} e {usuario}), se escolheu.
+  const textOf = (store, accountId, key) => { const text = mudae.visual.prefsOf(store, accountId)[key]; return text ? { template: text } : {}; };
   const HAREM_SORT = { mma: 'name', mms: 'series', mmr: 'recent' };
 
   // Posta um roll (do $m, da Escolha dupla ou do Eco): a mensagem com a roleta, o cristal que nasce de um
   // personagem que já tem dono e o aviso a quem tem o personagem na lista de desejos (menos quem rodou).
   const cardCrystalAt = new Map(); // accountId -> quando o roll dessa pessoa soltou o último cristal de carta
-  const postRoll = (c, acc, command, { card, ownerId, rollsLeft, pair = null, eco = false, decoys }) => {
+  const postRoll = (c, acc, command, { card, ownerId, rollsLeft, pair = null, eco = false, keyGain = null, luck = null, firstRoll = false, decoys }) => {
     const revealAt = Date.now() + revealDelay(card.rarity);
     const wishedBy = mudae.wishersOf(mudaeStore(), card.id, mudaeMember);
+    // Quem recebe o aviso inclui quem deixou a lista privada e quem deseja a obra, e exclui o wishk.
+    const alerts = mudae.wishAlerts(mudaeStore(), card.id, mudaeMember);
     const msg = postMudae(c, acc, command, { kind: 'roll', card, ownerId, revealAt, priorityUntil: revealAt + PRIORITY_MS,
-      expires: revealAt + CLAIM_WINDOW_MS, rollsLeft, ...(pair ? { pair } : {}), ...(eco ? { eco: true } : {}), ...(wishedBy.length ? { wishedBy } : {}) }, { decoys });
+      expires: revealAt + mudae.setting(mudaeStore(), 'claimWindowSec') * 1000, rollsLeft, ...(pair ? { pair } : {}), ...(eco ? { eco: true } : {}), ...(keyGain ? { keyGain } : {}), ...(luck ? { luck } : {}), ...(firstRoll ? { firstRoll: true } : {}), ...(wishedBy.length ? { wishedBy } : {}) }, { decoys });
     // Personagem que já tem dono: o cristal nasce da carta quando a roleta para (no máximo 1 a cada 30 min por
     // quem rodou, senão quem casa muito com uma lista pequena faz chover cristal a cada roll).
-    if (ownerId && Date.now() - (cardCrystalAt.get(acc.id) || 0) >= CRYSTAL.cardEveryMs) {
+    if (ownerId && mudae.setting(mudaeStore(), 'crystals') && Date.now() - (cardCrystalAt.get(acc.id) || 0) >= CRYSTAL.cardEveryMs) {
       cardCrystalAt.set(acc.id, Date.now());
-      const spawned = crystals.spawn(communities.currentId(), { appearAt: revealAt, from: { channel: c.id, msgId: msg.id }, by: acc.id });
-      crystalToSalons(spawned.serverId, 'mudae:crystal', crystals.view(spawned));
+      // A chave do personagem muda a cor, o bônus e a chance de um segundo cristal (server/mudae-cristal.js).
+      const level = mudae.keyLevel(mudaeStore(), card.id);
+      for (const spawned of crystals.spawnForCard(communities.currentId(), { appearAt: revealAt, from: { channel: c.id, msgId: msg.id }, by: acc.id, card: { id: card.id, level } })) {
+        crystalToSalons(spawned.serverId, 'mudae:crystal', crystals.view(spawned));
+      }
     }
-    for (const id of wishedBy) {
+    // O coração da Mesa: quem tem o personagem na likelist (e não recebeu o aviso de desejo) vê uma marca discreta.
+    for (const id of mudae.likeAlerts(mudaeStore(), card.id, mudaeMember)) {
+      if (id !== acc.id && !alerts.includes(id)) for (const s of socketsOf(id, true)) s.emit('mudae:like', { channel: c.id, id: msg.id, card: { name: card.name, image: card.image }, by: acc.id, ownerId });
+    }
+    for (const id of alerts) {
       if (id !== acc.id) for (const s of socketsOf(id, true)) s.emit('mudae:wish', { channel: c.id, id: msg.id, card, by: acc.id, revealAt, ownerId });
     }
     return msg;
   };
 
-  function mudaeCommand(acc, c, { cmd, arg }, command) {
+  let commandTableCache = null;
+  const commandTable = () => (commandTableCache ||= createCommands({ mudae, forja, parseFlags, postMudae, save: () => save(chunk.server()),
+    envyNotify: (ownerId, data) => { for (const s of socketsOf(ownerId, true)) s.emit('mudae:envy', data); },
+    achievements: { view: (store, id) => conquistas.view(store, id, achCtx(store, id, true)), setTitle: (store, id, key) => conquistas.setTitle(store, id, key) } }));
+
+  // Os contadores que alimentam as conquistas. Os do harém (tamanho, obras...) custam uma passada pelos casamentos, então só
+  // são refeitos quando o harém muda (derive); nos rolls vale o último valor guardado.
+  // Casamentos do servidor inteiro (para as metas coletivas): a conta passa por todos, então só é refeita quando o harém muda.
+  function serverClaimCount(store, derive) {
+    const d = (store.derived ||= {});
+    if (derive || d._server === undefined) d._server = Object.keys(store.claims).length;
+    return d._server;
+  }
+  // Quem jogou nos últimos 30 dias (e já tinha 10 rolls) e ainda está no servidor: recebe as conquistas coletivas.
+  function activeMembersOf(store) {
+    const today = Math.floor((Date.now() - 3 * 3600_000) / 86_400_000);
+    return Object.entries(store.stats || {}).filter(([id, s]) => (s.rolls || 0) >= ACHIEVEMENTS.activeMinRolls && today - (s.lastDay ?? -1e9) <= ACHIEVEMENTS.activeDays && mudaeMember(id)).map(([id]) => id);
+  }
+  function achCtx(store, id, derive) {
+    let d = store.derived?.[id];
+    if (derive || !d) { d = mudae.haremStats(store, id); (store.derived ||= {})[id] = d; }
+    return { ...mudae.stats(store, id), ...d, earned: store.earned?.[id] || 0, kakeraPeak: Math.max(store.peak?.[id] || 0, mudae.kakeraOf(store, id)),
+      forged: forgedCount(store, id), finishRare: Object.values(forja.medalsOf(store, id)).filter((m) => m.level > 0 && (m.finish === 'holo' || m.finish === 'galaxia')).length,
+      perfectDay: mudae.perfectDay(store, id) ? 1 : 0, serverClaims: serverClaimCount(store, derive), activeMembers: () => activeMembersOf(store), powersOpen: store.powers?.[id]?.unlocked?.length || 0, soulmates: mudae.chaves.soulmatesOf(store, id).length };
+  }
+  // Abre as conquistas que chegaram à meta. A nova vai só para quem ganhou (toque de aviso em todas as abas dele); a de prata,
+  // ouro e as escondidas viram também uma linha no Salão. Nunca derruba o jogo: um erro aqui só vai para o log.
+  function achievementsRefresh(acc, c, derive = false) {
+    try {
+      const store = mudaeStore();
+      const { fresh, changed, serverEvents } = conquistas.refresh(store, acc.id, achCtx(store, acc.id, derive));
+      if (changed) save(chunk.server());
+      if (!fresh.length && !serverEvents.length) return;
+      const serverId = communities.currentId();
+      const s = online.get(socket.id);
+      const here = c?.mudae ? c : db.channels.find((ch) => ch.mudae && ch.id === s?.salon && s.salonServerId === serverId);
+      const line = here || db.channels.find((ch) => ch.mudae);
+      const mine = socketsOf(acc.id, true).map((o) => o.id);
+      for (const g of serverEvents) if (line) postMudae(line, acc, null, { kind: 'achievement', ownerId: null, server: true, name: g.name, need: g.need });
+      for (const a of fresh) {
+        deliver(mine, 'mudae:achievement', a);
+        if ((a.tier >= 2 || a.hidden) && line && !a.server) postMudae(line, acc, null, { kind: 'achievement', ownerId: acc.id, name: a.name, trailName: a.trailName, tier: a.tier, hidden: a.hidden });
+      }
+    } catch (error) { console.error('Falha nas conquistas do Mudae:', error); }
+  }
+  // Todo comando que não é roll também pode abrir conquista (presente, nota, divórcio, $dk...).
+  function mudaeCommand(acc, c, parsed, command) {
+    const result = runMudaeCommand(acc, c, parsed, command);
+    if (!isRoll(parsed.cmd)) achievementsRefresh(acc, c, true);
+    return result;
+  }
+
+  function runMudaeCommand(acc, c, { cmd, arg }, command) {
     mudaeAllowed(acc);
     if (!allow('mudae:' + acc.id, 8, 5000)) fail('Calma! Comandos do Mudae rápidos demais.');
     const only = (data) => ({ ephemeral: { command, ...data } });
@@ -2321,19 +2401,26 @@ io.on('connection', (socket) => {
     const target = memberId(/<@(\w+)>/.exec(arg)?.[1]);
     const rest = arg.replace(/<@\w+>/g, '').trim();
     const short = (text) => text.slice(0, 80);
+    // Os comandos novos moram na tabela (server/mudae-comandos.js); o que ela não trata cai nos de baixo.
+    const handler = commandTable()[cmd];
+    if (handler) {
+      const result = handler({ acc, c, store, cmd, arg, rest, target, command, only, error, isMember: mudaeMember, can: (permission) => can(acc, permission) });
+      if (result !== undefined) return result;
+    }
     if (isRoll(cmd)) {
       const r = mudae.roll(store, acc.id, cmd);
       if (r.error) return error(r.error);
       // Escolha dupla: duas cartas ligadas pelo mesmo "pair", as duas com a prioridade de quem rodou.
       const pair = r.second ? newId() : null;
-      for (const { card, ownerId } of [r, r.second].filter(Boolean)) {
-        postRoll(c, acc, command, { card, ownerId, rollsLeft: r.rollsLeft, pair, decoys: r.decoys });
+      for (const { card, ownerId, keyGain } of [r, r.second].filter(Boolean)) {
+        postRoll(c, acc, command, { card, ownerId, rollsLeft: r.rollsLeft, pair, keyGain, luck: card === r.card ? r.luck : null, firstRoll: card === r.card ? r.firstRoll : false, decoys: r.decoys });
       }
+      if (r.keyGain || r.second?.keyGain) save(chunk.server());
       pushSalon(communities.currentId(), c.id);
       afterProgress(acc, c);
     } else if (cmd === 'mm' || HAREM_SORT[cmd]) {
       const ownerId = target || acc.id;
-      postMudae(c, acc, command, { kind: 'harem', ownerId, ...mudae.harem(store, ownerId, HAREM_SORT[cmd]) });
+      postMudae(c, acc, command, { kind: 'harem', ownerId, ...mudae.harem(store, ownerId, HAREM_SORT[cmd], rest) });
     } else if (cmd === 'im') {
       if (!arg) return error('Diga o nome do personagem: **$im Gojo**');
       const r = mudae.info(store, arg, mudaeMember);
@@ -2343,7 +2430,7 @@ io.on('connection', (socket) => {
       if (!arg) return error('Diga o nome do personagem: **$divorce Gojo**');
       const card = mudae.divorce(store, acc.id, arg);
       if (!card) return error(`Você não tem ninguém chamado **${short(arg)}** no seu harem.`);
-      postMudae(c, acc, command, { kind: 'divorce', card, ownerId: acc.id, refund: card.refund, capped: card.capped, refundIn: card.refundIn, cap: card.cap });
+      postMudae(c, acc, command, { kind: 'divorce', card, ownerId: acc.id, refund: card.refund, capped: card.capped, refundIn: card.refundIn, cap: card.cap, ...textOf(store, acc.id, 'divorceText') });
     } else if (cmd === 'dt') {
       return only({ kind: 'divorceTime', ...mudae.divorceStatus(store, acc.id) });
     } else if (cmd === 'tu') {
@@ -2377,7 +2464,7 @@ io.on('connection', (socket) => {
       save(chunk.server());
       return only({ kind: cmd === 'wish' ? 'wish' : 'unwish', ...r });
     } else if (cmd === 'wl') {
-      postMudae(c, acc, command, { kind: 'wishlist', ...mudae.wishlist(store, target || acc.id) });
+      postMudae(c, acc, command, { kind: 'wishlist', ...mudae.wishlist(store, target || acc.id, acc.id) });
     } else if (cmd === 'fm') {
       if (!arg) return error('Diga o nome do personagem: **$fm Gojo**');
       const r = mudae.firstMarry(store, acc.id, arg);
@@ -2467,7 +2554,10 @@ io.on('connection', (socket) => {
   });
   on('mudae:trade:confirm', (acc, { id, rev, ok = true }) => {
     mudaeAllowed(acc);
-    return afterTrade(mudae.tradeConfirm(mudaeStore(), tradeId(id), acc.id, { rev, ok: ok !== false, isMember: mudaeMember }));
+    const t = mudae.tradeConfirm(mudaeStore(), tradeId(id), acc.id, { rev, ok: ok !== false, isMember: mudaeMember });
+    const view = afterTrade(t);
+    if (t.state === 'done') for (const who of [t.a, t.b]) if (db.accounts[who]) achievementsRefresh(db.accounts[who], null, true);
+    return view;
   });
   on('mudae:trade:cancel', (acc, { id }) => afterTrade(mudae.tradeCancel(tradeId(id), acc.id, acc.name)));
 
@@ -2490,7 +2580,39 @@ io.on('connection', (socket) => {
     if (f.error) fail(f.error.replaceAll('**', ''));
     return f;
   });
-  on('mudae:wishlist', (acc, { ownerId }) => mudae.wishlist(mudaeStore(), memberId(ownerId) || acc.id));
+  // Conquistas pelo Salão: a aba Conquistas e a escolha do título.
+  on('mudae:achievements', (acc) => {
+    mudaeAllowed(acc);
+    if (!allow('mudae-ach:' + acc.id, 20, 5000)) fail('Calma! Cliques rápidos demais.');
+    const store = mudaeStore();
+    const view = conquistas.view(store, acc.id, achCtx(store, acc.id, true));
+    save(chunk.server());
+    return view;
+  });
+  on('mudae:achievement:title', (acc, { key }) => {
+    mudaeAllowed(acc);
+    if (!allow('mudae-ach:' + acc.id, 20, 5000)) fail('Calma! Cliques rápidos demais.');
+    const r = conquistas.setTitle(mudaeStore(), acc.id, typeof key === 'string' && key ? key.slice(0, 40) : null);
+    save(chunk.server());
+    return r;
+  });
+  // Likelist pelo Salão (a aba Curtidas, dentro de Desejos).
+  on('mudae:likelist', (acc, { ownerId }) => mudae.likeList(mudaeStore(), memberId(ownerId) || acc.id, acc.id));
+  on('mudae:like', (acc, { charId, on: liked }) => {
+    mudaeAllowed(acc);
+    if (!allow('mudae-like:' + acc.id, 30, 5000)) fail('Calma! Cliques rápidos demais.');
+    const r = mudae.likeToggle(mudaeStore(), acc.id, charKey(charId), !!liked);
+    save(chunk.server());
+    return r;
+  });
+  on('mudae:likefront', (acc, { charId }) => {
+    mudaeAllowed(acc);
+    if (!allow('mudae-like:' + acc.id, 30, 5000)) fail('Calma! Cliques rápidos demais.');
+    const r = mudae.likeFront(mudaeStore(), acc.id, charKey(charId));
+    save(chunk.server());
+    return r;
+  });
+  on('mudae:wishlist', (acc, { ownerId }) => mudae.wishlist(mudaeStore(), memberId(ownerId) || acc.id, acc.id));
   on('mudae:wish', (acc, { charId, on: wished }) => {
     mudaeAllowed(acc);
     const r = mudae.wishToggle(mudaeStore(), acc.id, charKey(charId), wished !== false);
@@ -2511,9 +2633,10 @@ io.on('connection', (socket) => {
     if (r.error) fail(r.error);
     save(chunk.server());
     if (r.next) crystalToSalons(serverId, 'mudae:crystal', r.next);
+    if (r.card) { mudae.addStat(store, acc.id, 'cardKakera'); if (r.colorKey === 'vermelho' || r.colorKey === 'arcoiris') mudae.addStat(store, acc.id, 'rareColors'); }
     if (s.salon) pushSalon(serverId, s.salon);
     afterProgress(acc, null);
-    return { ok: true, amount: r.amount, kakera: r.kakera, full: r.full, crystals: mudae.crystalsToday(store, acc.id) };
+    return { ok: true, amount: r.amount, kakera: r.kakera, full: r.full, crystals: mudae.crystalsToday(store, acc.id), ...(r.power ? { power: r.power } : {}) };
   });
 
   on('mudae:claim', (acc, { channel, id }) => {
@@ -2532,6 +2655,7 @@ io.on('connection', (socket) => {
   // lasso: o casamento veio do Laço (a mensagem "married" leva essa marca).
   function marryRoll(acc, c, list, msg, lasso = false) {
     const d = msg.mudae;
+    if (d.firstRoll && msg.by === acc.id) mudae.addStat(mudaeStore(), acc.id, 'firstRollClaims'); // Sorte de principiante: casou no 1º roll da janela
     d.ownerId = acc.id;
     save(chunk.message(c.id, msg.id));
     emitToChat(c, 'chat:update', { channel: c.id, msg });
@@ -2550,9 +2674,9 @@ io.on('connection', (socket) => {
       }
     }
     // Casar com o roll de outra pessoa é um roubo, e o chat conta isso.
-    postMudae(c, acc, null, { kind: 'married', card: d.card, ownerId: acc.id, from: msg.by && msg.by !== acc.id ? msg.by : null, ...(lasso ? { lasso: true } : {}) });
+    postMudae(c, acc, null, { kind: 'married', card: d.card, ownerId: acc.id, from: msg.by && msg.by !== acc.id ? msg.by : null, ...(lasso ? { lasso: true } : {}), ...textOf(mudaeStore(), acc.id, 'claimText') });
     if (c.mudae) pushSalon(communities.currentId(), c.id);
-    afterProgress(acc, c);
+    afterProgress(acc, c, true);
   }
 
   // Entrar ou sair da tela de um Salão (channel: null ao sair).
@@ -2600,12 +2724,29 @@ io.on('connection', (socket) => {
     save(chunk.server());
   });
 
+  // Álbum: nota de uma carta e ordem por arrastar e soltar (só no próprio harém).
+  on('mudae:note', (acc, { charId, text }) => {
+    mudaeAllowed(acc);
+    if (!allow('mudae-album:' + acc.id, 30, 5000)) fail('Calma! Cliques rápidos demais.');
+    const r = mudae.haremTools.noteById(mudaeStore(), acc.id, charKey(charId), typeof text === 'string' ? text : '');
+    if (r.error) fail(r.error);
+    save(chunk.server());
+    return { text: r.text };
+  });
+  on('mudae:order', (acc, { ids }) => {
+    mudaeAllowed(acc);
+    if (!allow('mudae-album:' + acc.id, 30, 5000)) fail('Calma! Cliques rápidos demais.');
+    const r = mudae.haremTools.setOrder(mudaeStore(), acc.id, Array.isArray(ids) ? ids.map((id) => charKey(id)) : []);
+    save(chunk.server());
+    return r;
+  });
+
   // Divórcio pelo álbum (por id); a notícia sai no Salão aberto.
   on('mudae:divorce', (acc, { channel, charId }) => {
     mudaeAllowed(acc);
     const c = salonOf(acc, channel);
     const card = mudae.divorceId(mudaeStore(), acc.id, charKey(charId));
-    postMudae(c, acc, null, { kind: 'divorce', card, ownerId: acc.id, refund: card.refund, capped: card.capped, refundIn: card.refundIn, cap: card.cap });
+    postMudae(c, acc, null, { kind: 'divorce', card, ownerId: acc.id, refund: card.refund, capped: card.capped, refundIn: card.refundIn, cap: card.cap, ...textOf(mudaeStore(), acc.id, 'divorceText') });
   });
 
   // Forja: medalhas que dão vantagens. O nível IV vira uma linha no Salão aberto e um aviso ao vivo para todos os Salões.
@@ -2676,7 +2817,8 @@ io.on('connection', (socket) => {
     const store = mudaeStore();
     return { ...poderes.powersOf(store, acc.id, powerCtx(store, acc.id), perksOf(store, acc.id)), ...mudae.armedView(store, acc.id) };
   };
-  function afterProgress(acc, c) {
+  function afterProgress(acc, c, derive = false) {
+    achievementsRefresh(acc, c, derive);
     const store = mudaeStore();
     const { unlocked, fresh } = poderes.refresh(store, acc.id, powerCtx(store, acc.id));
     if (!unlocked.length) return;

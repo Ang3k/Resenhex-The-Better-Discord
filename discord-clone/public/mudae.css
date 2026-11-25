@@ -236,3 +236,11 @@ button.mudae-trade-card:focus-visible { outline: 2px solid var(--link); outline-
 }
 @keyframes mudae-rolls-shake { 0%, 100% { transform: rotate(0); } 25% { transform: rotate(-14deg) scale(1.06); } 60% { transform: rotate(10deg); } }
 :root[data-reduce-motion=true] .mudae-rolls-icon { animation: none; }
+/* Chaves: o selo no nome do personagem (bronze, prata, ouro e caos) */
+.mudae-key { display: inline-flex; align-items: center; gap: 2px; margin-left: 6px; padding: 1px 6px; border-radius: 999px; font-size: 11px; font-weight: 700; line-height: 1.4; vertical-align: middle; color: #1a1a1a; font-variant-numeric: tabular-nums; }
+.mudae-key svg { flex: none; }
+.mudae-key.key-bronze { background: #cd7f32; }
+.mudae-key.key-prata { background: #c9d1d9; }
+.mudae-key.key-ouro { background: #f5c542; box-shadow: 0 0 6px rgba(245, 197, 66, .55); }
+.mudae-key.key-caos { background: linear-gradient(135deg, #a35bff, #ff4d94); color: #fff; box-shadow: 0 0 8px rgba(163, 91, 255, .6); }
+.mudae-footer.key { display: flex; align-items: center; gap: 4px; }

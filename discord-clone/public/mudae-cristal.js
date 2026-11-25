@@ -100,6 +100,16 @@ window.MudaeCrystals = function ({ el, call, onSocket, Sounds, ui, member, reduc
     + '<polygon class="g-light" points="32,2 39,19 39,45 32,62 25,45 25,19"/><polygon class="g-top" points="32,2 25,19 39,19"/>'
     + '<polyline class="g-edge" points="32,5 25.5,19.5 25.5,44.5 31,58"/>'
     + '<path class="g-shine" d="M21 9l1.6 3.4L26 14l-3.4 1.6L21 19l-1.6-3.4L16 14l3.4-1.6z"/></svg>';
+  // As outras formas que cada pessoa escolhe para o cristal de uma cor ($kakerareact). Usam as mesmas classes de cor da gema.
+  const SHINE = '<path class="g-shine" d="M21 9l1.6 3.4L26 14l-3.4 1.6L21 19l-1.6-3.4L16 14l3.4-1.6z"/>';
+  const shape = (body) => '<svg class="mudae-crystal-gem" viewBox="0 0 64 64" aria-hidden="true">' + body + SHINE + '</svg>';
+  const SHAPES = {
+    coracao: shape('<path class="g-body" d="M32 57C10 41 5 28 5 20 5 11 12 5 20 5c5 0 9 3 12 8 3-5 7-8 12-8 8 0 15 6 15 15 0 8-5 21-27 37z"/><path class="g-right" d="M32 13c3-5 7-8 12-8 8 0 15 6 15 15 0 8-5 21-27 37z"/>'),
+    estrela: shape('<path class="g-body" d="M32 4l8.5 19.5 21 1.8-16 14 4.9 20.7L32 47.6 13.6 60l4.9-20.7-16-14 21-1.8z"/><path class="g-right" d="M32 4l8.5 19.5 21 1.8-16 14 4.9 20.7L32 47.6z"/>'),
+    gota: shape('<path class="g-body" d="M32 3C24 14 11 29 11 41c0 12 9 20 21 20s21-8 21-20C53 29 40 14 32 3z"/><path class="g-right" d="M32 3c8 11 21 26 21 38 0 12-9 20-21 20z"/>'),
+    losango: shape('<polygon class="g-body" points="32,3 58,32 32,61 6,32"/><polygon class="g-left" points="32,3 6,32 32,61 32,32"/><polygon class="g-right" points="32,3 58,32 32,61"/><polygon class="g-light" points="32,3 45,32 32,61 19,32"/>'),
+  };
+  const shapeOf = (colorKey) => SHAPES[host?.hooks?.shapes?.()?.[colorKey]] || GEM_SVG;
   const MI = window.MudaeIcon || Object.assign(() => document.createElement('span'), { inline: () => document.createElement('span') });
 
   // Um cristal na tela (ou uma gota da chuva): o botão, o caminho e a janela de tempo dele.
@@ -113,7 +123,7 @@ window.MudaeCrystals = function ({ el, call, onSocket, Sounds, ui, member, reduc
     node.style.setProperty('--c', v.color);
     node.style.opacity = '0';
     node.append(el('span', { class: 'mudae-crystal-glow' }), el('span', { class: 'mudae-crystal-body' }));
-    node.lastChild.innerHTML = GEM_SVG;
+    node.lastChild.innerHTML = shapeOf(v.colorKey);
     if (v.kind === 'chain') node.append(el('span', { class: 'mudae-crystal-step' }, MI('link', 12), String(v.step)));
     const sp = { c, gem, node, size, start, dur, path, fixed, fade, drop, x: 0, y: 0, trail: [], spark: 0, pending: false };
     // No toque e no mouse, o clique vale ao apertar (o cristal está se mexendo): quem cuida é o press() da tela

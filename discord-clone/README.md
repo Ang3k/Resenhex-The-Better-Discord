@@ -166,8 +166,8 @@ O Mudae mora no **Salão do Mudae**, um canal de texto com `mudae: true` (crie e
 
 | Comando | O que faz |
 |---|---|
-| `$w` / `$h` / `$m` | roda uma waifu, um husbando ou qualquer personagem (também pelos botões) |
-| `$wa` `$wg` `$wc` `$wd` `$ws` (e o mesmo com `$h` e `$m`) | só de uma fonte: **a**nime, **g**ames (jogos), **c**omics (quadrinhos), **d**esenhos ou **s**éries. No Salão, os botões de fonte fazem o mesmo |
+| `$w` / `$h` / `$o` / `$m` | roda uma waifu, um husbando, um personagem sem gênero (`$o`, também `$semgenero`) ou qualquer personagem (também pelos botões) |
+| `$wa` `$wg` `$wc` `$wd` `$ws` (e o mesmo com `$h`, `$o` e `$m`) | só de uma fonte: **a**nime, **g**ames (jogos), **c**omics (quadrinhos), **d**esenhos ou **s**éries. No Salão, os botões de fonte fazem o mesmo |
 | `$mm` / `$mm @pessoa` | abre o seu álbum ou o de outra pessoa; `$mma` (A a Z), `$mms` (por obra) e `$mmr` (mais recentes) mudam a ordem |
 | `$im nome` | mostra um personagem, a posição no ranking, o dono, desde quando e como chegou (casamento, troca ou presente) e quem deseja |
 | `$top` / `$top filtro` | ranking dos personagens mais valiosos do catálogo, com o dono; filtro por obra (`$top Naruto`), `waifus`, `husbandos`, `anime`, `jogos`, `quadrinhos`, `desenhos`, `series` ou `outros` (sem gênero definido). No Salão abre a aba **Personagens** |

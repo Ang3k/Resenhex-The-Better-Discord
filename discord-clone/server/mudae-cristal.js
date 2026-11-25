@@ -1,7 +1,7 @@
 // Cristal errante do Mudae: quando nasce, quem pegou, quanto paga e quando acaba.
 // Tudo em memória, sem socket e sem timer: quem chama (server.js) passa o relógio e chama tick().
-const { CRYSTAL } = require('./mudae-regras');
-const { addKakera, dayOf } = require('./mudae-conta');
+const { CRYSTAL, KEYS } = require('./mudae-regras');
+const { addKakera, dayOf, powerOf, spendPower, powerView } = require('./mudae-conta');
 
 const CHAIN_COLORS = ['roxo', 'ciano', 'amarelo', 'laranja', 'vermelho']; // cor de cada degrau da corrente
 
@@ -21,10 +21,19 @@ function createCrystals({ now, random, rules = CRYSTAL, countCrystal = () => {} 
     return rules.colors[rules.colors.length - 1];
   }
 
+  // Cristal da carta: o arco-íris pode sair; com a chave prata (3) ou mais, ciano e verde viram laranja.
+  function pickCardColor(level) {
+    if (random() < rules.rainbow.chance) return { key: 'arcoiris', hex: rules.rainbow.hex, value: between(rules.rainbow.min, rules.rainbow.max) };
+    const c = pickColor();
+    return level >= KEYS.reaction.orangeFrom && KEYS.reaction.orangeColors.includes(c.key) ? colorOf('laranja') : c;
+  }
+  // Mais kakera nos cristais roxo, vermelho e arco-íris de personagens com muitas chaves (50, 200 e 400).
+  const cardBonus = (c) => (c.card && KEYS.reaction.bonusColors.includes(c.colorKey) ? KEYS.reaction.bonus.find(([from]) => c.card.level >= from)?.[1] || 0 : 0);
+
   const endOf = (c) => c.appearAt + c.life + rules.graceMs;
 
-  function spawn(serverId, { kind = 'drifter', appearAt = now(), from = null, by = null, step = 1, called = false } = {}) {
-    const color = kind === 'chain' ? colorOf(CHAIN_COLORS[step - 1]) : pickColor();
+  function spawn(serverId, { kind = 'drifter', appearAt = now(), from = null, by = null, step = 1, called = false, card = null } = {}) {
+    const color = kind === 'chain' ? colorOf(CHAIN_COLORS[step - 1]) : card ? pickCardColor(card.level) : pickColor();
     const c = {
       id: `${(++counter).toString(36)}${now().toString(36)}`,
       serverId, kind, colorKey: color.key, color: color.hex,
@@ -36,7 +45,7 @@ function createCrystals({ now, random, rules = CRYSTAL, countCrystal = () => {} 
       // Quanto vale cada gota: a chuva do poder rende menos que a que nasce sozinha.
       factor: kind === 'storm' ? (called ? rules.storm.calledFactor : rules.storm.valueFactor) : 1,
       step: kind === 'chain' ? step : 1,
-      from, by,
+      from, by, card,
       takers: new Map(), // accountId -> total ganho
       gemTakers: new Set(), // "accountId:gota"
       fullFor: new Map(), // accountId -> se o cristal valeu inteiro para a pessoa (teto do dia)
@@ -47,7 +56,7 @@ function createCrystals({ now, random, rules = CRYSTAL, countCrystal = () => {} 
 
   function view(c) {
     const { id, serverId, kind, color, colorKey, value, appearAt, life, seed, gems, step, from, by } = c;
-    return { id, serverId, kind, color, colorKey, value, appearAt, life, seed, gems, step, from, by };
+    return { id, serverId, kind, color, colorKey, value, appearAt, life, seed, gems, step, from, by, ...(c.card?.level ? { keys: c.card.level } : {}) };
   }
 
   function tick(presentServerIds) {
@@ -89,6 +98,19 @@ function createCrystals({ now, random, rules = CRYSTAL, countCrystal = () => {} 
     const key = `${accountId}:${slot}`;
     if (c.gemTakers.has(key)) return { error: 'Você já pegou esse cristal.' };
 
+    // O cristal da carta gasta o poder de reação (metade com a chave 10 ou mais; o roxo é de graça).
+    let power = null;
+    if (c.card) {
+      const base = rules.power.cost[c.colorKey] ?? rules.power.cost.arcoiris;
+      const cost = c.card.level >= KEYS.reaction.halfCostFrom ? Math.ceil(base / 2) : base;
+      if (cost > powerOf(store, accountId, t)) {
+        const wait = Math.ceil(((cost - powerOf(store, accountId, t)) / rules.power.regenPerHour) * 60);
+        return { error: `Sem poder de reação para esse cristal (gasta ${cost}). Em uns ${wait} min dá para pegar.` };
+      }
+      spendPower(store, accountId, cost, t);
+      power = powerView(store, accountId, t);
+    }
+
     // A chuva conta como 1 cristal pego, mas gasta capCost do teto do dia, já na primeira gota da pessoa.
     if (!c.fullFor.has(accountId)) {
       const u = ((store.usage ||= {})[accountId] ||= {});
@@ -100,7 +122,7 @@ function createCrystals({ now, random, rules = CRYSTAL, countCrystal = () => {} 
     const full = c.fullFor.get(accountId);
 
     const base = c.value * c.factor;
-    let amount = Math.max(1, Math.round(base * (1 + (perks?.crystalBonus || 0))));
+    let amount = Math.max(1, Math.round(base * (1 + (perks?.crystalBonus || 0)) * (1 + cardBonus(c))));
     if (!full) amount = Math.max(1, Math.round(amount * rules.afterCap));
 
     const firstOfAll = c.takers.size === 0;
@@ -112,10 +134,19 @@ function createCrystals({ now, random, rules = CRYSTAL, countCrystal = () => {} 
     if (c.kind === 'chain' && firstOfAll && c.step < rules.chain.values.length) {
       next = view(spawn(serverId, { kind: 'chain', appearAt: t + rules.chain.gapMs, from: c.from, by: c.by, step: c.step + 1 }));
     }
-    return { amount, kakera, full, next };
+    return { amount, kakera, full, next, ...(power ? { power } : {}), ...(c.card ? { card: true, colorKey: c.colorKey } : {}) };
   }
 
-  return { tick, spawn, take, view };
+  // O cristal que nasce de um roll de personagem com dono. Com a chave 25, 100, 300 ou 500, pode vir um segundo
+  // (25%, 50%, 75% e 100% de chance), logo depois do primeiro. Devolve a lista de cristais criados.
+  function spawnForCard(serverId, { card, appearAt = now(), ...rest }) {
+    const made = [spawn(serverId, { ...rest, appearAt, card })];
+    const chance = KEYS.reaction.second.find(([from]) => card.level >= from)?.[1] || 0;
+    if (chance && random() < chance) made.push(spawn(serverId, { ...rest, appearAt: appearAt + 450, card }));
+    return made;
+  }
+
+  return { tick, spawn, spawnForCard, take, view };
 }
 
 module.exports = { createCrystals, CHAIN_COLORS };

@@ -1438,7 +1438,7 @@ test('Salão do Mudae: tela própria com palco, mesa ao vivo, presença, álbum 
   assert.equal(app.d.querySelector('#salon-view').classList.contains('hidden'), false);
   assert.ok(app.d.querySelector('#main').classList.contains('salon-mode'));
   assert.ok(app.d.querySelector('#app').classList.contains('hide-members'), 'a coluna do chat fica no lugar da lista de membros');
-  assert.deepEqual([...app.d.querySelectorAll('.salon-tab')].map((b) => b.textContent), ['Mesa', 'Meu harem', 'Forja', 'Poderes', 'Personagens', 'Ranking']);
+  assert.deepEqual([...app.d.querySelectorAll('.salon-tab')].map((b) => b.textContent), ['Mesa', 'Meu harem', 'Forja', 'Poderes', 'Personagens', 'Desejos', 'Conquistas', 'Ranking']);
   assert.equal(app.d.querySelector('.salon-status-full').textContent.trim(), '9/10 rolls · casamento disponível');
   assert.ok(app.d.querySelector('.salon-status-full svg.mi-ring'), 'o anel desenhado no lugar do emoji');
   assert.equal(app.d.querySelector('.salon-status-short').textContent.trim(), '9/10 ·', 'versão curta para a faixa apertada');
@@ -1810,16 +1810,20 @@ test('Novidades: a 2.7.5 mostra a cena do minuto no DJ e, sem animação, a foto
   const app = await ui(t);
   const { d } = app;
   await app.register();
+  // A versão mais recente tem outro conteúdo: a janela abre nela, e a cena do DJ é da 2.7.5.
+  const pick = (v) => [...d.querySelectorAll('#changelog .cl-version')].find((b) => b.textContent.includes(v)).click();
   // Com animação, a cena começa com a música tocando, antes de alguém mexer na barra.
   d.querySelector('#settings-version').click(); await settle();
+  pick('v2.7.5'); await settle();
   assert.equal(d.querySelector('#changelog .djd-stage .dj-elapsed').textContent, '0:42');
   assert.equal(d.querySelector('#changelog .djd-stage .dj-marks').children.length, 0);
   assert.match(d.querySelector('#changelog .djd-stage .dj-last').textContent, /^Bia colocou/);
   d.querySelector('#changelog .cl-close').click();
   d.documentElement.dataset.reduceMotion = 'true';
   d.querySelector('#settings-version').click(); await settle();
+  pick('v2.7.5'); await settle();
   const showcase = d.querySelector('#changelog .cl-showcase');
-  assert.ok(showcase, 'a versão atual tem a cena');
+  assert.ok(showcase, 'a 2.7.5 tem a cena');
   assert.match(showcase.querySelector('figcaption').textContent, /^Escolher o minuto no DJ\. Arraste a barra e solte/);
   const stage = showcase.querySelector('.djd-stage');
   assert.equal(stage.getAttribute('role'), 'img');

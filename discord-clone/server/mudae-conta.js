@@ -1,12 +1,18 @@
 // Mudae: a conta de cada pessoa (kakera, contadores que destravam poderes e o teto do divórcio).
 // Tudo mora no store da comunidade; aqui só ficam as contas, sem relógio nem sorteio próprios.
 const { DIVORCE_CAP, DIVORCE_CAP_MS, DAY_MS, DAY_OFFSET_MS, CRYSTAL } = require('./mudae-regras');
+const HOUR_MS = 3600_000;
 
 const kakeraOf = (store, accountId) => store.kakera?.[accountId] || 0;
-function addKakera(store, accountId, amount) {
+// transfer: kakera que só mudou de mãos (presente, troca, prêmio de conquista) não conta como "ganho" para as conquistas.
+function addKakera(store, accountId, amount, { transfer = false } = {}) {
   const total = kakeraOf(store, accountId) + amount;
   if (total) (store.kakera ||= {})[accountId] = total;
   else if (store.kakera) delete store.kakera[accountId];
+  if (amount > 0) {
+    if (total > (store.peak?.[accountId] || 0)) (store.peak ||= {})[accountId] = total;
+    if (!transfer) (store.earned ||= {})[accountId] = (store.earned?.[accountId] || 0) + amount;
+  }
   return total;
 }
 
@@ -59,4 +65,34 @@ function refundStatus(store, accountId, t) {
   return { divorceLeft: Math.max(0, DIVORCE_CAP - used), divorceCap: DIVORCE_CAP, divorceIn: recent.length ? Math.max(1, recent[0][0] + DIVORCE_CAP_MS - t) : 0 };
 }
 
-module.exports = { kakeraOf, addKakera, dayOf, crystalsToday, statsOf, bumpStat, refundOf, refundStatus };
+// Poder de reação: sobe CRYSTAL.power.regenPerHour por hora, até o máximo. store.usage[conta].power = { value, at }.
+function powerOf(store, accountId, t) {
+  const p = store.usage?.[accountId]?.power;
+  const max = CRYSTAL.power.max;
+  if (!p) return max;
+  return Math.min(max, p.value + ((t - p.at) / HOUR_MS) * CRYSTAL.power.regenPerHour);
+}
+function spendPower(store, accountId, cost, t) {
+  if (!cost) return;
+  const u = ((store.usage ||= {})[accountId] ||= {});
+  u.power = { value: powerOf(store, accountId, t) - cost, at: t };
+}
+// Para mostrar: quanto tem, o máximo e em quanto tempo enche.
+function powerView(store, accountId, t) {
+  const value = powerOf(store, accountId, t);
+  const max = CRYSTAL.power.max;
+  return { value: Math.floor(value), max, fullIn: value >= max ? 0 : Math.ceil(((max - value) / CRYSTAL.power.regenPerHour) * HOUR_MS) };
+}
+
+// Um teto em janela móvel (por exemplo, "no máximo 300 de kakera a cada 24 h"): devolve quanto ainda cabe de amount.
+function takeBucket(store, accountId, name, amount, cap, windowMs, t) {
+  const u = ((store.usage ||= {})[accountId] ||= {});
+  const recent = (u[name] || []).filter(([at]) => t - at < windowMs);
+  const used = recent.reduce((total, [, n]) => total + n, 0);
+  const paid = Math.max(0, Math.min(amount, cap - used));
+  if (paid) recent.push([t, paid]);
+  if (recent.length) u[name] = recent; else delete u[name];
+  return paid;
+}
+
+module.exports = { powerOf, spendPower, powerView, takeBucket, kakeraOf, addKakera, dayOf, crystalsToday, statsOf, bumpStat, refundOf, refundStatus };
