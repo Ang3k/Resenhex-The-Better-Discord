@@ -1164,8 +1164,9 @@ window.MudaeSalon = function ({ state, el, Icon, call, onSocket, member, avatar,
 
   const chipMatch = (c) => (S.filter === 'all' || c.rarity === S.filter) && (S.albumSource === 'all' || (c.source || 'a') === S.albumSource)
     && (S.albumGender === 'all' || (c.gender || 'O') === S.albumGender) && (!S.onlyNote || !!c.note);
-  // Arrastar só vale sem nenhum filtro: com filtro, a ordem guardada ficaria bagunçada.
-  const canArrange = () => S.album?.ownerId === me() && S.sort === 'custom' && S.filter === 'all' && S.albumSource === 'all' && S.albumGender === 'all' && !S.onlyNote && !S.query.trim();
+  // Arrastar vale em qualquer ordenação, mas só sem filtro nem busca (com filtro, a ordem guardada ficaria bagunçada): ao soltar, a ordem
+  // que está na tela vira "Minha ordem".
+  const canArrange = () => S.album?.ownerId === me() && S.filter === 'all' && S.albumSource === 'all' && S.albumGender === 'all' && !S.onlyNote && !S.query.trim();
   function filtered() {
     const q = plainText(S.query).replace(/\s+/g, ' ').trim();
     const list = S.album.chars.filter((c) => chipMatch(c) && (!q || plainText(c.name).includes(q) || plainText(c.series).includes(q) || (c.note && plainText(c.note).includes(q))));
@@ -1193,6 +1194,7 @@ window.MudaeSalon = function ({ state, el, Icon, call, onSocket, member, avatar,
         el('div', {}, el('h2', { textContent: a.look?.title || (mine ? 'Seu harem' : 'Harem de ' + whoName(a.ownerId)) }),
           a.look?.badge ? el('div', { class: 'salon-badge', title: 'Título de conquista', textContent: a.look.badge }) : null,
           el('div', { class: 'salon-album-stats' }, `${num(a.total)} ${a.total === 1 ? 'personagem' : 'personagens'} · `, el('strong', { textContent: num(a.value) }), kakera()),
+          mine ? el('div', { class: 'salon-album-links' }, el('button', { type: 'button', class: 'salon-trade-btn', onclick: openHaremSettings }, Icon('pencil', 16), 'Personalizar harém')) : null,
           mine ? null : el('div', { class: 'salon-album-links' },
             el('button', { type: 'button', class: 'salon-link', onclick: () => loadAlbum(me()) }, '← Ver o meu harem'),
             el('button', { type: 'button', class: 'salon-trade-btn', onclick: () => trade.start(a.ownerId, S.channel) }, Icon('refresh', 16), 'Propor troca')))),
@@ -1245,6 +1247,7 @@ window.MudaeSalon = function ({ state, el, Icon, call, onSocket, member, avatar,
       const wishers = (c.wishedBy || []).filter((id) => id !== me());
       const actions = mine ? el('div', { class: 'salon-card-actions' },
         el('button', { type: 'button', class: isFav ? 'active' : '', onclick: (e) => { e.stopPropagation(); favorite(isFav ? null : c.id); } }, ico('wish'), isFav ? 'Favorito' : 'Favoritar'),
+        el('button', { type: 'button', class: 'icon', title: 'Personalizar ' + c.name, ariaLabel: 'Personalizar ' + c.name, onclick: (e) => { e.stopPropagation(); openCharSettings(c); } }, Icon('pencil', 16)),
         el('button', { type: 'button', class: 'danger', title: 'Divorciar de ' + c.name, ariaLabel: 'Divorciar de ' + c.name, onclick: (e) => { e.stopPropagation(); divorce(c); } }, Icon('trash', 16)))
         : wishButton(c);
       // Alguém deseja esta carta sua: um toque propõe a troca para essa pessoa.
@@ -1256,9 +1259,10 @@ window.MudaeSalon = function ({ state, el, Icon, call, onSocket, member, avatar,
       const item = el('div', { class: 'salon-album-item' + (arrange ? ' arrangeable' : ''), data: { id: String(c.id) } }, node, noteLine(c, mine), wanted, actions);
       if (arrange) {
         item.draggable = true;
+        item.title = 'Arraste para mudar a ordem';
         item.addEventListener('dragstart', (e) => { S.drag = c.id; item.classList.add('dragging'); e.dataTransfer.effectAllowed = 'move'; e.dataTransfer.setData('text/plain', String(c.id)); });
         item.addEventListener('dragend', () => { S.drag = null; item.classList.remove('dragging'); });
-        item.addEventListener('dragover', (e) => { if (S.drag !== null) e.preventDefault(); });
+        item.addEventListener('dragover', (e) => { if (S.drag !== null) { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; } });
         item.addEventListener('drop', (e) => { e.preventDefault(); moveCard(S.drag, c.id); });
         actions.prepend(el('button', { type: 'button', title: 'Mover ' + c.name + ' para o início', ariaLabel: 'Mover ' + c.name + ' para o início', onclick: (e) => { e.stopPropagation(); moveCard(c.id, S.album.chars[0].id); } }, Icon('chevronLeft', 16)));
       }
@@ -1314,19 +1318,109 @@ window.MudaeSalon = function ({ state, el, Icon, call, onSocket, member, avatar,
     return box;
   }
 
-  // Arrastar (ou "mover para o início"): põe a carta no lugar da outra e guarda a ordem no servidor.
+  // Arrastar (ou "mover para o início"): põe a carta no lugar da outra, a partir da ordem que está na tela, e guarda no servidor.
   async function moveCard(fromId, toId) {
     S.drag = null;
-    const list = S.album?.chars;
-    if (!list || fromId === toId || fromId == null) return;
+    if (!S.album?.chars || fromId === toId || fromId == null) return;
+    const list = filtered();
     const from = list.findIndex((c) => c.id === fromId);
     const to = list.findIndex((c) => c.id === toId);
     if (from < 0 || to < 0) return;
     const [moved] = list.splice(from, 1);
     list.splice(to, 0, moved);
-    renderGrid();
+    S.album.chars = list;
     S.album.ordered = true;
+    S.sort = 'custom';
+    S.sortTouched = true;
+    const select = nodes.body.querySelector('select.salon-sort');
+    if (select) select.value = 'custom';
+    renderGrid();
     await call('mudae:order', { ids: list.map((c) => c.id) });
+  }
+
+  // ---------- personalizar o harém e cada personagem (o que $renameharem, $addimg, $embedcolor etc. fazem) ----------
+  function sheet(title, content) {
+    const close = () => { back.remove(); document.removeEventListener('keydown', onKey); };
+    const onKey = (e) => { if (e.key === 'Escape') close(); };
+    const back = el('div', { class: 'salon-sheet-back', onclick: (e) => { if (e.target === back) close(); } },
+      el('div', { class: 'salon-sheet', role: 'dialog', ariaModal: 'true', ariaLabel: title },
+        el('div', { class: 'salon-sheet-head' }, el('h3', { textContent: title }), el('button', { type: 'button', class: 'salon-sheet-x', ariaLabel: 'Fechar', onclick: close }, Icon('x', 16))),
+        content));
+    document.addEventListener('keydown', onKey);
+    document.body.append(back);
+    return { close, content };
+  }
+  const colorField = (value, fallback) => {
+    const input = el('input', { type: 'color', class: 'salon-color', value: /^#[0-9a-f]{6}$/i.test(value || '') ? value : fallback });
+    const state = { value: value || '' };
+    input.addEventListener('input', () => { state.value = input.value; });
+    const reset = el('button', { type: 'button', class: 'salon-link', onclick: () => { state.value = ''; input.value = fallback; } }, 'Padrão');
+    return { state, node: el('div', { class: 'salon-field-row' }, input, reset) };
+  };
+  const textField = (label, value, { max, hint = '' }) => {
+    const input = el('input', { type: 'text', class: 'salon-note-input salon-field-input', maxLength: max, value: value || '' });
+    return { input, node: el('label', { class: 'salon-field' }, el('span', { textContent: label }), input, hint ? el('small', { textContent: hint }) : null) };
+  };
+
+  function openHaremSettings() {
+    const p = S.album?.prefs || {};
+    const title = textField('Título do harém', p.title, { max: 40, hint: 'Aparece no topo do seu harém. Vazio volta ao padrão.' });
+    const color = colorField(p.color, '#5865f2');
+    const claim = textField('Mensagem de casamento', p.claimText, { max: 120, hint: 'Use {personagem} e, se quiser, {usuario}. Ex.: {usuario} ama {personagem}!' });
+    const divorce = textField('Mensagem de divórcio', p.divorceText, { max: 120, hint: 'Também com {personagem} e {usuario}.' });
+    const random = el('input', { type: 'checkbox', checked: !!p.randomimg });
+    const save = el('button', { type: 'button', class: 'salon-roll primary' }, 'Salvar');
+    const box = el('div', { class: 'salon-sheet-body' }, title.node,
+      el('div', { class: 'salon-field' }, el('span', { textContent: 'Cor do harém' }), color.node),
+      claim.node, divorce.node,
+      el('label', { class: 'salon-field salon-field-check' }, random, el('span', { textContent: 'Sortear a imagem nos meus rolls (entre a original e as extras)' })), save);
+    const dlg = sheet('Personalizar o harém', box);
+    save.onclick = async () => {
+      save.disabled = true;
+      const jobs = [['title', title.input.value, p.title || ''], ['color', color.state.value, p.color || ''], ['claimText', claim.input.value, p.claimText || ''],
+        ['divorceText', divorce.input.value, p.divorceText || ''], ['randomimg', random.checked, !!p.randomimg]];
+      let ok = true;
+      for (const [key, value, before] of jobs) {
+        if (value === before) continue;
+        if (!await call('mudae:look', { key, value })) { ok = false; break; }
+      }
+      save.disabled = false;
+      if (!ok) return;
+      dlg.close();
+      toast('Harém atualizado.', 'info');
+      loadAlbum(me());
+    };
+  }
+
+  function openCharSettings(c) {
+    const content = el('div', { class: 'salon-sheet-body' });
+    const dlg = sheet('Personalizar ' + c.name, content);
+    const refresh = async () => { await loadAlbum(me()); const fresh = S.album?.chars.find((x) => x.id === c.id); if (fresh) { c = fresh; build(); } else dlg.close(); };
+    const act = async (event, payload) => { if (await call(event, { charId: c.id, ...payload })) refresh(); };
+    function build() {
+      const im = c.images || { list: [], pick: 1, base: c.image };
+      const options = [{ pos: 1, src: im.base || c.image, label: 'Original' }, ...im.list.map((src, i) => ({ pos: i + 2, src, label: 'Extra ' + (i + 1) }))];
+      const thumbs = options.map((o) => el('div', { class: 'salon-img-opt' + (im.pick === o.pos ? ' active' : '') },
+        MudaeFotos.guard(el('img', { referrerPolicy: MudaeFotos.POLICY, src: o.src, alt: o.label, loading: 'lazy', decoding: 'async', draggable: false })),
+        el('span', { textContent: o.label }),
+        el('div', { class: 'salon-img-actions' },
+          im.pick === o.pos ? el('em', { textContent: 'Em uso' }) : el('button', { type: 'button', onclick: () => act('mudae:image', { op: 'pick', value: o.pos }) }, 'Usar'),
+          o.pos > 1 ? el('button', { type: 'button', class: 'danger', ariaLabel: 'Remover ' + o.label, onclick: () => act('mudae:image', { op: 'remove', value: o.pos }) }, Icon('trash', 14)) : null)));
+      const link = el('input', { type: 'text', class: 'salon-note-input salon-field-input', placeholder: 'https://i.imgur.com/abc123.png', maxLength: 200 });
+      const add = el('button', { type: 'button', class: 'salon-roll' }, Icon('plus', 14), 'Adicionar');
+      add.onclick = () => { if (link.value.trim()) act('mudae:image', { op: 'add', value: link.value.trim() }); };
+      link.addEventListener('keydown', (e) => { if (e.key === 'Enter') add.onclick(); });
+      const keyed = (c.keys || 0) >= 1;
+      const color = colorField(c.color, '#ff4d94');
+      const apply = el('button', { type: 'button', class: 'salon-roll', onclick: () => act('mudae:embedcolor', { color: color.state.value }) }, 'Salvar cor');
+      content.replaceChildren(
+        el('div', { class: 'salon-field' }, el('span', { textContent: 'Imagens' }), el('div', { class: 'salon-img-grid' }, ...thumbs),
+          el('small', { textContent: `Só links diretos do imgur (i.imgur.com). Até 12 extras (${im.list.length}/12). A imagem em uso aparece no álbum e nos seus rolls.` }),
+          el('div', { class: 'salon-field-row' }, link, add)),
+        el('div', { class: 'salon-field' }, el('span', { textContent: 'Cor do personagem' }),
+          keyed ? el('div', { class: 'salon-field-row' }, color.node, apply) : el('small', { textContent: 'Precisa de chave nível 1: role esse personagem (ele precisa cair num roll seu).' })));
+    }
+    build();
   }
 
   async function favorite(charId) {

@@ -879,3 +879,29 @@ html[data-reduce-motion=true] .salon-sug-panel { animation: none; }
 
 .salon-page-jump { width: 84px; height: 32px; padding: 0 8px; border: 1px solid var(--divider); border-radius: 8px; background: var(--bg-input); color: var(--text); font: inherit; font-size: 13px; }
 .salon-page-nav { min-width: 36px; padding: 0 10px; font-size: 16px; line-height: 1; }
+
+/* Personalizar o harém e os personagens */
+.salon-sheet-back { position: fixed; inset: 0; z-index: 1000; display: grid; place-items: center; padding: 16px; background: rgb(0 0 0 / .55); }
+.salon-sheet { display: flex; flex-direction: column; width: min(520px, 100%); max-height: min(720px, 100%); border-radius: 14px; background: var(--bg-panel); box-shadow: var(--shadow-float); overflow: hidden; }
+.salon-sheet-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 14px 16px; border-bottom: 1px solid var(--divider); }
+.salon-sheet-head h3 { margin: 0; font-size: 16px; color: var(--text-strong); min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.salon-sheet-x { flex: none; display: grid; place-items: center; width: 30px; height: 30px; border: 0; border-radius: 8px; background: transparent; color: var(--text-muted); cursor: pointer; }
+.salon-sheet-x:hover, .salon-sheet-x:focus-visible { background: var(--bg-input); color: var(--text-strong); }
+.salon-sheet-body { display: flex; flex-direction: column; gap: 14px; padding: 16px; overflow-y: auto; }
+.salon-field { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.salon-field > span { font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: .04em; color: var(--text-muted); }
+.salon-field small { color: var(--text-muted); font-size: 12px; }
+.salon-field-input { height: 36px; }
+.salon-field-row { display: flex; align-items: center; gap: 8px; }
+.salon-field-row .salon-field-input { flex: 1; }
+.salon-field-check { flex-direction: row; align-items: center; gap: 8px; }
+.salon-field-check > span { text-transform: none; letter-spacing: 0; font-size: 13px; font-weight: 400; color: var(--text); }
+.salon-color { width: 44px; height: 32px; padding: 0; border: 0; border-radius: 6px; background: none; cursor: pointer; }
+.salon-img-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(104px, 1fr)); gap: 10px; }
+.salon-img-opt { display: flex; flex-direction: column; gap: 4px; padding: 6px; border: 2px solid transparent; border-radius: 10px; background: var(--bg-input); font-size: 12px; color: var(--text-muted); }
+.salon-img-opt.active { border-color: var(--brand); }
+.salon-img-opt img { width: 100%; aspect-ratio: 3 / 4; object-fit: cover; border-radius: 6px; }
+.salon-img-actions { display: flex; align-items: center; justify-content: space-between; gap: 4px; }
+.salon-img-actions button { padding: 3px 8px; border: 0; border-radius: 6px; background: var(--bg-panel); color: var(--text); font: inherit; cursor: pointer; }
+.salon-img-actions button.danger { color: var(--red); }
+.salon-img-actions em { font-style: normal; color: var(--brand); }

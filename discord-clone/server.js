@@ -968,6 +968,12 @@ mudae.preload(Object.values(communities.root.servers).flatMap((s) => Object.keys
 const forja = createForja({ now: Date.now, random: Math.random });
 const poderes = createPoderes({ now: Date.now });
 const conquistas = createConquistas({ now: Date.now });
+// Antes das conquistas valerem: quem jogou nos últimos 30 dias leva o kakera do que já tinha feito (guardado uma vez por servidor).
+for (const [serverId, srv] of Object.entries(communities.root.servers)) {
+  if (!srv.mudae) continue;
+  const today = Math.floor((Date.now() - 3 * 3600_000) / 86_400_000);
+  if (conquistas.snapshotRetro(srv.mudae, (id, s) => today - (s.lastDay ?? -1e9) <= ACHIEVEMENTS.activeDays)) save(chunk.server(serverId));
+}
 // Cristal errante: um relógio só para todas as comunidades. MUDAE_CRYSTAL_MS="min,max" (só os testes) encurta a espera.
 const crystalRules = (() => {
   const [min, max] = String(process.env.MUDAE_CRYSTAL_MS || '').split(',').map(Number);
@@ -2312,6 +2318,7 @@ io.on('connection', (socket) => {
   // Ids do catálogo: números (anime) ou texto com a fonte na frente ("g1942", "c4000-1699").
   const charKey = (id) => (typeof id === 'number' || typeof id === 'string' ? String(id).slice(0, 64) : fail('Personagem inválido.'));
 
+  const plain = (text) => String(text || '').replace(/\*\*/g, '').replace(/\$(\w+)/g, '$1');
   const mudaeMember = (id) => communities.joined(id);
   // O texto que a pessoa escolheu para a mensagem de casamento ou divórcio (com {personagem} e {usuario}), se escolheu.
   const textOf = (store, accountId, key) => { const text = mudae.visual.prefsOf(store, accountId)[key]; return text ? { template: text } : {}; };
@@ -2715,7 +2722,55 @@ io.on('connection', (socket) => {
     deliver(salonSockets(communities.currentId(), c.id).map(([sid]) => sid), 'mudae:reaction', { channel: c.id, id: String(id || '').slice(0, 32), emoji, by: acc.id });
   });
 
-  on('mudae:harem', (acc, { ownerId }) => mudae.album(mudaeStore(), memberId(ownerId) || acc.id, mudaeMember));
+  on('mudae:harem', (acc, { ownerId }) => {
+    const who = memberId(ownerId) || acc.id;
+    const album = mudae.album(mudaeStore(), who, mudaeMember);
+    // As preferências de texto são só de quem abre o próprio harém (o título e a cor já vão em look).
+    if (who === acc.id) { const p = mudae.visual.prefsOf(mudaeStore(), acc.id); album.prefs = { title: p.title || '', color: p.color || '', claimText: p.claimText || '', divorceText: p.divorceText || '', randomimg: !!p.randomimg }; }
+    return album;
+  });
+  // Personalizar o harém pela página (os mesmos efeitos de $renameharem, $colormm, $renameclaim, $renamedivorce, $randomimg,
+  // $addimg, $changeimg e $embedcolor). Texto vazio volta ao padrão.
+  on('mudae:look', (acc, { key, value }) => {
+    mudaeAllowed(acc);
+    if (!allow('mudae-album:' + acc.id, 30, 5000)) fail('Calma! Cliques rápidos demais.');
+    const v = mudae.visual;
+    const text = typeof value === 'string' && value.trim() ? value.trim() : 'none';
+    const store = mudaeStore();
+    let r;
+    if (key === 'title') r = v.rename(store, acc.id, text);
+    else if (key === 'color') r = v.color(store, acc.id, text);
+    else if (key === 'claimText' || key === 'divorceText') r = v.messageText(store, acc.id, key, text);
+    else if (key === 'randomimg') { v.setPref(store, acc.id, 'randomimg', value === true ? 1 : null); r = {}; }
+    else fail('Opção desconhecida.');
+    if (r.error) fail(plain(r.error));
+    save(chunk.server());
+    return { ok: true };
+  });
+  on('mudae:image', (acc, { charId, op, value }) => {
+    mudaeAllowed(acc);
+    if (!allow('mudae-album:' + acc.id, 30, 5000)) fail('Calma! Cliques rápidos demais.');
+    const v = mudae.visual;
+    const store = mudaeStore();
+    const id = charKey(charId);
+    const pos = Number(value);
+    // O texto do nome vai como "x": com charId o personagem vem do id.
+    const r = op === 'add' ? v.addImage(store, acc.id, 'x $ ' + String(value || '').slice(0, 200), id)
+      : op === 'remove' ? v.addImage(store, acc.id, 'remove x $ ' + pos, id)
+      : op === 'removeall' ? v.addImage(store, acc.id, 'removeall x', id)
+      : op === 'pick' ? v.changeImage(store, acc.id, 'x $ ' + pos, id) : { error: 'Opção desconhecida.' };
+    if (r.error) fail(plain(r.error));
+    save(chunk.server());
+    return { ok: true };
+  });
+  on('mudae:embedcolor', (acc, { charId, color }) => {
+    mudaeAllowed(acc);
+    if (!allow('mudae-album:' + acc.id, 30, 5000)) fail('Calma! Cliques rápidos demais.');
+    const r = mudae.embedColor(mudaeStore(), acc.id, '', typeof color === 'string' && color.trim() ? color : 'none', charKey(charId));
+    if (r.error) fail(plain(r.error));
+    save(chunk.server());
+    return { ok: true };
+  });
   on('mudae:ranking', () => mudae.ranking(mudaeStore(), (id) => communities.joined(id)));
   // Quem saiu do servidor continua dono das cartas até alguém com a permissão libertá-las.
   const mudaeLeavers = () => mudae.orphans(mudaeStore(), (id) => communities.joined(id)).map((r) => ({ ...r, name: db.accounts[r.ownerId]?.name || 'Conta removida' }));

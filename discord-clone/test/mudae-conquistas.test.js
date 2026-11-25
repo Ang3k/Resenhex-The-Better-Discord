@@ -281,3 +281,35 @@ test('$conquistas e $titulo pela tabela', () => {
   assert.match(text(t.run('titulo', 'none')), /ficou sem título/);
   assert.equal(titleName(t.store, 'a'), null);
 });
+
+test('retroativo: quem jogou no último mês leva o kakera do histórico (na fila, sem aviso); os outros entram só com título', () => {
+  const s = setup();
+  s.store.stats = { a: { lastDay: 100 }, b: { lastDay: 10 } };
+  assert.equal(s.conquistas.snapshotRetro(s.store, (id, st) => st.lastDay >= 90), true);
+  assert.equal(s.conquistas.snapshotRetro(s.store, () => true), false, 'o registro é feito uma vez só');
+  const a = s.conquistas.refresh(s.store, 'a', ctx({ rolls: 60 }));
+  const b = s.conquistas.refresh(s.store, 'b', ctx({ rolls: 60 }));
+  assert.equal(a.fresh.length, 0, 'sem aviso');
+  assert.equal(a.paid, A.kakera[0], 'recebe o kakera do Girador');
+  assert.equal(s.mudae.kakeraOf(s.store, 'a'), A.kakera[0]);
+  assert.equal(b.paid, 0);
+  assert.equal(s.mudae.kakeraOf(s.store, 'b'), 0);
+  assert.ok(s.store.achievements.b.done['giro:1'], 'o título abre do mesmo jeito');
+});
+
+test('página do harém: imagens e cor por id de personagem, sem depender do nome', () => {
+  const s = setup();
+  s.marry(2);
+  const id = String(2);
+  const v = s.mudae.visual;
+  assert.ok(v.addImage(s.store, 'a', 'x $ https://i.imgur.com/abc123.png', id).added === 1);
+  assert.ok(v.addImage(s.store, 'a', 'x $ https://i.imgur.com/abc124.png', id).added === 1);
+  assert.deepEqual(v.imagesView(s.store, id).list.length, 2);
+  assert.equal(v.changeImage(s.store, 'a', 'x $ 3', id).pick, 3);
+  assert.equal(v.imagesView(s.store, id).pick, 3);
+  assert.equal(v.addImage(s.store, 'a', 'remove x $ 3', id).removed, 1);
+  assert.equal(v.imagesView(s.store, id).pick, 1, 'a escolhida saiu: volta à original');
+  assert.ok(v.addImage(s.store, 'b', 'x $ https://i.imgur.com/abc125.png', id).error, 'quem não tem o personagem não mexe');
+  assert.ok(s.mudae.embedColor(s.store, 'a', '', '#ff0000', id).error, 'sem chave não tem cor');
+  assert.equal(s.mudae.album(s.store, 'a').chars[0].images.base !== undefined, true);
+});

@@ -31,7 +31,12 @@ function createVisualTools(d) {
   const entry = (store, id) => store.images?.[String(id)];
 
   // O personagem do harém que o texto aponta, ou um erro.
-  function mine(store, accountId, name) {
+  // Com charId (a página do harém), o personagem vem direto do id e o texto do nome é ignorado.
+  function mine(store, accountId, name, charId) {
+    if (charId !== undefined && charId !== null) {
+      const k = store.claims[String(charId)]?.ownerId === accountId ? d.lookup(String(charId)) : undefined;
+      return k === undefined ? { error: 'Esse personagem não está no seu harem.' } : { k, row: d.rows([k])[0] };
+    }
     if (!name) return { error: 'Diga o nome do personagem: **$addimg Gojo $ https://i.imgur.com/abc123.png**.' };
     const k = d.find(name, d.owned(store, accountId));
     if (k === null) return { error: `Você não tem ninguém chamado **${name.slice(0, 80)}** no seu harem.` };
@@ -43,10 +48,10 @@ function createVisualTools(d) {
   };
 
   // $addimg nome $ link $ link, $addimg remove nome $ posição, $addimg removeall nome.
-  function addImage(store, accountId, arg) {
+  function addImage(store, accountId, arg, charId) {
     const sub = /^(remove|removeall)\s+([\s\S]*)$/i.exec(String(arg || '').trim());
     const p = parts(sub ? sub[2] : arg);
-    const found = mine(store, accountId, p[0]);
+    const found = mine(store, accountId, p[0], charId);
     if (found.error) return found;
     const id = String(found.row.id);
     const e = entry(store, id) || { list: [], pick: 1 };
@@ -77,9 +82,9 @@ function createVisualTools(d) {
   }
 
   // $changeimg nome $ posição: qual imagem aparece primeiro (1 = a original).
-  function changeImage(store, accountId, arg) {
+  function changeImage(store, accountId, arg, charId) {
     const p = parts(arg);
-    const found = mine(store, accountId, p[0]);
+    const found = mine(store, accountId, p[0], charId);
     if (found.error) return found;
     const id = String(found.row.id);
     const e = entry(store, id);
@@ -101,6 +106,8 @@ function createVisualTools(d) {
     }
     return e.pick > 1 ? e.list[e.pick - 2] || base : base;
   }
+  // As imagens extras de um personagem, para a página do harém: { list, pick } ou null.
+  const imagesView = (store, id) => { const e = entry(store, id); return e ? { list: [...e.list], pick: e.pick } : null; };
   const imagesOf = (store, id) => entry(store, id)?.list.length || 0;
   function dropImages(store, id) {
     if (!store.images?.[String(id)]) return;
@@ -169,7 +176,7 @@ function createVisualTools(d) {
     return { icons, color, shape: words[1] };
   }
 
-  return { addImage, changeImage, kakeraIcon, imageFor, imagesOf, dropImages, prefsOf, setPref, rename, color, messageText };
+  return { addImage, changeImage, kakeraIcon, imageFor, imagesView, imagesOf, dropImages, prefsOf, setPref, rename, color, messageText };
 }
 
 module.exports = { createVisualTools, imageLink, IMG_MAX, IMG_HOSTS, TITLE_MAX, TEXT_MAX };

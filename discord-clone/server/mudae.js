@@ -706,8 +706,8 @@ function createMudae({ catalog = null, catalogFile = null, catalogDb = null, now
     return { top, soulmates, withKeys: withKeys.length, goldLeft: chaves.goldLeft(store, accountId), goldCap: KEYS.goldCap, goldFrom: KEYS.goldFrom, soulNeed: KEYS.soulNeed };
   }
   // $embedcolor nome $ #cor: a cor própria de um personagem seu, liberada com a chave nível 1 (none volta ao padrão).
-  function embedColor(store, accountId, query, text) {
-    const k = find(query, owned(store, accountId));
+  function embedColor(store, accountId, query, text, charId) {
+    const k = charId !== undefined && charId !== null ? (store.claims[String(charId)]?.ownerId === accountId ? lookup(String(charId)) : null) : find(query, owned(store, accountId));
     if (k === null) return { error: `Você não tem ninguém chamado **${String(query).slice(0, 80)}** no seu harem.` };
     const id = idOf(k);
     const name = card(k).name;
@@ -913,7 +913,9 @@ function createMudae({ catalog = null, catalogFile = null, catalogDb = null, now
         const r = rows[i];
         const wishedBy = wishes.get(String(r.id));
         const text = haremTools.noteOf(store, accountId, r.id);
-        return { ...skin(store, card(k, r)), gender: GENDER_LETTER[gen[k]], claimedAt: store.claims[r.id].at, ...(wishedBy ? { wishedBy } : {}), ...(text ? { note: text } : {}) };
+        const extra = visual.imagesView(store, r.id);
+        if (extra) extra.base = card(k, r).image; // a foto original, para a página mostrar todas as opções
+        return { ...skin(store, card(k, r)), gender: GENDER_LETTER[gen[k]], claimedAt: store.claims[r.id].at, ...(wishedBy ? { wishedBy } : {}), ...(text ? { note: text } : {}), ...(extra ? { images: extra } : {}) };
       }),
     };
   }
@@ -1398,7 +1400,7 @@ function createMudae({ catalog = null, catalogFile = null, catalogDb = null, now
     card, cardById: (id) => { const k = lookup(id); return k !== undefined ? card(k) : null; }, seriesOf, eqOf, idOf, normalize,
     refundLeft: (store, accountId) => refundStatus(store, accountId, now()).divorceLeft, bump: (store, accountId, key, n = 1) => { stats(store, accountId); bumpStat(store, accountId, key, n); }, now });
 
-  const visual = createVisualTools({ owned, find, rows: (list) => cat.rows(list), random });
+  const visual = createVisualTools({ owned, find, lookup, rows: (list) => cat.rows(list), random });
   // A foto que a pessoa escolheu para o personagem (ou uma sorteada, com o $randomimg).
   const skin = (store, out, random = false) => {
     out.image = visual.imageFor(store, out.id, out.image, { random });

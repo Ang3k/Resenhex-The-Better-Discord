@@ -4,8 +4,9 @@
 // Regras (docs/planos/PLANO-MUDAE-CONQUISTAS-2026-11-24.md):
 // - Conquista nunca tira nada nem expira. Vem de contadores que o servidor guarda (nada vem do cliente).
 // - Kakera de conquista paga uma vez e no máximo ACHIEVEMENTS.dailyKakera por dia; o resto espera na fila.
-// - Na primeira avaliação de uma pessoa, o que ela já tinha feito abre de uma vez, sem aviso e sem kakera (título e
-//   vantagem entram), para quem já joga não receber um prêmio que desbalanceie a Forja de quem começou agora.
+// - Na primeira avaliação de uma pessoa, o que ela já tinha feito abre de uma vez, sem aviso. Quem jogou no último mês antes
+//   da atualização (lista guardada em achievements._retro por snapshotRetro) também recebe o kakera, pela fila e dentro do teto
+//   diário; os demais entram só com título e vantagem.
 const { ACHIEVEMENTS: A } = require('./mudae-regras');
 const { addKakera, dayOf } = require('./mudae-conta');
 
@@ -66,6 +67,7 @@ function createConquistas({ now = Date.now } = {}) {
   // fresh são as conquistas novas que merecem aviso (nunca vem na primeira avaliação).
   function refresh(store, accountId, ctx) {
     const first = !entryOf(store, accountId);
+    const retro = first && !!store.achievements?._retro?.members?.includes(accountId); // jogou no último mês: leva o kakera
     const e = ((store.achievements ||= {})[accountId] ||= { done: {} });
     const fresh = [];
     const serverEvents = [];
@@ -75,8 +77,8 @@ function createConquistas({ now = Date.now } = {}) {
       if (a.server || e.done[a.key] || (ctx[a.count] || 0) < a.need) continue;
       e.done[a.key] = t;
       changed = true;
+      if (!first || retro) e.queue = (e.queue || 0) + a.kakera;
       if (!first) {
-        e.queue = (e.queue || 0) + a.kakera;
         fresh.push({ key: a.key, name: a.name, trail: a.trail, trailName: a.trailName, tier: a.tier, cat: a.cat, hidden: a.hidden, kakera: a.kakera, perk: A.perks[a.key]?.label || null });
       }
     }
@@ -93,14 +95,23 @@ function createConquistas({ now = Date.now } = {}) {
       if (e.done[a.key] || !srv.goals[a.key]?.members.includes(accountId)) continue;
       e.done[a.key] = t;
       changed = true;
+      if (!first || retro) e.queue = (e.queue || 0) + a.kakera;
       if (!first) {
-        e.queue = (e.queue || 0) + a.kakera;
         fresh.push({ key: a.key, name: a.name, trail: a.trail, trailName: a.trailName, tier: a.tier, cat: a.cat, hidden: false, server: true, kakera: a.kakera, perk: null });
       }
     }
     const paid = payQueue(store, accountId);
     if (paid) changed = true;
     return { fresh, first, changed, paid, serverEvents };
+  }
+
+  // Guarda, uma vez só por servidor, quem jogou no último mês. Roda na partida do servidor, antes de qualquer pessoa jogar com as
+  // conquistas no ar (o dia da última jogada é atualizado a cada roll, então depois não dá mais para saber).
+  function snapshotRetro(store, isActive) {
+    const root = (store.achievements ||= {});
+    if (root._retro) return false;
+    root._retro = { at: now(), members: Object.entries(store.stats || {}).filter(([id, s]) => isActive(id, s)).map(([id]) => id) };
+    return true;
   }
 
   function setTitle(store, accountId, key) {
@@ -148,7 +159,7 @@ function createConquistas({ now = Date.now } = {}) {
     };
   }
 
-  return { refresh, payQueue, setTitle, view };
+  return { refresh, payQueue, setTitle, view, snapshotRetro };
 }
 
 module.exports = { createConquistas, achievementPerks, titleName, isDone, ALL, TIER };
