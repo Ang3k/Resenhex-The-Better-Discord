@@ -1082,6 +1082,20 @@ app.get('/music/search', async (req, res) => {
   }
 });
 
+app.get('/music/playlist', async (req, res) => {
+  res.set('Cache-Control', 'no-store');
+  const acc = authFromToken(req);
+  if (!acc) return res.status(401).json({ error: 'Entre de novo para buscar playlists.' });
+  if (!allow('music-search:' + acc.id, 20, 60_000)) return res.status(429).json({ error: 'Muitas buscas seguidas. Espere um pouco.' });
+  try {
+    const { id, title, items } = await youtube.playlist(String(req.query.url || '').slice(0, 300));
+    res.json({ id, title, items });
+  } catch (error) {
+    if (error.status || error.name === 'TimeoutError' || error.name === 'TypeError') console.error('Playlist do DJ falhou:', error.message);
+    res.status(400).json({ error: error.name === 'TimeoutError' || error.name === 'TypeError' ? 'O YouTube demorou para responder. Tente de novo.' : error.message });
+  }
+});
+
 // Banner e fundo do perfil: mesma regra, cada um no seu campo da conta ("banner" → bannerUrl/bannerCrop).
 function profileImageRoutes(field, tooMany) {
   app.post('/profile/' + field, express.raw({ type: () => true, limit: MAX_BANNER_UPLOAD }), async (req, res) => {
@@ -2562,10 +2576,10 @@ io.on('connection', (socket) => {
   on('mudae:trade:cancel', (acc, { id }) => afterTrade(mudae.tradeCancel(tradeId(id), acc.id, acc.name)));
 
   // Ranking de personagens ($top, $obra e a aba Personagens), página a página.
-  on('mudae:list', (acc, { key, page, focus }) => {
+  on('mudae:list', (acc, { key, page, focus, full }) => {
     if (!allow('mudae-list:' + acc.id, 30, 5000)) fail('Calma! Páginas rápidas demais.');
     if (typeof key !== 'string' && key !== undefined) fail('Lista inválida.');
-    return mudae.list(mudaeStore(), (key ?? '').slice(0, 300), page, acc.id, typeof focus === 'string' || typeof focus === 'number' ? focus : null) || fail('Lista inválida.');
+    return mudae.list(mudaeStore(), (key ?? '').slice(0, 300), page, acc.id, typeof focus === 'string' || typeof focus === 'number' ? focus : null, full === true) || fail('Lista inválida.');
   });
   // Sugestões da busca da aba Personagens (obras e personagens pelo nome), enquanto a pessoa digita.
   // Passou do limite, devolve vazio: a busca ao vivo não deve encher a tela de avisos.
@@ -3601,6 +3615,13 @@ io.on('connection', (socket) => {
     const track = typeof videoId === 'string' && youtube.known(videoId);
     if (!track) fail('Busque a música de novo para adicionar.');
     return dj.add(key, track, by, typeof query === 'string' ? youtube.alternatives(query, videoId) : []);
+  }, { voice: true });
+
+  on('music:playlist', (acc, { playlistId }) => {
+    const { key, by } = djUser(acc);
+    const list = typeof playlistId === 'string' && youtube.knownPlaylist(playlistId);
+    if (!list) fail('Busque a playlist de novo para adicionar.');
+    return dj.addMany(key, list.items, by, list.title);
   }, { voice: true });
 
   on('music:control', (acc, { action, trackId, seconds }) => {

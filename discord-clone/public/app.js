@@ -4078,6 +4078,16 @@
       el('figcaption', {}, el('strong', { textContent: release.demo.title }), ' ', release.demo.caption));
   }
 
+  // Um item das Novidades: o que vem antes do primeiro ": " (se for curto) vira o título, em destaque, e o resto fica embaixo.
+  // Comandos ($daily, /playlist) saem em estilo de código, para a vista achar o que é comando no meio do texto.
+  function changelogItem(text) {
+    const colon = text.indexOf(': ');
+    const head = colon > 2 && colon <= 70 ? text.slice(0, colon) : '';
+    const body = head ? text.slice(colon + 2) : text;
+    const parts = body.split(/(\$[a-zA-Z]\w*|(?<![\w/])\/[a-z]{2,}\b)/).map((part, k) => (k % 2 ? el('code', { class: 'cl-cmd', textContent: part }) : part));
+    return el('li', {}, head ? el('strong', { class: 'cl-item-title', textContent: head }) : null, el('span', { class: 'cl-item-text' }, ...parts));
+  }
+
   let confettiTimer = null;
   function openChangelog(version = window.APP_VERSION) {
     const list = window.CHANGELOG || [];
@@ -4104,7 +4114,7 @@
       showcase(release),
       release.sections.map((sec) => el('section', { class: 'cl-section ' + CHANGE_KINDS[sec.kind].cls },
         el('h3', {}, el('span', { textContent: CHANGE_KINDS[sec.kind].label })),
-        el('ul', {}, sec.items.map((item) => el('li', { textContent: item }))))),
+        el('ul', {}, sec.items.map(changelogItem)))),
       el('p', { class: 'cl-footnote', textContent: 'Ideias e bugs são bem-vindos no chat.' }));
     const oldNav = box.querySelector('.cl-versions');
     box.querySelector('.cl-card').replaceChildren(

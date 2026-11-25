@@ -194,7 +194,7 @@
 /* ---------- Painel: busca, tocando agora e fila ---------- */
 #dj-panel {
   /* Altura fixa: buscar ou a fila mudar não faz o painel pular de lugar. */
-  position: fixed; z-index: 30; width: min(400px, calc(100vw - 16px)); height: min(560px, calc(100dvh - 16px));
+  position: fixed; z-index: 30; width: min(400px, calc(100vw - 16px)); height: min(620px, calc(100dvh - 16px));
   display: flex; flex-direction: column; overflow: hidden;
   background: var(--bg-floating); border: 1px solid var(--divider); border-radius: 12px; box-shadow: var(--elev-2), var(--edge-light);
   animation: menu-in .16s var(--ease-out, ease-out);
@@ -216,8 +216,8 @@
 .dj-input::-webkit-search-cancel-button { filter: grayscale(1) brightness(1.6); }
 
 .dj-results:empty { display: none; }
-.dj-results { padding: 0 6px; border-bottom: 1px solid var(--divider); max-height: 46%; overflow-y: auto; flex-shrink: 0; }
-.dj-body { flex: 1; overflow-y: auto; padding: 4px 6px 8px; min-height: 0; }
+.dj-results { padding: 0 6px; border-bottom: 1px solid var(--divider); max-height: 42%; overflow-y: auto; flex: 0 1 auto; min-height: 0; }
+.dj-body { flex: 1 1 auto; overflow-y: auto; padding: 4px 6px 8px; min-height: 120px; }
 .dj-body:has(.dj-empty) { display: grid; align-content: center; }
 .dj-section-title {
   display: flex; align-items: center; justify-content: space-between; padding: 8px 8px 4px;
@@ -225,6 +225,9 @@
 }
 .dj-clear { border: 0; background: transparent; color: var(--link); font: inherit; font-size: 12px; font-weight: 600; letter-spacing: 0; cursor: pointer; padding: 0; }
 .dj-clear:hover { text-decoration: underline; }
+.dj-playlist-add { display: flex; align-items: center; justify-content: center; gap: 8px; width: 100%; margin: 0 0 8px; padding: 9px 12px; border: 0; border-radius: 8px; background: var(--brand, #5865f2); color: #fff; font: inherit; font-weight: 600; cursor: pointer; }
+.dj-playlist-add:hover:not(:disabled) { filter: brightness(1.1); }
+.dj-playlist-add:disabled { opacity: .6; cursor: default; }
 .dj-status { margin: 4px 8px 10px; color: var(--text-muted); font-size: 13px; }
 
 .dj-list { list-style: none; margin: 0 0 6px; padding: 0; }
@@ -368,3 +371,4 @@ html:not(.touch) .dj-bar:not(.locked):hover .dj-knob { transform: scale(1); }
 html.touch .djd-pointer-shape { width: 28px; height: 28px; margin: -14px 0 0 -14px; clip-path: none; border-radius: 50%; background: rgba(255, 255, 255, .3); box-shadow: inset 0 0 0 2px #fff; transform-origin: 50% 50%; }
 html.touch .djd-pointer.pressed .djd-pointer-shape { transform: scale(.8); background: rgba(255, 255, 255, .5); }
 @media (max-width: 700px) { .djd-stage { padding: 18px 12px; } }
+

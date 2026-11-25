@@ -1,7 +1,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const { createDj, MAX_QUEUE, IDLE_MS, SEEK_GAP_MS, MAX_MARKS } = require('../server/dj');
-const { parseSearch, parseDuration, videoIdFrom, youtubeSearch } = require('../server/youtube');
+const { parseSearch, parsePlaylist, playlistIdFrom, parseDuration, videoIdFrom, youtubeSearch } = require('../server/youtube');
 
 // Relógio e timers falsos: dá para "avançar" minutos sem esperar.
 function clock() {
@@ -319,4 +319,42 @@ test('link colado: acha pelo id; o oEmbed avisa quando o dono bloqueou fora do Y
   const titled = youtubeSearch({ fetch: async (url) => (String(url).includes('oembed')
     ? { ok: true, status: 200, json: async () => ({ title: 'Evidências', author_name: 'ClassicoVEVO' }) } : { ok: true, json: async () => ({}) }) });
   assert.deepEqual(await titled.search('https://youtu.be/ePjtnSPFWK8'), [{ videoId: 'ePjtnSPFWK8', title: 'Evidências', author: 'ClassicoVEVO', duration: null, live: false }]);
+});
+
+test('playlist: reconhece só link de playlist e lê os vídeos tocáveis', () => {
+  assert.equal(playlistIdFrom('https://www.youtube.com/playlist?list=PLabc123456789XYZ'), 'PLabc123456789XYZ');
+  assert.equal(playlistIdFrom('https://music.youtube.com/playlist?list=OLAK5uy_abcdefghijk'), 'OLAK5uy_abcdefghijk');
+  assert.equal(playlistIdFrom('https://www.youtube.com/watch?v=ePjtnSPFWK8&list=PLabc123456789XYZ'), null, 'vídeo dentro da playlist toca só o vídeo');
+  assert.equal(playlistIdFrom('https://www.youtube.com/watch?v=ePjtnSPFWK8&list=RDabcdefghijklmn'), null);
+  assert.equal(playlistIdFrom('https://www.youtube.com/playlist?list=RDabcdefghijklmn'), null, 'mix automático não abre por fora');
+  assert.equal(playlistIdFrom('https://exemplo.com/playlist?list=PLabc123456789XYZ'), null);
+  const item = (videoId, seconds, extra = {}) => ({ playlistVideoRenderer: { videoId, title: { simpleText: 'T ' + videoId }, lengthSeconds: seconds, ...extra } });
+  const { title, items } = parsePlaylist({ contents: [item('aaaaaaaaaaa', '90'), item('aaaaaaaaaaa', '90'), item('bbbbbbbbbbb', undefined), item('ccccccccccc', '10', { isPlayable: false })] });
+  assert.equal(title, 'Playlist');
+  assert.deepEqual(items.map((i) => [i.videoId, i.duration]), [['aaaaaaaaaaa', 90]]);
+});
+
+test('playlist: a primeira toca e o resto entra na fila, até o limite', () => {
+  const c = clock();
+  const dj = createDj({ newId: (() => { let n = 0; return () => 't' + ++n; })(), now: c.now, setTimer: c.setTimer, clearTimer: c.clearTimer });
+  const by = { id: 'a', name: 'Ana' };
+  const many = (n) => Array.from({ length: n }, (_, i) => ({ videoId: String(i).padStart(11, 'x'), title: 'M' + i, duration: 100 }));
+  assert.deepEqual(dj.addMany('r', many(3), by, 'Mix'), { added: 3, skipped: 0, started: true, title: 'Mix' });
+  assert.equal(dj.view('r').current.title, 'M0');
+  assert.deepEqual(dj.view('r').queue.map((t) => t.title), ['M1', 'M2']);
+  const res = dj.addMany('r', many(MAX_QUEUE + 10), by, 'Grande');
+  assert.equal(res.started, false);
+  assert.equal(res.added, MAX_QUEUE - 2);
+  assert.equal(dj.view('r').queue.length, MAX_QUEUE);
+  assert.throws(() => dj.addMany('r', many(2), by), /A fila já tem/);
+});
+
+test('playlist: lê o formato atual do YouTube (lockupViewModel) e pula vídeo sem duração', () => {
+  const lockup = (id, title, badge) => ({ lockupViewModel: { contentType: 'LOCKUP_CONTENT_TYPE_VIDEO', contentId: id,
+    contentImage: { thumbnailViewModel: { overlays: [{ thumbnailBottomOverlayViewModel: { badges: badge ? [{ thumbnailBadgeViewModel: { text: badge } }] : [] } }] } },
+    metadata: { lockupMetadataViewModel: { title: { content: title }, metadata: { contentMetadataViewModel: { metadataRows: [{ metadataParts: [{ text: { content: 'Canal' } }] }] } } } } } });
+  const { title, items } = parsePlaylist({ metadata: { playlistMetadataRenderer: { title: 'Minha lista' } },
+    contents: [lockup('aaaaaaaaaaa', 'Um', '3:55'), lockup('bbbbbbbbbbb', '[Vídeo privado]', null), lockup('ccccccccccc', 'Live', 'AO VIVO'), lockup('ddddddddddd', 'Dois', '1:02:03')] });
+  assert.equal(title, 'Minha lista');
+  assert.deepEqual(items.map((i) => [i.videoId, i.title, i.author, i.duration]), [['aaaaaaaaaaa', 'Um', 'Canal', 235], ['ddddddddddd', 'Dois', 'Canal', 3723]]);
 });

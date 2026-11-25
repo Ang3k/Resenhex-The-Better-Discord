@@ -93,6 +93,23 @@ function createDj({ newId, onChange = () => {}, now = Date.now, setTimer = setTi
     return { place, title: track.title };
   }
 
+  // Playlist inteira: a primeira toca se a sala está vazia, o resto entra na fila até encher.
+  // Devolve quantas entraram e quantas ficaram de fora por falta de espaço.
+  function addMany(key, items, by, title = 'Playlist') {
+    const room = roomOf(key);
+    const space = MAX_QUEUE - room.queue.length;
+    if (space <= 0) throw new Error(`A fila já tem ${MAX_QUEUE} músicas.`);
+    const take = items.slice(0, room.current ? space : space + 1);
+    if (!take.length) throw new Error('A playlist está vazia.');
+    const tracks = take.map((item) => trackFrom(item, { by: by.id, byName: by.name, alts: [] }));
+    const starts = !room.current;
+    if (starts) start(room, tracks.shift());
+    room.queue.push(...tracks);
+    note(room, `${by.name} adicionou a playlist “${title}” (${take.length} músicas)`);
+    changed(key, room);
+    return { added: take.length, skipped: items.length - take.length, started: starts, title };
+  }
+
   function skip(key, by) {
     const room = playing(key);
     note(room, `${by.name} pulou “${room.current.title}”`);
@@ -253,7 +270,7 @@ function createDj({ newId, onChange = () => {}, now = Date.now, setTimer = setTi
     return room?.current ? { title: room.current.title, paused: room.pausedAt !== null } : null;
   };
 
-  return { add, skip, pause, resume, seek, stop, remove, ended, failed, measured, occupancy, drop, view, summary, keys: () => [...rooms.keys()] };
+  return { add, addMany, skip, pause, resume, seek, stop, remove, ended, failed, measured, occupancy, drop, view, summary, keys: () => [...rooms.keys()] };
 }
 
 module.exports = { createDj, MAX_QUEUE, IDLE_MS, SEEK_GAP_MS, MAX_MARKS };

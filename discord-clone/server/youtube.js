@@ -9,6 +9,8 @@ const SEARCH_TTL = 30 * 60_000;
 const VIDEO_TTL = 6 * 60 * 60_000;
 
 const VIDEO_ID = /^[\w-]{11}$/;
+const PLAYLIST_ID = /^[\w-]{13,64}$/;
+const MAX_PLAYLIST = 100; // a primeira página do YouTube já traz até 100 vídeos; a fila do DJ comporta menos que isso
 
 // Aceita links de vídeo, shorts, lives, youtu.be e YouTube Music. Devolve o id ou null.
 function videoIdFrom(text) {
@@ -21,6 +23,18 @@ function videoIdFrom(text) {
     id = url.searchParams.get('v') || (/^\/(shorts|live|embed)\/([^/?#]+)/.exec(url.pathname) || [])[2];
   }
   return id && VIDEO_ID.test(id) ? id : null;
+}
+
+// Link de playlist (youtube.com/playlist?list=… ou um link que só tem list=). Devolve o id ou null.
+// Mixes automáticos do YouTube (RD…) e "Ver depois" (WL) não abrem por fora, então ficam de fora.
+function playlistIdFrom(text) {
+  let url;
+  try { url = new URL(String(text).trim()); } catch { return null; }
+  const host = url.hostname.replace(/^(www|m|music)\./, '');
+  if (host !== 'youtube.com') return null;
+  if (url.searchParams.get('v') && url.pathname !== '/playlist') return null; // vídeo solto dentro de uma playlist: toca só o vídeo
+  const id = url.searchParams.get('list');
+  return id && PLAYLIST_ID.test(id) && !/^(RD|UL|WL|LL)/.test(id) ? id : null;
 }
 
 // "4:41" -> 281; "1:02:03" -> 3723.
@@ -57,6 +71,48 @@ function parseSearch(json) {
   return found;
 }
 
+// Os vídeos de uma playlist vêm como "lockupViewModel" (formato atual do YouTube) ou "playlistVideoRenderer"
+// (formato antigo). Vídeo apagado, privado ou live vem sem duração e fica de fora.
+function lockupTrack(l) {
+  if (l.contentType !== 'LOCKUP_CONTENT_TYPE_VIDEO' || !VIDEO_ID.test(l.contentId || '')) return null;
+  let duration = null;
+  (function find(node) {
+    if (duration || !node || typeof node !== 'object') return;
+    const badge = node.thumbnailBadgeViewModel;
+    if (badge) { duration = parseDuration(String(badge.text || '').trim()); return; }
+    for (const value of Array.isArray(node) ? node : Object.values(node)) find(value);
+  })(l.contentImage);
+  const meta = l.metadata?.lockupMetadataViewModel;
+  const title = String(meta?.title?.content || '').trim().slice(0, 200);
+  const author = String(meta?.metadata?.contentMetadataViewModel?.metadataRows?.[0]?.metadataParts?.[0]?.text?.content || '').trim().slice(0, 100);
+  return title && duration ? { videoId: l.contentId, title, author, duration, live: false } : null;
+}
+
+function legacyTrack(r) {
+  const seconds = Number(r.lengthSeconds);
+  const title = textOf(r.title).trim().slice(0, 200);
+  if (!VIDEO_ID.test(r.videoId || '') || !title || !(seconds > 0) || r.isPlayable === false) return null;
+  return { videoId: r.videoId, title, author: textOf(r.shortBylineText).trim().slice(0, 100), duration: Math.round(seconds), live: false };
+}
+
+function parsePlaylist(json) {
+  const items = [];
+  const seen = new Set();
+  (function walk(node) {
+    if (!node || typeof node !== 'object' || items.length >= MAX_PLAYLIST) return;
+    const found = node.lockupViewModel ? lockupTrack(node.lockupViewModel) : node.playlistVideoRenderer ? legacyTrack(node.playlistVideoRenderer) : undefined;
+    if (found !== undefined) {
+      if (found && !seen.has(found.videoId)) { seen.add(found.videoId); items.push(found); }
+      return;
+    }
+    for (const value of Array.isArray(node) ? node : Object.values(node)) walk(value);
+  })(json);
+  // No metadata o título é um texto puro; no cabeçalho vem no formato { simpleText } ou { runs }.
+  const meta = json?.metadata?.playlistMetadataRenderer?.title;
+  const title = (typeof meta === 'string' ? meta : '') || textOf(json?.header?.playlistHeaderRenderer?.title);
+  return { title: title.trim().slice(0, 150) || 'Playlist', items };
+}
+
 function boundedSet(map, key, value, max) {
   map.delete(key);
   map.set(key, value);
@@ -66,9 +122,11 @@ function boundedSet(map, key, value, max) {
 // origin: só os testes trocam, para um YouTube de mentira local.
 function youtubeSearch({ fetch = globalThis.fetch, now = Date.now, origin = 'https://www.youtube.com' } = {}) {
   const SEARCH_URL = origin + '/youtubei/v1/search?prettyPrint=false';
+  const BROWSE_URL = origin + '/youtubei/v1/browse?prettyPrint=false';
   const OEMBED_URL = origin + '/oembed?format=json&url=';
   const searches = new Map(); // termo normalizado -> { items, at }
   const videos = new Map(); // videoId -> { track, at }
+  const playlists = new Map(); // playlistId -> { title, items, at }
   const normalize = (q) => String(q || '').trim().toLowerCase().replace(/\s+/g, ' ').slice(0, 200);
   const remember = (track) => boundedSet(videos, track.videoId, { track, at: now() }, 2000);
 
@@ -115,6 +173,33 @@ function youtubeSearch({ fetch = globalThis.fetch, now = Date.now, origin = 'htt
     return items;
   }
 
+  // Playlist colada: lista os vídeos tocáveis, na ordem dela. Cada um fica "conhecido" como numa busca.
+  async function playlist(raw) {
+    const id = playlistIdFrom(raw);
+    if (!id) throw new Error('Cole o link de uma playlist do YouTube (youtube.com/playlist?list=…).');
+    const hit = playlists.get(id);
+    if (hit && now() - hit.at < SEARCH_TTL) return hit;
+    const json = await request(BROWSE_URL, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', 'user-agent': USER_AGENT, 'accept-language': 'pt-BR,pt;q=0.9' },
+      body: JSON.stringify({ context: { client: CLIENT }, browseId: 'VL' + id }),
+    });
+    const { title, items } = parsePlaylist(json);
+    if (!items.length) throw new Error('Não achei músicas nessa playlist. Ela é pública e tem vídeos que tocam fora do YouTube?');
+    items.forEach(remember);
+    const entry = { id, title, items, at: now() };
+    boundedSet(playlists, id, entry, 100);
+    return entry;
+  }
+
+  // Só entra na fila uma playlist que passou por aqui (o servidor não aceita títulos vindos do socket).
+  function knownPlaylist(id) {
+    const hit = playlists.get(id);
+    if (!hit || now() - hit.at >= VIDEO_TTL) return null;
+    const items = hit.items.map((item) => known(item.videoId)).filter(Boolean);
+    return items.length ? { title: hit.title, items } : null;
+  }
+
   // Só toca o que saiu de uma busca feita aqui: ninguém inventa título ou duração pelo socket.
   function known(videoId) {
     const hit = videos.get(videoId);
@@ -127,7 +212,7 @@ function youtubeSearch({ fetch = globalThis.fetch, now = Date.now, origin = 'htt
     return hit ? hit.items.filter((track) => track.videoId !== videoId && !track.live).slice(0, max) : [];
   }
 
-  return { search, known, alternatives };
+  return { search, playlist, knownPlaylist, known, alternatives };
 }
 
-module.exports = { youtubeSearch, parseSearch, parseDuration, videoIdFrom };
+module.exports = { youtubeSearch, parseSearch, parsePlaylist, playlistIdFrom, parseDuration, videoIdFrom };

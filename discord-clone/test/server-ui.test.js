@@ -1459,6 +1459,26 @@ test('Salão do Mudae: tela própria com palco, mesa ao vivo, presença, álbum 
   assert.equal(claim.disabled, true, 'quem rodou ainda tem prioridade');
   assert.match(app.d.querySelector('.salon-claim-caption').textContent, /prioridade de/);
   assert.equal(app.d.querySelectorAll('.salon-live-strip .salon-card').length, 1);
+
+  // Filtro da Mesa ao vivo: mais dois rolls (um meu, aberto; outro de Caio, ainda com prioridade) e a faixa só refaz o que mudou.
+  const mine = { id: 'roll2', authorId: null, bot: 'mudae', by: userId, command: '$w', ts: now + 1, mudae: { kind: 'roll', card: { ...card, id: 2, name: 'Fern', rarity: 'common' }, ownerId: null, revealAt: now - 400, expires: now + 44_600, rollsLeft: 7 } };
+  const theirs = { id: 'roll3', authorId: null, bot: 'mudae', by: friend.id, command: '$w', ts: now + 2, mudae: { kind: 'roll', card: { ...card, id: 3, name: 'Stark', rarity: 'common' }, ownerId: null, revealAt: now - 400, priorityUntil: now + 2600, expires: now + 44_600, rollsLeft: 6 } };
+  app.deliver('chat:message', { channel: 'server-1-salon', msg: mine }); await settle();
+  const firstNode = app.d.querySelector('.salon-live-strip .salon-card.live[data-id="roll1"]');
+  app.deliver('chat:message', { channel: 'server-1-salon', msg: theirs }); await settle();
+  const names = () => [...app.d.querySelectorAll('.salon-live-strip .salon-card-name')].map((n) => n.textContent);
+  const filterBtn = (text) => [...app.d.querySelectorAll('.salon-live-filters .salon-filter')].find((b) => b.textContent === text);
+  assert.deepEqual(names(), ['Stark', 'Fern', 'Frieren'], 'o mais novo vem primeiro');
+  assert.equal(app.d.querySelector('.salon-live-strip .salon-card.live[data-id="roll1"]'), firstNode, 'o cartão que não mudou é o mesmo elemento');
+  filterBtn('Meus').click(); await settle();
+  assert.deepEqual(names(), ['Fern']);
+  filterBtn('Dá pra casar').click(); await settle();
+  assert.deepEqual(names(), ['Fern'], 'o roll de Caio ainda é só dele');
+  const who = app.d.querySelector('.salon-live-who');
+  who.value = friend.id; who.dispatchEvent(new app.w.Event('change', { bubbles: true })); await settle();
+  assert.deepEqual(names(), ['Stark', 'Frieren']);
+  filterBtn('Todos').click(); await settle();
+  assert.deepEqual(names(), ['Stark', 'Fern', 'Frieren']);
   assert.ok(app.d.querySelector('.mudae-roll-line'), 'no chat do Salão o roll vira uma linha');
 
   // Presença: a aba "No salão" mostra as pessoas com os rolls.

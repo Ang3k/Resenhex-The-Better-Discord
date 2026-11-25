@@ -228,6 +228,9 @@ test('$top e $obra: filtros, páginas, dono de cada um e progresso na obra', () 
   assert.equal(p.total, TOP_LIMIT, 'o $top para nos mil primeiros');
   assert.equal(p.page, p.pages - 1, 'página além do fim vira a última');
   assert.equal(p.chars.at(-1).pos, TOP_LIMIT);
+  assert.equal(p.capped, TOP_LIMIT + 20, 'avisa que há mais personagens além do top');
+  const every = big.mudae.list(big.store, big.mudae.topFilter('').key, 999, null, null, true);
+  assert.deepEqual([every.total, every.page, every.capped, every.chars.at(-1).pos], [TOP_LIMIT + 20, every.pages - 1, 0, TOP_LIMIT + 20], 'full: o catálogo inteiro, até o último');
   const second = big.mudae.list(big.store, big.mudae.topFilter('grande', true).key, 1);
   assert.deepEqual([second.total, second.chars.length, second.chars[0].pos], [40, LIST_PAGE, LIST_PAGE + 1]);
 });

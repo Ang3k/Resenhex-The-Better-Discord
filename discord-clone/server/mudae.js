@@ -1477,11 +1477,12 @@ function createMudae({ catalog = null, catalogFile = null, catalogDb = null, now
   }
 
   // Uma página do ranking de personagens, com o dono de cada um. Numa obra, quantos já têm dono e quantos são seus.
-  function list(store, key, page = 0, viewerId = null, focusId = null) {
+  // full: o catálogo inteiro, sem o corte do top (a aba Personagens liga isso; o $top continua nos mil primeiros).
+  function list(store, key, page = 0, viewerId = null, focusId = null, full = false) {
     const f = parseKey(key);
     if (!f) return null;
     const all = listOf(f);
-    const total = f.series ? all.length : Math.min(all.length, TOP_LIMIT);
+    const total = f.series || full ? all.length : Math.min(all.length, TOP_LIMIT);
     const pages = Math.max(1, Math.ceil(total / LIST_PAGE));
     // focusId: abre na página onde está esse personagem (a busca da aba Personagens leva direto a ele).
     const fk = focusId === null || focusId === undefined ? undefined : lookup(focusId);
@@ -1490,7 +1491,7 @@ function createMudae({ catalog = null, catalogFile = null, catalogDb = null, now
     const shown = Array.prototype.slice.call(all, p * LIST_PAGE, Math.min(total, (p + 1) * LIST_PAGE));
     const rows = cat.rows(shown);
     const chars = shown.map((k, i) => ({ ...card(k, rows[i]), pos: p * LIST_PAGE + i + 1, ownerId: store.claims[rows[i].id]?.ownerId || null }));
-    const out = { key: filterKey(f), label: labelOf(f), series: f.series || null, total, page: p, pages, chars };
+    const out = { key: filterKey(f), label: labelOf(f), series: f.series || null, total, page: p, pages, chars, capped: all.length > total ? all.length : 0 };
     if (at >= 0 && at < total) out.focus = String(idOf(fk));
     if (f.series) Object.assign(out, seriesOwners(store, all, f.series, viewerId));
     return out;

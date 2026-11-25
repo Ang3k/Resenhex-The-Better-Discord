@@ -145,7 +145,7 @@ test('Personagens: escolher uma obra abre a lista dela; Enter escolhe o item mar
   app.key('Enter');
   await app.flush();
   const lists = app.sent('mudae:list');
-  assert.deepEqual(lists.at(-1), { key: '||Zelda', page: 0 }, 'a obra entra como filtro, sem pergunta ao servidor sobre o texto');
+  assert.deepEqual(lists.at(-1), { key: '||Zelda', page: 0, full: true }, 'a obra entra como filtro, sem pergunta ao servidor sobre o texto');
   assert.equal(app.input().value, 'Zelda');
   assert.equal(app.panel().hidden, true);
   assert.equal(app.sent('mudae:filter').length, 0);
@@ -162,7 +162,7 @@ test('Personagens: escolher um personagem abre a obra dele na página certa e de
   app.key('ArrowDown');
   app.key('Enter');
   await app.flush();
-  assert.deepEqual(app.sent('mudae:list').at(-1), { key: '||Zelda', page: 0, focus: 'g2' });
+  assert.deepEqual(app.sent('mudae:list').at(-1), { key: '||Zelda', page: 0, focus: 'g2', full: true });
   assert.equal(app.input().value, 'Zelda');
   const found = app.$$('.salon-album-item.found');
   assert.equal(found.length, 1);
@@ -187,7 +187,7 @@ test('Personagens: os chips de gênero e fonte vão junto na busca, e um filtro 
   assert.equal(app.$('.salon-sug-head').textContent, 'Filtro');
   app.key('Enter');
   await app.flush();
-  assert.deepEqual(app.sent('mudae:list').at(-1), { key: 'F|g|', page: 0 });
+  assert.deepEqual(app.sent('mudae:list').at(-1), { key: 'F|g|', page: 0, full: true });
   assert.equal(app.input().value, '', 'o texto some: o filtro agora está nos chips');
   assert.ok([...app.$$('.salon-filter.active')].some((b) => app.text(b) === 'Waifus'));
 });

@@ -23,10 +23,14 @@ function fakeYoutube(t) {
     let body = '';
     req.on('data', (chunk) => { body += chunk; });
     req.on('end', () => {
-      const { query } = JSON.parse(body || '{}');
+      const { query, browseId } = JSON.parse(body || '{}');
+      res.setHeader('content-type', 'application/json');
+      if (browseId) {
+        const item = (videoId, title, seconds) => ({ playlistVideoRenderer: { videoId, title: { runs: [{ text: title }] }, shortBylineText: { runs: [{ text: 'Canal' }] }, lengthSeconds: String(seconds), isPlayable: true } });
+        return res.end(JSON.stringify({ metadata: { playlistMetadataRenderer: { title: 'Meu mix' } }, contents: [item('aaaaaaaaaaa', 'Um', 100), item('bbbbbbbbbbb', 'Dois', 200), { playlistVideoRenderer: { videoId: 'ccccccccccc', title: { simpleText: '[Vídeo privado]' } } }, item('ddddddddddd', 'Três', 300)] }));
+      }
       queries.push(query);
       const video = (videoId, title, length) => ({ videoRenderer: { videoId, title: { runs: [{ text: title }] }, ownerText: { runs: [{ text: 'Canal' }] }, lengthText: { simpleText: length } } });
-      res.setHeader('content-type', 'application/json');
       res.end(JSON.stringify({ contents: [video('ePjtnSPFWK8', 'Evidências', '4:41'), video('B9icum-8rRg', 'Evidências (Ao Vivo)', '5:47')] }));
     });
   });
@@ -67,6 +71,10 @@ async function fixture(t) {
     }
     socket.search = async (q) => {
       const res = await fetch(base + '/music/search?q=' + encodeURIComponent(q), { headers: { 'x-token': socket.auth.token } });
+      return { status: res.status, ...(await res.json()) };
+    };
+    socket.playlist = async (url) => {
+      const res = await fetch(base + '/music/playlist?url=' + encodeURIComponent(url), { headers: { 'x-token': socket.auth.token } });
       return { status: res.status, ...(await res.json()) };
     };
     return socket;
@@ -145,4 +153,27 @@ test('DJ: buscar, tocar para a sala toda, controlar e respeitar a permissão', a
   assert.ok(!(await beto.call('voice:join', { channel: sala.id })).error);
   await eventually(() => assert.equal(beto.last.call.music.pausedAt, null));
   assert.match((await ana.call('music:control', { action: 'stop' })).error, /Entre numa sala de voz/, 'só controla quem está na sala');
+});
+
+test('DJ: playlist inteira entra na fila, na ordem e sem vídeos indisponíveis', async (t) => {
+  const { connect, base } = await fixture(t);
+  const ana = await connect('Ana');
+  const sala = ana.last.channels.find((c) => c.type === 'voice');
+  const link = 'https://www.youtube.com/playlist?list=PLabc123456789XYZ';
+
+  assert.equal((await fetch(base + '/music/playlist?url=' + encodeURIComponent(link))).status, 401);
+  assert.match((await ana.playlist('https://www.youtube.com/watch?v=ePjtnSPFWK8')).error, /link de uma playlist/);
+  const list = await ana.playlist(link);
+  assert.equal(list.status, 200);
+  assert.equal(list.title, 'Meu mix');
+  assert.deepEqual(list.items.map((i) => i.videoId), ['aaaaaaaaaaa', 'bbbbbbbbbbb', 'ddddddddddd']);
+
+  assert.match((await ana.call('music:playlist', { playlistId: list.id })).error, /Entre numa sala de voz/);
+  assert.ok(!(await ana.call('voice:join', { channel: sala.id })).error);
+  assert.match((await ana.call('music:playlist', { playlistId: 'PLnaoexiste12345' })).error, /Busque a playlist de novo/);
+  assert.deepEqual(await ana.call('music:playlist', { playlistId: list.id }), { added: 3, skipped: 0, started: true, title: 'Meu mix' });
+  const music = await eventually(() => { assert.ok(ana.last.call.music); return ana.last.call.music; });
+  assert.equal(music.current.title, 'Um');
+  assert.deepEqual(music.queue.map((q) => q.title), ['Dois', 'Três']);
+  assert.match(music.last.text, /Ana adicionou a playlist “Meu mix”/);
 });

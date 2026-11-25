@@ -9,6 +9,7 @@ window.MusicDJ = function ({ state, el, Icon, toast, call, callInfo, callPerm, c
   state.djVolume = clamp01(Number(localStorage.getItem('djVolume') ?? 0.4));
   state.djMuted = localStorage.getItem('djMuted') === 'true';
 
+  const MAX_QUEUE = 50; // o mesmo limite do servidor (server/dj.js)
   const music = () => callInfo()?.music || null;
   const canUse = () => callPerm('MUSIC') && !timedOut(callMe());
   const thumb = (videoId) => `https://i.ytimg.com/vi/${videoId}/mqdefault.jpg`;
@@ -264,6 +265,44 @@ window.MusicDJ = function ({ state, el, Icon, toast, call, callInfo, callPerm, c
     }
   }
 
+  // Link de playlist do YouTube (a mesma regra do servidor: um vídeo solto dentro de uma playlist toca só o vídeo).
+  function isPlaylistLink(text) {
+    try {
+      const url = new URL(text.trim());
+      return /^(www\.|m\.|music\.)?youtube\.com$/.test(url.hostname) && url.searchParams.has('list')
+        && (url.pathname === '/playlist' || !url.searchParams.has('v'));
+    } catch { return false; }
+  }
+
+  async function fetchPlaylist(link) {
+    try {
+      const res = await fetch('/music/playlist?url=' + encodeURIComponent(link), { headers: { 'x-token': localStorage.getItem('token') || '' } });
+      const body = await res.json().catch(() => ({}));
+      if (res.status === 404) throw new Error('O servidor ainda não conhece playlists. Reinicie o servidor para usar este recurso.');
+      if (!res.ok) throw new Error(body.error || 'Não consegui abrir essa playlist. Tente de novo.');
+      return body;
+    } catch (error) {
+      toast(error.message === 'Failed to fetch' ? 'Sem conexão com o servidor para buscar.' : error.message);
+      return null;
+    }
+  }
+
+  async function addPlaylist(list) {
+    const res = await call('music:playlist', { playlistId: list.id });
+    if (res) {
+      const left = res.skipped ? ` (${res.skipped} ficaram de fora: a fila comporta ${MAX_QUEUE})` : '';
+      toast(`${res.started ? 'Tocando' : 'Na fila'} a playlist “${res.title}”: ${res.added} músicas${left}`, 'info');
+    }
+    return res;
+  }
+
+  async function playPlaylist(link) {
+    if (!inCallWithDj()) return;
+    toast('Abrindo a playlist…', 'info');
+    const list = await fetchPlaylist(link);
+    if (list) await addPlaylist(list);
+  }
+
   function inCallWithDj() {
     if (!state.voiceChannel || !callInfo()) { toast('Entre numa sala de voz para usar o DJ.', 'info'); return false; }
     if (!canUse()) { toast(timedOut(callMe()) ? 'Você está de castigo.' : 'Você não tem permissão para usar o DJ.'); return false; }
@@ -288,6 +327,7 @@ window.MusicDJ = function ({ state, el, Icon, toast, call, callInfo, callPerm, c
 
   const COMMANDS = [
     { name: 'play', aliases: ['tocar', 'p'], args: true, hint: 'nome da música ou link', note: 'toca do YouTube na sua sala de voz' },
+    { name: 'playlist', aliases: ['pl'], args: true, hint: 'link da playlist do YouTube', note: 'põe uma playlist inteira na fila' },
     { name: 'pular', aliases: ['skip', 's'], note: 'pula a música atual' },
     { name: 'pausar', aliases: ['pause'], note: 'pausa para todo mundo' },
     { name: 'continuar', aliases: ['resume'], note: 'continua de onde parou' },
@@ -304,7 +344,12 @@ window.MusicDJ = function ({ state, el, Icon, toast, call, callInfo, callPerm, c
     const arg = (m[2] || '').trim();
     if (cmd.name === 'play') {
       if (!arg) openPanel();
+      else if (isPlaylistLink(arg)) playPlaylist(arg);
       else play(arg);
+    } else if (cmd.name === 'playlist') {
+      if (!arg) openPanel();
+      else if (isPlaylistLink(arg)) playPlaylist(arg);
+      else toast('Cole o link de uma playlist do YouTube. Ex.: /playlist https://www.youtube.com/playlist?list=…', 'info');
     } else if (cmd.name === 'fila') openPanel();
     else control({ pular: 'skip', pausar: 'pause', continuar: 'resume', parar: 'stop' }[cmd.name]);
     return true;
@@ -318,14 +363,14 @@ window.MusicDJ = function ({ state, el, Icon, toast, call, callInfo, callPerm, c
   }
 
   // ---------- painel (busca, tocando agora, fila) ----------
-  const panel = { node: null, anchor: null, results: null, query: '', status: '', added: new Set(), sig: '' };
+  const panel = { node: null, anchor: null, results: null, playlist: null, query: '', status: '', added: new Set(), sig: '' };
 
   function openPanel(anchor = $('#sc-music:not(:disabled)') || $('#dj-mini-queue')) {
     if (!state.voiceChannel || !callInfo()) return toast('Entre numa sala de voz para usar o DJ.', 'info');
     if (panel.node) { closePanel(); if (panel.anchor === anchor) return; }
     panel.anchor = anchor;
     const input = el('input', { type: 'search', class: 'dj-input', maxLength: 300, autocomplete: 'off', spellcheck: false,
-      placeholder: canUse() ? 'Buscar no YouTube ou colar um link' : 'Sem permissão para usar o DJ', disabled: !canUse(), value: panel.query });
+      placeholder: canUse() ? 'Buscar no YouTube ou colar um link ou playlist' : 'Sem permissão para usar o DJ', disabled: !canUse(), value: panel.query });
     const form = el('form', { class: 'dj-search', onsubmit: async (e) => {
       e.preventDefault();
       const q = input.value.trim();
@@ -333,9 +378,12 @@ window.MusicDJ = function ({ state, el, Icon, toast, call, callInfo, callPerm, c
       panel.query = q;
       panel.status = 'Buscando…';
       panel.results = null;
+      panel.playlist = null;
       renderPanel(true);
-      const items = await search(q);
+      const list = isPlaylistLink(q) ? await fetchPlaylist(q) : null;
+      const items = isPlaylistLink(q) ? list?.items : await search(q);
       if (!panel.node || panel.query !== q) return;
+      panel.playlist = list;
       panel.results = items;
       panel.status = !items ? '' : items.length ? '' : 'Nada encontrado. Tente outro nome.';
       panel.added.clear();
@@ -559,8 +607,17 @@ window.MusicDJ = function ({ state, el, Icon, toast, call, callInfo, callPerm, c
     results.replaceChildren();
     if (panel.status) results.append(el('p', { class: 'dj-status', textContent: panel.status }));
     if (panel.results?.length) {
-      results.append(el('div', { class: 'dj-section-title' }, 'RESULTADOS',
-        el('button', { type: 'button', class: 'dj-clear', textContent: 'Limpar', onclick: () => { panel.results = null; panel.status = ''; renderPanel(); } })),
+      const list = panel.playlist;
+      results.append(el('div', { class: 'dj-section-title' }, list ? `PLAYLIST · ${list.title}` : 'RESULTADOS',
+        el('button', { type: 'button', class: 'dj-clear', textContent: 'Limpar', onclick: () => { panel.results = null; panel.playlist = null; panel.status = ''; renderPanel(true); } })),
+      ...(list ? [el('button', { type: 'button', class: 'dj-playlist-add', disabled: !canUse() || panel.listAdded === list.id,
+        onclick: async () => {
+          panel.listAdded = list.id;
+          renderPanel(true);
+          if (!(await addPlaylist(list))) panel.listAdded = null;
+          renderPanel(true);
+        } }, Icon(panel.listAdded === list.id ? 'check' : 'plus', 16),
+        panel.listAdded === list.id ? 'Playlist adicionada' : (m ? `Pôr as ${panel.results.length} músicas na fila` : `Tocar as ${panel.results.length} músicas`))] : []),
       el('ul', { class: 'dj-list' }, panel.results.map((item) => {
         const row = trackRow(item);
         const done = panel.added.has(item.videoId);

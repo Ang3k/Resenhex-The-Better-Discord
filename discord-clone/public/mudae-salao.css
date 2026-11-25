@@ -450,7 +450,11 @@
 .salon-roll-cmd { font-family: var(--mono); font-size: 13px; opacity: .8; }
 
 /* Mesa ao vivo. */
-.salon-live h3 { margin: 0 0 6px; color: var(--text-strong); font-size: 15px; font-weight: 700; }
+.salon-live h3 { margin: 0; color: var(--text-strong); font-size: 15px; font-weight: 700; }
+.salon-live-head { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 12px; margin: 0 0 6px; }
+.salon-live-filters { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.salon-live-who { max-width: 170px; height: 28px; padding: 0 8px; border: 0; border-radius: 999px; background: var(--bg-input); color: var(--text); font: inherit; font-size: 13px; }
+.salon-live-who.active { box-shadow: 0 0 0 2px var(--brand); }
 .salon-live-strip { display: flex; gap: 12px; overflow-x: auto; padding: 4px 4px 8px; scroll-snap-type: x proximity; }
 .salon-live .salon-card.small { width: 108px; }
 .salon-live .salon-card-series { display: none; }
@@ -742,7 +746,7 @@ html[data-reduce-motion=true] .salon-sug-panel { animation: none; }
 .salon-chars .salon-muted { margin: 4px 0 0; max-width: 520px; }
 .salon-chars-progress { display: flex; flex-direction: column; gap: 2px; min-width: min(320px, 100%); margin-top: 4px; color: var(--text); font-size: 14px; }
 .salon-chars-progress strong { color: var(--text-strong); }
-.salon-char-pager { display: flex; align-items: center; justify-content: center; gap: 12px; color: var(--text-muted); font-size: 13px; }
+.salon-char-pager { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 12px; color: var(--text-muted); font-size: 13px; }
 .salon-char-pager .salon-filter:disabled { opacity: .45; cursor: default; }
 .salon-chars .salon-ribbon { bottom: 70px; }
 /* Faixa de cima apertada (4 abas, status com kakera): status curto e "Modo simplificado" só com o ícone. */
@@ -872,3 +876,6 @@ html[data-reduce-motion=true] .salon-sug-panel { animation: none; }
 .salon-note-input { flex: 1; min-width: 0; height: 30px; padding: 0 8px; border: 0; border-radius: 6px; background: var(--bg-input); color: var(--text); font: inherit; }
 .salon-album-item.arrangeable { cursor: grab; }
 .salon-album-item.dragging { opacity: .45; }
+
+.salon-page-jump { width: 84px; height: 32px; padding: 0 8px; border: 1px solid var(--divider); border-radius: 8px; background: var(--bg-input); color: var(--text); font: inherit; font-size: 13px; }
+.salon-page-nav { min-width: 36px; padding: 0 10px; font-size: 16px; line-height: 1; }
