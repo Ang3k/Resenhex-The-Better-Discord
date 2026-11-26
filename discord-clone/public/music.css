@@ -225,8 +225,8 @@
 }
 .dj-clear { border: 0; background: transparent; color: var(--link); font: inherit; font-size: 12px; font-weight: 600; letter-spacing: 0; cursor: pointer; padding: 0; }
 .dj-clear:hover { text-decoration: underline; }
-.dj-playlist-add { display: flex; align-items: center; justify-content: center; gap: 8px; width: 100%; margin: 0 0 8px; padding: 9px 12px; border: 0; border-radius: 8px; background: var(--brand, #5865f2); color: #fff; font: inherit; font-weight: 600; cursor: pointer; }
-.dj-playlist-add:hover:not(:disabled) { filter: brightness(1.1); }
+.dj-playlist-add { display: flex; align-items: center; justify-content: center; gap: 8px; width: 100%; margin: 0 0 8px; padding: 9px 12px; border: 0; border-radius: 8px; background: var(--brand); color: #fff; font: inherit; font-weight: 600; cursor: pointer; }
+.dj-playlist-add:hover:not(:disabled) { background: var(--brand-hover); }
 .dj-playlist-add:disabled { opacity: .6; cursor: default; }
 .dj-status { margin: 4px 8px 10px; color: var(--text-muted); font-size: 13px; }
 

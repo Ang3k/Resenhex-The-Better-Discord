@@ -1147,7 +1147,7 @@ window.MudaeSalon = function ({ state, el, Icon, call, onSocket, member, avatar,
     const res = await call('mudae:harem', { ownerId });
     if (!res || S.channel !== channel || S.albumOwner !== ownerId) return;
     S.album = res;
-    // Quem já arrumou o harém no $sm ou arrastando abre o álbum na própria ordem.
+    // Quem já arrumou o harem no $sm ou arrastando abre o álbum na própria ordem.
     if (ownerId === me() && res.ordered && !S.sortTouched) S.sort = 'custom';
     if (ownerId === me()) S.favorite = res.favorite;
     else if (!S.wishes) await loadWishes();
@@ -1194,7 +1194,7 @@ window.MudaeSalon = function ({ state, el, Icon, call, onSocket, member, avatar,
         el('div', {}, el('h2', { textContent: a.look?.title || (mine ? 'Seu harem' : 'Harem de ' + whoName(a.ownerId)) }),
           a.look?.badge ? el('div', { class: 'salon-badge', title: 'Título de conquista', textContent: a.look.badge }) : null,
           el('div', { class: 'salon-album-stats' }, `${num(a.total)} ${a.total === 1 ? 'personagem' : 'personagens'} · `, el('strong', { textContent: num(a.value) }), kakera()),
-          mine ? el('div', { class: 'salon-album-links' }, el('button', { type: 'button', class: 'salon-trade-btn', onclick: openHaremSettings }, Icon('pencil', 16), 'Personalizar harém')) : null,
+          mine ? el('div', { class: 'salon-album-links' }, el('button', { type: 'button', class: 'salon-trade-btn', onclick: openHaremSettings }, Icon('pencil', 16), 'Personalizar harem')) : null,
           mine ? null : el('div', { class: 'salon-album-links' },
             el('button', { type: 'button', class: 'salon-link', onclick: () => loadAlbum(me()) }, '← Ver o meu harem'),
             el('button', { type: 'button', class: 'salon-trade-btn', onclick: () => trade.start(a.ownerId, S.channel) }, Icon('refresh', 16), 'Propor troca')))),
@@ -1287,13 +1287,13 @@ window.MudaeSalon = function ({ state, el, Icon, call, onSocket, member, avatar,
     }
   }
 
-  // A nota de uma carta, embaixo dela. No próprio harém, o lápis troca a nota por um campo (Enter salva, Esc volta).
+  // A nota de uma carta, embaixo dela. No próprio harem, o lápis troca a nota por um campo (Enter salva, Esc volta).
   function noteLine(c, mine) {
     const box = el('div', { class: 'salon-note' });
     const show = () => {
       box.replaceChildren(...[c.note ? el('span', { class: 'salon-note-text', title: c.note, textContent: c.note }) : null,
         mine ? el('button', { type: 'button', class: 'salon-note-edit', title: c.note ? 'Editar a nota' : 'Anotar', ariaLabel: (c.note ? 'Editar a nota de ' : 'Anotar em ') + c.name,
-          onclick: (e) => { e.stopPropagation(); edit(); } }, c.note ? '✎' : 'Anotar') : null].filter(Boolean));
+          onclick: (e) => { e.stopPropagation(); edit(); } }, c.note ? Icon('pencil', 14) : 'Anotar') : null].filter(Boolean));
       box.classList.toggle('empty', !c.note && !mine);
     };
     const edit = () => {
@@ -1338,43 +1338,59 @@ window.MudaeSalon = function ({ state, el, Icon, call, onSocket, member, avatar,
     await call('mudae:order', { ids: list.map((c) => c.id) });
   }
 
-  // ---------- personalizar o harém e cada personagem (o que $renameharem, $addimg, $embedcolor etc. fazem) ----------
-  function sheet(title, content) {
-    const close = () => { back.remove(); document.removeEventListener('keydown', onKey); };
-    const onKey = (e) => { if (e.key === 'Escape') close(); };
-    const back = el('div', { class: 'salon-sheet-back', onclick: (e) => { if (e.target === back) close(); } },
+  // ---------- personalizar o harem e cada personagem (o que $renameharem, $addimg, $embedcolor etc. fazem) ----------
+  // As janelas usam o mesmo molde das confirmações do app (.confirm-overlay): véu, entrada e saída do motion.css,
+  // e o botão voltar do Android fecha (app.js acha a janela pelo véu). actions, se vier, vira o rodapé com os botões.
+  function sheet(title, content, actions = null) {
+    const before = document.activeElement;
+    const close = () => {
+      document.removeEventListener('keydown', onKey, true);
+      if (window.Motion?.leave) window.Motion.leave(back); else back.remove();
+      if (before?.isConnected) before.focus();
+    };
+    const onKey = (e) => { if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); close(); } };
+    const back = el('div', { class: 'confirm-overlay salon-sheet-back', onmousedown: (e) => { if (e.target === back) close(); } },
       el('div', { class: 'salon-sheet', role: 'dialog', ariaModal: 'true', ariaLabel: title },
-        el('div', { class: 'salon-sheet-head' }, el('h3', { textContent: title }), el('button', { type: 'button', class: 'salon-sheet-x', ariaLabel: 'Fechar', onclick: close }, Icon('x', 16))),
-        content));
-    document.addEventListener('keydown', onKey);
+        el('div', { class: 'salon-sheet-head' }, el('h2', { textContent: title }), el('button', { type: 'button', class: 'salon-sheet-x', ariaLabel: 'Fechar', title: 'Fechar (Esc)', onclick: close }, Icon('x', 18))),
+        content,
+        actions ? el('div', { class: 'confirm-actions' }, ...actions) : null));
+    document.addEventListener('keydown', onKey, true);
     document.body.append(back);
+    (content.querySelector('input:not([type=checkbox]):not([type=color]), button') || back.querySelector('.salon-sheet-x')).focus();
     return { close, content };
   }
-  const colorField = (value, fallback) => {
-    const input = el('input', { type: 'color', class: 'salon-color', value: /^#[0-9a-f]{6}$/i.test(value || '') ? value : fallback });
+  // A cor de partida do seletor é a da marca no tema aberto (roxo no padrão, azul no Meia-noite).
+  const brandHex = () => {
+    const v = getComputedStyle(document.documentElement).getPropertyValue('--brand').trim();
+    return /^#[0-9a-f]{6}$/i.test(v) ? v : '#8e2fd8';
+  };
+  const colorField = (value, fallback = brandHex()) => {
+    const input = el('input', { type: 'color', class: 'salon-color', value: /^#[0-9a-f]{6}$/i.test(value || '') ? value : fallback, ariaLabel: 'Escolher a cor' });
     const state = { value: value || '' };
     input.addEventListener('input', () => { state.value = input.value; });
-    const reset = el('button', { type: 'button', class: 'salon-link', onclick: () => { state.value = ''; input.value = fallback; } }, 'Padrão');
+    const reset = el('button', { type: 'button', class: 'salon-link', onclick: () => { state.value = ''; input.value = fallback; } }, 'Voltar ao padrão');
     return { state, node: el('div', { class: 'salon-field-row' }, input, reset) };
   };
   const textField = (label, value, { max, hint = '' }) => {
-    const input = el('input', { type: 'text', class: 'salon-note-input salon-field-input', maxLength: max, value: value || '' });
+    const input = el('input', { type: 'text', class: 'salon-field-input', maxLength: max, value: value || '' });
     return { input, node: el('label', { class: 'salon-field' }, el('span', { textContent: label }), input, hint ? el('small', { textContent: hint }) : null) };
   };
 
   function openHaremSettings() {
     const p = S.album?.prefs || {};
-    const title = textField('Título do harém', p.title, { max: 40, hint: 'Aparece no topo do seu harém. Vazio volta ao padrão.' });
-    const color = colorField(p.color, '#5865f2');
+    const title = textField('Título do harem', p.title, { max: 40, hint: 'Aparece no topo do seu harem. Vazio volta ao padrão.' });
+    const color = colorField(p.color);
     const claim = textField('Mensagem de casamento', p.claimText, { max: 120, hint: 'Use {personagem} e, se quiser, {usuario}. Ex.: {usuario} ama {personagem}!' });
     const divorce = textField('Mensagem de divórcio', p.divorceText, { max: 120, hint: 'Também com {personagem} e {usuario}.' });
     const random = el('input', { type: 'checkbox', checked: !!p.randomimg });
-    const save = el('button', { type: 'button', class: 'salon-roll primary' }, 'Salvar');
+    const save = el('button', { type: 'button', class: 'btn-primary' }, 'Salvar');
+    const cancel = el('button', { type: 'button', class: 'btn-ghost', onclick: () => dlg.close() }, 'Cancelar');
     const box = el('div', { class: 'salon-sheet-body' }, title.node,
-      el('div', { class: 'salon-field' }, el('span', { textContent: 'Cor do harém' }), color.node),
+      el('div', { class: 'salon-field' }, el('span', { textContent: 'Cor do harem' }), color.node),
       claim.node, divorce.node,
-      el('label', { class: 'salon-field salon-field-check' }, random, el('span', { textContent: 'Sortear a imagem nos meus rolls (entre a original e as extras)' })), save);
-    const dlg = sheet('Personalizar o harém', box);
+      el('label', { class: 'switch-row salon-switch' },
+        el('span', {}, el('strong', { textContent: 'Sortear a imagem nos rolls' }), el('small', { textContent: 'A cada roll, sai a original ou uma das extras.' })), random));
+    const dlg = sheet('Personalizar o harem', box, [cancel, save]);
     save.onclick = async () => {
       save.disabled = true;
       const jobs = [['title', title.input.value, p.title || ''], ['color', color.state.value, p.color || ''], ['claimText', claim.input.value, p.claimText || ''],
@@ -1387,7 +1403,7 @@ window.MudaeSalon = function ({ state, el, Icon, call, onSocket, member, avatar,
       save.disabled = false;
       if (!ok) return;
       dlg.close();
-      toast('Harém atualizado.', 'info');
+      toast('Harem atualizado.', 'info');
       loadAlbum(me());
     };
   }
@@ -1406,12 +1422,12 @@ window.MudaeSalon = function ({ state, el, Icon, call, onSocket, member, avatar,
         el('div', { class: 'salon-img-actions' },
           im.pick === o.pos ? el('em', { textContent: 'Em uso' }) : el('button', { type: 'button', onclick: () => act('mudae:image', { op: 'pick', value: o.pos }) }, 'Usar'),
           o.pos > 1 ? el('button', { type: 'button', class: 'danger', ariaLabel: 'Remover ' + o.label, onclick: () => act('mudae:image', { op: 'remove', value: o.pos }) }, Icon('trash', 14)) : null)));
-      const link = el('input', { type: 'text', class: 'salon-note-input salon-field-input', placeholder: 'https://i.imgur.com/abc123.png', maxLength: 200 });
+      const link = el('input', { type: 'text', class: 'salon-field-input', placeholder: 'https://i.imgur.com/abc123.png', maxLength: 200, ariaLabel: 'Link da imagem extra' });
       const add = el('button', { type: 'button', class: 'salon-roll' }, Icon('plus', 14), 'Adicionar');
       add.onclick = () => { if (link.value.trim()) act('mudae:image', { op: 'add', value: link.value.trim() }); };
       link.addEventListener('keydown', (e) => { if (e.key === 'Enter') add.onclick(); });
       const keyed = (c.keys || 0) >= 1;
-      const color = colorField(c.color, '#ff4d94');
+      const color = colorField(c.color);
       const apply = el('button', { type: 'button', class: 'salon-roll', onclick: () => act('mudae:embedcolor', { color: color.state.value }) }, 'Salvar cor');
       content.replaceChildren(
         el('div', { class: 'salon-field' }, el('span', { textContent: 'Imagens' }), el('div', { class: 'salon-img-grid' }, ...thumbs),
@@ -1609,7 +1625,7 @@ window.MudaeSalon = function ({ state, el, Icon, call, onSocket, member, avatar,
     };
     const queueText = a.queue ? ` Kakera de conquistas na fila: ${num(a.queue)} (pagam até ${num(a.dailyCap)} por dia; hoje ainda cabem ${num(a.dailyLeft)}).` : '';
     const head = el('div', { class: 'salon-album-head' },
-      el('div', {}, el('h2', {}, ico('sparkles'), 'Conquistas'),
+      el('div', {}, el('h2', { textContent: 'Conquistas' }),
         el('div', { class: 'salon-album-stats' }, el('strong', { textContent: `${a.done}/${a.total}` }), ' abertas'),
         el('p', { class: 'salon-muted', textContent: 'Cada conquista paga kakera uma vez e dá um título. As de ouro de Casamenteiro, Obra completa e Sequência do $dk dão uma vantagem permanente.' + queueText }),
         a.perks.length ? el('p', { class: 'salon-muted' }, 'Suas vantagens: ', el('strong', { textContent: a.perks.join(' · ') })) : null),
@@ -1652,12 +1668,12 @@ window.MudaeSalon = function ({ state, el, Icon, call, onSocket, member, avatar,
     const d = S.likeData;
     if (!d) return nodes.body.replaceChildren(el('div', { class: 'salon-album salon-wishes' }, switcher, el('div', { class: 'salon-loading', textContent: 'Abrindo as curtidas…' })));
     const head = el('div', { class: 'salon-album-head' },
-      el('div', {}, el('h2', {}, ico('heart'), d.title || 'Suas curtidas'),
+      el('div', {}, el('h2', { textContent: d.title || 'Suas curtidas' }),
         el('div', { class: 'salon-album-stats' }, el('strong', { textContent: `${d.total}/${d.max}` }), ' personagens'),
         el('p', { class: 'salon-muted', textContent: `Você vê um coração na Mesa quando alguém da sua lista sair em um roll. Com ${d.dailyFrom} ou mais, o $daily guarda 2 usos.` })));
     if (!d.chars.length) {
       return nodes.body.replaceChildren(el('div', { class: 'salon-album salon-wishes' }, switcher, head, el('div', { class: 'salon-empty' },
-        el('div', { class: 'salon-empty-icon' }, Icon('heart', 40)),
+        el('div', { class: 'salon-empty-icon' }, MI('heart', 40)),
         el('p', { textContent: 'Nenhuma curtida ainda. Toque no coração de uma carta em Personagens ou use $like nome.' }),
         el('button', { type: 'button', class: 'salon-roll primary', onclick: () => setTab('chars') }, 'Ver personagens'))));
     }
@@ -1692,12 +1708,12 @@ window.MudaeSalon = function ({ state, el, Icon, call, onSocket, member, avatar,
     const switcher = wishSwitcher();
     if (S.wishView === 'likes') return renderLikes(switcher);
     const head = el('div', { class: 'salon-album-head' },
-      el('div', {}, el('h2', {}, ico('wish'), 'Seus desejos'),
+      el('div', {}, el('h2', { textContent: 'Seus desejos' }),
         el('div', { class: 'salon-album-stats' }, el('strong', { textContent: `${d.total}/${d.max}` }), d.max === 1 ? ' vaga' : ' vagas usadas'),
         el('p', { class: 'salon-muted', textContent: 'Você recebe um aviso quando alguém da sua lista sair em um roll.' })));
     if (!d.chars.length) {
       return nodes.body.replaceChildren(el('div', { class: 'salon-album salon-wishes' }, switcher, head, el('div', { class: 'salon-empty' },
-        el('div', { class: 'salon-empty-icon' }, Icon('star', 40)),
+        el('div', { class: 'salon-empty-icon' }, MI('wish', 40)),
         el('p', { textContent: 'Sua lista está vazia. Toque em Desejar numa carta de Personagens ou use $wish nome.' }),
         el('button', { type: 'button', class: 'salon-roll primary', onclick: () => setTab('chars') }, 'Ver personagens'))));
     }
@@ -1781,7 +1797,7 @@ window.MudaeSalon = function ({ state, el, Icon, call, onSocket, member, avatar,
         i < 3 ? el('span', { class: 'salon-rank-pos medal' }, rankMedal(i)) : el('span', { class: 'salon-rank-pos', textContent: String(i + 1) }),
         m ? avatar(m) : el('div', { class: 'avatar' }),
         el('div', { class: 'salon-rank-who' }, el('strong', { textContent: x.ownerId === me() ? 'Você' : whoName(x.ownerId), style: { color: nameColor(m) || '' } }),
-          el('span', { textContent: i === 0 ? 'Um abraço para essa pessoa' : `${num(x.total)} ${x.total === 1 ? 'personagem' : 'personagens'} no harém` })),
+          el('span', { textContent: i === 0 ? 'Um abraço para essa pessoa' : `${num(x.total)} ${x.total === 1 ? 'personagem' : 'personagens'} no harem` })),
         el('span', { class: 'salon-rank-value' }, el('strong', { textContent: num(x.value) }), el('span', { class: 'salon-rank-unit', textContent: x.value === 1 ? 'roll de casado' : 'rolls de casados' })));
     };
     const luckTop = unlucky.slice(0, 10).map(luckRow);

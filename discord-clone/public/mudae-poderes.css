@@ -20,7 +20,7 @@
 }
 /* --rail-room: quanto do lado direito do palco é do trilho (as duas cartas da Escolha dupla contam com isso). */
 .salon-stage.has-poderes { --rail-room: 124px; }
-.poder-react { --c: var(--poder-reacao, #a855f7); display: flex; flex-direction: column; align-items: center; gap: 3px; width: 112px; margin-bottom: 4px; font-size: 12px; line-height: 1.1; cursor: help; }
+.poder-react { --c: var(--brand); display: flex; flex-direction: column; align-items: center; gap: 3px; width: 112px; margin-bottom: 4px; font-size: 12px; line-height: 1.1; cursor: help; }
 .poder-react[hidden] { display: none; }
 .poder-react-label { color: var(--text-muted); font-weight: 600; }
 .poder-react-value { color: var(--text-strong); font-weight: 800; font-variant-numeric: tabular-nums; }

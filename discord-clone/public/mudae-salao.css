@@ -5,6 +5,11 @@
   --rarity-epic: #b46cff;
   --rarity-rare: #3ba7ff;
   --rarity-common: #8e95a2;
+  /* Os metais das medalhas da Forja (o tom médio de cada um em mudae-medalhas.js): chaves e conquistas usam os mesmos. */
+  /* Metais da Forja (mudae-medalhas.js): as chaves e as conquistas usam os mesmos. -ink é o texto por cima. */
+  --metal-bronze: #c27a45; --metal-bronze-ink: #2a1206;
+  --metal-prata: #d5dce5; --metal-prata-ink: #1e232a;
+  --metal-ouro: #e8b93a; --metal-ouro-ink: #2e1d02;
 }
 .r-legendary { --frame: var(--rarity-legendary); }
 .r-epic { --frame: var(--rarity-epic); }
@@ -60,15 +65,18 @@
 .salon-empty-note { padding: 12px 8px; color: var(--text-muted); font-size: 13px; }
 
 /* ---------- topo: abas e status ---------- */
-.salon-top { display: flex; align-items: flex-end; justify-content: space-between; gap: 12px; padding: 0 20px; border-bottom: 1px solid var(--divider); flex-shrink: 0; }
-.salon-tabs { display: flex; gap: 4px; }
+/* O status fica sempre inteiro. Com 8 abas, quando abas e status não cabem lado a lado, o status sobe para cima
+   das abas (wrap-reverse), como no celular; a fileira de abas só rola de lado se nem sozinha couber. */
+.salon-top { display: flex; flex-wrap: wrap-reverse; align-items: flex-end; justify-content: space-between; gap: 0 12px; padding: 0 20px; border-bottom: 1px solid var(--divider); flex-shrink: 0; }
+.salon-tabs { display: flex; gap: 4px; min-width: 0; overflow-x: auto; scrollbar-width: none; }
+.salon-tabs::-webkit-scrollbar { display: none; }
 .salon-tab {
   white-space: nowrap; padding: 12px 12px 10px; border: 0; border-bottom: 2px solid transparent; background: none;
   color: var(--text-muted); font: inherit; font-size: 15px; font-weight: 600; cursor: pointer; transition: none;
 }
 .salon-tab:hover { color: var(--text); }
 .salon-tab.active { color: var(--text-strong); border-bottom-color: var(--brand); }
-.salon-top-right { display: flex; align-items: center; gap: 8px; min-width: 0; padding-bottom: 8px; }
+.salon-top-right { display: flex; align-items: center; gap: 8px; flex-shrink: 0; padding: 8px 0; }
 .salon-status { display: flex; align-items: center; gap: 6px; min-width: 0; }
 /* Cristais de hoje que valem inteiro (7/15). Neutro enquanto há cristal cheio; amarelo quando o teto do dia chega. */
 .salon-crystals {
@@ -451,10 +459,16 @@
 
 /* Mesa ao vivo. */
 .salon-live h3 { margin: 0; color: var(--text-strong); font-size: 15px; font-weight: 700; }
-.salon-live-head { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 12px; margin: 0 0 6px; }
-.salon-live-filters { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
-.salon-live-who { max-width: 170px; height: 28px; padding: 0 8px; border: 0; border-radius: 999px; background: var(--bg-input); color: var(--text); font: inherit; font-size: 13px; }
-.salon-live-who.active { box-shadow: 0 0 0 2px var(--brand); }
+/* Título e filtros numa linha só: quebrando em duas, a linha extra saía da altura do palco. Sem espaço, os filtros rolam de lado. */
+.salon-live-head { display: flex; align-items: center; gap: 12px; margin: 0 0 6px; }
+.salon-live-head h3 { flex: none; }
+.salon-live-filters { display: flex; align-items: center; gap: 6px; min-width: 0; overflow-x: auto; scrollbar-width: none; }
+.salon-live-filters::-webkit-scrollbar { display: none; }
+.salon-live-filters > * { flex: none; }
+/* A lista de pessoas no mesmo formato dos botões ao lado (.salon-filter). */
+.salon-live-who { max-width: 170px; height: 32px; padding: 0 8px; border: 1px solid var(--divider); border-radius: 8px; background: transparent; color: var(--text); font: inherit; font-size: 13px; font-weight: 600; cursor: pointer; }
+.salon-live-who:hover { background: var(--hover); }
+.salon-live-who.active { border-color: var(--brand); background: color-mix(in srgb, var(--brand) 22%, transparent); }
 .salon-live-strip { display: flex; gap: 12px; overflow-x: auto; padding: 4px 4px 8px; scroll-snap-type: x proximity; }
 .salon-live .salon-card.small { width: 108px; }
 .salon-live .salon-card-series { display: none; }
@@ -680,8 +694,7 @@ html[data-reduce-motion=true] .salon-sug-panel { animation: none; }
   /* O botão flutuante cobre o fim da aba (o "Próxima ›" da paginação): reserva espaço embaixo. */
   .salon-album { padding-bottom: calc(72px + env(safe-area-inset-bottom, 0px)); }
   .salon-side-close { display: grid; }
-  .salon-top { flex-wrap: wrap-reverse; padding: 0 12px; }
-  .salon-top-right { padding-top: 8px; }
+  .salon-top { padding: 0 12px; }
   /* Com a aba Forja são 5 abas: na tela estreita a fileira rola de lado. */
   .salon-tabs { max-width: 100%; overflow-x: auto; scrollbar-width: none; }
   .salon-tabs::-webkit-scrollbar { display: none; }
@@ -767,9 +780,9 @@ html[data-reduce-motion=true] .salon-sug-panel { animation: none; }
 @container salon-top (max-width: 900px) {
   .salon-crystals-label { display: none; }
 }
-/* Com 6 abas, no notebook (1366 com o chat aberto) o status virava "11/11 · …": as abas apertam, "Meu harem"
-   vira "Harem" e o status fica sempre inteiro. Se ainda faltar espaço, a fileira de abas rola de lado. */
-@container salon-top (max-width: 760px) {
+/* Com 8 abas, as abas inteiras (~700 px) e o status (~310 px) só cabem lado a lado a partir de ~1020 px.
+   Abaixo disso as abas apertam e "Meu harem" vira "Harem"; se ainda faltar espaço, o status sobe (ver .salon-top). */
+@container salon-top (max-width: 1020px) {
   .salon-tabs { gap: 0; min-width: 0; overflow-x: auto; scrollbar-width: none; }
   .salon-tabs::-webkit-scrollbar { display: none; }
   .salon-tab { padding-inline: 6px; font-size: 14px; }
@@ -778,68 +791,65 @@ html[data-reduce-motion=true] .salon-sug-panel { animation: none; }
   .salon-top-right { flex-shrink: 0; }
   .salon-status-pill { padding-inline: 10px; }
 }
-/* Telas de 1001 a 1340 px com o chat aberto: nem assim cabe numa linha; o status sobe para cima das abas,
-   como no celular. */
-@media (min-width: 1001px) and (max-width: 1340px) {
-  .salon-top { flex-wrap: wrap-reverse; }
-  .salon-top-right { padding-top: 8px; }
-}
 
 .salon-leavers { margin-top: 24px; }
 .salon-leaver { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 8px 0; }
-/* Ajuda (popup) */
+/* Ajuda (popup): o mesmo molde da janela de Novidades (changelog.css): véu sem desfoque, cartão no fundo do app,
+   a lista de assuntos à esquerda no tom da barra lateral e a seleção neutra. Entrada e saída no motion.css. */
 /* Ajuda e Modo simplificado moram no cabeçalho do app; em janela estreita ficam só com o ícone. */
 .header-tools > :is(.salon-help, .salon-simple) { margin-right: 6px; }
 @media (max-width: 900px) { .header-tools > :is(.salon-help, .salon-simple) span { display: none; } }
-.mudae-help-overlay { position: fixed; inset: 0; z-index: 3000; display: flex; align-items: center; justify-content: center; padding: 16px; background: rgba(0, 0, 0, .62); backdrop-filter: blur(3px); }
-.mudae-help-panel { display: flex; flex-direction: column; width: min(1000px, 100%); height: min(780px, 100%); border-radius: 16px; background: var(--bg-secondary, #2b2d31); color: var(--text); box-shadow: 0 24px 70px rgba(0, 0, 0, .55), 0 0 0 1px color-mix(in srgb, var(--brand) 22%, transparent); overflow: hidden; }
-.mudae-help-top { display: flex; align-items: center; gap: 14px; padding: 14px 18px; background: linear-gradient(120deg, color-mix(in srgb, var(--brand) 26%, transparent), transparent 70%); border-bottom: 1px solid color-mix(in srgb, var(--text-muted) 22%, transparent); }
-.mudae-help-top h2 { margin: 0; font-size: 18px; white-space: nowrap; letter-spacing: .2px; }
+.mudae-help-overlay { position: fixed; inset: 0; z-index: 44; display: grid; place-items: center; padding: 20px; background: rgba(10, 10, 12, .84); }
+.mudae-help-panel {
+  display: flex; flex-direction: column; width: min(960px, 100%); height: min(720px, 100%); overflow: hidden;
+  background: var(--bg-main); color: var(--text); border: 1px solid var(--divider); border-radius: 14px; box-shadow: 0 24px 80px rgba(0, 0, 0, .6);
+}
+.mudae-help-top { display: flex; align-items: center; gap: 14px; padding: 14px 16px 14px 20px; background: var(--bg-panel); border-bottom: 1px solid var(--divider); box-shadow: inset 0 3px 0 var(--brand); }
+.mudae-help-top h2 { margin: 0; color: var(--text-strong); font-size: 18px; font-weight: 700; letter-spacing: -.01em; white-space: nowrap; }
 .mudae-help-searchbox { position: relative; flex: 1; min-width: 0; display: flex; align-items: center; }
 .mudae-help-searchico { position: absolute; left: 11px; display: inline-flex; color: var(--text-muted); pointer-events: none; }
-.mudae-help-search { flex: 1; min-width: 0; height: 38px; padding: 0 12px 0 34px; border: 1px solid transparent; border-radius: 10px; background: var(--bg-input); color: var(--text); font: inherit; }
-.mudae-help-search:focus { outline: none; border-color: var(--brand); box-shadow: 0 0 0 3px color-mix(in srgb, var(--brand) 25%, transparent); }
-.mudae-help-close { width: 36px; height: 36px; border: 0; border-radius: 10px; background: transparent; color: var(--text-muted); font-size: 24px; line-height: 1; cursor: pointer; }
-.mudae-help-close:hover, .mudae-help-close:focus-visible { background: var(--bg-input); color: var(--text); }
+.mudae-help-search { flex: 1; min-width: 0; height: 36px; padding: 0 12px 0 34px; border: 1px solid var(--divider); border-radius: 8px; background: var(--bg-main); color: var(--text); font: inherit; font-size: 14px; outline: none; }
+.mudae-help-search:focus { border-color: transparent; box-shadow: 0 0 0 2px var(--brand); }
+.mudae-help-close { flex: none; display: grid; place-items: center; width: 32px; height: 32px; border: 0; border-radius: 50%; background: transparent; color: var(--interactive); cursor: pointer; transition: transform var(--motion-base) var(--ease-enter); }
+.mudae-help-close:hover { background: var(--hover-strong); color: var(--text-strong); transform: rotate(90deg); }
 .mudae-help-body { display: flex; flex: 1; min-height: 0; }
-.mudae-help-nav { display: flex; flex-direction: column; gap: 2px; width: 232px; flex: none; padding: 12px 10px; overflow-y: auto; background: color-mix(in srgb, #000 12%, transparent); border-right: 1px solid color-mix(in srgb, var(--text-muted) 22%, transparent); }
-.mudae-help-link { position: relative; display: flex; align-items: center; gap: 10px; padding: 8px 10px; border: 0; border-radius: 9px; background: transparent; color: var(--text-muted); font: inherit; font-size: 14px; text-align: left; cursor: pointer; transition: background .15s, color .15s; }
-.mudae-help-link:hover, .mudae-help-link:focus-visible { background: var(--bg-input); color: var(--text); }
-.mudae-help-link.active { background: color-mix(in srgb, var(--brand) 26%, transparent); color: var(--text); font-weight: 600; }
-.mudae-help-link.active::before { content: ''; position: absolute; left: -10px; top: 8px; bottom: 8px; width: 3px; border-radius: 0 3px 3px 0; background: var(--brand); }
+.mudae-help-nav { display: flex; flex-direction: column; gap: 2px; width: 224px; flex: none; padding: 14px 12px; overflow-y: auto; background: var(--bg-sidebar); border-right: 1px solid var(--divider); }
+.mudae-help-link { display: flex; align-items: center; gap: 10px; padding: 8px 10px; border: 0; border-radius: 8px; background: transparent; color: var(--interactive); font: inherit; font-size: 14px; text-align: left; cursor: pointer; transition: none; }
+.mudae-help-link:hover { background: var(--hover); color: var(--text-strong); }
+.mudae-help-link.active { background: var(--hover-strong); color: var(--text-strong); }
 .mudae-help-link-text { flex: 1; min-width: 0; line-height: 1.25; }
-.mudae-help-ico { display: inline-flex; align-items: center; justify-content: center; flex: none; width: 24px; height: 24px; color: var(--brand-text, #c9b6ff); }
+.mudae-help-ico { display: inline-flex; align-items: center; justify-content: center; flex: none; width: 20px; height: 20px; color: inherit; }
 .mudae-help-ico:empty { display: none; }
-.mudae-help-ico.big { width: 34px; height: 34px; border-radius: 10px; background: color-mix(in srgb, var(--brand) 24%, transparent); }
-.mudae-help-count { flex: none; min-width: 20px; padding: 1px 6px; border-radius: 99px; background: var(--bg-input); color: var(--text-muted); font-size: 11px; text-align: center; }
-.mudae-help-content { flex: 1; min-width: 0; padding: 6px 22px 32px; overflow-y: auto; scroll-behavior: smooth; outline: none; }
-.mudae-help-section { padding-top: 6px; }
-.mudae-help-sechead { position: sticky; top: 0; z-index: 1; display: flex; align-items: center; gap: 10px; margin: 0 -22px; padding: 16px 22px 10px; background: var(--bg-secondary, #2b2d31); border-bottom: 1px solid color-mix(in srgb, var(--text-muted) 14%, transparent); margin-bottom: 10px; }
-.mudae-help-sechead h3 { margin: 0; font-size: 18px; }
-.mudae-help-intro { margin: 0 0 12px; padding: 9px 12px; border-left: 3px solid var(--brand); border-radius: 0 8px 8px 0; background: color-mix(in srgb, var(--brand) 9%, transparent); color: var(--text-muted); font-size: 13px; line-height: 1.5; }
+.mudae-help-ico.big { width: 22px; height: 22px; color: var(--interactive); }
+.mudae-help-count { flex: none; color: var(--text-muted); font-size: 12px; font-variant-numeric: tabular-nums; }
+.mudae-help-content { flex: 1; min-width: 0; padding: 0 28px 28px; overflow-y: auto; scroll-behavior: smooth; outline: none; }
+.mudae-help-section { padding-top: 4px; }
+.mudae-help-sechead { position: sticky; top: 0; z-index: 1; display: flex; align-items: center; gap: 10px; margin: 0 -28px 12px; padding: 18px 28px 10px; background: var(--bg-main); border-bottom: 1px solid var(--divider); }
+.mudae-help-sechead h3 { margin: 0; color: var(--text-strong); font-size: 17px; font-weight: 700; }
+.mudae-help-intro { margin: 0 0 14px; color: var(--interactive); font-size: 14.5px; line-height: 1.55; }
 .mudae-help-items { display: flex; flex-direction: column; gap: 8px; }
-.mudae-help-item { padding: 11px 14px; border: 1px solid color-mix(in srgb, var(--text-muted) 16%, transparent); border-radius: 11px; background: color-mix(in srgb, var(--text) 3.5%, transparent); transition: border-color .15s, background .15s; }
-.mudae-help-item:hover { border-color: color-mix(in srgb, var(--brand) 55%, transparent); background: color-mix(in srgb, var(--brand) 7%, transparent); }
+.mudae-help-item { padding: 12px 14px; border-radius: 10px; background: var(--bg-panel); }
 .mudae-help-head { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; }
 .mudae-help-cmds { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 5px; }
-.mudae-help-cmd { padding: 2px 8px; border-radius: 6px; background: var(--bg-input); color: var(--text-muted); font-size: 12.5px; }
-.mudae-help-cmd.primary { background: color-mix(in srgb, var(--brand) 30%, var(--bg-input)); color: var(--text); font-weight: 700; font-size: 13.5px; }
-.mudae-help-more { padding: 1px 7px; border-radius: 99px; background: var(--bg-input); color: var(--text-muted); font-size: 11px; cursor: help; }
-.mudae-help-name { font-size: 15px; }
-.mudae-help-item p { margin: 6px 0 0; font-size: 14px; line-height: 1.55; color: color-mix(in srgb, var(--text) 90%, transparent); }
-.mudae-help-inline { padding: 0 5px; border-radius: 5px; background: color-mix(in srgb, var(--brand) 18%, var(--bg-input)); color: var(--brand-text, #c9b6ff); font-size: 12.5px; }
+/* Comandos no mesmo estilo do resto do app: letra de código num fundo de campo (como .salon-roll-cmd e .cl-cmd). */
+.mudae-help-cmd { padding: 1px 6px; border-radius: 4px; background: var(--bg-input); color: var(--text-muted); font-family: var(--mono); font-size: 12.5px; }
+.mudae-help-cmd.primary { color: var(--text-strong); font-weight: 700; }
+.mudae-help-more { color: var(--text-muted); font-size: 12px; cursor: help; }
+.mudae-help-name { color: var(--text-strong); font-size: 15px; }
+.mudae-help-item p { margin: 6px 0 0; color: var(--text); font-size: 14px; line-height: 1.55; }
+.mudae-help-inline { padding: 1px 5px; border-radius: 4px; background: var(--bg-input); color: var(--text-strong); font-family: var(--mono); font-size: .88em; white-space: nowrap; }
 .mudae-help-empty { margin: 40px 0; text-align: center; color: var(--text-muted); }
 @media (max-width: 720px) {
   .mudae-help-overlay { padding: 0; }
-  .mudae-help-panel { height: 100%; border-radius: 0; }
+  .mudae-help-panel { height: 100%; border: 0; border-radius: 0; }
+  .mudae-help-top { padding: 10px 12px; }
   .mudae-help-top h2 { display: none; }
   .mudae-help-body { flex-direction: column; }
-  .mudae-help-nav { flex-direction: row; width: auto; overflow-x: auto; overflow-y: hidden; border-right: 0; border-bottom: 1px solid color-mix(in srgb, var(--text-muted) 25%, transparent); }
+  .mudae-help-nav { flex-direction: row; width: auto; padding: 8px; overflow-x: auto; overflow-y: hidden; border-right: 0; border-bottom: 1px solid var(--divider); scrollbar-width: none; }
   .mudae-help-link { white-space: nowrap; }
   .mudae-help-count { display: none; }
-  .mudae-help-link.active::before { display: none; }
-  .mudae-help-nav { background: none; padding: 8px; }
-  .mudae-help-sechead { position: static; background: none; }
+  .mudae-help-content { padding: 0 16px 24px; }
+  .mudae-help-sechead { position: static; margin-inline: -16px; padding-inline: 16px; }
 }
 
 /* Conquistas */
@@ -849,14 +859,14 @@ html[data-reduce-motion=true] .salon-sug-panel { animation: none; }
 .salon-ach-group h3 { margin: 0 0 8px; font-size: 14px; color: var(--text-muted); text-transform: uppercase; letter-spacing: .04em; }
 .salon-ach-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 10px; }
 .salon-ach { display: flex; flex-direction: column; gap: 6px; padding: 10px 12px; border-radius: 10px; background: var(--bg-input); min-width: 0; }
-.salon-ach.complete { box-shadow: inset 0 0 0 1px color-mix(in srgb, #f5c542 55%, transparent); }
+.salon-ach.complete { box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--metal-ouro) 55%, transparent); }
 .salon-ach.locked { opacity: .6; }
 .salon-ach-top { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
 .salon-ach-pips { display: flex; gap: 4px; flex: none; }
 .salon-ach-pip { width: 10px; height: 10px; border-radius: 50%; background: color-mix(in srgb, var(--text-muted) 35%, transparent); }
-.salon-ach-pip.on.bronze { background: #cd7f32; }
-.salon-ach-pip.on.prata { background: #c9d1d9; }
-.salon-ach-pip.on.ouro { background: #f5c542; box-shadow: 0 0 6px rgba(245, 197, 66, .6); }
+.salon-ach-pip.on.bronze { background: var(--metal-bronze); }
+.salon-ach-pip.on.prata { background: var(--metal-prata); }
+.salon-ach-pip.on.ouro { background: var(--metal-ouro); box-shadow: 0 0 6px color-mix(in srgb, var(--metal-ouro) 60%, transparent); }
 .salon-ach-trail, .salon-ach-count, .salon-ach-reward { font-size: 12px; color: var(--text-muted); font-variant-numeric: tabular-nums; }
 .salon-ach-bar { height: 6px; border-radius: 999px; background: color-mix(in srgb, var(--text-muted) 25%, transparent); overflow: hidden; }
 .salon-ach-bar span { display: block; height: 100%; border-radius: inherit; background: var(--brand); }
@@ -864,8 +874,8 @@ html[data-reduce-motion=true] .salon-sug-panel { animation: none; }
 /* Desejos e curtidas na mesma aba, e o coração na Mesa */
 .salon-subtabs { display: flex; gap: 8px; margin-bottom: 12px; }
 .salon-pill-count { opacity: .7; font-variant-numeric: tabular-nums; }
-.salon-like-heart { display: inline-flex; align-items: center; gap: 4px; margin-left: 8px; padding: 2px 8px; border-radius: 999px; background: color-mix(in srgb, #ff4d94 22%, transparent); color: #ff9ac2; font-size: 12px; font-weight: 600; }
-.salon-card-actions button.icon.active { color: #ff4d94; }
+.salon-like-heart { display: inline-flex; align-items: center; gap: 4px; margin-left: 8px; padding: 2px 8px; border-radius: 999px; background: color-mix(in srgb, var(--poder-desejo) 18%, transparent); color: var(--poder-desejo); font-size: 12px; font-weight: 600; }
+.salon-card-actions button.icon.active { color: var(--poder-desejo); }
 
 /* Notas e ordem do álbum */
 .salon-note { display: flex; align-items: center; gap: 6px; min-width: 0; font-size: 12px; color: var(--text-muted); }
@@ -880,23 +890,29 @@ html[data-reduce-motion=true] .salon-sug-panel { animation: none; }
 .salon-page-jump { width: 84px; height: 32px; padding: 0 8px; border: 1px solid var(--divider); border-radius: 8px; background: var(--bg-input); color: var(--text); font: inherit; font-size: 13px; }
 .salon-page-nav { min-width: 36px; padding: 0 10px; font-size: 16px; line-height: 1; }
 
-/* Personalizar o harém e os personagens */
-.salon-sheet-back { position: fixed; inset: 0; z-index: 1000; display: grid; place-items: center; padding: 16px; background: rgb(0 0 0 / .55); }
-.salon-sheet { display: flex; flex-direction: column; width: min(520px, 100%); max-height: min(720px, 100%); border-radius: 14px; background: var(--bg-panel); box-shadow: var(--shadow-float); overflow: hidden; }
-.salon-sheet-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 14px 16px; border-bottom: 1px solid var(--divider); }
-.salon-sheet-head h3 { margin: 0; font-size: 16px; color: var(--text-strong); min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.salon-sheet-x { flex: none; display: grid; place-items: center; width: 30px; height: 30px; border: 0; border-radius: 8px; background: transparent; color: var(--text-muted); cursor: pointer; }
-.salon-sheet-x:hover, .salon-sheet-x:focus-visible { background: var(--bg-input); color: var(--text-strong); }
-.salon-sheet-body { display: flex; flex-direction: column; gap: 14px; padding: 16px; overflow-y: auto; }
-.salon-field { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
-.salon-field > span { font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: .04em; color: var(--text-muted); }
-.salon-field small { color: var(--text-muted); font-size: 12px; }
-.salon-field-input { height: 36px; }
-.salon-field-row { display: flex; align-items: center; gap: 8px; }
-.salon-field-row .salon-field-input { flex: 1; }
-.salon-field-check { flex-direction: row; align-items: center; gap: 8px; }
-.salon-field-check > span { text-transform: none; letter-spacing: 0; font-size: 13px; font-weight: 400; color: var(--text); }
-.salon-color { width: 44px; height: 32px; padding: 0; border: 0; border-radius: 6px; background: none; cursor: pointer; }
+/* Personalizar o harem e os personagens */
+/* Personalizar o harem e cada personagem: a mesma janela de criar canal e das confirmações.
+   O véu e a animação vêm de .confirm-overlay; aqui só o cartão, os campos e a amostra de cor. */
+.salon-sheet { display: flex; flex-direction: column; width: min(480px, 100%); max-height: calc(100dvh - 32px); border: 1px solid var(--divider); border-radius: 16px; background: var(--bg-main); box-shadow: 0 24px 80px rgba(0, 0, 0, .6), inset 0 1px 0 rgba(255, 255, 255, .04); overflow: hidden; }
+.salon-sheet-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 20px 16px 4px 24px; }
+.salon-sheet-head h2 { margin: 0; font-size: 21px; font-weight: 700; letter-spacing: -.015em; color: var(--text-strong); min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.salon-sheet-x { flex: none; display: grid; place-items: center; width: 32px; height: 32px; border: 0; border-radius: 50%; background: transparent; color: var(--interactive); cursor: pointer; transition: transform var(--motion-base) var(--ease-enter); }
+.salon-sheet-x:hover { background: var(--hover-strong); color: var(--text-strong); transform: rotate(90deg); }
+.salon-sheet-x:focus-visible { outline: 2px solid var(--brand); outline-offset: 2px; }
+.salon-sheet-body { display: flex; flex-direction: column; gap: 16px; padding: 16px 24px 24px; overflow-y: auto; }
+.salon-sheet .confirm-actions { border-top: 1px solid var(--divider); padding: 16px 24px; }
+.salon-field { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+.salon-field > span { font-size: 12px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; color: var(--interactive); }
+.salon-field small { color: var(--text-muted); font-size: 12.5px; line-height: 1.45; }
+.salon-field-input { width: 100%; height: 44px; padding: 0 12px; border: 1px solid var(--divider); border-radius: 10px; background: var(--bg-panel); color: var(--text); font: inherit; font-size: 14px; }
+.salon-field-input::placeholder { color: var(--text-muted); }
+.salon-field-input:focus { outline: none; border-color: var(--brand); box-shadow: 0 0 0 3px color-mix(in srgb, var(--brand) 22%, transparent); }
+.salon-field-row { display: flex; align-items: center; gap: 12px; }
+.salon-field-row .salon-field-input { flex: 1; min-width: 0; }
+.salon-switch { padding: 12px 14px; border-radius: 12px; background: var(--bg-sidebar); }
+.salon-color { -webkit-appearance: none; appearance: none; flex: none; width: 48px; height: 48px; padding: 4px; border: 1px solid var(--divider); border-radius: 14px; background: var(--bg-panel); cursor: pointer; transition: transform .15s; }
+.salon-color:hover { border-color: color-mix(in srgb, var(--text) 30%, transparent); transform: translateY(-1px); }
+.salon-color:focus-visible { outline: none; box-shadow: 0 0 0 3px color-mix(in srgb, var(--brand) 30%, transparent); }
 .salon-img-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(104px, 1fr)); gap: 10px; }
 .salon-img-opt { display: flex; flex-direction: column; gap: 4px; padding: 6px; border: 2px solid transparent; border-radius: 10px; background: var(--bg-input); font-size: 12px; color: var(--text-muted); }
 .salon-img-opt.active { border-color: var(--brand); }

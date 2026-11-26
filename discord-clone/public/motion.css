@@ -287,9 +287,9 @@
 @keyframes tip-in-right { from { opacity: 0; transform: translateX(-3px) scale(.96); } }
 
 /* Janelas: o fundo escurece e o cartão sobe de leve; as telas cheias levam um pouco mais. */
-:is(.confirm-overlay, #server-dialog, #create-channel, #changelog, #feedback, #lightbox, #sidebar-backdrop, .settings-overlay, #msg-sheet) { animation: fade-in var(--motion-base) var(--ease-enter); }
-:is(.confirm-card, .channel-dialog, #create-channel .card, #feedback .feedback-card, #server-dialog .server-dialog) { animation: dialog-in var(--spring-soft-dur) var(--spring-soft); }
-:is(#changelog .cl-card, .settings-overlay .settings-shell) { animation: dialog-in var(--motion-large) var(--ease-enter); }
+:is(.confirm-overlay, #server-dialog, #create-channel, #changelog, #feedback, #lightbox, #sidebar-backdrop, .settings-overlay, #msg-sheet, .mudae-help-overlay) { animation: fade-in var(--motion-base) var(--ease-enter); }
+:is(.confirm-card, .channel-dialog, #create-channel .card, #feedback .feedback-card, #server-dialog .server-dialog, .salon-sheet) { animation: dialog-in var(--spring-soft-dur) var(--spring-soft); }
+:is(#changelog .cl-card, .settings-overlay .settings-shell, .mudae-help-panel) { animation: dialog-in var(--motion-large) var(--ease-enter); }
 .channel-dialog[open]::backdrop { animation: fade-in var(--motion-base) var(--ease-enter); }
 
 /* ---------- Saídas ---------- */
@@ -310,11 +310,11 @@
 /* Janelas criadas na hora (confirmações, diálogos, folha da mensagem) saem com Motion.leave() (motion.js):
    ganham .leaving, animam a saída e só depois são removidas. O menu de contexto sai por uma cópia (Motion.fadeCopy). */
 @keyframes menu-out { to { opacity: 0; transform: scale(.98); } }
-:is(.confirm-overlay, #server-dialog, #msg-sheet).leaving { animation: fade-out var(--motion-exit) var(--ease-exit) forwards; pointer-events: none; }
+:is(.confirm-overlay, #server-dialog, #msg-sheet, .mudae-help-overlay).leaving { animation: fade-out var(--motion-exit) var(--ease-exit) forwards; pointer-events: none; }
 #context-menu.leaving { animation: menu-out var(--motion-exit) var(--ease-exit) forwards; pointer-events: none; }
 @keyframes sheet-menu-out { to { opacity: 0; transform: translateY(100%); } } /* o véu escuro (sombra do próprio menu) esmaece junto */
 #context-menu.sheet-menu.leaving { animation-name: sheet-menu-out; }
-:is(.confirm-overlay, #server-dialog).leaving > * { animation: dialog-out var(--motion-exit) var(--ease-exit) forwards; }
+:is(.confirm-overlay, #server-dialog, .mudae-help-overlay).leaving > * { animation: dialog-out var(--motion-exit) var(--ease-exit) forwards; }
 #msg-sheet .sheet-panel { animation: sheet-up var(--motion-slow) var(--ease-enter); }
 #msg-sheet.leaving .sheet-panel { animation: sheet-down var(--motion-exit) var(--ease-exit) forwards; }
 /* Diálogo nativo (<dialog>): ao fechar, o display e a camada de cima esperam a transição. */

@@ -12,7 +12,7 @@
   const SECTIONS = [
     {
       id: 'basico', title: 'Como o Mudae funciona', words: 'comecar basico regras salao mesa rolls casar valor raridade kakera',
-      intro: 'O Mudae é um jogo de colecionar personagens: você roda, casa com quem gostar, forma o seu harém e junta kakera.',
+      intro: 'O Mudae é um jogo de colecionar personagens: você roda, casa com quem gostar, forma o seu harem e junta kakera.',
       items: [
         { title: 'O Salão e a Mesa', text: 'O Mudae mora num canal especial, o Salão. Os rolls de todo mundo aparecem ao mesmo tempo na Mesa, e quem tem a permissão "Usar o Mudae" joga. O Modo simplificado transforma o Salão num chat comum, com os cards no chat. Os comandos começam com $ e valem no Salão e no chat.' },
         { title: 'Rolls', text: 'Você tem 10 rolls a cada 30 minutos (a janela vira na hora cheia e na meia hora). A Forja (Safira e Prata) e o $daily mudam isso. Quando os rolls acabam, o Resenhex avisa quando eles voltarem.' },
@@ -37,18 +37,18 @@
       ],
     },
     {
-      id: 'harem', title: 'Seu harém', words: 'harem mm info perfil ranking top obra nota ordenar divorcio favorito',
-      intro: 'Tudo para ver, organizar e cuidar dos personagens que você casou. O álbum do Salão (Meu harém) faz o mesmo com cliques.',
+      id: 'harem', title: 'Seu harem', words: 'harem mm info perfil ranking top obra nota ordenar divorcio favorito',
+      intro: 'Tudo para ver, organizar e cuidar dos personagens que você casou. O álbum do Salão (Meu harem) faz o mesmo com cliques.',
       items: [
-        { cmds: ['mm', 'harem', 'mma', 'mms', 'mmr'], text: 'Mostra o harém, o seu ou o de @pessoa. $mma põe de A a Z, $mms por obra e $mmr dos mais recentes. Aceita filtros: $mm w anime, $mm husbandos jogos, $mm Naruto, $mm abc inverso.' },
+        { cmds: ['mm', 'harem', 'mma', 'mms', 'mmr'], text: 'Mostra o harem, o seu ou o de @pessoa. $mma põe de A a Z, $mms por obra e $mmr dos mais recentes. Aceita filtros: $mm w anime, $mm husbandos jogos, $mm Naruto, $mm abc inverso.' },
         { cmds: ['im', 'info'], text: 'Mostra a ficha de um personagem: quem é o dono, quem deseja, a chave, o valor e o histórico.' },
         { cmds: ['top', 'obra'], text: '$top lista os personagens mais valiosos (filtre com waifus, husbandos, anime, jogos... ou o nome de uma obra). $obra mostra todos de uma obra e quantos são seus.' },
         { cmds: ['topserv', 'ts', 'topservv', 'tsv', 'topservk', 'tsk', 'topservy', 'tsy', 'topservn', 'tsn', 'topservlc', 'tslc'], title: 'Rankings do servidor', text: '$topserv mostra os haréns mais valiosos. As variantes ordenam por kakera guardado ($tsk), soma das chaves ($tsy), número de personagens ($tsn) e data do último casamento ($tslc).' },
         { cmds: ['topservu', 'tsu', 'azarados'], title: 'Ranking dos azarados', text: '$tsu mostra quem mais rolou personagem que já tinha dono. A cada 15 desses rolls, o próximo vem livre e de raridade alta (pity), e se o personagem for lendário o roll volta e você ganha metade do valor em kakera. Os títulos de azarado saem em $conquistas.' },
         { cmds: ['inveja', 'envy'], text: '$inveja nome avisa, com uma frase de provocação, o dono do personagem. Dá para usar a cada 30 minutos.' },
-        { cmds: ['fm', 'favorito'], text: 'Escolhe o seu favorito, que aparece em destaque no harém e no perfil.' },
-        { cmds: ['note', 'n', 'noteseries', 'notepage', 'noteremoveall', 'fn', 'fnall'], title: 'Notas', text: '$note nome $ texto anota algo no personagem (texto vazio apaga). $noteseries faz o mesmo para uma obra inteira e $notepage para uma página do harém. $fn procura nas suas notas e $fnall nas de todo mundo. No álbum do Salão dá para editar pelo lápis.' },
-        { cmds: ['sortmarry', 'sm', 'organizar'], text: 'Ordena o harém e guarda a ordem: $sm abc, obra, recentes, nota, inverso e valor (volta ao padrão). No álbum, escolha "Minha ordem" e arraste as cartas.' },
+        { cmds: ['fm', 'favorito'], text: 'Escolhe o seu favorito, que aparece em destaque no harem e no perfil.' },
+        { cmds: ['note', 'n', 'noteseries', 'notepage', 'noteremoveall', 'fn', 'fnall'], title: 'Notas', text: '$note nome $ texto anota algo no personagem (texto vazio apaga). $noteseries faz o mesmo para uma obra inteira e $notepage para uma página do harem. $fn procura nas suas notas e $fnall nas de todo mundo. No álbum do Salão dá para editar pelo lápis.' },
+        { cmds: ['sortmarry', 'sm', 'organizar'], text: 'Ordena o harem e guarda a ordem: $sm abc, obra, recentes, nota, inverso e valor (volta ao padrão). No álbum, escolha "Minha ordem" e arraste as cartas.' },
         { cmds: ['divorce', 'divorciar', 'divorcio', 'dt'], text: '$divorce nome solta o personagem e devolve o valor dele em kakera (no máximo 200 por 24 horas; passando disso o divórcio continua, só não devolve). $divorcio mostra quanto ainda devolve.' },
         { cmds: ['divorceseries', 'divorcepage', 'divorceall', 'divorceallbut', 'confirmar', 'confirm', 'cancelar'], title: 'Divórcio em lote', text: '$divorceseries obra, $divorcepage 2, $divorceall e $divorceallbut nome $ nome mostram o que vai acontecer e só soltam quando você digita $confirmar, em até 1 minuto. $cancelar desiste.' },
         { cmds: ['profile', 'pr', 'perfil'], text: 'Mostra o resumo de uma pessoa: personagens, valor, favorito, contadores e título.' },
@@ -93,12 +93,12 @@
     },
     {
       id: 'personalizar', title: 'Personalizar', words: 'imagem imgur titulo cor nome texto mensagem casamento overview bonus',
-      intro: 'O jeito de ver e de contar o seu harém.',
+      intro: 'O jeito de ver e de contar o seu harem.',
       items: [
         { cmds: ['addimg', 'ai'], text: 'Adiciona imagens extras a um personagem seu: $addimg nome $ link. Só links diretos do imgur (i.imgur.com), até 12 por personagem. As imagens saem quando o personagem muda de dono. $addimg remove nome $ 2 tira uma e $addimg removeall nome tira todas.' },
         { cmds: ['changeimg'], text: 'Escolhe qual imagem aparece primeiro: $changeimg nome $ 2 (a 1 é a original).' },
         { cmds: ['randomimg'], text: '$randomimg 1 sorteia a imagem entre a original e as extras nos seus rolls. 0 desliga.' },
-        { cmds: ['renameharem', 'rh', 'colormm'], text: '$renameharem muda o título do seu harém e $colormm #ff4d94 muda a cor dele. none volta ao padrão.' },
+        { cmds: ['renameharem', 'rh', 'colormm'], text: '$renameharem muda o título do seu harem e $colormm #ff4d94 muda a cor dele. none volta ao padrão.' },
         { cmds: ['renameclaim', 'rc', 'renamedivorce', 'rd'], text: 'Muda a mensagem do seu casamento ou divórcio, com {personagem} (obrigatório) e {usuario}: $renameclaim {usuario} ama {personagem}!' },
         { cmds: ['overview'], text: 'Mostra as suas configurações do Mudae num lugar só.' },
         { cmds: ['bonus'], text: 'Mostra os seus bônus: Forja, chaves, curtidas e o que as conquistas deram.' },
@@ -128,10 +128,10 @@
       intro: 'Estes comandos precisam da permissão "Gerenciar o Mudae" (menos $settings, que todos veem).',
       items: [
         { cmds: ['settings'], text: 'Mostra os ajustes do Mudae neste servidor e o que mudou do padrão.' },
-        { cmds: ['settimer', 'setrolls', 'haremlimit'], text: '$settimer 60 muda o tempo para casar (15 a 120 segundos), $setrolls 6 muda os rolls por janela (2 a 10) e $haremlimit 100 limita o harém (10 a 5.000; 0 tira o limite).' },
+        { cmds: ['settimer', 'setrolls', 'haremlimit'], text: '$settimer 60 muda o tempo para casar (15 a 120 segundos), $setrolls 6 muda os rolls por janela (2 a 10) e $haremlimit 100 limita o harem (10 a 5.000; 0 tira o limite).' },
         { cmds: ['togglesnipe', 'togglecrystals'], text: '$togglesnipe liga ou desliga casar com o roll de outra pessoa (desligado, só quem rodou casa). $togglecrystals liga ou desliga todos os cristais.' },
         { cmds: ['serverdisable', 'sd'], text: 'Tira uma obra ou um personagem da roleta de todo mundo, e ninguém passa por cima disso. Repetir o comando devolve. Sem nome, mostra o que está fora.' },
-        { cmds: ['forcedivorce', 'userdivorce'], text: '$forcedivorce nome tira o personagem do dono, sem kakera. $userdivorce @pessoa sim tira o harém inteiro. As duas ações aparecem no Salão.' },
+        { cmds: ['forcedivorce', 'userdivorce'], text: '$forcedivorce nome tira o personagem do dono, sem kakera. $userdivorce @pessoa sim tira o harem inteiro. As duas ações aparecem no Salão.' },
         { cmds: ['restorelist', 'rl', 'restore'], text: '$restorelist mostra o que foi tirado pela moderação e $restore nome devolve ao dono anterior (se ele ainda está no servidor e o personagem continua livre).' },
       ],
     },
@@ -201,7 +201,7 @@
   function open({ section = null, query = '' } = {}) {
     const doc = typeof document !== 'undefined' ? document : null;
     if (!doc) return null;
-    const existing = doc.getElementById('mudae-help');
+    const existing = doc.querySelector('#mudae-help:not(.leaving)');
     if (existing) { existing.querySelector('input')?.focus(); return existing; }
     const h = (tag, props = {}, ...kids) => {
       const node = doc.createElement(tag);
@@ -218,13 +218,17 @@
     const input = h('input', { type: 'search', class: 'mudae-help-search', placeholder: 'Buscar um comando ou assunto (ex.: sortmarry, chaves, divórcio)', ariaLabel: 'Buscar na ajuda', value: query });
     const content = h('div', { class: 'mudae-help-content', tabIndex: -1 });
     const nav = h('nav', { class: 'mudae-help-nav', ariaLabel: 'Assuntos da ajuda' });
+    const win = doc.defaultView || {};
     const close = () => {
-      overlay.remove();
       doc.removeEventListener('keydown', onKey, true);
+      // Sai como as outras janelas do app (motion.css), sem sumir de uma vez.
+      if (win.Motion?.leave) win.Motion.leave(overlay); else overlay.remove();
       if (lastFocus?.isConnected) lastFocus.focus();
     };
-    const ICONS = { basico: 'info', rolar: 'dice', harem: 'heart', kakera: 'gem', chaves: 'key', desejos: 'star', personalizar: 'pencil', forja: 'flask', conquistas: 'crown', servidor: 'settings', ajuda: 'message' };
-    const iconOf = (id, size = 16) => (typeof doc.defaultView?.Icon === 'function' && ICONS[id] ? doc.defaultView.Icon(ICONS[id], size) : null);
+    // Os símbolos do próprio Mudae (mudae-icones.js) onde ele tem um; o resto vem do Icon() do app.
+    const ICONS = { basico: 'info', rolar: 'dice', harem: 'heart', kakera: 'kakera', chaves: 'key', desejos: 'wish', personalizar: 'pencil', forja: 'medal', conquistas: 'trophy', servidor: 'settings', ajuda: 'message' };
+    const icon = (name, size) => (typeof win.MudaeIcon === 'function' ? win.MudaeIcon(name, size) : typeof win.Icon === 'function' ? win.Icon(name, size) : null);
+    const iconOf = (id, size = 16) => (ICONS[id] ? icon(ICONS[id], size) : null);
     // Os comandos citados no texto ($mm, $sm...) viram uma pílula, para saltarem aos olhos (tudo texto, nunca HTML).
     const richText = (text) => String(text).split(/(\$[A-Za-z0-9]+)/).map((part, i) => (i % 2 ? h('code', { class: 'mudae-help-inline' }, part) : part));
     // Até 4 apelidos em pílulas; o resto fica no "+N" (com a lista na dica).
@@ -271,7 +275,7 @@
     content.addEventListener('scroll', spy, { passive: true });
     input.addEventListener('input', render);
     const onKey = (e) => {
-      if (e.key === 'Escape') { e.stopPropagation(); close(); return; }
+      if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); close(); return; }
       if (e.key !== 'Tab') return;
       const focusable = [...overlay.querySelectorAll('button, input, [href], [tabindex]:not([tabindex="-1"])')].filter((n) => !n.disabled);
       if (!focusable.length) return;
@@ -281,8 +285,8 @@
     };
     const panel = h('div', { class: 'mudae-help-panel' },
       h('div', { class: 'mudae-help-top' }, h('h2', { id: 'mudae-help-title' }, 'Ajuda do Mudae'),
-        h('div', { class: 'mudae-help-searchbox' }, h('span', { class: 'mudae-help-searchico' }, typeof doc.defaultView?.Icon === 'function' ? doc.defaultView.Icon('search', 16) : null), input),
-        h('button', { type: 'button', class: 'mudae-help-close', ariaLabel: 'Fechar a ajuda', title: 'Fechar (Esc)', onclick: close }, '×')),
+        h('div', { class: 'mudae-help-searchbox' }, h('span', { class: 'mudae-help-searchico' }, typeof win.Icon === 'function' ? win.Icon('search', 16) : null), input),
+        h('button', { type: 'button', class: 'mudae-help-close', ariaLabel: 'Fechar a ajuda', title: 'Fechar (Esc)', onclick: close }, typeof win.Icon === 'function' ? win.Icon('x', 18) : '×')),
       h('div', { class: 'mudae-help-body' }, nav, content));
     const overlay = h('div', { id: 'mudae-help', class: 'mudae-help-overlay', role: 'dialog', ariaModal: 'true', ariaLabelledby: 'mudae-help-title',
       onclick: (e) => { if (e.target === overlay) close(); } }, panel);

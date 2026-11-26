@@ -68,6 +68,9 @@ window.MudaeIcon = (() => {
       + '<path d="M13.74 2.15 15.22 6.94 18.88 7.18 17.86 10.7 21.85 13.74 17.06 15.22 16.82 18.88 13.3 17.86 10.26 21.85 8.78 17.06 5.12 16.82 6.14 13.3 2.15 10.26 6.94 8.78 7.18 5.12 10.7 6.14z"/>'
       + '<path d="M12 9v3.4M12 15.4h.01"/>',
     tv: `<rect ${TONE} x="5.5" y="10" width="10.5" height="8" rx="1.5"/><rect x="2.5" y="7" width="19" height="14" rx="3"/><path d="M8 2.5l4 4.5 4-4.5M18.6 11v.01M18.6 14v.01"/>`,
+    // Visual novel: a tela do jogo, com o personagem em cima e a caixa de diálogo embaixo.
+    vn: `<rect x="2.5" y="3" width="19" height="18" rx="3"/><circle cx="12" cy="7.6" r="2.1"/><path d="M8.2 12.8c.5-1.9 2-2.9 3.8-2.9s3.3 1 3.8 2.9"/>`
+      + `<rect ${tone(0.35)} x="5" y="12.8" width="14" height="5.4" rx="1.4"/><rect x="5" y="12.8" width="14" height="5.4" rx="1.4"/><path class="mi-detail" d="M8 15.5h5"/>`,
   };
   const POWERS = ['videncia', 'cadeado', 'amuleto', 'chuva', 'desejo', 'eco', 'dupla', 'laco'];
 
