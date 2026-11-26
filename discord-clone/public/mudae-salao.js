@@ -37,7 +37,7 @@ window.MudaeSalon = function ({ state, el, Icon, call, onSocket, member, avatar,
     stage: null, spinning: null, queue: [], arriving: new Set(), legendaryUntil: 0, legendaryBy: null,
     ach: null, wishView: 'wishes', likes: null, likeData: null, liked: new Set(),
     album: null, albumOwner: null, query: '', filter: 'all', albumSource: 'all', albumGender: 'all', onlyNote: false, sort: 'value', sortTouched: false, drag: null, shown: PAGE,
-    sources: null, source: savedSource(), liveFilter: 'all',
+    sources: null, source: savedSource(),
     ranking: null, favorite: null, leavers: null,
     // Personagens: o filtro (gênero e fonte, ou uma obra), a página que veio do servidor e os meus desejos.
     chars: { gender: '', source: '', series: null, page: 0, data: null, text: '' }, wishes: null,
@@ -186,7 +186,7 @@ window.MudaeSalon = function ({ state, el, Icon, call, onSocket, member, avatar,
   // ---------- estrutura ----------
   function mount(channel) {
     S.channel = channel.id;
-    Object.assign(S, { tab: 'mesa', stage: null, spinning: null, queue: [], arriving: new Set(), legendaryUntil: 0, album: null, ranking: null, sideOpen: false, side: 'chat', people: [], liveFilter: 'all' });
+    Object.assign(S, { tab: 'mesa', stage: null, spinning: null, queue: [], arriving: new Set(), legendaryUntil: 0, album: null, ranking: null, sideOpen: false, side: 'chat', people: [] });
     nodes.tabs = el('div', { class: 'salon-tabs', role: 'tablist' });
     nodes.status = el('div', { class: 'salon-status' });
     nodes.body = el('div', { class: 'salon-body' });
@@ -418,11 +418,9 @@ window.MudaeSalon = function ({ state, el, Icon, call, onSocket, member, avatar,
     nodes.rollBar = el('div', { class: 'salon-rollbar' });
     nodes.live = el('div', { class: 'salon-live-strip' });
     nodes.liveMap = new Map();
-    nodes.liveBar = el('div', { class: 'salon-live-filters' });
-    nodes.liveBarKey = '';
     nodes.body.replaceChildren(el('div', { class: 'salon-mesa' },
       el('div', { class: 'salon-stage-box' }, nodes.stage), nodes.rollBar,
-      el('section', { class: 'salon-live' }, el('div', { class: 'salon-live-head' }, el('h3', { textContent: 'Mesa ao vivo' }), nodes.liveBar), nodes.live)));
+      el('section', { class: 'salon-live' }, el('h3', { textContent: 'Mesa ao vivo' }), nodes.live)));
     // Ao voltar para a Mesa, os espaços podem ter mudado (a troca de poderes é feita na aba Poderes).
     powers?.refresh();
     renderStage();
@@ -851,33 +849,6 @@ window.MudaeSalon = function ({ state, el, Icon, call, onSocket, member, avatar,
   }
 
   // ---------- mesa ao vivo ----------
-  // Filtro da faixa: todos, só os meus rolls, só o que ainda dá para casar, ou os rolls de uma pessoa (o id dela).
-  const liveMatch = (m) => {
-    const f = S.liveFilter;
-    if (f === 'all') return true;
-    if (f === 'mine') return m.by === me();
-    if (f === 'open') return phase(m) === 'open';
-    return m.by === f;
-  };
-
-  // A barra de filtros: três botões e a lista de quem rolou (só quem aparece nos rolls do canal).
-  function renderLiveBar(all) {
-    if (!nodes.liveBar?.isConnected) return;
-    const people = [...new Set(all.map((m) => m.by))].filter((id) => id !== me());
-    const key = people.join(',') + '|' + S.liveFilter + '|' + people.map(whoName).join(',');
-    if (nodes.liveBarKey === key) return;
-    nodes.liveBarKey = key;
-    const chip = (id, label) => el('button', { type: 'button', class: 'salon-filter' + (S.liveFilter === id ? ' active' : ''), textContent: label,
-      onclick: () => { S.liveFilter = id; renderLive(); } });
-    const select = el('select', { class: 'salon-live-who' + (!['all', 'mine', 'open'].includes(S.liveFilter) ? ' active' : ''), title: 'Ver só os rolls de uma pessoa',
-      onchange: (e) => { S.liveFilter = e.target.value || 'all'; renderLive(); } },
-      el('option', { value: '', textContent: 'Todas as pessoas' }),
-      ...people.map((id) => el('option', { value: id, textContent: whoName(id), selected: S.liveFilter === id })));
-    // Quem sumiu da lista continua filtrado: o filtro não some sozinho.
-    if (!['all', 'mine', 'open'].includes(S.liveFilter) && !people.includes(S.liveFilter)) select.append(el('option', { value: S.liveFilter, textContent: whoName(S.liveFilter), selected: true }));
-    nodes.liveBar.replaceChildren(chip('all', 'Todos'), chip('mine', 'Meus'), chip('open', 'Dá pra casar'), select);
-  }
-
   // Só o que mudou é refeito: cada cartão guarda uma "assinatura" do que o desenha, e se ela é a mesma o cartão
   // (e a foto que ele já baixou) fica onde está. O relógio de cada cartão é do tick().
   function liveSignature(m) {
@@ -888,14 +859,11 @@ window.MudaeSalon = function ({ state, el, Icon, call, onSocket, member, avatar,
 
   function renderLive() {
     if (!nodes.live?.isConnected) return;
-    const all = rolls();
-    renderLiveBar(all);
-    const list = all.filter(liveMatch).slice(-LIVE).reverse();
+    const list = rolls().slice(-LIVE).reverse();
     const map = nodes.liveMap || (nodes.liveMap = new Map());
     if (!list.length) {
       map.clear();
-      const text = all.length ? 'Nenhum roll com esse filtro.' : 'Os rolls de todo mundo aparecem aqui.';
-      return nodes.live.replaceChildren(el('div', { class: 'salon-empty-note', textContent: text }));
+      return nodes.live.replaceChildren(el('div', { class: 'salon-empty-note', textContent: 'Os rolls de todo mundo aparecem aqui.' }));
     }
     const wanted = new Set(list.map((m) => m.id));
     for (const [id, entry] of map) if (!wanted.has(id)) { entry.node.remove(); map.delete(id); }
@@ -962,8 +930,7 @@ window.MudaeSalon = function ({ state, el, Icon, call, onSocket, member, avatar,
       }
     }
     if (nodes.live?.isConnected) {
-      // "Dá pra casar" depende do relógio: quem abriu ou fechou agora entra ou sai da faixa.
-      let changed = S.liveFilter === 'open' && Math.min(LIVE, rolls().filter(liveMatch).length) !== nodes.live.querySelectorAll('.salon-card.live').length;
+      let changed = false;
       if (!changed) for (const node of nodes.live.querySelectorAll('.salon-card.live')) {
         const lm = byId(node.dataset.id);
         if (!lm) continue;

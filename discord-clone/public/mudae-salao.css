@@ -458,17 +458,7 @@
 .salon-roll-cmd { font-family: var(--mono); font-size: 13px; opacity: .8; }
 
 /* Mesa ao vivo. */
-.salon-live h3 { margin: 0; color: var(--text-strong); font-size: 15px; font-weight: 700; }
-/* Título e filtros numa linha só: quebrando em duas, a linha extra saía da altura do palco. Sem espaço, os filtros rolam de lado. */
-.salon-live-head { display: flex; align-items: center; gap: 12px; margin: 0 0 6px; }
-.salon-live-head h3 { flex: none; }
-.salon-live-filters { display: flex; align-items: center; gap: 6px; min-width: 0; overflow-x: auto; scrollbar-width: none; }
-.salon-live-filters::-webkit-scrollbar { display: none; }
-.salon-live-filters > * { flex: none; }
-/* A lista de pessoas no mesmo formato dos botões ao lado (.salon-filter). */
-.salon-live-who { max-width: 170px; height: 32px; padding: 0 8px; border: 1px solid var(--divider); border-radius: 8px; background: transparent; color: var(--text); font: inherit; font-size: 13px; font-weight: 600; cursor: pointer; }
-.salon-live-who:hover { background: var(--hover); }
-.salon-live-who.active { border-color: var(--brand); background: color-mix(in srgb, var(--brand) 22%, transparent); }
+.salon-live h3 { margin: 0 0 6px; color: var(--text-strong); font-size: 15px; font-weight: 700; }
 .salon-live-strip { display: flex; gap: 12px; overflow-x: auto; padding: 4px 4px 8px; scroll-snap-type: x proximity; }
 .salon-live .salon-card.small { width: 108px; }
 .salon-live .salon-card-series { display: none; }
