@@ -5,7 +5,7 @@ O Resenhex chegou à versão 1.0 em 4 de outubro de 2026.
 
 ## v2.8.0 — Conquistas, chaves e soulmates, curtidas, desejos novos, ajuda dentro do Salão e muito mais no Mudae
 
-24 de novembro de 2026.
+26 de novembro de 2026.
 
 O Mudae ganhou muita coisa nesta versão. Agora há 100 conquistas com títulos e prêmios, chaves que crescem quando você rola um personagem seu, cristais que dependem da chave, curtidas, desejos melhores, um consolo para quem rola personagem que já tem dono (com ranking de azarados), um botão de Ajuda que explica tudo dentro do Salão e várias ferramentas para cuidar do harém e do servidor. É a maior atualização do Mudae até agora.
 

@@ -4,7 +4,7 @@
 // O título deve destacar as principais funcionalidades ou correções, com termos objetivos.
 window.CHANGELOG = [
   {
-    version: '2.8.0', date: '2026-11-24', name: 'Conquistas, chaves e soulmates, curtidas, desejos novos, ajuda dentro do Salão e muito mais no Mudae',
+    version: '2.8.0', date: '2026-11-26', name: 'Conquistas, chaves e soulmates, curtidas, desejos novos, ajuda dentro do Salão e muito mais no Mudae',
     summary: 'O Mudae ganhou muita coisa nesta versão. Agora há 100 conquistas com títulos e prêmios, chaves que crescem quando você rola um personagem seu, cristais que dependem da chave, curtidas, desejos melhores, um consolo para quem rola personagem que já tem dono (com ranking de azarados), um botão de Ajuda que explica tudo dentro do Salão e várias ferramentas para cuidar do harém e do servidor. É a maior atualização do Mudae até agora.',
     sections: [
       { kind: 'new', items: [
