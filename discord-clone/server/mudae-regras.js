@@ -66,7 +66,7 @@ const CRYSTAL = {
   ],
   // Kakera que nasce da carta de um personagem com dono (o cristal "da carta"): às vezes vem arco-íris (valor sorteado).
   rainbow: { chance: 0.03, min: 250, max: 900, hex: '#ff4d94' },
-  // Poder de reação: cada pessoa gasta um pouco ao pegar um cristal da carta (o errante e a chuva não gastam). Volta com o tempo.
+  // Energia (o "poder de reação" do Mudae): cada pessoa gasta um pouco ao pegar um cristal da carta (o errante e a chuva não gastam). Volta com o tempo.
   // O roxo é de graça, como no original.
   power: { max: 100, regenPerHour: 50, cost: { roxo: 0, azul: 15, ciano: 20, verde: 25, amarelo: 30, laranja: 35, vermelho: 45, arcoiris: 50 } },
   // Chuva: muitos cristais pequenos; cada um vale valueFactor do valor da cor (a que nasce sozinha, rara) ou
@@ -117,7 +117,7 @@ const KEYS = {
   // O que a chave faz no cristal da carta (tabela da wiki: Keys). second: [nível, chance] de um segundo cristal.
   reaction: {
     orangeFrom: 3, orangeColors: ['ciano', 'verde'], // da prata em diante, ciano e verde viram laranja
-    halfCostFrom: 10, // a partir do 10, o poder de reação custa metade
+    halfCostFrom: 10, // a partir do 10, a energia custa metade
     bonusColors: ['roxo', 'vermelho', 'arcoiris'],
     bonus: [[400, 2.5], [200, 1.5], [50, 0.75]], // +75% (50), +150% (200) e +250% (400) no total
     second: [[500, 1], [300, 0.75], [100, 0.5], [25, 0.25]],

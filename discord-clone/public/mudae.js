@@ -662,7 +662,7 @@ window.MudaeUI = function ({ state, el, Icon, call, member, avatar, nameColor, F
       d.powersReady?.length ? el('div', {}, 'Poderes prontos: ', el('strong', { class: 'mudae-ok' }, ...powerNames(d.powersReady)), '.') : null,
       d.kakera !== undefined ? el('div', {}, 'Você tem ', el('strong', { textContent: num(d.kakera) }), ' kakera.') : null,
       crystalsLine(d.crystals),
-      d.kakeraPower ? el('div', {}, 'Poder de reação: ', el('strong', { textContent: `${d.kakeraPower.value}/${d.kakeraPower.max}` }), d.kakeraPower.fullIn ? [' (enche em ', el('strong', { textContent: minutes(d.kakeraPower.fullIn) }), '). Cada cristal de carta gasta um pouco; o roxo é de graça.'] : '.') : null,
+      d.kakeraPower ? el('div', {}, 'Energia: ', el('strong', { textContent: `${d.kakeraPower.value}/${d.kakeraPower.max}` }), d.kakeraPower.fullIn ? [' (enche em ', el('strong', { textContent: minutes(d.kakeraPower.fullIn) }), '). Cada cristal de carta gasta um pouco; o roxo é de graça.'] : '.') : null,
       d.dailyIn !== undefined ? el('div', {}, d.dailyIn ? ['O $daily volta em ', el('strong', { textContent: minutes(d.dailyIn) }), '.'] : ['O ', el('strong', { class: 'mudae-ok', textContent: '$daily' }), ' está pronto: os rolls voltam na hora.']) : null,
       d.dailyMax > 1 ? el('div', { class: 'mudae-muted', textContent: `Com a likelist, o $daily guarda ${d.dailyMax} usos: você tem ${d.dailyCharges}.` }) : null,
       d.dkIn !== undefined ? el('div', {}, d.dkIn ? ['O $dk volta em ', el('strong', { textContent: minutes(d.dkIn) }), '.'] : ['O ', el('strong', { class: 'mudae-ok', textContent: '$dk' }), ` está pronto: +${num(d.dkAmount)} kakera.`]) : null,

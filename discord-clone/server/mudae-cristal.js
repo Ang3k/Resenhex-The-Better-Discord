@@ -98,14 +98,14 @@ function createCrystals({ now, random, rules = CRYSTAL, countCrystal = () => {} 
     const key = `${accountId}:${slot}`;
     if (c.gemTakers.has(key)) return { error: 'Você já pegou esse cristal.' };
 
-    // O cristal da carta gasta o poder de reação (metade com a chave 10 ou mais; o roxo é de graça).
+    // O cristal da carta gasta energia (metade com a chave 10 ou mais; o roxo é de graça).
     let power = null;
     if (c.card) {
       const base = rules.power.cost[c.colorKey] ?? rules.power.cost.arcoiris;
       const cost = c.card.level >= KEYS.reaction.halfCostFrom ? Math.ceil(base / 2) : base;
       if (cost > powerOf(store, accountId, t)) {
         const wait = Math.ceil(((cost - powerOf(store, accountId, t)) / rules.power.regenPerHour) * 60);
-        return { error: `Sem poder de reação para esse cristal (gasta ${cost}). Em uns ${wait} min dá para pegar.` };
+        return { error: `Sem energia para esse cristal (gasta ${cost}). Em uns ${wait} min dá para pegar.` };
       }
       spendPower(store, accountId, cost, t);
       power = powerView(store, accountId, t);

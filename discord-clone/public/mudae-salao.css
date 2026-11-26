@@ -79,13 +79,25 @@
 .salon-top-right { display: flex; align-items: center; gap: 8px; flex-shrink: 0; padding: 8px 0; }
 .salon-status { display: flex; align-items: center; gap: 6px; min-width: 0; }
 /* Cristais de hoje que valem inteiro (7/15). Neutro enquanto há cristal cheio; amarelo quando o teto do dia chega. */
-.salon-crystals {
+.salon-crystals, .salon-energy {
   display: inline-flex; flex-shrink: 0; align-items: center; height: 28px; padding: 0 10px; border: 1px solid var(--divider); border-radius: 999px;
   background: transparent; color: var(--text-muted); font: inherit; font-size: 13px; font-weight: 600; white-space: nowrap; cursor: pointer; transition: none;
 }
-.salon-crystals strong { margin-left: 5px; color: var(--text-strong); font-variant-numeric: tabular-nums; }
+:is(.salon-crystals, .salon-energy) strong { margin-left: 5px; color: var(--text-strong); font-variant-numeric: tabular-nums; }
 .salon-crystals .mi-inline > .mi { color: var(--brand); }
-.salon-crystals:hover { background: var(--hover); color: var(--text); }
+:is(.salon-crystals, .salon-energy):hover { background: var(--hover); color: var(--text); }
+/* Energia: o anel em volta do cristal enche até o máximo (--p, de 0 a 100); abaixo de 15 fica vermelho. */
+.salon-energy { padding-left: 3px; }
+.salon-energy-ring { position: relative; display: grid; place-items: center; flex: none; width: 22px; height: 22px; margin-right: 4px; color: var(--brand-text); }
+.salon-energy-ring::before {
+  content: ''; position: absolute; inset: 0; border-radius: 50%;
+  background: conic-gradient(var(--energy, var(--brand)) calc(var(--p, 0) * 1%), color-mix(in srgb, var(--text-strong) 14%, transparent) 0);
+  -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - 2.5px), #000 calc(100% - 2px));
+  mask: radial-gradient(farthest-side, transparent calc(100% - 2.5px), #000 calc(100% - 2px));
+}
+.salon-energy-ring .mi { position: relative; width: 12px; height: 12px; }
+.salon-energy.low { --energy: var(--red); }
+.salon-energy.low strong, .salon-energy.low .salon-energy-ring { color: var(--red); }
 .salon-crystals.full { color: var(--yellow); border-color: color-mix(in srgb, var(--yellow) 35%, transparent); background: color-mix(in srgb, var(--yellow) 10%, transparent); }
 .salon-crystals.full strong, .salon-crystals.full .mi-inline > .mi { color: var(--yellow); }
 .salon-crystals.bump strong { display: inline-block; animation: mudae-crystal-bump .45s var(--spring-pop); }

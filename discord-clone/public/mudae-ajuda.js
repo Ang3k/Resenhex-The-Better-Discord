@@ -27,7 +27,7 @@
       items: [
         { cmds: ['w', 'waifu', 'h', 'husbando', 'm', 'marry', 'o'], text: 'Roda uma waifu ($w), um husbando ($h), qualquer personagem ($m) ou um personagem sem gênero definido ($o). Se não houver ninguém do gênero pedido, sai qualquer um.' },
         { cmds: ['wa', 'wg', 'wc', 'wd', 'ws', 'wv', 'ha', 'hg', 'ma', 'mg'], title: 'Por fonte', text: 'Some a letra da fonte: a anime e mangá, g jogos, c quadrinhos, d desenhos, s séries e v visual novels. Por exemplo, $wg é uma waifu de jogo e $ha é um husbando de anime.' },
-        { cmds: ['tu'], text: 'Mostra tudo de uma vez: rolls, casamento, reserva, kakera, cristais do dia, poder de reação, $daily e $dk.' },
+        { cmds: ['tu'], text: 'Mostra tudo de uma vez: rolls, casamento, reserva, kakera, cristais do dia, energia, $daily e $dk.' },
         { cmds: ['mu', 'marryup'], text: 'Quanto falta para você casar de novo.' },
         { cmds: ['ru', 'rollsup'], text: 'Quantos rolls você tem e quando eles voltam.' },
         { cmds: ['daily'], text: 'Enche os rolls na hora, uma vez a cada 20 horas (só gasta se faltar roll). Com 5 ou mais personagens na likelist, ele guarda 2 usos.' },
@@ -60,7 +60,7 @@
       intro: 'De onde vem o kakera, os cristais e como dar ou trocar.',
       items: [
         { title: 'Cristais', text: 'O cristal errante aparece a cada 5 a 10 minutos com gente no Salão, e todo mundo que clicar a tempo leva (uma vez cada). Os 15 primeiros cristais do dia valem inteiro; depois rendem só 2%. Quando alguém rola um personagem que já tem dono, nasce também o cristal da carta: a cor e o bônus dependem da chave do personagem, e ele pode vir arco-íris. A chuva e a corrente são raras.' },
-        { title: 'Poder de reação', text: 'Só o cristal da carta gasta poder de reação: você tem até 100 e ganha 50 por hora. O roxo é de graça; os outros gastam de 15 a 50 (a metade se o personagem tem chave 10 ou mais). O $tu mostra o seu.' },
+        { title: 'Energia', text: 'Só o cristal da carta gasta energia: você tem até 100 e ganha 50 por hora. O roxo é de graça; os outros gastam de 15 a 50 (a metade se o personagem tem chave 10 ou mais). Ela fica no topo do Salão, do lado dos cristais, e o $tu também mostra.' },
         { cmds: ['kakerareact'], text: 'Escolhe a forma do cristal de cada cor na sua tela (gema, coração, estrela, gota ou losango): $kakerareact roxo estrela. $kakerareact list mostra e reset volta tudo.' },
         { cmds: ['give', 'dar'], text: 'Dá um personagem seu de presente: $give @pessoa nome.' },
         { cmds: ['givek', 'givekakera'], text: 'Dá kakera para alguém: $givek @pessoa 100.' },

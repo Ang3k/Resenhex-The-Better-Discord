@@ -104,7 +104,7 @@ test('poder de reação: sem poder não pega, com o tempo volta, e o cristal err
   const [card] = s.crystals.spawnForCard('s', { card: { id: 1, level: 0 } });
   s.store.usage.a = { power: { value: 5, at: s.now() } };
   const refused = s.crystals.take(s.store, 's', card.id, 'a', { perks: {} });
-  assert.match(refused.error, /Sem poder de reação/);
+  assert.match(refused.error, /Sem energia/);
   assert.equal(s.store.usage.a.crystalDay, undefined, 'recusar não gasta o teto do dia');
   assert.equal(s.crystals.take(s.store, 's', card.id, 'a', { perks: {} }).error.includes('já pegou'), false, 'e não marca como pego');
   s.advance(3600_000); // +50 de poder (o cristal de antes já sumiu: ele dura segundos)

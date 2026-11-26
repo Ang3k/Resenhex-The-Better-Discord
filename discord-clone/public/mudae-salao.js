@@ -328,6 +328,7 @@ window.MudaeSalon = function ({ state, el, Icon, call, onSocket, member, avatar,
   function setStatus(s) {
     if (s?.sources) S.sources = s.sources;
     if (s?.crystals) setCrystals(s.crystals);
+    if (s?.kakeraPower) setEnergy(s.kakeraPower);
     if (!s || s.rollsLeft === undefined) return;
     S.status = s;
     S.statusAt = Date.now();
@@ -350,7 +351,8 @@ window.MudaeSalon = function ({ state, el, Icon, call, onSocket, member, avatar,
     // O saldo fica num pedaço à parte, para pular quando um cristal paga.
     const kak = () => (s.kakera !== undefined ? [' · ', kakera(), el('span', { class: 'salon-status-kakera', textContent: num(s.kakera) })] : []);
     const cr = crystalsNow();
-    const key = text + (cr ? `|${cr.used}/${cr.max}` : '');
+    const en = energyNow();
+    const key = text + (cr ? `|${cr.used}/${cr.max}` : '') + (en ? `|${en.value}/${en.max}` : '');
     if (nodes.status.dataset.key !== key) {
       nodes.status.dataset.key = key;
       nodes.status.title = text;
@@ -358,7 +360,7 @@ window.MudaeSalon = function ({ state, el, Icon, call, onSocket, member, avatar,
         // O texto (rolls e casamento) é o que encolhe com reticências quando falta espaço; o saldo de kakera nunca é cortado.
         el('span', { class: 'salon-status-full' }, el('span', { class: 'salon-status-text', textContent: `${rolls} · ${claim}` }), s.claimReady ? [' ', ico('ring')] : null, ...kak()),
         el('span', { class: 'salon-status-short', ariaHidden: 'true' }, ...short(), ...kak())),
-      cr ? crystalsChip(cr) : null);
+      cr ? crystalsChip(cr) : null, en ? energyChip(en) : null);
     }
   }
 
@@ -383,6 +385,33 @@ window.MudaeSalon = function ({ state, el, Icon, call, onSocket, member, avatar,
     return el('button', { type: 'button', class: 'salon-crystals' + (full ? ' full' : ''), title, ariaLabel: title, onclick: () => toast(title, 'info') },
       ico('spark'), el('span', { class: 'salon-crystals-label', textContent: 'cristais' }), el('strong', { textContent: `${taken}/${c.max}` }));
   }
+
+  // Energia (o "poder de reação" do Mudae do Discord): só o cristal de uma carta gasta. Fica do lado dos cristais
+  // de hoje, que é onde ela é gasta, e não no trilho dos poderes. Volta sozinha: fullIn é quanto falta para encher.
+  function setEnergy(p) {
+    if (!p || !(p.max > 0)) return;
+    S.energy = { value: p.value, max: p.max, fullIn: p.fullIn || 0, at: Date.now() };
+    updateStatus();
+  }
+  function energyNow() {
+    const e = S.energy;
+    if (!e) return null;
+    const passed = Date.now() - e.at;
+    const value = e.fullIn > passed ? e.value + (e.max - e.value) * (passed / e.fullIn) : e.max;
+    return { value: Math.min(e.max, Math.floor(value)), max: e.max, fullIn: Math.max(0, e.fullIn - passed) };
+  }
+  function energyChip(e) {
+    const title = `Energia: ${e.value} de ${e.max}. Pegar o cristal de uma carta gasta de 15 a 50 (o roxo é de graça; `
+      + `metade se o personagem tem chave 10 ou mais). Os cristais que voam pela tela não gastam.`
+      + (e.value >= e.max ? '' : ` Enche em ${minutes(e.fullIn)}.`);
+    const node = el('button', { type: 'button', class: 'salon-energy' + (e.value < 15 ? ' low' : ''), title, ariaLabel: title, onclick: () => toast(title, 'info') },
+      el('span', { class: 'salon-energy-ring', ariaHidden: 'true' }, MI('kakera', 12)),
+      el('span', { class: 'salon-crystals-label', textContent: 'energia' }), el('strong', { textContent: String(e.value) }));
+    node.style.setProperty('--p', String(Math.round((e.value / e.max) * 100)));
+    return node;
+  }
+  // Pegou o cristal de uma carta: o servidor devolve a energia que sobrou (mudae-cristal.js e o chat avisam assim).
+  document.addEventListener('mudae:reaction', (e) => setEnergy(e.detail));
 
   // Um cristal pagou: o saldo da faixa de cima muda e pula (e a conta dos cristais de hoje também).
   let bumpTimer = 0;

@@ -65,7 +65,7 @@ function refundStatus(store, accountId, t) {
   return { divorceLeft: Math.max(0, DIVORCE_CAP - used), divorceCap: DIVORCE_CAP, divorceIn: recent.length ? Math.max(1, recent[0][0] + DIVORCE_CAP_MS - t) : 0 };
 }
 
-// Poder de reação: sobe CRYSTAL.power.regenPerHour por hora, até o máximo. store.usage[conta].power = { value, at }.
+// Energia (o "poder de reação" do Mudae): sobe CRYSTAL.power.regenPerHour por hora, até o máximo. store.usage[conta].power = { value, at }.
 function powerOf(store, accountId, t) {
   const p = store.usage?.[accountId]?.power;
   const max = CRYSTAL.power.max;
