@@ -5,29 +5,47 @@
 //   store.images[idDoPersonagem] = { list: [links], pick: 1 }   (pick 1 = a foto do catálogo; 2 em diante = list[pick - 2])
 //   store.prefs[conta] = { title, color, claimText, divorceText, randomimg }
 // As imagens extras pertencem a quem tem o personagem: quando ele muda de dono (divórcio, presente, troca), saem.
-// Só entra link do imgur (como no Mudae do Discord): o navegador carrega a foto direto de lá, então não há como
-// aceitar qualquer endereço sem expor o IP de quem abre o harém.
+// Entra qualquer link de imagem (http ou https) de um site público. Fora o imgur, o navegador não busca a foto direto
+// do site: o servidor entrega pelo /link-image (assinado), então quem abre o harém não mostra o IP para o site do link
+// (deps.show).
 const { KAKERA_SHAPES, KAKERA_COLORS } = require('./mudae-regras');
 const IMG_MAX = 12;
 const IMG_HOSTS = new Set(['i.imgur.com']);
+const LINK_MAX = 500;
 const TITLE_MAX = 40;
 const TEXT_MAX = 120;
 const PLACEHOLDERS = ['{personagem}', '{usuario}'];
 
 const clean = (text, max) => String(text || '').replace(/[\u0000-\u001f\u007f]+/g, ' ').replace(/\s+/g, ' ').trim().slice(0, max);
 const parts = (arg) => String(arg || '').split('$').map((s) => s.trim());
+const PORTS = new Set(['', '80', '443', '8080', '8443']);
+const isLocalHost = (host) => !host || host === 'localhost' || host.endsWith('.localhost') || host.endsWith('.local') || host.endsWith('.internal')
+  || /^(\d+\.){3}\d+$/.test(host) || host.includes(':');
 
-// Só https://i.imgur.com/<código>.<png|jpg|jpeg|gif|webp>. Devolve o link limpo ou null.
+// Um link http(s) para um site público. Devolve o link limpo ou null.
+// O imgur continua como antes (só o arquivo, sem a busca); nos outros a busca fica, porque muitos sites precisam dela.
 function imageLink(text) {
+  const raw = String(text || '').trim();
+  if (raw.length > LINK_MAX) return null;
   let url;
-  try { url = new URL(String(text || '').trim()); } catch { return null; }
-  if (url.protocol !== 'https:' || !IMG_HOSTS.has(url.hostname) || url.username || url.password || url.port) return null;
-  if (!/^\/[A-Za-z0-9]{5,12}\.(png|jpe?g|gif|webp)$/i.test(url.pathname)) return null;
-  return `https://${url.hostname}${url.pathname}`;
+  try { url = new URL(raw); } catch { return null; }
+  if (!['http:', 'https:'].includes(url.protocol) || url.username || url.password || !PORTS.has(url.port)) return null;
+  const host = url.hostname.replace(/^\[|\]$/g, '').toLowerCase();
+  // Endereço IP direto ou nome da rede local: o servidor não busca lá (o /link-image também recusa).
+  if (isLocalHost(host) || !host.includes('.')) return null;
+  if (IMG_HOSTS.has(host)) {
+    if (url.protocol !== 'https:' || url.port || !/^\/[A-Za-z0-9]{5,12}\.(png|jpe?g|gif|webp)$/i.test(url.pathname)) return null;
+    return `https://${host}${url.pathname}`;
+  }
+  url.hash = '';
+  return url.href;
 }
+// O link que a página usa para mostrar a imagem: as do imgur vão direto; o resto passa pelo servidor.
+const directImage = (url) => (url.startsWith('https://') && IMG_HOSTS.has(new URL(url).hostname));
 
-// deps: owned, find, rows, random.
+// deps: owned, find, rows, random e show (o link de uma imagem de fora para a página; sem ele, o próprio link).
 function createVisualTools(d) {
+  const show = (url) => (directImage(url) || !d.show ? url : d.show(url));
   const entry = (store, id) => store.images?.[String(id)];
 
   // O personagem do harém que o texto aponta, ou um erro.
@@ -37,7 +55,7 @@ function createVisualTools(d) {
       const k = store.claims[String(charId)]?.ownerId === accountId ? d.lookup(String(charId)) : undefined;
       return k === undefined ? { error: 'Esse personagem não está no seu harem.' } : { k, row: d.rows([k])[0] };
     }
-    if (!name) return { error: 'Diga o nome do personagem: **$addimg Gojo $ https://i.imgur.com/abc123.png**.' };
+    if (!name) return { error: 'Diga o nome do personagem: **$addimg Gojo $ https://site.com/foto.png**.' };
     const k = d.find(name, d.owned(store, accountId));
     if (k === null) return { error: `Você não tem ninguém chamado **${name.slice(0, 80)}** no seu harem.` };
     return { k, row: d.rows([k])[0] };
@@ -68,11 +86,11 @@ function createVisualTools(d) {
       return { name: found.row.name, count: e.list.length, removed: 1 };
     }
     const links = p.slice(1).filter(Boolean);
-    if (!links.length) return { error: 'Falta o link da imagem: **$addimg Gojo $ https://i.imgur.com/abc123.png**. Só aceito links diretos do imgur (i.imgur.com).' };
+    if (!links.length) return { error: 'Falta o link da imagem: **$addimg Gojo $ https://site.com/foto.png**. Vale qualquer link direto de imagem.' };
     const valid = [];
     for (const link of links) {
       const url = imageLink(link);
-      if (!url) return { error: `Esse link não serve: **${link.slice(0, 60)}**. Use o link direto do imgur, terminado em .png, .jpg, .gif ou .webp (i.imgur.com/…).` };
+      if (!url) return { error: `Esse link não serve: **${link.slice(0, 60)}**. Use o link direto da imagem (http ou https, de um site público, até ${LINK_MAX} letras).` };
       if (!e.list.includes(url) && !valid.includes(url)) valid.push(url);
     }
     if (e.list.length + valid.length > IMG_MAX) return { error: `Cada personagem aceita no máximo ${IMG_MAX} imagens extras (esse tem ${e.list.length}).` };
@@ -102,12 +120,13 @@ function createVisualTools(d) {
     if (!e) return base;
     if (random) {
       const all = [base, ...e.list];
-      return all[Math.floor(d.random() * all.length)];
+      const got = all[Math.floor(d.random() * all.length)];
+      return got === base ? base : show(got);
     }
-    return e.pick > 1 ? e.list[e.pick - 2] || base : base;
+    return e.pick > 1 && e.list[e.pick - 2] ? show(e.list[e.pick - 2]) : base;
   }
   // As imagens extras de um personagem, para a página do harém: { list, pick } ou null.
-  const imagesView = (store, id) => { const e = entry(store, id); return e ? { list: [...e.list], pick: e.pick } : null; };
+  const imagesView = (store, id) => { const e = entry(store, id); return e ? { list: e.list.map(show), pick: e.pick } : null; };
   const imagesOf = (store, id) => entry(store, id)?.list.length || 0;
   function dropImages(store, id) {
     if (!store.images?.[String(id)]) return;
@@ -179,4 +198,4 @@ function createVisualTools(d) {
   return { addImage, changeImage, kakeraIcon, imageFor, imagesView, imagesOf, dropImages, prefsOf, setPref, rename, color, messageText };
 }
 
-module.exports = { createVisualTools, imageLink, IMG_MAX, IMG_HOSTS, TITLE_MAX, TEXT_MAX };
+module.exports = { createVisualTools, imageLink, IMG_MAX, IMG_HOSTS, LINK_MAX, TITLE_MAX, TEXT_MAX };

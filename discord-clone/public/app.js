@@ -2552,11 +2552,14 @@
     box.replaceChildren(el('div', { class: 'menu-section', textContent: ac.title || 'MEMBROS E CARGOS' }), ...ac.items.map((item, i) => el('button', {
       type: 'button',
       class: 'ac-item' + (i === ac.index ? ' active' : ''),
+      title: [item.label.trim(), item.hint, item.note].filter(Boolean).join(' — '),
       onmousedown: (e) => { e.preventDefault(); applyAutocomplete(item); },
     }, item.member ? avatar(item.member, 'small') : el('span', { class: 'ac-at' }, Icon(item.icon || (item.command ? 'disc' : 'at'), 18)),
     el('span', { style: { color: item.color || '' }, textContent: item.label }),
     item.hint ? el('span', { class: 'ac-hint', textContent: item.hint }) : null,
     item.note ? el('span', { class: 'muted-text', textContent: item.note }) : null)));
+    // Com a lista rolando, a seta para cima/baixo leva junto o item escolhido.
+    box.querySelector('.ac-item.active')?.scrollIntoView({ block: 'nearest' });
   }
 
   function closeAutocomplete() {

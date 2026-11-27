@@ -59,8 +59,8 @@
       id: 'kakera', title: 'Kakera e cristais', words: 'kakera cristal cristais poder reacao presente troca arco-iris cor',
       intro: 'De onde vem o kakera, os cristais e como dar ou trocar.',
       items: [
-        { title: 'Cristais', text: 'O cristal errante aparece a cada 5 a 10 minutos com gente no Salão, e todo mundo que clicar a tempo leva (uma vez cada). Os 15 primeiros cristais do dia valem inteiro; depois rendem só 2%. Quando alguém rola um personagem que já tem dono, nasce também o cristal da carta: a cor e o bônus dependem da chave do personagem, e ele pode vir arco-íris. A chuva e a corrente são raras.' },
-        { title: 'Energia', text: 'Só o cristal da carta gasta energia: você tem até 100 e ganha 50 por hora. O roxo é de graça; os outros gastam de 15 a 50 (a metade se o personagem tem chave 10 ou mais). Ela fica no topo do Salão, do lado dos cristais, e o $tu também mostra.' },
+        { title: 'Cristais', text: 'O cristal errante aparece a cada 5 a 10 minutos com gente no Salão, e todo mundo que clicar a tempo leva (uma vez cada). Os 15 primeiros cristais do dia valem inteiro; depois rendem só 2%. Quando alguém rola um personagem que já tem dono, nasce também o cristal da carta: a cor e o bônus dependem da chave do personagem, e ele pode vir arco-íris. O cristal da carta gasta energia, então fica fora desse teto e vale sempre inteiro. A chuva e a corrente são raras.' },
+        { title: 'Energia', text: 'Só o cristal da carta gasta energia: você tem até 100 e ganha 50 por hora. O roxo é de graça; os outros gastam de 15 a 50 (a metade se o personagem tem chave 10 ou mais). O cristal da carta mostra o preço embaixo dele, num selo com um raio (vermelho se a energia não dá); o errante não tem selo e não gasta nada. Ela fica no topo do Salão, do lado dos cristais, e o $tu também mostra.' },
         { cmds: ['kakerareact'], text: 'Escolhe a forma do cristal de cada cor na sua tela (gema, coração, estrela, gota ou losango): $kakerareact roxo estrela. $kakerareact list mostra e reset volta tudo.' },
         { cmds: ['give', 'dar'], text: 'Dá um personagem seu de presente: $give @pessoa nome.' },
         { cmds: ['givek', 'givekakera'], text: 'Dá kakera para alguém: $givek @pessoa 100.' },
@@ -92,10 +92,10 @@
       ],
     },
     {
-      id: 'personalizar', title: 'Personalizar', words: 'imagem imgur titulo cor nome texto mensagem casamento overview bonus',
+      id: 'personalizar', title: 'Personalizar', words: 'imagem imgur link titulo cor nome texto mensagem casamento overview bonus',
       intro: 'O jeito de ver e de contar o seu harem.',
       items: [
-        { cmds: ['addimg', 'ai'], text: 'Adiciona imagens extras a um personagem seu: $addimg nome $ link. Só links diretos do imgur (i.imgur.com), até 12 por personagem. As imagens saem quando o personagem muda de dono. $addimg remove nome $ 2 tira uma e $addimg removeall nome tira todas.' },
+        { cmds: ['addimg', 'ai'], text: 'Adiciona imagens extras a um personagem seu: $addimg nome $ link. Vale o link direto de qualquer imagem, até 12 por personagem. As imagens saem quando o personagem muda de dono. $addimg remove nome $ 2 tira uma e $addimg removeall nome tira todas.' },
         { cmds: ['changeimg'], text: 'Escolhe qual imagem aparece primeiro: $changeimg nome $ 2 (a 1 é a original).' },
         { cmds: ['randomimg'], text: '$randomimg 1 sorteia a imagem entre a original e as extras nos seus rolls. 0 desliga.' },
         { cmds: ['renameharem', 'rh', 'colormm'], text: '$renameharem muda o título do seu harem e $colormm #ff4d94 muda a cor dele. none volta ao padrão.' },
@@ -116,10 +116,10 @@
       id: 'conquistas', title: 'Conquistas', words: 'conquista conquistas marcos titulo titulos vantagem recompensa servidor',
       intro: 'As conquistas são por servidor e premiam o que você faz. Ficam na aba Conquistas do Salão.',
       items: [
-        { title: 'Como funcionam', text: 'São trilhas de 3 níveis (bronze, prata e ouro) e algumas escondidas. Cada conquista paga kakera uma vez e dá um título. O kakera das conquistas entra até 1.500 por dia; o resto espera na fila. Nunca se perde conquista.' },
+        { title: 'Como funcionam', text: 'São trilhas de 3 níveis (bronze, prata e ouro) e algumas escondidas. Cada conquista paga kakera uma vez e dá um título. O kakera entra na hora, inteiro. Nunca se perde conquista.' },
         { title: 'Vantagens permanentes', text: 'O ouro de Casamenteiro dá +1 vaga de desejo, o de Obra completa dá +1 roll guardado e o de Sequência do $dk dá -10% no $rolls.' },
         { title: 'Do servidor', text: 'Quando o servidor inteiro chega a 100, 1.000 e 10.000 casamentos, quem jogou nos últimos 30 dias ganha a conquista.' },
-        { cmds: ['conquistas', 'marcos'], text: 'Resume as suas conquistas, o kakera na fila e as mais perto de abrir.' },
+        { cmds: ['conquistas', 'marcos'], text: 'Resume as suas conquistas e as mais perto de abrir.' },
         { cmds: ['titulo', 'title'], text: 'Escolhe o título (uma conquista aberta) que aparece ao lado do seu nome: $titulo nome. $titulo sozinho lista e none tira.' },
       ],
     },

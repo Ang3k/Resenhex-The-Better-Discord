@@ -1,14 +1,14 @@
 // Mudae: conquistas e marcos. Por servidor, como os casamentos e o kakera: tudo mora no store da comunidade.
-//   store.achievements[conta] = { done: { 'giro:1': quando, ... }, queue, paid: [dia, quanto], title, d: contadores derivados }
+//   store.achievements[conta] = { done: { 'giro:1': quando, ... }, queue, title, d: contadores derivados }
 //
 // Regras (docs/planos/PLANO-MUDAE-CONQUISTAS-2026-11-24.md):
 // - Conquista nunca tira nada nem expira. Vem de contadores que o servidor guarda (nada vem do cliente).
-// - Kakera de conquista paga uma vez e no máximo ACHIEVEMENTS.dailyKakera por dia; o resto espera na fila.
+// - Kakera de conquista paga uma vez, inteiro, sem teto por dia (a fila só guarda até a avaliação seguinte).
 // - Na primeira avaliação de uma pessoa, o que ela já tinha feito abre de uma vez, sem aviso. Quem jogou no último mês antes
-//   da atualização (lista guardada em achievements._retro por snapshotRetro) também recebe o kakera, pela fila e dentro do teto
-//   diário; os demais entram só com título e vantagem.
+//   da atualização (lista guardada em achievements._retro por snapshotRetro) também recebe o kakera; os demais entram só com
+//   título e vantagem.
 const { ACHIEVEMENTS: A } = require('./mudae-regras');
-const { addKakera, dayOf } = require('./mudae-conta');
+const { addKakera } = require('./mudae-conta');
 
 const TIER = ['bronze', 'prata', 'ouro'];
 const keyOf = (trail, tier) => `${trail}:${tier}`;
@@ -48,18 +48,13 @@ const titleName = (store, accountId) => {
 };
 
 function createConquistas({ now = Date.now } = {}) {
-  // Paga o que está na fila, até o teto do dia (o "dia" vira à meia-noite de Brasília, como o dos cristais).
+  // Paga tudo o que está na fila.
   function payQueue(store, accountId) {
     const e = entryOf(store, accountId);
     if (!e?.queue) return 0;
-    const day = dayOf(now());
-    const used = e.paid?.[0] === day ? e.paid[1] : 0;
-    const give = Math.max(0, Math.min(e.queue, A.dailyKakera - used));
-    if (!give) return 0;
+    const give = e.queue;
     addKakera(store, accountId, give, { transfer: true });
-    e.queue -= give;
-    if (!e.queue) delete e.queue;
-    e.paid = [day, used + give];
+    delete e.queue;
     return give;
   }
 
@@ -114,6 +109,49 @@ function createConquistas({ now = Date.now } = {}) {
     return true;
   }
 
+  // Conserto da 2.8.0, uma vez por servidor. O dia da última jogada (stats.lastDay) só passou a existir na 2.8.0, então na
+  // partida ninguém o tinha: a lista do retroativo saiu vazia e a meta "Cem casamentos" (alcançada na hora) só pegou quem já
+  // tinha rolado depois da atualização. Aqui a lista é refeita pela última jogada (lastPlayed, em ms: último roll ou
+  // casamento), quem ficou de fora das metas do servidor entra nelas (abre na avaliação seguinte, com aviso e kakera) e quem
+  // abriu as conquistas do histórico sem kakera recebe agora. Também paga o que sobrou na fila do antigo teto diário.
+  //   lastPlayed(id): ms da última jogada; playedBefore(id): já jogava antes da 2.8.0; rollsOf(id); isMember(id).
+  // Devolve { conta: kakera pago agora } ou null se já rodou.
+  function repairRetro(store, { lastPlayed, playedBefore, rollsOf, isMember }) {
+    const root = store.achievements;
+    if (!root?._retro || root._retroFix) return null;
+    const since = root._retro.at - A.activeDays * 86_400_000;
+    const ids = new Set([...Object.keys(store.stats || {}), ...Object.keys(store.usage || {})]);
+    const active = [...ids].filter((id) => lastPlayed(id) >= since);
+    const before = new Set(root._retro.members);
+    root._retro.members = [...new Set([...before, ...active])];
+    const retro = new Set(root._retro.members);
+    for (const goal of Object.values(root._server?.goals || {})) {
+      for (const id of active) {
+        if (goal.members.length >= 500) break;
+        if (!goal.members.includes(id) && rollsOf(id) >= A.activeMinRolls && isMember(id)) goal.members.push(id);
+      }
+    }
+    const paid = {};
+    for (const [id, e] of Object.entries(root)) {
+      if (id[0] === '_' || !e?.done) continue;
+      const keys = Object.keys(e.done);
+      if (keys.length && !before.has(id) && retro.has(id)) {
+        // Nunca recebeu kakera de conquista: tudo o que abriu veio do histórico. Senão, o histórico é o primeiro lote (abertas
+        // no mesmo instante), e só para quem já jogava antes (quem chegou depois abriu o primeiro lote jogando, e já recebeu).
+        let unpaid = [];
+        if (!e.paid && !e.queue) unpaid = keys;
+        else if (playedBefore(id)) { const t0 = Math.min(...keys.map((k) => e.done[k])); unpaid = keys.filter((k) => e.done[k] === t0); }
+        const owed = unpaid.reduce((n, k) => n + (BY_KEY.get(k)?.kakera || 0), 0);
+        if (owed) e.queue = (e.queue || 0) + owed;
+      }
+      delete e.paid; // do antigo teto diário
+      const give = payQueue(store, id);
+      if (give) paid[id] = give;
+    }
+    root._retroFix = { at: now(), paid };
+    return paid;
+  }
+
   function setTitle(store, accountId, key) {
     const e = entryOf(store, accountId);
     if (key === null || key === '') { if (e) delete e.title; return { title: null }; }
@@ -133,7 +171,6 @@ function createConquistas({ now = Date.now } = {}) {
   function view(store, accountId, ctx) {
     payQueue(store, accountId);
     const e = entryOf(store, accountId) || { done: {} };
-    const t = now();
     const items = [];
     const trails = new Map();
     for (const a of ALL) { if (!trails.has(a.trail)) trails.set(a.trail, []); trails.get(a.trail).push(a); }
@@ -151,15 +188,14 @@ function createConquistas({ now = Date.now } = {}) {
       });
     }
     const titles = ALL.filter((a) => e.done[a.key]).map((a) => ({ key: a.key, name: a.name, tier: a.tier })).reverse();
-    const used = e.paid?.[0] === dayOf(t) ? e.paid[1] : 0;
     return {
       items, titles, title: e.title && e.done[e.title] ? e.title : null, titleName: titleName(store, accountId),
-      done: Object.keys(e.done).length, total: ALL.length, queue: e.queue || 0, dailyLeft: Math.max(0, A.dailyKakera - used), dailyCap: A.dailyKakera,
+      done: Object.keys(e.done).length, total: ALL.length,
       perks: Object.entries(A.perks).filter(([key]) => e.done[key]).map(([, p]) => p.label), categories: A.categories,
     };
   }
 
-  return { refresh, payQueue, setTitle, view, snapshotRetro };
+  return { refresh, payQueue, setTitle, view, snapshotRetro, repairRetro };
 }
 
 module.exports = { createConquistas, achievementPerks, titleName, isDone, ALL, TIER };

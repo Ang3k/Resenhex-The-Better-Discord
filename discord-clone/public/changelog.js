@@ -4,6 +4,29 @@
 // O título deve destacar as principais funcionalidades ou correções, com termos objetivos.
 window.CHANGELOG = [
   {
+    version: '2.8.1', date: '2026-11-27', name: 'Imagens de qualquer site no harém, preço do cristal da carta, conquistas pagas na hora e valores certos no Mudae',
+    summary: 'Esta versão acerta o que a 2.8.0 trouxe para o Mudae. Quem já jogava recebe o kakera das conquistas que tinha ficado de fora, as conquistas passam a pagar inteiro e na hora, o cristal da carta mostra quanto gasta de energia e deixa de contar no limite do dia, e as imagens extras do harém podem vir de qualquer site. Também há ajustes na Mesa ao vivo, na lista de sugestões de comandos e no ranking dos personagens de desenho.',
+    sections: [
+      { kind: 'new', items: [
+        'Imagens extras de qualquer site: o $addimg e o botão Personalizar do harém aceitam o link direto de qualquer imagem (http ou https, de um site público, até 500 letras), e não só do imgur. Fora o imgur, a foto chega pelo Resenhex, então quem abre o seu harém não mostra o IP para o site do link.',
+        'Preço do cristal da carta: o cristal que nasce de um personagem com dono mostra, num selo com um raio embaixo dele, quanto gasta de energia ("grátis" no roxo). O selo fica vermelho quando a sua energia não dá. O cristal errante não tem selo, porque não gasta nada. No chat, o aviso do cristal da carta também diz o preço. E, quando você pega um, um "−N" sai da energia no topo do Salão, para você ver quanto gastou.',
+      ] },
+      { kind: 'improved', items: [
+        'O cristal da carta ficou fora do limite dos 15 cristais do dia: como ele já se paga em energia, vale sempre inteiro e não ocupa as vagas do dia.',
+        'As conquistas pagam o kakera inteiro na hora. Acabaram o teto de 1.500 por dia e a fila, e o que estava esperando na fila já foi pago.',
+        'Mesa ao vivo: quando chega um roll novo e você está no começo da faixa, ela desliza até ele. Se você rolou a faixa para o lado, ela fica parada, com as mesmas cartas no mesmo lugar.',
+        'Ao arrastar uma carta para arrumar o harém, a lista rola sozinha quando a carta chega perto da borda de cima ou de baixo, e mais rápido quanto mais perto.',
+        'A lista de sugestões que aparece ao digitar um comando ou marcar alguém agora tem altura máxima e rola junto com as setas do teclado. O nome, a dica e a descrição não ficam mais um por cima do outro: o que não cabe termina em reticências, e passar o mouse mostra o texto inteiro. Em janela estreita, a descrição desce para a linha de baixo.',
+        'Personagens de desenho: a ordem deles agora leva em conta a fama de cada obra, pelas visualizações do artigo dela na Wikipédia nos últimos 10 anos. Antes, o nº 1 de uma obra pouco vista valia o mesmo que o Homer Simpson. A ordem dentro de cada obra continua igual, mas a posição, a raridade e o valor de alguns personagens de desenho mudaram.',
+      ] },
+      { kind: 'fixed', items: [
+        'Quem já jogava não recebeu o kakera das conquistas do que tinha feito antes da 2.8.0: o dia da última jogada só começou a ser guardado nela, e por isso a lista de quem jogou no último mês ficou vazia. Agora a lista vem do último roll ou casamento de cada pessoa, e o kakera que faltava já foi pago.',
+        'A conquista do servidor "Cem casamentos" só tinha ido para quem rolou depois da atualização. Agora, quem jogou no último mês (com pelo menos 10 rolls e ainda no servidor) também ganha, com aviso e kakera, na próxima vez que jogar. As metas seguintes também usam a última jogada de verdade.',
+        'Em alguns lugares, o valor dos personagens aparecia sem o bônus do servidor e sem as chaves: os lendários do Ranking, a aba Personagens, os Desejos, as Curtidas, a janela de troca e a confirmação do divórcio em lote (que mostrava um valor diferente do que devolvia). Agora todos mostram o mesmo valor do harém.',
+      ] },
+    ],
+  },
+  {
     version: '2.8.0', date: '2026-11-26', name: 'Conquistas, chaves e soulmates, curtidas, desejos novos, ajuda dentro do Salão e muito mais no Mudae',
     summary: 'O Mudae ganhou muita coisa nesta versão. Agora há 100 conquistas com títulos e prêmios, chaves que crescem quando você rola um personagem seu, cristais que dependem da chave, curtidas, desejos melhores, um consolo para quem rola personagem que já tem dono (com ranking de azarados), um botão de Ajuda que explica tudo dentro do Salão e várias ferramentas para cuidar do harém e do servidor. É a maior atualização do Mudae até agora.',
     sections: [

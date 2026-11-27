@@ -164,6 +164,28 @@ test('valor: +5% do servidor a cada 500 casamentos, até +20%', () => {
   assert.equal(at(50_000), 120, 'o teto é +20%');
 });
 
+test('valor mostrado: harém, ranking, Personagens, desejos, curtidas, troca e divórcio em lote dão o mesmo número', () => {
+  const { mudae, store } = setup({ mine: [1] });
+  giveKeys(mudae, store, 1, 2); // chave 2: +10%
+  // 2.000 casamentos de mentira (ids fora do catálogo): o servidor chega ao teto de +20%.
+  for (let i = 0; i < 2000; i++) store.claims[`x${i}`] = { ownerId: 'z', at: 1 };
+  const harem = mudae.album(store, 'a').chars.find((c) => c.id === 1).value;
+  assert.ok(harem > mudae.card(1).value, 'o harém já tinha o bônus');
+  mudae.wish(store, 'b', 'Gojo');
+  mudae.like(store, 'b', 'Gojo');
+  const t = mudae.tradeOpen(store, { serverId: 's', a: 'a', b: 'b' });
+  mudae.tradeOffer(store, t.id, 'a', { chars: [1] });
+  const shown = {
+    ranking: mudae.ranking(store).legendaries.find((c) => c.id === 1).value,
+    personagens: mudae.list(store, '||Jujutsu Kaisen').chars.find((c) => c.id === 1).value,
+    desejos: mudae.wishlist(store, 'b').chars.find((c) => c.id === 1).value,
+    curtidas: mudae.likeList(store, 'b').chars.find((c) => c.id === 1).value,
+    troca: mudae.tradeView(store, t).sides.a.chars[0].value,
+    divorcioEmLote: mudae.haremTools.prepareDivorce(store, 'a', 'all').value,
+  };
+  for (const [where, value] of Object.entries(shown)) assert.equal(value, harem, where);
+});
+
 test('board: kakera, chaves, personagens e último casamento', () => {
   const { mudae, store, marry } = setup({ mine: [1, 2] });
   marry(3, 'b');

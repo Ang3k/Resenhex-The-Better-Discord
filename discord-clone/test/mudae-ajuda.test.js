@@ -52,7 +52,7 @@ test('números do texto batem com as regras do jogo', () => {
   has(`${SETTINGS.claimWindowSec.min} a ${SETTINGS.claimWindowSec.max} segundos`, 'faixa do $settimer');
   has(`${SETTINGS.rolls.min} a ${SETTINGS.rolls.max}`, 'faixa do $setrolls');
   has(`${SETTINGS.haremLimit.min} a ${SETTINGS.haremLimit.max.toLocaleString('pt-BR')}`, 'faixa do $haremlimit');
-  has(`${A.dailyKakera.toLocaleString('pt-BR')} por dia`, 'teto diário das conquistas');
+  has('O kakera entra na hora, inteiro', 'conquistas pagam sem teto diário');
   has(`${KEYS.goldCap} por 24 horas`, 'teto do prêmio da chave 6');
   has(`máximo é ${KEYS.max}`, 'chave máxima');
   has(`${KEYS.soulNeed} chaves`, 'soulmate');

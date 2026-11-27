@@ -31,6 +31,12 @@ function createCrystals({ now, random, rules = CRYSTAL, countCrystal = () => {} 
   const cardBonus = (c) => (c.card && KEYS.reaction.bonusColors.includes(c.colorKey) ? KEYS.reaction.bonus.find(([from]) => c.card.level >= from)?.[1] || 0 : 0);
 
   const endOf = (c) => c.appearAt + c.life + rules.graceMs;
+  // Quanto de energia o cristal da carta gasta (metade com a chave 10 ou mais; o roxo é de graça). O errante não gasta: null.
+  function costOf(c) {
+    if (!c.card) return null;
+    const base = rules.power.cost[c.colorKey] ?? rules.power.cost.arcoiris;
+    return c.card.level >= KEYS.reaction.halfCostFrom ? Math.ceil(base / 2) : base;
+  }
 
   function spawn(serverId, { kind = 'drifter', appearAt = now(), from = null, by = null, step = 1, called = false, card = null } = {}) {
     const color = kind === 'chain' ? colorOf(CHAIN_COLORS[step - 1]) : card ? pickCardColor(card.level) : pickColor();
@@ -56,7 +62,9 @@ function createCrystals({ now, random, rules = CRYSTAL, countCrystal = () => {} 
 
   function view(c) {
     const { id, serverId, kind, color, colorKey, value, appearAt, life, seed, gems, step, from, by } = c;
-    return { id, serverId, kind, color, colorKey, value, appearAt, life, seed, gems, step, from, by, ...(c.card?.level ? { keys: c.card.level } : {}) };
+    return { id, serverId, kind, color, colorKey, value, appearAt, life, seed, gems, step, from, by, ...(c.card?.level ? { keys: c.card.level } : {}),
+      // O preço em energia vai junto para o navegador mostrar no cristal (é assim que se diferencia do errante).
+      ...(c.card ? { cost: costOf(c) } : {}) };
   }
 
   function tick(presentServerIds) {
@@ -101,22 +109,26 @@ function createCrystals({ now, random, rules = CRYSTAL, countCrystal = () => {} 
     // O cristal da carta gasta energia (metade com a chave 10 ou mais; o roxo é de graça).
     let power = null;
     if (c.card) {
-      const base = rules.power.cost[c.colorKey] ?? rules.power.cost.arcoiris;
-      const cost = c.card.level >= KEYS.reaction.halfCostFrom ? Math.ceil(base / 2) : base;
+      const cost = costOf(c);
       if (cost > powerOf(store, accountId, t)) {
         const wait = Math.ceil(((cost - powerOf(store, accountId, t)) / rules.power.regenPerHour) * 60);
         return { error: `Sem energia para esse cristal (gasta ${cost}). Em uns ${wait} min dá para pegar.` };
       }
       spendPower(store, accountId, cost, t);
-      power = powerView(store, accountId, t);
+      // spent: quanto saiu agora (o navegador mostra o "−N" saindo da energia).
+      power = { ...powerView(store, accountId, t), spent: cost };
     }
 
     // A chuva conta como 1 cristal pego, mas gasta capCost do teto do dia, já na primeira gota da pessoa.
+    // O cristal da carta fica fora do teto: já se paga em energia, então vale sempre inteiro e não come as vagas do dia.
     if (!c.fullFor.has(accountId)) {
-      const u = ((store.usage ||= {})[accountId] ||= {});
-      if (!Array.isArray(u.crystalDay) || u.crystalDay[0] !== dayOf(t)) u.crystalDay = [dayOf(t), 0];
-      c.fullFor.set(accountId, u.crystalDay[1] < rules.dailyFull);
-      u.crystalDay[1] += c.kind === 'storm' ? rules.storm.capCost : 1;
+      if (c.card) c.fullFor.set(accountId, true);
+      else {
+        const u = ((store.usage ||= {})[accountId] ||= {});
+        if (!Array.isArray(u.crystalDay) || u.crystalDay[0] !== dayOf(t)) u.crystalDay = [dayOf(t), 0];
+        c.fullFor.set(accountId, u.crystalDay[1] < rules.dailyFull);
+        u.crystalDay[1] += c.kind === 'storm' ? rules.storm.capCost : 1;
+      }
       countCrystal(store, accountId);
     }
     const full = c.fullFor.get(accountId);

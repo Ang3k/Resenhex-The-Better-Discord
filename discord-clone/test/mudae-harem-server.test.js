@@ -93,8 +93,8 @@ test('harém: notas, ordem, imagens, textos, perfil e divórcio em lote pelo ser
   await send('$mm waifus');
   assert.equal(botLines().findLast((x) => x.mudae.kind === 'harem').mudae.total, 0);
 
-  // Imagens extras: só imgur; a escolhida aparece no álbum.
-  assert.match((await send('$addimg Eren $ https://exemplo.com/a.png')).text, /não serve/);
+  // Imagens extras: qualquer link público (não da rede local); a escolhida aparece no álbum.
+  assert.match((await send('$addimg Eren $ http://localhost/a.png')).text, /não serve/);
   assert.match((await send('$addimg Eren $ https://i.imgur.com/AbC123x.png')).text, /ganhou \*\*1\*\*/);
   assert.match((await album()).chars[0].image, /anilist/, 'a escolhida ainda é a original');
   assert.match((await send('$changeimg Eren $ 2')).text, /imagem \*\*2\*\*/);

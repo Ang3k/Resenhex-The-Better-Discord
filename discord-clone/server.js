@@ -26,6 +26,7 @@ const { MEDAL_KEYS, MEDALS, priceOf, CRYSTAL, ECO, POWERS, KEYS, ACHIEVEMENTS } 
 const { createCommands } = require('./server/mudae-comandos');
 const { createConquistas } = require('./server/mudae-conquistas');
 const { createCrystals } = require('./server/mudae-cristal');
+const { createTesters } = require('./server/mudae-teste');
 const { youtubeSearch } = require('./server/youtube');
 const { createDmCalls } = require('./server/dm-calls');
 const { cleanGif } = require('./server/gifs');
@@ -951,7 +952,12 @@ const dj = createDj({ newId, onChange: (key) => notifyMusic(key) });
 // sozinho na primeira subida e quando o JSON muda; na memória ficam só números (server/mudae-catalogo-banco.js).
 // Sem o arquivo, os comandos só avisam que não tem personagens.
 const MUDAE_CATALOG = process.env.MUDAE_CATALOG || path.join(__dirname, 'server', 'mudae-catalogo.json');
+// Contas de teste do Mudae (MUDAE_TESTERS=nome1,nome2): sem limite de rolls, casamento, kakera, energia nem poderes.
+const mudaeTesters = createTesters();
+if (mudaeTesters.enabled) console.log('[mudae] contas de teste sem limite:', process.env.MUDAE_TESTERS);
 const mudae = createMudae({ catalogFile: MUDAE_CATALOG, catalogDb: path.join(path.dirname(DATA_DB), 'mudae-catalogo.db'), ownChance: KEYS.ownChance,
+  // Imagens extras de personagem com link de fora (menos o imgur) passam pelo /link-image: quem vê não mostra o IP ao site.
+  showImage: (url) => linkImages.proxied(url),
   // Um personagem ficou livre (divórcio ou $forcedivorce): quem o deseja (ou deseja a obra) recebe um aviso, menos quem o soltou.
   // No máximo 5 avisos por pessoa a cada minuto, para um divórcio em lote não virar chuva de toques.
   onFree: (store, card, ownerId) => {
@@ -968,11 +974,45 @@ mudae.preload(Object.values(communities.root.servers).flatMap((s) => Object.keys
 const forja = createForja({ now: Date.now, random: Math.random });
 const poderes = createPoderes({ now: Date.now });
 const conquistas = createConquistas({ now: Date.now });
+// Quando cada pessoa jogou no Mudae (ms), numa passada só pelos casamentos: lastPlayed é o mais recente entre o último roll
+// (a janela de 30 min), o dia da última jogada (stats.lastDay, que só existe desde a 2.8.0) e o último casamento; firstClaim é
+// o casamento mais antigo que ela ainda tem.
+function mudaeActivity(store) {
+  const last = new Map();
+  const first = new Map();
+  for (const c of Object.values(store.claims || {})) {
+    if (!c?.ownerId || !c.at) continue;
+    if (c.at > (last.get(c.ownerId) || 0)) last.set(c.ownerId, c.at);
+    if (c.at < (first.get(c.ownerId) ?? Infinity)) first.set(c.ownerId, c.at);
+  }
+  const lastPlayed = (id) => {
+    const u = store.usage?.[id];
+    const s = store.stats?.[id];
+    return Math.max(last.get(id) || 0, u?.rollWindow != null ? (u.rollWindow + 1) * ROLL_RESET_MS : 0, s?.lastDay != null ? (s.lastDay + 1) * 86_400_000 + 3 * 3600_000 : 0);
+  };
+  return { lastPlayed, firstClaim: (id) => first.get(id) ?? Infinity, lastRollAt: (id) => (store.usage?.[id]?.rollWindow ?? -1) * ROLL_RESET_MS };
+}
 // Antes das conquistas valerem: quem jogou nos últimos 30 dias leva o kakera do que já tinha feito (guardado uma vez por servidor).
+// Depois, o conserto da 2.8.0 (uma vez por servidor): refaz essa lista e a da meta do servidor pela atividade de verdade e paga
+// o kakera do histórico que não caiu (ver repairRetro).
 for (const [serverId, srv] of Object.entries(communities.root.servers)) {
   if (!srv.mudae) continue;
   const today = Math.floor((Date.now() - 3 * 3600_000) / 86_400_000);
-  if (conquistas.snapshotRetro(srv.mudae, (id, s) => today - (s.lastDay ?? -1e9) <= ACHIEVEMENTS.activeDays)) save(chunk.server(serverId));
+  let dirty = conquistas.snapshotRetro(srv.mudae, (id, s) => today - (s.lastDay ?? -1e9) <= ACHIEVEMENTS.activeDays);
+  const act = mudaeActivity(srv.mudae);
+  const retroAt = srv.mudae.achievements?._retro?.at || 0;
+  const paid = conquistas.repairRetro(srv.mudae, {
+    lastPlayed: act.lastPlayed,
+    playedBefore: (id) => act.firstClaim(id) < retroAt || (act.lastRollAt(id) >= 0 && act.lastRollAt(id) < retroAt),
+    rollsOf: (id) => srv.mudae.stats?.[id]?.rolls || 0,
+    isMember: (id) => communities.joined(id, serverId),
+  });
+  if (paid) {
+    dirty = true;
+    const list = Object.entries(paid);
+    if (list.length) console.log(`Mudae (${serverId}): kakera de conquistas pago no conserto da 2.8.0 para ${list.length} conta(s), ${list.reduce((n, [, k]) => n + k, 0)} no total.`);
+  }
+  if (dirty) save(chunk.server(serverId));
 }
 // Cristal errante: um relógio só para todas as comunidades. MUDAE_CRYSTAL_MS="min,max" (só os testes) encurta a espera.
 const crystalRules = (() => {
@@ -1958,6 +1998,7 @@ io.on('connection', (socket) => {
         const reply = typeof ack === 'function' ? ack : () => {};
         if (!acc) return reply({ error: 'Não autenticado' });
         try {
+          if (event.startsWith('mudae:') && mudaeTesters.isTester(acc)) mudaeTesters.refill(mudaeStore(), acc.id);
           const result = handler(acc, payload || {});
           // Quem fez a ação recebe o estado novo antes da confirmação.
           if (result && typeof result.then === 'function') result.then((value) => { flushBroadcast(); reply(value || { ok: true }); }, (err) => reply({ error: err.message }));
@@ -2336,7 +2377,7 @@ io.on('connection', (socket) => {
       expires: revealAt + mudae.setting(mudaeStore(), 'claimWindowSec') * 1000, rollsLeft, ...(pair ? { pair } : {}), ...(eco ? { eco: true } : {}), ...(keyGain ? { keyGain } : {}), ...(luck ? { luck } : {}), ...(firstRoll ? { firstRoll: true } : {}), ...(wishedBy.length ? { wishedBy } : {}) }, { decoys });
     // Personagem que já tem dono: o cristal nasce da carta quando a roleta para (no máximo 1 a cada 30 min por
     // quem rodou, senão quem casa muito com uma lista pequena faz chover cristal a cada roll).
-    if (ownerId && mudae.setting(mudaeStore(), 'crystals') && Date.now() - (cardCrystalAt.get(acc.id) || 0) >= CRYSTAL.cardEveryMs) {
+    if (ownerId && mudae.setting(mudaeStore(), 'crystals') && (mudaeTesters.isTester(acc) || Date.now() - (cardCrystalAt.get(acc.id) || 0) >= CRYSTAL.cardEveryMs)) {
       cardCrystalAt.set(acc.id, Date.now());
       // A chave do personagem muda a cor, o bônus e a chance de um segundo cristal (server/mudae-cristal.js).
       const level = mudae.keyLevel(mudaeStore(), card.id);
@@ -2369,8 +2410,9 @@ io.on('connection', (socket) => {
   }
   // Quem jogou nos últimos 30 dias (e já tinha 10 rolls) e ainda está no servidor: recebe as conquistas coletivas.
   function activeMembersOf(store) {
-    const today = Math.floor((Date.now() - 3 * 3600_000) / 86_400_000);
-    return Object.entries(store.stats || {}).filter(([id, s]) => (s.rolls || 0) >= ACHIEVEMENTS.activeMinRolls && today - (s.lastDay ?? -1e9) <= ACHIEVEMENTS.activeDays && mudaeMember(id)).map(([id]) => id);
+    const since = Date.now() - ACHIEVEMENTS.activeDays * 86_400_000;
+    const { lastPlayed } = mudaeActivity(store);
+    return Object.entries(store.stats || {}).filter(([id, s]) => (s.rolls || 0) >= ACHIEVEMENTS.activeMinRolls && lastPlayed(id) >= since && mudaeMember(id)).map(([id]) => id);
   }
   function achCtx(store, id, derive) {
     let d = store.derived?.[id];
@@ -2408,7 +2450,9 @@ io.on('connection', (socket) => {
 
   function runMudaeCommand(acc, c, { cmd, arg }, command) {
     mudaeAllowed(acc);
-    if (!allow('mudae:' + acc.id, 8, 5000)) fail('Calma! Comandos do Mudae rápidos demais.');
+    const tester = mudaeTesters.isTester(acc);
+    if (tester) mudaeTesters.refill(mudaeStore(), acc.id);
+    if (!tester && !allow('mudae:' + acc.id, 8, 5000)) fail('Calma! Comandos do Mudae rápidos demais.');
     const only = (data) => ({ ephemeral: { command, ...data } });
     const error = (text) => only({ kind: 'error', text });
     // Fora do Salão, o bot só aponta o caminho.
@@ -2755,7 +2799,7 @@ io.on('connection', (socket) => {
     const id = charKey(charId);
     const pos = Number(value);
     // O texto do nome vai como "x": com charId o personagem vem do id.
-    const r = op === 'add' ? v.addImage(store, acc.id, 'x $ ' + String(value || '').slice(0, 200), id)
+    const r = op === 'add' ? v.addImage(store, acc.id, 'x $ ' + String(value || '').slice(0, 600), id)
       : op === 'remove' ? v.addImage(store, acc.id, 'remove x $ ' + pos, id)
       : op === 'removeall' ? v.addImage(store, acc.id, 'removeall x', id)
       : op === 'pick' ? v.changeImage(store, acc.id, 'x $ ' + pos, id) : { error: 'Opção desconhecida.' };

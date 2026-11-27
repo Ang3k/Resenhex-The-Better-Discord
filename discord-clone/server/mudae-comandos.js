@@ -389,7 +389,6 @@ function createCommands({ mudae, forja, parseFlags, postMudae, save, achievement
     save();
     const open = v.items.filter((i) => !i.locked && !i.complete).sort((a, b) => b.pct - a.pct).slice(0, 5);
     const lines = [`**Conquistas:** ${v.done} de ${v.total}${v.titleName ? ` · título: **${v.titleName}**` : ''}`];
-    if (v.queue) lines.push(`Kakera de conquistas na fila: **${v.queue}** (pagam até ${v.dailyCap} por dia; hoje ainda cabem ${v.dailyLeft}).`);
     if (v.perks.length) lines.push(`Vantagens permanentes: ${v.perks.join(', ')}.`);
     if (open.length) lines.push('Mais perto de abrir:', ...open.map((i) => `• **${i.name}** (nível ${i.tier}/${i.tiers}): ${i.have.toLocaleString('pt-BR')}/${i.need.toLocaleString('pt-BR')}`));
     lines.push('Veja todas na aba **Conquistas** do Salão e escolha um título com **$titulo nome**.');

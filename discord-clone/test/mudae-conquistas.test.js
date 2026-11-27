@@ -1,4 +1,4 @@
-// Conquistas: catálogo, abrir na meta, histórico sem kakera, fila diária, títulos, vantagens e os contadores do jogo.
+// Conquistas: catálogo, abrir na meta, histórico sem kakera, pagamento, títulos, vantagens e os contadores do jogo.
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const { createMudae, parse, CLAIM_RESET_MS, DAILY_MS, ROLLS_PRICE } = require('../server/mudae');
@@ -83,22 +83,17 @@ test('vários níveis de uma vez abrem em ordem, e as escondidas só abrem com o
   assert.equal(s.store.achievements.a.done['reencontro:1'], undefined);
 });
 
-test('kakera na fila: no máximo 1.500 por dia, o resto espera e vem no dia seguinte', () => {
+test('kakera sem teto: tudo o que abriu paga de uma vez', () => {
   const s = setup();
   s.conquistas.refresh(s.store, 'a', ctx());
   // Todas as trilhas de uma vez (com a pessoa entre os ativos do servidor): 97 conquistas, 11.250 de kakera.
   const all = ctx(Object.fromEntries(ALL.map((a) => [a.count, a.need])));
   for (const a of ALL) all[a.count] = Math.max(all[a.count], a.need);
   all.activeMembers = () => ['a'];
-  s.conquistas.refresh(s.store, 'a', all);
-  assert.equal(s.mudae.kakeraOf(s.store, 'a'), A.dailyKakera, 'hoje só entram 1.500');
-  assert.equal(s.store.achievements.a.queue, 11250 - A.dailyKakera);
-  assert.equal(s.conquistas.payQueue(s.store, 'a'), 0, 'o teto do dia já foi usado');
-  s.advance(DAY);
-  assert.equal(s.conquistas.payQueue(s.store, 'a'), A.dailyKakera, 'no dia seguinte entram mais 1.500');
-  for (let i = 0; i < 10; i++) { s.advance(DAY); s.conquistas.payQueue(s.store, 'a'); }
-  assert.equal(s.store.achievements.a.queue, undefined, 'a fila acaba');
+  const r = s.conquistas.refresh(s.store, 'a', all);
+  assert.equal(r.paid, 11250);
   assert.equal(s.mudae.kakeraOf(s.store, 'a'), 11250);
+  assert.equal(s.store.achievements.a.queue, undefined, 'nada fica na fila');
   assert.equal(s.store.earned?.a, undefined, 'o prêmio das conquistas não conta como kakera ganho (senão se alimentaria)');
 });
 
@@ -155,7 +150,6 @@ test('view: trilha com o nível seguinte, progresso, escondidas fechadas e o que
   assert.deepEqual([hidden.locked, hidden.name, hidden.hidden], [true, '???', true]);
   assert.equal(v.total, ALL.length);
   assert.equal(v.done, 1, 'só o Casamenteiro bronze (10 casamentos) abriu; o Harém cheio pede 25');
-  assert.equal(v.dailyCap, A.dailyKakera);
   assert.deepEqual(v.titles.map((x) => x.name), ['Casamenteiro']);
   s.conquistas.refresh(s.store, 'a', ctx({ night: 1 }));
   const open = s.conquistas.view(s.store, 'a', ctx({ night: 1 })).items.find((i) => i.trail === 'madrugada');
@@ -312,4 +306,60 @@ test('página do harém: imagens e cor por id de personagem, sem depender do nom
   assert.ok(v.addImage(s.store, 'b', 'x $ https://i.imgur.com/abc125.png', id).error, 'quem não tem o personagem não mexe');
   assert.ok(s.mudae.embedColor(s.store, 'a', '', '#ff0000', id).error, 'sem chave não tem cor');
   assert.equal(s.mudae.album(s.store, 'a').chars[0].images.base !== undefined, true);
+});
+
+// O conserto da 2.8.0: na partida ninguém tinha stats.lastDay, então a lista do retroativo saiu vazia e a meta do servidor só
+// pegou quem rolou depois da atualização.
+function brokenDeploy() {
+  const s = setup();
+  const deploy = s.now();
+  s.store.stats = { velho: { rolls: 300 }, novo: { rolls: 80 }, sumido: { rolls: 500 }, longe: { rolls: 400 } };
+  s.store.usage = { velho: {}, novo: {}, sumido: {}, longe: {} };
+  assert.equal(s.conquistas.snapshotRetro(s.store, (id, st) => st.lastDay != null), true);
+  assert.deepEqual(s.store.achievements._retro.members, [], 'a lista vazia da 2.8.0');
+  // A meta "Cem casamentos" foi alcançada na hora, por alguém que não estava na lista de ativos.
+  s.conquistas.refresh(s.store, 'novo', ctx({ serverClaims: 150, activeMembers: () => [] }));
+  // "velho" já jogava: abriu o histórico (Girador + Roleteiro) sem kakera e depois abriu Casamenteiro jogando (pago).
+  s.advance(60_000);
+  s.conquistas.refresh(s.store, 'velho', ctx({ rolls: 600, serverClaims: 150 }));
+  s.advance(60_000);
+  s.conquistas.refresh(s.store, 'velho', ctx({ rolls: 600, claims: 10, serverClaims: 150 }));
+  // "novo" chegou depois: abriu Girador jogando e recebeu.
+  s.advance(60_000);
+  s.conquistas.refresh(s.store, 'novo', ctx({ rolls: 80, serverClaims: 150 }));
+  // "longe" já tinha conquistas, mas nunca mais jogou desde antes do último mês.
+  s.conquistas.refresh(s.store, 'longe', ctx({ rolls: 600, serverClaims: 150 }));
+  // O código da 2.8.0 marcava cada pagamento em paid: [dia, quanto].
+  s.store.achievements.velho.paid = [1, A.kakera[0]];
+  s.store.achievements.novo.paid = [1, A.kakera[0]];
+  const played = { velho: deploy - 5 * DAY, novo: s.now(), sumido: deploy - 10 * DAY, longe: deploy - 60 * DAY };
+  return { s, deploy, played };
+}
+
+test('conserto da 2.8.0: paga o histórico de quem jogava, põe os ativos na meta do servidor e roda uma vez só', () => {
+  const { s, deploy, played } = brokenDeploy();
+  const velhoAntes = s.mudae.kakeraOf(s.store, 'velho');
+  const novoAntes = s.mudae.kakeraOf(s.store, 'novo');
+  const paid = s.conquistas.repairRetro(s.store, {
+    lastPlayed: (id) => played[id] || 0, playedBefore: (id) => id !== 'novo', rollsOf: (id) => s.store.stats[id]?.rolls || 0, isMember: () => true,
+  });
+  assert.deepEqual(paid, { velho: A.kakera[0] + A.kakera[1] }, 'só o lote do histórico do velho');
+  assert.equal(s.mudae.kakeraOf(s.store, 'velho'), velhoAntes + A.kakera[0] + A.kakera[1]);
+  assert.equal(s.mudae.kakeraOf(s.store, 'novo'), novoAntes, 'quem chegou depois já tinha recebido');
+  assert.equal(s.mudae.kakeraOf(s.store, 'longe'), 0, 'quem não jogava no último mês segue só com o título');
+  assert.deepEqual(s.store.achievements._retro.members.sort(), ['novo', 'sumido', 'velho']);
+  assert.deepEqual(s.store.achievements._server.goals['servidor:1'].members.sort(), ['novo', 'sumido', 'velho']);
+  assert.equal(s.conquistas.repairRetro(s.store, { lastPlayed: () => 0, playedBefore: () => true, rollsOf: () => 0, isMember: () => true }), null, 'uma vez só');
+
+  // A meta do servidor abre na avaliação seguinte, com aviso e os 50 de kakera, e o nível sobe na aba.
+  const r = s.conquistas.refresh(s.store, 'velho', ctx({ rolls: 600, claims: 10, serverClaims: 150 }));
+  assert.deepEqual(r.fresh.map((f) => f.key), ['servidor:1']);
+  assert.equal(r.paid, A.serverTrail[6][0]);
+  const item = s.conquistas.view(s.store, 'velho', ctx({ serverClaims: 150 })).items.find((i) => i.trail === 'servidor');
+  assert.deepEqual([item.tier, item.done, item.hint], [2, [true, false, false], null]);
+  // Quem ainda não tinha jogado desde a atualização leva o histórico com kakera quando voltar.
+  const sumido = s.conquistas.refresh(s.store, 'sumido', ctx({ rolls: 600, serverClaims: 150 }));
+  assert.equal(sumido.paid, A.kakera[0] + A.kakera[1] + A.serverTrail[6][0]);
+  assert.equal(sumido.fresh.length, 0, 'sem aviso, como o histórico');
+  assert.ok(deploy);
 });

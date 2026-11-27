@@ -15,7 +15,7 @@ const parts = (arg) => String(arg || '').split('$').map((s) => s.trim());
 const pageNumber = (text) => { const n = Number(String(text).replace(/^page\s+|^pagina\s+/i, '')); return Number.isInteger(n) && n >= 1 ? n : null; };
 
 // deps (todos vêm do createMudae): owned/ordered (listas de k), find, findSeries, lookup, release, rows, card, cardById,
-// seriesOf, eqOf, idOf, normalize, refundLeft, bump, now.
+// valueIn (o valor da carta neste servidor), seriesOf, eqOf, idOf, normalize, refundLeft, bump, now.
 function createHaremTools(d) {
   const pending = new Map();
   const idsOf = (list) => d.rows(list).map((r) => String(r.id));
@@ -191,7 +191,8 @@ function createHaremTools(d) {
       label = scope === 'series' ? `a obra ${targets.join(', ')}` : `a página ${targets.join(', ')}`;
     }
     if (!ks.length) return { error: 'Não sobrou ninguém para divorciar.' };
-    const value = ks.reduce((total, k) => total + d.card(k).value, 0);
+    // O valor deste servidor (o mesmo que o confirmDivorce devolve), e não o base do catálogo.
+    const value = ks.reduce((total, k) => total + d.valueIn(store, k), 0);
     const left = d.refundLeft(store, accountId);
     const refund = Math.min(value, left);
     pending.set(accountId, { at: d.now(), ids: idsOf(ks), label });
