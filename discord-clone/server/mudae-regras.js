@@ -169,7 +169,6 @@ const UNLUCKY = { pityAt: 15, legendaryKakeraShare: 0.5, pityLegendaryShare: 0.2
 const ACHIEVEMENTS = {
   kakera: [18, 72, 260], // kakera de cada nível
   noKakera: ['azar'], // trilhas só de título: o consolo de lendário já paga, e o total fica nos 10% da Forja
-  dailyKakera: 1500, // o que as conquistas pagam por dia no máximo; o resto espera na fila
   pairPerDay: 3, // trocas e presentes entre as mesmas duas contas contam no máximo 3 vezes por dia
   deepFrom: 50000, // "Garimpeiro": personagem a partir desta posição do catálogo
   // "Obra completa": só vale obra com 3 a 12 personagens na roleta (uma obra de 1 ou 2 personagens se completaria sem querer).

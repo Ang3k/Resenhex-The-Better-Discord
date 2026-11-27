@@ -170,6 +170,38 @@ test('clicar chama mudae:crystal:take com id e gem', async (t) => {
   assert.deepEqual(app.takes().slice(before), [{ id: 'falha', gem: 0 }]);
 });
 
+test('cristal da carta: o selo com o preço (vermelho sem energia), o errante sem selo, e o "−N" saindo da energia', async (t) => {
+  const app = salon(t, {
+    presence: { kakeraPower: { value: 20, max: 100, fullIn: 3_600_000 } },
+    take: ({ id }) => (id === 'carta' ? { ok: true, amount: 300, kakera: 1500, full: true, power: { value: 5, max: 100, fullIn: 3_600_000, spent: 15 } } : null),
+  });
+  await app.flush();
+  app.deliver('mudae:crystal', app.crystal({ id: 'errante' }));
+  app.deliver('mudae:crystal', app.crystal({ id: 'carta', cost: 15 }));
+  app.deliver('mudae:crystal', app.crystal({ id: 'caro', colorKey: 'vermelho', cost: 45 }));
+  app.deliver('mudae:crystal', app.crystal({ id: 'roxo', colorKey: 'roxo', cost: 0 }));
+  await app.advance(0); app.paint();
+  const gem = (id) => app.d.querySelector(`.mudae-crystal[data-id="${id}"]`);
+  const badge = (id) => gem(id)?.querySelector('.mudae-crystal-cost');
+  assert.equal(badge('errante'), null, 'o errante não tem selo');
+  assert.equal(gem('errante').classList.contains('card'), false);
+  assert.equal(badge('carta').textContent, '15');
+  assert.ok(gem('carta').classList.contains('card'));
+  assert.match(gem('carta').getAttribute('aria-label'), /da carta \(gasta 15 de energia\)/);
+  assert.equal(badge('roxo').textContent, 'grátis');
+  assert.equal(badge('carta').classList.contains('short'), false, '20 de energia paga 15');
+  assert.equal(badge('caro').classList.contains('short'), true, '20 de energia não paga 45');
+  assert.equal(app.d.querySelector('.salon-energy strong').textContent, '20');
+
+  app.press(gem('carta'));
+  await app.flush();
+  assert.equal(app.d.querySelector('.salon-energy strong').textContent, '5');
+  assert.equal(app.d.querySelector('.salon-energy-spent').textContent, '−15', 'o gasto aparece saindo da energia');
+  assert.equal(badge('roxo').classList.contains('short'), false, 'o grátis nunca fica vermelho');
+  await app.advance(1200);
+  assert.equal(app.d.querySelector('.salon-energy-spent'), null, 'e some sozinho');
+});
+
 test('perto da beira, o valor e a frase de baixo ficam dentro da área', async (t) => {
   const app = salon(t, { take: () => ({ ok: true, amount: 10, kakera: 1210, full: false }) });
   await app.flush();
@@ -254,7 +286,7 @@ test('cristais de hoje na faixa de cima: a conta, o pulo, o teto e a virada da m
   await app.flush();
   const chip = () => app.d.querySelector('.salon-status .salon-crystals');
   assert.equal(chip().querySelector('strong').textContent, '7/15');
-  assert.match(chip().title, /Cristais de hoje: 7 de 15\. Os 15 primeiros do dia valem inteiro; depois, 2% do valor até a meia-noite\. A chuva conta 2\./);
+  assert.match(chip().title, /Cristais de hoje: 7 de 15\. Os 15 primeiros do dia valem inteiro; depois, 2% do valor até a meia-noite\. O da carta gasta energia e fica fora dessa conta\. A chuva conta 2\./);
   assert.equal(chip().classList.contains('full'), false);
   // No celular não há dica ao passar o mouse: o toque mostra a explicação.
   chip().click();
@@ -288,7 +320,7 @@ test('cristais de hoje: com o teto cheio, a faixa avisa que agora valem pouco', 
   const chip = app.d.querySelector('.salon-crystals');
   assert.equal(chip.querySelector('strong').textContent, '15/15', 'a chuva pode passar do teto, mas a conta para em 15');
   assert.ok(chip.classList.contains('full'));
-  assert.equal(chip.title, 'Você já pegou os 15 cristais de hoje que valem inteiro. Até a meia-noite, cada cristal vale 2% do valor.');
+  assert.equal(chip.title, 'Você já pegou os 15 cristais de hoje que valem inteiro. Até a meia-noite, cada cristal vale 2% do valor (o da carta, que gasta energia, continua inteiro).');
 });
 
 test('o cristal que nasce de um roll sai de dentro da carta no palco', async (t) => {
@@ -474,6 +506,14 @@ test('modo simplificado recebe a linha com o botão Pegar', async (t) => {
   assert.deepEqual(app.last('mudae:crystal:take'), { id: 'k3', gem: 1 });
   assert.match(rain().textContent, /\+260/);
   assert.equal(rain().disabled, true, 'acabaram as gotas');
+
+  // O cristal da carta diz o preço em energia; o errante (k2, lá em cima) não falava de energia.
+  assert.doesNotMatch(app.d.querySelector('[data-id="live-k2"]').textContent, /energia/);
+  app.deliver('mudae:crystal', app.crystal({ id: 'k4', cost: 15 }));
+  app.deliver('mudae:crystal', app.crystal({ id: 'k5', colorKey: 'roxo', cost: 0 }));
+  await settle();
+  assert.match(app.d.querySelector('[data-id="live-k4"]').textContent, /saiu da carta!.*Gasta 15 de energia/);
+  assert.match(app.d.querySelector('[data-id="live-k5"]').textContent, /Não gasta energia/);
 
   await app.open('geral');
   assert.deepEqual(app.last('mudae:presence'), { channel: null }, 'sair do canal sai do Salão');

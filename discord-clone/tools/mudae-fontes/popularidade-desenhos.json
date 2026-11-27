@@ -1,0 +1,1177 @@
+{
+  "fonte": "Wikimedia Pageviews (en.wikipedia, user, mensal)",
+  "periodo": {
+    "inicio": "2016110100",
+    "fim": "2026103100"
+  },
+  "expoente": 0.5,
+  "wikis": {
+    "simpsons": {
+      "artigos": [
+        {
+          "titulo": "The Simpsons",
+          "canonico": "The Simpsons",
+          "visualizacoes": 27096438,
+          "tambemSomados": [
+            "The simpsons",
+            "The Simpsons (TV series)",
+            "The Simpsons (television series)"
+          ]
+        }
+      ],
+      "visualizacoes": 27096438
+    },
+    "futurama": {
+      "artigos": [
+        {
+          "titulo": "Futurama",
+          "canonico": "Futurama",
+          "visualizacoes": 10995259,
+          "tambemSomados": [
+            "Futurama (animated series)",
+            "Futurama (tv series)",
+            "Futurama (TV Series)",
+            "Futurama (television)",
+            "Futurama (TV series)",
+            "Futurama (tv)",
+            "Futurama (franchise)"
+          ]
+        }
+      ],
+      "visualizacoes": 10995259
+    },
+    "familyguy": {
+      "artigos": [
+        {
+          "titulo": "Family Guy",
+          "canonico": "Family Guy",
+          "visualizacoes": 20075394,
+          "tambemSomados": [
+            "Family guy",
+            "Family Guy (comics)",
+            "Family Guy (TV series)",
+            "Family Guy (film)",
+            "Family Guy (1999 TV series)"
+          ]
+        }
+      ],
+      "visualizacoes": 20075394
+    },
+    "southpark": {
+      "artigos": [
+        {
+          "titulo": "South Park",
+          "canonico": "South Park",
+          "visualizacoes": 21117303,
+          "tambemSomados": [
+            "South Park (cartoon)",
+            "South park",
+            "South Park (TV series)"
+          ]
+        }
+      ],
+      "visualizacoes": 21117303
+    },
+    "rickandmorty": {
+      "artigos": [
+        {
+          "titulo": "Rick and Morty",
+          "canonico": "Rick and Morty",
+          "visualizacoes": 29518254,
+          "tambemSomados": [
+            "Rick And Morty",
+            "Rick and morty"
+          ]
+        }
+      ],
+      "visualizacoes": 29518254
+    },
+    "avatar": {
+      "artigos": [
+        {
+          "titulo": "Avatar: The Last Airbender",
+          "canonico": "Avatar: The Last Airbender",
+          "visualizacoes": 22054622,
+          "tambemSomados": [
+            "Avatar: The Last Airbender (show)",
+            "Avatar: the Last Airbender",
+            "Avatar: The Last Airbender (TV series)"
+          ]
+        }
+      ],
+      "visualizacoes": 22054622
+    },
+    "adventuretime": {
+      "artigos": [
+        {
+          "titulo": "Adventure Time",
+          "canonico": "Adventure Time",
+          "visualizacoes": 10895318,
+          "tambemSomados": [
+            "Adventure Time (cartoon)",
+            "Adventure Time (Cartoon Network series)",
+            "Adventure Time (animated series)",
+            "Adventure Time (animated short)",
+            "Adventure Time (2010 TV series)",
+            "Adventure time",
+            "Adventure Time (film)",
+            "Adventure Time (theme song)",
+            "Adventure Time (song)"
+          ]
+        }
+      ],
+      "visualizacoes": 10895318
+    },
+    "gravityfalls": {
+      "artigos": [
+        {
+          "titulo": "Gravity Falls",
+          "canonico": "Gravity Falls",
+          "visualizacoes": 8527614,
+          "tambemSomados": [
+            "Gravity falls",
+            "Gravity Falls (franchise)"
+          ]
+        }
+      ],
+      "visualizacoes": 8527614
+    },
+    "steven-universe": {
+      "artigos": [
+        {
+          "titulo": "Steven Universe",
+          "canonico": "Steven Universe",
+          "visualizacoes": 10209794,
+          "tambemSomados": [
+            "Steven universe",
+            "Steven Universe (TV series)",
+            "Steven Universe (franchise)"
+          ]
+        }
+      ],
+      "visualizacoes": 10209794
+    },
+    "phineasandferb": {
+      "artigos": [
+        {
+          "titulo": "Phineas and Ferb",
+          "canonico": "Phineas and Ferb",
+          "visualizacoes": 8940572,
+          "tambemSomados": [
+            "Phineas And Ferb",
+            "Phineas and ferb",
+            "Phineas and Ferb (film)",
+            "Phineas and Ferb (franchise)",
+            "Phineas and Ferb (season 6)"
+          ]
+        }
+      ],
+      "visualizacoes": 8940572
+    },
+    "spongebob": {
+      "artigos": [
+        {
+          "titulo": "SpongeBob SquarePants",
+          "canonico": "SpongeBob SquarePants",
+          "visualizacoes": 20847689,
+          "tambemSomados": [
+            "Spongebob Squarepants",
+            "Spongebob squarepants",
+            "SpongeBob Squarepants",
+            "SpongeBob SquarePants (series)",
+            "SpongeBob SquarePants (TV series)",
+            "Spongebob SquarePants",
+            "SPONGEBOB SQUAREPANTS",
+            "SpongeBob SquarePants (TV show)",
+            "SpongeBob squarepants"
+          ]
+        }
+      ],
+      "visualizacoes": 20847689
+    },
+    "ben10": {
+      "artigos": [
+        {
+          "titulo": "Ben 10",
+          "canonico": "Ben 10",
+          "visualizacoes": 8020496,
+          "tambemSomados": [
+            "Ben 10 (film)",
+            "Ben 10 (Cartoon Network)",
+            "Ben 10 (toy line)",
+            "Ben 10 (franchise)",
+            "Ben 10 (Franchise)",
+            "Ben 10 (Film)",
+            "Ben 10 (season 1)",
+            "Ben 10 (2017 video game)",
+            "Ben 10 (film series)"
+          ]
+        }
+      ],
+      "visualizacoes": 8020496
+    },
+    "teentitans": {
+      "artigos": [
+        {
+          "titulo": "Teen Titans (TV series)",
+          "canonico": "Teen Titans (TV series)",
+          "visualizacoes": 7226667,
+          "tambemSomados": [
+            "Teen Titans (animated series)",
+            "Teen Titans (TV Series)",
+            "Teen titans (animated series)",
+            "Teen Titans (cartoon)",
+            "Teen Titans (TV show)",
+            "Teen titans (show)",
+            "Teen Titans (song)"
+          ]
+        }
+      ],
+      "visualizacoes": 7226667
+    },
+    "looneytunes": {
+      "artigos": [
+        {
+          "titulo": "Looney Tunes",
+          "canonico": "Looney Tunes",
+          "visualizacoes": 7283836,
+          "tambemSomados": [
+            "Looney tunes"
+          ]
+        }
+      ],
+      "visualizacoes": 7283836
+    },
+    "hazbinhotel": {
+      "artigos": [
+        {
+          "titulo": "Hazbin Hotel",
+          "canonico": "Hazbin Hotel",
+          "visualizacoes": 9987386,
+          "tambemSomados": [
+            "Hazbin hotel",
+            "Hazbin Hotel (Hazbin Hotel)"
+          ]
+        }
+      ],
+      "visualizacoes": 9987386
+    },
+    "theamazingworldofgumball": {
+      "artigos": [
+        {
+          "titulo": "The Amazing World of Gumball",
+          "canonico": "The Amazing World of Gumball",
+          "visualizacoes": 6762677,
+          "tambemSomados": [
+            "The Amazing World Of Gumball",
+            "The amazing world of gumball"
+          ]
+        }
+      ],
+      "visualizacoes": 6762677
+    },
+    "regularshow": {
+      "artigos": [
+        {
+          "titulo": "Regular Show",
+          "canonico": "Regular Show",
+          "visualizacoes": 5431593,
+          "tambemSomados": [
+            "Regular show"
+          ]
+        }
+      ],
+      "visualizacoes": 5431593
+    },
+    "kimpossible": {
+      "artigos": [
+        {
+          "titulo": "Kim Possible",
+          "canonico": "Kim Possible",
+          "visualizacoes": 4223420,
+          "tambemSomados": [
+            "Kim Possible (cartoon)",
+            "Kim possible",
+            "Kim Possible (franchise)"
+          ]
+        }
+      ],
+      "visualizacoes": 4223420
+    },
+    "dannyphantom": {
+      "artigos": [
+        {
+          "titulo": "Danny Phantom",
+          "canonico": "Danny Phantom",
+          "visualizacoes": 3181646,
+          "tambemSomados": [
+            "Danny Phantom (TV series)",
+            "Danny phantom"
+          ]
+        }
+      ],
+      "visualizacoes": 3181646
+    },
+    "theowlhouse": {
+      "artigos": [
+        {
+          "titulo": "The Owl House",
+          "canonico": "The Owl House",
+          "visualizacoes": 7449217,
+          "tambemSomados": [
+            "The owl house",
+            "The Owl House (TV series)"
+          ]
+        }
+      ],
+      "visualizacoes": 7449217
+    },
+    "totaldrama": {
+      "artigos": [
+        {
+          "titulo": "Total Drama",
+          "canonico": "Total Drama",
+          "visualizacoes": 4063091,
+          "tambemSomados": [
+            "Total drama",
+            "Total Drama (franchise)",
+            "Total Drama (series)"
+          ]
+        }
+      ],
+      "visualizacoes": 4063091
+    },
+    "mlp": {
+      "artigos": [
+        {
+          "titulo": "My Little Pony: Friendship Is Magic",
+          "canonico": "My Little Pony: Friendship Is Magic",
+          "visualizacoes": 6156775,
+          "tambemSomados": [
+            "My Little Pony: Friendship is Magic",
+            "My Little Pony: Friendship Is Magic (animated series)",
+            "My Little Pony: Friendship is Magic (animated series)",
+            "My Little Pony: Friendship Is Magic (TV series)",
+            "My Little Pony: Friendship is Magic (TV series)",
+            "My Little Pony: Friendship Is Magic (TV show)"
+          ]
+        }
+      ],
+      "visualizacoes": 6156775
+    },
+    "powerpuffgirls": {
+      "artigos": [
+        {
+          "titulo": "The Powerpuff Girls",
+          "canonico": "The Powerpuff Girls",
+          "visualizacoes": 8942648,
+          "tambemSomados": [
+            "The PowerPuff Girls",
+            "The Powerpuff girls",
+            "The powerpuff girls",
+            "The Powerpuff Girls (1998 TV series)",
+            "The powerpuff Girls",
+            "The Powerpuff Girls (1998 series)",
+            "The Powerpuff Girls (1998 TV Series)",
+            "The Powerpuff Girls (TV series)"
+          ]
+        }
+      ],
+      "visualizacoes": 8942648
+    },
+    "disney": {
+      "artigos": [
+        {
+          "titulo": "Walt Disney Animation Studios",
+          "canonico": "Walt Disney Animation Studios",
+          "visualizacoes": 7699226
+        },
+        {
+          "titulo": "Mickey Mouse",
+          "canonico": "Mickey Mouse",
+          "visualizacoes": 14385748,
+          "tambemSomados": [
+            "Mickey mouse",
+            "Mickey Mouse (pejorative)",
+            "Mickey Mouse (Last Week Tonight with John Oliver)",
+            "Mickey Mouse (Last Week Tonight)"
+          ]
+        },
+        {
+          "titulo": "Frozen (2013 film)",
+          "canonico": "Frozen (2013 film)",
+          "visualizacoes": 16529198,
+          "tambemSomados": [
+            "Frozen (animated film)",
+            "Frozen (Disney film)",
+            "Frozen (2013 movie)"
+          ]
+        },
+        {
+          "titulo": "The Lion King",
+          "canonico": "The Lion King",
+          "visualizacoes": 19535696,
+          "tambemSomados": [
+            "The Lion King (movie)",
+            "The lion king",
+            "The Lion King (film)",
+            "The Lion King (1994 film)"
+          ]
+        }
+      ],
+      "visualizacoes": 19535696
+    },
+    "pixar": {
+      "artigos": [
+        {
+          "titulo": "Pixar",
+          "canonico": "Pixar",
+          "visualizacoes": 14173968,
+          "tambemSomados": [
+            "PIXAR"
+          ]
+        },
+        {
+          "titulo": "Toy Story",
+          "canonico": "Toy Story",
+          "visualizacoes": 12751497,
+          "tambemSomados": [
+            "Toy story",
+            "Toy Story (movie)",
+            "Toy Story (film)",
+            "Toy Story (1995 film)"
+          ]
+        }
+      ],
+      "visualizacoes": 14173968
+    },
+    "dreamworks": {
+      "artigos": [
+        {
+          "titulo": "DreamWorks Animation",
+          "canonico": "DreamWorks Animation",
+          "visualizacoes": 13151987,
+          "tambemSomados": [
+            "Dreamworks Animation",
+            "Dreamworks animation",
+            "DreamWorks animation"
+          ]
+        },
+        {
+          "titulo": "Shrek",
+          "canonico": "Shrek",
+          "visualizacoes": 13967537,
+          "tambemSomados": [
+            "Shrek (film)",
+            "Shrek (Movie)",
+            "SHReK",
+            "Shrek (2001 film)"
+          ]
+        }
+      ],
+      "visualizacoes": 13967537
+    },
+    "scoobydoo": {
+      "artigos": [
+        {
+          "titulo": "Scooby-Doo",
+          "canonico": "Scooby-Doo",
+          "visualizacoes": 14312400,
+          "tambemSomados": [
+            "Scooby-doo",
+            "Scooby-Doo (TV series)",
+            "Scooby-Doo (comics)",
+            "Scooby-Doo (TV Series)"
+          ]
+        }
+      ],
+      "visualizacoes": 14312400
+    },
+    "invincible": {
+      "artigos": [
+        {
+          "titulo": "Invincible (TV series)",
+          "canonico": "Invincible (TV series)",
+          "visualizacoes": 19169677,
+          "tambemSomados": [
+            "Invincible (season 1)",
+            "Invincible (season 3)"
+          ]
+        }
+      ],
+      "visualizacoes": 19169677
+    },
+    "arcane": {
+      "artigos": [
+        {
+          "titulo": "Arcane (TV series)",
+          "canonico": "Arcane (TV series)",
+          "visualizacoes": 12100709,
+          "tambemSomados": [
+            "Arcane (TV Series)",
+            "Arcane (animation)",
+            "Arcane (anime)"
+          ]
+        }
+      ],
+      "visualizacoes": 12100709
+    },
+    "gargoyles": {
+      "artigos": [
+        {
+          "titulo": "Gargoyles (TV series)",
+          "canonico": "Gargoyles (TV series)",
+          "visualizacoes": 2920747,
+          "tambemSomados": [
+            "Gargoyles (television series)",
+            "Gargoyles (tv)",
+            "Gargoyles (TV)",
+            "Gargoyles (animated series)",
+            "Gargoyles (TV show)",
+            "Gargoyles (cartoon)",
+            "Gargoyles (franchise)"
+          ]
+        }
+      ],
+      "visualizacoes": 2920747
+    },
+    "batmantheanimatedseries": {
+      "artigos": [
+        {
+          "titulo": "Batman: The Animated Series",
+          "canonico": "Batman: The Animated Series",
+          "visualizacoes": 7742296,
+          "tambemSomados": [
+            "Batman: the Animated Series",
+            "Batman: the animated series",
+            "Batman: The Animated Series (soundtrack)"
+          ]
+        }
+      ],
+      "visualizacoes": 7742296
+    },
+    "tmnt": {
+      "artigos": [
+        {
+          "titulo": "Teenage Mutant Ninja Turtles",
+          "canonico": "Teenage Mutant Ninja Turtles",
+          "visualizacoes": 16471804,
+          "tambemSomados": [
+            "Teenage mutant ninja turtles",
+            "Teenage Mutant Ninja Turtles (franchise)",
+            "Teenage Mutant Ninja Turtles (manga)",
+            "Teenage Mutant Ninja Turtles (Franchise)"
+          ]
+        }
+      ],
+      "visualizacoes": 16471804
+    },
+    "transformers": {
+      "artigos": [
+        {
+          "titulo": "Transformers",
+          "canonico": "Transformers",
+          "visualizacoes": 4968895,
+          "tambemSomados": [
+            "TransFormers",
+            "Transformers (fiction)",
+            "Transformers (2010 toy line)",
+            "Transformers (Hasbro)",
+            "Transformers (franchise)"
+          ]
+        }
+      ],
+      "visualizacoes": 4968895
+    },
+    "heman": {
+      "artigos": [
+        {
+          "titulo": "He-Man and the Masters of the Universe",
+          "canonico": "He-Man and the Masters of the Universe",
+          "visualizacoes": 2960554,
+          "tambemSomados": [
+            "He-Man and the Masters of the Universe (1983 TV series)",
+            "He-Man and The Masters of The Universe",
+            "He-man and the Masters of the Universe"
+          ]
+        }
+      ],
+      "visualizacoes": 2960554
+    },
+    "samuraijack": {
+      "artigos": [
+        {
+          "titulo": "Samurai Jack",
+          "canonico": "Samurai Jack",
+          "visualizacoes": 5698293,
+          "tambemSomados": [
+            "Samurai jack",
+            "Samurai Jack (film)"
+          ]
+        }
+      ],
+      "visualizacoes": 5698293
+    },
+    "dexterslab": {
+      "artigos": [
+        {
+          "titulo": "Dexter's Laboratory",
+          "canonico": "Dexter's Laboratory",
+          "visualizacoes": 3541233,
+          "tambemSomados": [
+            "Dexter's Laboratory (Main Title)",
+            "Dexter's Laboratory (End Title)",
+            "Dexter's Laboratory (DC comics)",
+            "Dexter's Laboratory (IDW Publishing)",
+            "Dexter's Laboratory (DC Comics)",
+            "Dexter's Laboratory (Cartoon Network Presents)"
+          ]
+        }
+      ],
+      "visualizacoes": 3541233
+    },
+    "johnnybravo": {
+      "artigos": [
+        {
+          "titulo": "Johnny Bravo",
+          "canonico": "Johnny Bravo",
+          "visualizacoes": 3317841,
+          "tambemSomados": [
+            "Johnny Bravo (character)",
+            "Johnny Bravo (comic)",
+            "Johnny Bravo (video game)",
+            "Johnny Bravo (film)"
+          ]
+        }
+      ],
+      "visualizacoes": 3317841
+    },
+    "courage": {
+      "artigos": [
+        {
+          "titulo": "Courage the Cowardly Dog",
+          "canonico": "Courage the Cowardly Dog",
+          "visualizacoes": 4500117,
+          "tambemSomados": [
+            "Courage The Cowardly Dog",
+            "Courage the cowardly dog"
+          ]
+        }
+      ],
+      "visualizacoes": 4500117
+    },
+    "amphibia": {
+      "artigos": [
+        {
+          "titulo": "Amphibia (TV series)",
+          "canonico": "Amphibia (TV series)",
+          "visualizacoes": 3919912
+        }
+      ],
+      "visualizacoes": 3919912
+    },
+    "bluey": {
+      "artigos": [
+        {
+          "titulo": "Bluey (TV series)",
+          "canonico": "Bluey (TV series)",
+          "visualizacoes": 9493641,
+          "tambemSomados": [
+            "Bluey (2018 TV series)",
+            "Bluey (animated TV series)",
+            "Bluey (cartoon)"
+          ]
+        }
+      ],
+      "visualizacoes": 9493641
+    },
+    "peppapig": {
+      "artigos": [
+        {
+          "titulo": "Peppa Pig",
+          "canonico": "Peppa Pig",
+          "visualizacoes": 11685883,
+          "tambemSomados": [
+            "Peppa pig"
+          ]
+        }
+      ],
+      "visualizacoes": 11685883
+    },
+    "pawpatrol": {
+      "artigos": [
+        {
+          "titulo": "Paw Patrol",
+          "canonico": "Paw Patrol",
+          "visualizacoes": 11188725,
+          "tambemSomados": [
+            "PAW Patrol",
+            "PAW Patrol (franchise)",
+            "PAW Patrol (TV series)",
+            "Paw patrol"
+          ]
+        }
+      ],
+      "visualizacoes": 11188725
+    },
+    "miraculousladybug": {
+      "artigos": [
+        {
+          "titulo": "Miraculous: Tales of Ladybug & Cat Noir",
+          "canonico": "Miraculous: Tales of Ladybug & Cat Noir",
+          "visualizacoes": 12188019,
+          "tambemSomados": [
+            "Miraculous: Tales Of Ladybug & Cat noir"
+          ]
+        }
+      ],
+      "visualizacoes": 12188019
+    },
+    "winx": {
+      "artigos": [
+        {
+          "titulo": "Winx Club",
+          "canonico": "Winx Club",
+          "visualizacoes": 5402179,
+          "tambemSomados": [
+            "Winx club",
+            "Winx Club (video game)",
+            "Winx Club (Nickelodeon)",
+            "Winx Club (franchise)",
+            "Winx Club (TV series)",
+            "Winx Club (media franchise)"
+          ]
+        }
+      ],
+      "visualizacoes": 5402179
+    },
+    "witch": {
+      "artigos": [
+        {
+          "titulo": "W.I.T.C.H. (TV series)",
+          "canonico": "W.I.T.C.H. (TV series)",
+          "visualizacoes": 1381035,
+          "tambemSomados": [
+            "W.I.T.C.H. (animated series)",
+            "W.I.T.C.H. (animation)"
+          ]
+        }
+      ],
+      "visualizacoes": 1381035
+    },
+    "trollhunters": {
+      "artigos": [
+        {
+          "titulo": "Trollhunters: Tales of Arcadia",
+          "canonico": "Trollhunters: Tales of Arcadia",
+          "visualizacoes": 2391603
+        }
+      ],
+      "visualizacoes": 2391603
+    },
+    "voltron": {
+      "artigos": [
+        {
+          "titulo": "Voltron: Legendary Defender",
+          "canonico": "Voltron: Legendary Defender",
+          "visualizacoes": 4141060
+        }
+      ],
+      "visualizacoes": 4141060
+    },
+    "starvstheforcesofevil": {
+      "artigos": [
+        {
+          "titulo": "Star vs. the Forces of Evil",
+          "canonico": "Star vs. the Forces of Evil",
+          "visualizacoes": 4964612,
+          "tambemSomados": [
+            "Star Vs. The Forces of Evil"
+          ]
+        }
+      ],
+      "visualizacoes": 4964612
+    },
+    "hilda": {
+      "artigos": [
+        {
+          "titulo": "Hilda (TV series)",
+          "canonico": "Hilda (TV series)",
+          "visualizacoes": 2407204
+        }
+      ],
+      "visualizacoes": 2407204
+    },
+    "primal": {
+      "artigos": [
+        {
+          "titulo": "Primal (TV series)",
+          "canonico": "Primal (TV series)",
+          "visualizacoes": 4838690,
+          "tambemSomados": [
+            "Primal (2019 animated film)",
+            "Primal (season 1)",
+            "Primal (season 2)",
+            "Primal (tv show)"
+          ]
+        }
+      ],
+      "visualizacoes": 4838690
+    },
+    "helluvaboss": {
+      "artigos": [
+        {
+          "titulo": "Helluva Boss",
+          "canonico": "Helluva Boss",
+          "visualizacoes": 4962465
+        }
+      ],
+      "visualizacoes": 4962465
+    },
+    "bojackhorseman": {
+      "artigos": [
+        {
+          "titulo": "BoJack Horseman",
+          "canonico": "BoJack Horseman",
+          "visualizacoes": 12246164,
+          "tambemSomados": [
+            "Bojack Horseman",
+            "Bojack horseman"
+          ]
+        }
+      ],
+      "visualizacoes": 12246164
+    },
+    "archer": {
+      "artigos": [
+        {
+          "titulo": "Archer (2009 TV series)",
+          "canonico": "Archer (2009 TV series)",
+          "visualizacoes": 11531964,
+          "tambemSomados": [
+            "Archer (animated TV series)",
+            "Archer (tv)",
+            "Archer (tv show)",
+            "Archer (show)",
+            "Archer (TV)",
+            "Archer (TV series)",
+            "Archer (cartoon)"
+          ]
+        }
+      ],
+      "visualizacoes": 11531964
+    },
+    "bobsburgers": {
+      "artigos": [
+        {
+          "titulo": "Bob's Burgers",
+          "canonico": "Bob's Burgers",
+          "visualizacoes": 10567667,
+          "tambemSomados": [
+            "Bob's Burgers (restaurant)",
+            "Bob's burgers"
+          ]
+        }
+      ],
+      "visualizacoes": 10567667
+    },
+    "kingofthehill": {
+      "artigos": [
+        {
+          "titulo": "King of the Hill",
+          "canonico": "King of the Hill",
+          "visualizacoes": 10068199,
+          "tambemSomados": [
+            "King of The Hill",
+            "King of the hill",
+            "King Of The Hill",
+            "King of the Hill (TV Series)",
+            "King of the Hill (TV series)",
+            "King of the Hill (TV)",
+            "King of the Hill (FOX)",
+            "King of the Hill (season 14)"
+          ]
+        }
+      ],
+      "visualizacoes": 10068199
+    },
+    "americandad": {
+      "artigos": [
+        {
+          "titulo": "American Dad!",
+          "canonico": "American Dad!",
+          "visualizacoes": 8624969,
+          "tambemSomados": [
+            "American Dad! (TV series)",
+            "American dad!"
+          ]
+        }
+      ],
+      "visualizacoes": 8624969
+    },
+    "daria": {
+      "artigos": [
+        {
+          "titulo": "Daria",
+          "canonico": "Daria",
+          "visualizacoes": 3512214,
+          "tambemSomados": [
+            "Daria (TV series)"
+          ]
+        }
+      ],
+      "visualizacoes": 3512214
+    },
+    "beavisandbutthead": {
+      "artigos": [
+        {
+          "titulo": "Beavis and Butt-Head",
+          "canonico": "Beavis and Butt-Head",
+          "visualizacoes": 6903601,
+          "tambemSomados": [
+            "Beavis and Butt-head (character)",
+            "Beavis and butt-head",
+            "Beavis and Butt-head (series)",
+            "Beavis and Butt-head",
+            "Beavis and Butt-head (2011)",
+            "Beavis and Butt-Head (franchise)"
+          ]
+        }
+      ],
+      "visualizacoes": 6903601
+    },
+    "rugrats": {
+      "artigos": [
+        {
+          "titulo": "Rugrats",
+          "canonico": "Rugrats",
+          "visualizacoes": 5451046,
+          "tambemSomados": [
+            "Rugrats (1991 TV series)"
+          ]
+        }
+      ],
+      "visualizacoes": 5451046
+    },
+    "heyarnold": {
+      "artigos": [
+        {
+          "titulo": "Hey Arnold!",
+          "canonico": "Hey Arnold!",
+          "visualizacoes": 3451396
+        }
+      ],
+      "visualizacoes": 3451396
+    },
+    "recess": {
+      "artigos": [
+        {
+          "titulo": "Recess (TV series)",
+          "canonico": "Recess (TV series)",
+          "visualizacoes": 3102232,
+          "tambemSomados": [
+            "Recess (TV show)",
+            "Recess (Disney)",
+            "Recess (tv series)",
+            "Recess (TV Series)",
+            "Recess (cartoon)"
+          ]
+        }
+      ],
+      "visualizacoes": 3102232
+    },
+    "fairlyoddparents": {
+      "artigos": [
+        {
+          "titulo": "The Fairly OddParents",
+          "canonico": "The Fairly OddParents",
+          "visualizacoes": 6242221,
+          "tambemSomados": [
+            "The Fairly Oddparents",
+            "The Fairly Oddparents (pilot)",
+            "The Fairly OddParents (TV series)",
+            "The Fairly OddParents (song)",
+            "The Fairly OddParents (2001 TV series)"
+          ]
+        }
+      ],
+      "visualizacoes": 6242221
+    },
+    "jimmyneutron": {
+      "artigos": [
+        {
+          "titulo": "The Adventures of Jimmy Neutron, Boy Genius",
+          "canonico": "The Adventures of Jimmy Neutron, Boy Genius",
+          "visualizacoes": 1172272
+        }
+      ],
+      "visualizacoes": 1172272
+    },
+    "renandstimpy": {
+      "artigos": [
+        {
+          "titulo": "The Ren & Stimpy Show",
+          "canonico": "The Ren & Stimpy Show",
+          "visualizacoes": 4290528
+        }
+      ],
+      "visualizacoes": 4290528
+    },
+    "animaniacs": {
+      "artigos": [
+        {
+          "titulo": "Animaniacs",
+          "canonico": "Animaniacs",
+          "visualizacoes": 3904568,
+          "tambemSomados": [
+            "Animaniacs (character)",
+            "Animaniacs (fictional musical group)",
+            "Animaniacs (1993 TV series)",
+            "Animaniacs (TV series)",
+            "Animaniacs (television series)"
+          ]
+        }
+      ],
+      "visualizacoes": 3904568
+    },
+    "tinytoons": {
+      "artigos": [
+        {
+          "titulo": "Tiny Toon Adventures",
+          "canonico": "Tiny Toon Adventures",
+          "visualizacoes": 2202689
+        }
+      ],
+      "visualizacoes": 2202689
+    },
+    "ducktales": {
+      "artigos": [
+        {
+          "titulo": "DuckTales",
+          "canonico": "DuckTales",
+          "visualizacoes": 3520876,
+          "tambemSomados": [
+            "Ducktales",
+            "DUCKTALES",
+            "DuckTales (TV series)",
+            "DuckTales (franchise)",
+            "DuckTales (disambiguation)"
+          ]
+        }
+      ],
+      "visualizacoes": 3520876
+    },
+    "darkwingduck": {
+      "artigos": [
+        {
+          "titulo": "Darkwing Duck",
+          "canonico": "Darkwing Duck",
+          "visualizacoes": 2288680
+        }
+      ],
+      "visualizacoes": 2288680
+    },
+    "flintstones": {
+      "artigos": [
+        {
+          "titulo": "The Flintstones",
+          "canonico": "The Flintstones",
+          "visualizacoes": 6906438,
+          "tambemSomados": [
+            "The Flintstones (1980)",
+            "The Flintstones (Fox television series)",
+            "The Flintstones (Fox TV series)",
+            "The Flintstones (2013)",
+            "The flintstones"
+          ]
+        }
+      ],
+      "visualizacoes": 6906438
+    },
+    "tomandjerry": {
+      "artigos": [
+        {
+          "titulo": "Tom and Jerry",
+          "canonico": "Tom and Jerry",
+          "visualizacoes": 16100079,
+          "tambemSomados": [
+            "Tom and jerry",
+            "Tom and Jerry (TV series)",
+            "Tom and Jerry (MGM)",
+            "Tom and Jerry (series)",
+            "Tom And Jerry"
+          ]
+        }
+      ],
+      "visualizacoes": 16100079
+    },
+    "popeye": {
+      "artigos": [
+        {
+          "titulo": "Popeye",
+          "canonico": "Popeye",
+          "visualizacoes": 7575051,
+          "tambemSomados": [
+            "Popeye (upcoming film)",
+            "Popeye (comic strip)",
+            "Popeye (canceled film)",
+            "Popeye (animated film)"
+          ]
+        }
+      ],
+      "visualizacoes": 7575051
+    },
+    "shaunthesheep": {
+      "artigos": [
+        {
+          "titulo": "Shaun the Sheep",
+          "canonico": "Shaun the Sheep",
+          "visualizacoes": 3126613,
+          "tambemSomados": [
+            "Shaun The Sheep",
+            "Shaun the sheep",
+            "Shaun the Sheep (TV series)",
+            "Shaun the Sheep (franchise)",
+            "Shaun the Sheep (British animated TV series)",
+            "SHAUN THE SHEEP"
+          ]
+        }
+      ],
+      "visualizacoes": 3126613
+    },
+    "kungfupanda": {
+      "artigos": [
+        {
+          "titulo": "Kung Fu Panda",
+          "canonico": "Kung Fu Panda",
+          "visualizacoes": 9709352,
+          "tambemSomados": [
+            "Kung fu panda",
+            "Kung fu Panda",
+            "Kung Fu Panda (film series)",
+            "Kung Fu panda",
+            "Kung Fu Panda (franchise)"
+          ]
+        }
+      ],
+      "visualizacoes": 9709352
+    },
+    "madagascar": {
+      "artigos": [
+        {
+          "titulo": "Madagascar (franchise)",
+          "canonico": "Madagascar (franchise)",
+          "visualizacoes": 3494621,
+          "tambemSomados": [
+            "Madagascar (Film series)",
+            "Madagascar (film series)",
+            "Madagascar (DreamWorks)",
+            "Madagascar (media franchise)"
+          ]
+        }
+      ],
+      "visualizacoes": 3494621
+    }
+  },
+  "coletadoEm": "2026-11-27T01:28:02.928Z"
+}

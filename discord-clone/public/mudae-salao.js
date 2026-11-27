@@ -9,6 +9,7 @@ window.MudaeSalon = function ({ state, el, Icon, call, onSocket, member, avatar,
   // A Mesa ao vivo guarda os últimos rolls do Salão (de todo mundo). Uma pessoa sozinha já passa de 12 (10 base + forja + guardados + $rolls),
   // então o limite é folgado: a faixa rola para o lado e só os mais antigos saem.
   const LIVE = 60;
+  const LIVE_EDGE = 8; // até quantos px da esquerda a Mesa ao vivo conta como "no começo" (e segue os rolls novos)
   const PAGE = 60;
   const REACTIONS = ['😱', '🔥', '💖', '😂', '💀'];
   const RARITY = ui.RARITY;
@@ -190,6 +191,7 @@ window.MudaeSalon = function ({ state, el, Icon, call, onSocket, member, avatar,
     nodes.tabs = el('div', { class: 'salon-tabs', role: 'tablist' });
     nodes.status = el('div', { class: 'salon-status' });
     nodes.body = el('div', { class: 'salon-body' });
+    dragAutoScroll(nodes.body);
     nodes.sideToggle = el('button', { type: 'button', class: 'salon-side-toggle', onclick: () => toggleSide() }, Icon('message', 18), el('span', { textContent: 'Chat · No salão' }));
     // Modo simplificado: o canal vira chat comum com os cards completos (o Mudae original), só para esta pessoa.
     const simple = el('button', { type: 'button', class: 'salon-simple', title: 'Ver este canal como chat, com os cards no chat (o Mudae original). Dá para voltar pelo botão "Abrir o Salão".',
@@ -201,7 +203,8 @@ window.MudaeSalon = function ({ state, el, Icon, call, onSocket, member, avatar,
     nodes.headTools = [helpButton, simple];
     $('.header-tools')?.prepend(...nodes.headTools);
     // O cristal errante voa por cima da área das abas, em qualquer aba.
-    crystals?.attach(root, channel.id, { area: () => nodes.body, origin: crystalOrigin, onKakera: showKakera, shapes: () => S.status?.kakeraIcons || {} });
+    crystals?.attach(root, channel.id, { area: () => nodes.body, origin: crystalOrigin, onKakera: showKakera, shapes: () => S.status?.kakeraIcons || {},
+      energy: () => energyNow()?.value });
     mountSide();
     renderTabs();
     renderBody();
@@ -378,8 +381,8 @@ window.MudaeSalon = function ({ state, el, Icon, call, onSocket, member, avatar,
     const taken = Math.min(c.used, c.max), full = c.used >= c.max;
     const after = Math.round((c.after ?? 0.02) * 100) + '%';
     const title = full
-      ? `Você já pegou os ${c.max} cristais de hoje que valem inteiro. Até a meia-noite, cada cristal vale ${after} do valor.`
-      : `Cristais de hoje: ${taken} de ${c.max}. Os ${c.max} primeiros do dia valem inteiro; depois, ${after} do valor até a meia-noite.`
+      ? `Você já pegou os ${c.max} cristais de hoje que valem inteiro. Até a meia-noite, cada cristal vale ${after} do valor (o da carta, que gasta energia, continua inteiro).`
+      : `Cristais de hoje: ${taken} de ${c.max}. Os ${c.max} primeiros do dia valem inteiro; depois, ${after} do valor até a meia-noite. O da carta gasta energia e fica fora dessa conta.`
         + (c.storm > 1 ? ` A chuva conta ${c.storm}.` : '');
     // No celular não há dica ao passar o mouse: o toque mostra a explicação num aviso.
     return el('button', { type: 'button', class: 'salon-crystals' + (full ? ' full' : ''), title, ariaLabel: title, onclick: () => toast(title, 'info') },
@@ -411,7 +414,21 @@ window.MudaeSalon = function ({ state, el, Icon, call, onSocket, member, avatar,
     return node;
   }
   // Pegou o cristal de uma carta: o servidor devolve a energia que sobrou (mudae-cristal.js e o chat avisam assim).
-  document.addEventListener('mudae:reaction', (e) => setEnergy(e.detail));
+  // spent: quanto saiu agora. Um "−N" sobe do chip, para a energia nunca cair sem a pessoa ver.
+  document.addEventListener('mudae:reaction', (e) => {
+    setEnergy(e.detail);
+    if (e.detail?.spent > 0) energySpent(e.detail.spent);
+  });
+  // Fica no body (e não dentro do chip): a faixa de cima se redesenha logo em seguida, com o kakera novo.
+  function energySpent(n) {
+    const chip = nodes.status?.querySelector('.salon-energy');
+    if (!chip?.isConnected) return;
+    const r = chip.getBoundingClientRect();
+    const node = el('div', { class: 'salon-energy-spent' + (reducedMotion() ? ' still' : ''), textContent: `−${n}`, ariaHidden: 'true' });
+    Object.assign(node.style, { left: `${r.left + r.width / 2}px`, top: `${r.bottom}px` });
+    document.body.append(node);
+    setTimeout(() => node.remove(), 1200);
+  }
 
   // Um cristal pagou: o saldo da faixa de cima muda e pula (e a conta dos cristais de hoje também).
   let bumpTimer = 0;
@@ -446,6 +463,9 @@ window.MudaeSalon = function ({ state, el, Icon, call, onSocket, member, avatar,
     nodes.stage = el('div', { class: 'salon-stage' });
     nodes.rollBar = el('div', { class: 'salon-rollbar' });
     nodes.live = el('div', { class: 'salon-live-strip' });
+    // Mexeu na faixa enquanto ela deslizava sozinha: manda quem mexeu, ela para de seguir os rolls novos.
+    nodes.liveFollowUntil = 0;
+    for (const type of ['wheel', 'pointerdown', 'touchstart', 'keydown']) nodes.live.addEventListener(type, () => { nodes.liveFollowUntil = 0; }, { passive: true });
     nodes.liveMap = new Map();
     nodes.body.replaceChildren(el('div', { class: 'salon-mesa' },
       el('div', { class: 'salon-stage-box' }, nodes.stage), nodes.rollBar,
@@ -894,9 +914,19 @@ window.MudaeSalon = function ({ state, el, Icon, call, onSocket, member, avatar,
       map.clear();
       return nodes.live.replaceChildren(el('div', { class: 'salon-empty-note', textContent: 'Os rolls de todo mundo aparecem aqui.' }));
     }
+    const strip = nodes.live;
     const wanted = new Set(list.map((m) => m.id));
+    // Roll novo entra na frente (à esquerda). Quem está com a faixa no começo vê a faixa deslizar até ele;
+    // quem rolou para o lado continua vendo as mesmas cartas, no mesmo lugar. Para isso, guarda a primeira carta
+    // visível (a "âncora") e onde ela estava, e depois de mexer na faixa põe a rolagem de volta nela.
+    // Enquanto ainda desliza até o roll anterior, conta como no começo (dois rolls seguidos, como na Escolha dupla).
+    const atStart = strip.scrollLeft <= LIVE_EDGE || Date.now() < (nodes.liveFollowUntil || 0);
+    const anchor = [...strip.children].find((c) => c.dataset.id && wanted.has(c.dataset.id) && c.offsetLeft + c.offsetWidth > strip.scrollLeft);
+    const anchorId = anchor?.dataset.id;
+    const anchorAt = anchor ? anchor.offsetLeft - strip.scrollLeft : 0;
+    const arrived = map.size > 0 && list.some((m) => !map.has(m.id));
     for (const [id, entry] of map) if (!wanted.has(id)) { entry.node.remove(); map.delete(id); }
-    for (const child of [...nodes.live.children]) if (!child.dataset.id) child.remove(); // o aviso de "vazio"
+    for (const child of [...strip.children]) if (!child.dataset.id) child.remove(); // o aviso de "vazio"
     list.forEach((m, i) => {
       const sig = liveSignature(m);
       let entry = map.get(m.id);
@@ -909,6 +939,15 @@ window.MudaeSalon = function ({ state, el, Icon, call, onSocket, member, avatar,
       // Só mexe na posição de quem não está no lugar (mexer em tudo reiniciaria as animações).
       if (nodes.live.children[i] !== entry.node) nodes.live.insertBefore(entry.node, nodes.live.children[i] || null);
     });
+    if (!arrived) return;
+    // Primeiro a âncora volta para onde estava (a carta nova fica escondida à esquerda)...
+    const back = anchorId && map.get(anchorId)?.node;
+    if (back) strip.scrollLeft = back.offsetLeft - anchorAt;
+    // ...e, se a faixa estava no começo, desliza até a carta nova. Fora do começo, fica onde está.
+    if (atStart) {
+      if (reducedMotion() || !strip.scrollTo) strip.scrollLeft = 0;
+      else { strip.scrollTo({ left: 0, behavior: 'smooth' }); nodes.liveFollowUntil = Date.now() + 700; }
+    }
   }
 
   function liveCard(m) {
@@ -1315,6 +1354,30 @@ window.MudaeSalon = function ({ state, el, Icon, call, onSocket, member, avatar,
   }
 
   // Arrastar (ou "mover para o início"): põe a carta no lugar da outra, a partir da ordem que está na tela, e guarda no servidor.
+  // Arrastando uma carta do harem, a roda do mouse não rola a página (o navegador segura o mouse durante o arrasto).
+  // Então a lista rola sozinha quando a carta chega perto da borda de cima ou de baixo, mais rápido quanto mais perto.
+  function dragAutoScroll(box) {
+    const EDGE = 90, MAX = 22;
+    let speed = 0, lastOver = 0, frame = 0;
+    const step = () => {
+      frame = 0;
+      // Sem dragover há um tempo: o arrasto acabou (o dragend some quando a carta arrastada é redesenhada).
+      if (S.drag === null || !speed || performance.now() - lastOver > 200) { speed = 0; return; }
+      box.scrollTop += speed;
+      frame = requestAnimationFrame(step);
+    };
+    box.addEventListener('dragover', (e) => {
+      if (S.drag === null) return;
+      lastOver = performance.now();
+      const r = box.getBoundingClientRect();
+      const top = e.clientY - r.top, bottom = r.bottom - e.clientY;
+      speed = top < EDGE ? -Math.ceil(MAX * (1 - Math.max(0, top) / EDGE))
+        : bottom < EDGE ? Math.ceil(MAX * (1 - Math.max(0, bottom) / EDGE)) : 0;
+      if (speed && !frame) frame = requestAnimationFrame(step);
+    });
+    for (const type of ['drop', 'dragend']) box.addEventListener(type, () => { speed = 0; });
+  }
+
   async function moveCard(fromId, toId) {
     S.drag = null;
     if (!S.album?.chars || fromId === toId || fromId == null) return;
@@ -1418,7 +1481,7 @@ window.MudaeSalon = function ({ state, el, Icon, call, onSocket, member, avatar,
         el('div', { class: 'salon-img-actions' },
           im.pick === o.pos ? el('em', { textContent: 'Em uso' }) : el('button', { type: 'button', onclick: () => act('mudae:image', { op: 'pick', value: o.pos }) }, 'Usar'),
           o.pos > 1 ? el('button', { type: 'button', class: 'danger', ariaLabel: 'Remover ' + o.label, onclick: () => act('mudae:image', { op: 'remove', value: o.pos }) }, Icon('trash', 14)) : null)));
-      const link = el('input', { type: 'text', class: 'salon-field-input', placeholder: 'https://i.imgur.com/abc123.png', maxLength: 200, ariaLabel: 'Link da imagem extra' });
+      const link = el('input', { type: 'text', class: 'salon-field-input', placeholder: 'https://site.com/foto.png', maxLength: 500, ariaLabel: 'Link da imagem extra' });
       const add = el('button', { type: 'button', class: 'salon-roll' }, Icon('plus', 14), 'Adicionar');
       add.onclick = () => { if (link.value.trim()) act('mudae:image', { op: 'add', value: link.value.trim() }); };
       link.addEventListener('keydown', (e) => { if (e.key === 'Enter') add.onclick(); });
@@ -1427,7 +1490,7 @@ window.MudaeSalon = function ({ state, el, Icon, call, onSocket, member, avatar,
       const apply = el('button', { type: 'button', class: 'salon-roll', onclick: () => act('mudae:embedcolor', { color: color.state.value }) }, 'Salvar cor');
       content.replaceChildren(
         el('div', { class: 'salon-field' }, el('span', { textContent: 'Imagens' }), el('div', { class: 'salon-img-grid' }, ...thumbs),
-          el('small', { textContent: `Só links diretos do imgur (i.imgur.com). Até 12 extras (${im.list.length}/12). A imagem em uso aparece no álbum e nos seus rolls.` }),
+          el('small', { textContent: `Cole o link direto de qualquer imagem. Até 12 extras (${im.list.length}/12). A imagem em uso aparece no álbum e nos seus rolls.` }),
           el('div', { class: 'salon-field-row' }, link, add)),
         el('div', { class: 'salon-field' }, el('span', { textContent: 'Cor do personagem' }),
           keyed ? el('div', { class: 'salon-field-row' }, color.node, apply) : el('small', { textContent: 'Precisa de chave nível 1: role esse personagem (ele precisa cair num roll seu).' })));
@@ -1619,11 +1682,10 @@ window.MudaeSalon = function ({ state, el, Icon, call, onSocket, member, avatar,
       const res = await call('mudae:achievement:title', { key: picker.value || null });
       if (res) { a.title = picker.value || null; toast(res.title ? `Seu título agora é ${res.title}.` : 'Você ficou sem título.', 'info'); }
     };
-    const queueText = a.queue ? ` Kakera de conquistas na fila: ${num(a.queue)} (pagam até ${num(a.dailyCap)} por dia; hoje ainda cabem ${num(a.dailyLeft)}).` : '';
     const head = el('div', { class: 'salon-album-head' },
       el('div', {}, el('h2', { textContent: 'Conquistas' }),
         el('div', { class: 'salon-album-stats' }, el('strong', { textContent: `${a.done}/${a.total}` }), ' abertas'),
-        el('p', { class: 'salon-muted', textContent: 'Cada conquista paga kakera uma vez e dá um título. As de ouro de Casamenteiro, Obra completa e Sequência do $dk dão uma vantagem permanente.' + queueText }),
+        el('p', { class: 'salon-muted', textContent: 'Cada conquista paga kakera uma vez e dá um título. As de ouro de Casamenteiro, Obra completa e Sequência do $dk dão uma vantagem permanente.' }),
         a.perks.length ? el('p', { class: 'salon-muted' }, 'Suas vantagens: ', el('strong', { textContent: a.perks.join(' · ') })) : null),
       el('label', { class: 'salon-ach-title' }, el('span', { textContent: 'Título' }), picker));
     const groups = Object.entries(a.categories).map(([cat, label]) => {
@@ -1930,7 +1992,7 @@ window.MudaeSalon = function ({ state, el, Icon, call, onSocket, member, avatar,
   });
   // Conquista nova: um aviso para quem ganhou, em qualquer canal do servidor.
   onSocket('mudae:achievement', (a) => {
-    trade.notice({ icon: 'sparkles', ms: 9000, text: `Conquista: ${a.name}!` + (a.kakera ? ` +${a.kakera} de kakera na fila.` : '') + (a.perk ? ` Vantagem nova: ${a.perk}.` : ''),
+    trade.notice({ icon: 'sparkles', ms: 9000, text: `Conquista: ${a.name}!` + (a.kakera ? ` +${a.kakera} de kakera.` : '') + (a.perk ? ` Vantagem nova: ${a.perk}.` : ''),
       action: 'Ver conquistas', onAction: () => { if (S.channel) setTab('conquistas'); } });
     if (S.channel && S.tab === 'conquistas') loadAchievements(); else S.ach = null;
   });

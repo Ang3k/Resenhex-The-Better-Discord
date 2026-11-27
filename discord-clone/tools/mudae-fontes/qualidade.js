@@ -3,6 +3,7 @@ const fs = require('fs');
 const path = require('path');
 const { normalize, suffix } = require('./coleta');
 const { realPeopleExclusions, isRealPersonRow } = require('./pessoas-reais');
+const { pesos, notaDaPosicao } = require('./popularidade-obras');
 
 const AUXILIARY = /\brelationships?\b|\bcostumes through the years\b|\bin other media\b|\bpowers and abilities\b|\bdisambiguation\b|^lists? of\b|\bcharacters$|^(?:bestiary|journal of justice|creatures|experiments|enemies|species|organizations|weapons|items|objects|abilities|the collection)$/i;
 const PLAYABLE = { 'genshin-impact': 'Playable Characters', 'honkai-star-rail': 'Playable Characters', wutheringwaves: 'Playable Resonators' };
@@ -47,7 +48,8 @@ function playableIds(cacheDir, wiki) {
   return ids;
 }
 
-function correctCatalog(input, { cacheDir, priorityIdsByWiki, excludedPeopleById = realPeopleExclusions(cacheDir) } = {}) {
+// pesoDesenho(wiki): peso da obra de desenho pela popularidade (popularidade-obras.js). Sem ele, todo nº 1 de wiki empatava.
+function correctCatalog(input, { cacheDir, priorityIdsByWiki, excludedPeopleById = realPeopleExclusions(cacheDir), pesoDesenho = pesos().de } = {}) {
   const removed = input.filter(isAuxiliaryRow);
   const removedRealPeople = input.filter((row) => !isAuxiliaryRow(row) && isRealPersonRow(row, excludedPeopleById));
   const rows = input.filter((row) => !isAuxiliaryRow(row) && !isRealPersonRow(row, excludedPeopleById));
@@ -80,8 +82,9 @@ function correctCatalog(input, { cacheDir, priorityIdsByWiki, excludedPeopleById
       || (Number.isFinite(anchorOrder(a)) || Number.isFinite(anchorOrder(b)) ? anchorOrder(a) - anchorOrder(b) : 0)
       || (ids?.size ? Number(ids.has(pageId(b))) - Number(ids.has(pageId(a))) : 0)
       || b[5] - a[5]);
+    const peso = key[0] === 'd' && wiki !== 'native' ? pesoDesenho(wiki) : 1;
     group.forEach((row, i) => {
-      const score = background(row) ? 0 : Math.round(1e6 / (i + 1));
+      const score = background(row) ? 0 : notaDaPosicao(i, peso);
       updates.set(String(row[0]), [...row.slice(0, 5), score, row[6]]);
       if (background(row)) demoted.push(String(row[0]));
     });

@@ -99,6 +99,20 @@ test('poder de reação: cada cristal da carta gasta, o roxo é de graça, metad
   assert.equal(view.value, CRYSTAL.power.max - CRYSTAL.power.cost.azul);
 });
 
+test('o cristal da carta vai para o navegador com o preço em energia (o errante, sem preço), e pegar diz quanto saiu', () => {
+  const s = crystalSetup([NOT_RAINBOW, AZUL, 0.5, NOT_RAINBOW, ROXO, 0.5, NOT_RAINBOW, AZUL, 0.5]);
+  const [azul] = s.crystals.spawnForCard('s', { card: { id: 1, level: 0 } });
+  const [roxo] = s.crystals.spawnForCard('s', { card: { id: 1, level: 0 } });
+  const [azul10] = s.crystals.spawnForCard('s', { card: { id: 1, level: KEYS.reaction.halfCostFrom } });
+  assert.equal(s.crystals.view(azul).cost, CRYSTAL.power.cost.azul);
+  assert.equal(s.crystals.view(roxo).cost, 0, 'o roxo da carta é de graça, mas ainda é da carta');
+  assert.equal(s.crystals.view(azul10).cost, Math.ceil(CRYSTAL.power.cost.azul / 2), 'com a chave 10, o preço já vem pela metade');
+  assert.equal('cost' in s.crystals.view(s.crystals.spawn('s', {})), false, 'o errante não tem preço');
+  const took = s.crystals.take(s.store, 's', azul.id, 'a', { perks: {} });
+  assert.equal(took.power.spent, CRYSTAL.power.cost.azul);
+  assert.equal(took.power.value, CRYSTAL.power.max - CRYSTAL.power.cost.azul);
+});
+
 test('poder de reação: sem poder não pega, com o tempo volta, e o cristal errante nunca gasta', () => {
   const s = crystalSetup([NOT_RAINBOW, AZUL, 0.5, NOT_RAINBOW, AZUL, 0.5]);
   const [card] = s.crystals.spawnForCard('s', { card: { id: 1, level: 0 } });
@@ -363,4 +377,15 @@ test('status: poder de reação e $daily empilhado aparecem para a tela', () => 
   assert.deepEqual(s.kakeraPower, { value: CRYSTAL.power.max, max: CRYSTAL.power.max, fullIn: 0 });
   assert.equal(s.dailyMax, 1);
   assert.equal(s.likes, 0);
+});
+
+test('cristal da carta fica fora do teto do dia: vale inteiro e não gasta as vagas', () => {
+  const s = crystalSetup([NOT_RAINBOW, ROXO, 0.5]); // roxo: de graça em energia
+  const today = Math.floor((s.now() - 3 * 3600_000) / 86_400_000);
+  s.store.usage.a = { crystalDay: [today, CRYSTAL.dailyFull + 5] };
+  const [card] = s.crystals.spawnForCard('s', { card: { id: 1, level: 0 } });
+  const r = s.crystals.take(s.store, 's', card.id, 'a', { perks: {} });
+  assert.equal(r.full, true);
+  assert.equal(r.amount, card.value);
+  assert.equal(s.store.usage.a.crystalDay[1], CRYSTAL.dailyFull + 5, 'não come vaga do teto');
 });

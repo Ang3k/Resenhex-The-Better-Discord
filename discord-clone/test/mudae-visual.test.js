@@ -21,15 +21,29 @@ function setup({ random = () => 0, mine = [1, 2, 3, 4] } = {}) {
 }
 const imageOf = (mudae, store, name = 'Satoru Gojou') => mudae.album(store, 'a').chars.find((c) => c.name === name).image;
 
-test('imageLink: só link direto do imgur', () => {
+test('imageLink: qualquer link http(s) público', () => {
   assert.equal(imageLink('https://i.imgur.com/AbC123x.png'), 'https://i.imgur.com/AbC123x.png');
   assert.equal(imageLink(' https://i.imgur.com/AbC123x.JPEG '), 'https://i.imgur.com/AbC123x.JPEG');
-  for (const bad of ['http://i.imgur.com/AbC123x.png', 'https://imgur.com/AbC123x.png', 'https://i.imgur.com/AbC123x', 'https://i.imgur.com/a/AbC123x.png',
-    'https://i.imgur.com.evil.com/AbC123x.png', 'https://user:pw@i.imgur.com/AbC123x.png', 'https://i.imgur.com:8080/AbC123x.png',
-    'javascript:alert(1)', 'https://example.com/a.png', '', 'lixo']) {
+  assert.equal(imageLink('https://i.imgur.com/AbC123x.png?x=1#y'), 'https://i.imgur.com/AbC123x.png', 'no imgur a busca e o # saem');
+  assert.equal(imageLink('https://cdn.site.com/a/b.webp?w=300#topo'), 'https://cdn.site.com/a/b.webp?w=300', 'nos outros só o # sai');
+  assert.equal(imageLink('http://exemplo.com.br/foto'), 'http://exemplo.com.br/foto');
+  for (const bad of ['https://i.imgur.com/AbC123x', 'https://i.imgur.com/a/AbC123x.png', 'https://user:pw@site.com/a.png', 'https://site.com:22/a.png',
+    'javascript:alert(1)', 'ftp://site.com/a.png', 'https://127.0.0.1/a.png', 'http://localhost/a.png', 'https://[::1]/a.png', 'https://intranet/a.png',
+    'https://x.local/a.png', '/mudae-img/' + 'ab'.repeat(32) + '.png', '/avatars/a.png', 'https://site.com/' + 'a'.repeat(600), '', 'lixo']) {
     assert.equal(imageLink(bad), null, bad);
   }
-  assert.equal(imageLink('https://i.imgur.com/AbC123x.png?x=1#y'), 'https://i.imgur.com/AbC123x.png', 'a busca e o # saem do link guardado');
+});
+
+test('links de fora (menos imgur) aparecem pelo proxy do servidor', () => {
+  const mudae = createMudae({ catalog: CATALOG, now: () => 10 * CLAIM_RESET_MS, refSize: CATALOG.length, showImage: (u) => '/link-image?u=' + encodeURIComponent(u) });
+  const store = { claims: {}, usage: {} };
+  mudae.claim(store, 'a', 1, { revealAt: 10 * CLAIM_RESET_MS });
+  const local = '/mudae-img/' + 'cd'.repeat(32) + '.gif';
+  assert.equal(mudae.visual.addImage(store, 'a', `Gojo $ https://site.com/g.png $ ${LINK(1)}`).added, 2);
+  assert.deepEqual(mudae.album(store, 'a').chars[0].images.list, ['/link-image?u=' + encodeURIComponent('https://site.com/g.png'), LINK(1)]);
+  mudae.visual.changeImage(store, 'a', 'Gojo $ 2');
+  assert.equal(mudae.album(store, 'a').chars[0].image, '/link-image?u=' + encodeURIComponent('https://site.com/g.png'));
+  assert.equal(store.images['1'].list[0], 'https://site.com/g.png', 'o store guarda o link original');
 });
 
 test('$addimg e $changeimg: a imagem escolhida vale no álbum, no harém e no favorito', () => {
@@ -52,7 +66,7 @@ test('$addimg: erros, limite e remoção', () => {
   const { mudae, store, visual } = setup();
   assert.match(visual.addImage(store, 'a', '').error, /Diga o nome/);
   assert.match(visual.addImage(store, 'a', 'Gojo').error, /Falta o link/);
-  assert.match(visual.addImage(store, 'a', 'Gojo $ https://exemplo.com/a.png').error, /não serve/);
+  assert.match(visual.addImage(store, 'a', 'Gojo $ http://localhost/a.png').error, /não serve/);
   assert.match(visual.addImage(store, 'a', `Naruto $ ${LINK(1)}`).error, /não tem ninguém/);
   assert.match(visual.addImage(store, 'b', `Gojo $ ${LINK(1)}`).error, /não tem ninguém/, 'só o dono mexe nas imagens');
   assert.match(visual.changeImage(store, 'a', 'Gojo $ 2').error, /só tem a foto original/);

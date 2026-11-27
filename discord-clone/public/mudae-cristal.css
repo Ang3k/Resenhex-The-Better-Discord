@@ -51,6 +51,11 @@ html:not(.touch) .mudae-crystal:hover .mudae-crystal-body { transform: scale(1.1
   box-shadow: 0 0 0 1px color-mix(in srgb, var(--c) 65%, transparent);
 }
 
+/* Cristal da carta: o preço em energia no mesmo selo da corrente (o errante não tem selo). Vermelho se não dá para pagar. */
+.mudae-crystal-cost .mi { color: var(--yellow); }
+.mudae-crystal-cost.short { background: color-mix(in srgb, var(--red) 28%, var(--bg-floating)); box-shadow: 0 0 0 1px color-mix(in srgb, var(--red) 70%, transparent); color: var(--red); }
+.mudae-crystal-cost.short .mi { color: var(--red); }
+
 /* ---------- efeitos (o JavaScript tira cada um da tela no fim) ---------- */
 .mudae-crystal-spark { position: absolute; width: 5px; height: 5px; margin: -2.5px 0 0 -2.5px; border-radius: 50%; background: var(--c); box-shadow: 0 0 6px var(--c); pointer-events: none; }
 .mudae-crystal-shard {

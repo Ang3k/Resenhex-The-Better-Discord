@@ -64,7 +64,7 @@ window.MudaeUI = function ({ state, el, Icon, call, member, avatar, nameColor, F
     { name: 'poder', args: true, hint: 'cadeado · laço · eco…', note: 'usa um poder' },
     { name: 'infokeys', note: 'suas chaves, o prêmio do dia e como virar soulmate (também $keys)' },
     { name: 'ajuda', args: true, hint: 'comando ou assunto', note: 'explica um comando ou um assunto (sozinho, lista os assuntos)' },
-    { name: 'conquistas', note: 'suas conquistas, as mais perto de abrir e o kakera na fila (também $marcos)' },
+    { name: 'conquistas', note: 'suas conquistas e as mais perto de abrir (também $marcos)' },
     { name: 'titulo', args: true, hint: 'nome · none', note: 'escolhe o título (uma conquista aberta) que aparece ao lado do seu nome' },
     { name: 'kakerareact', args: true, hint: 'cor forma · list · reset', note: 'forma do cristal de cada cor na sua tela' },
     { name: 'mu', note: 'quanto falta para você casar de novo' },
@@ -107,7 +107,7 @@ window.MudaeUI = function ({ state, el, Icon, call, member, avatar, nameColor, F
     { name: 'divorceall', note: 'divorcia o harem inteiro (pede confirmação)' },
     { name: 'divorceallbut', args: true, hint: 'nome $ nome', note: 'divorcia tudo menos esses (pede confirmação)' },
     { name: 'confirmar', note: 'confirma o divórcio em lote' },
-    { name: 'addimg', args: true, hint: 'nome $ link do imgur', note: 'adiciona imagens extras ao personagem' },
+    { name: 'addimg', args: true, hint: 'nome $ link da imagem', note: 'adiciona imagens extras ao personagem' },
     { name: 'changeimg', args: true, hint: 'nome $ posição', note: 'escolhe a imagem que aparece primeiro' },
     { name: 'randomimg', args: true, hint: '0 ou 1', note: 'sorteia a imagem nos seus rolls' },
     { name: 'renameharem', args: true, hint: 'título', note: 'muda o título do seu harem' },
@@ -618,7 +618,10 @@ window.MudaeUI = function ({ state, el, Icon, call, member, avatar, nameColor, F
       }
       if (btn.isConnected && serverNow() < until) btn.disabled = false;
     };
-    return [line('crystal', crystalIcon(v), v.kind === 'storm' ? `Uma chuva de cristais ${v.colorKey} começou!` : `Um cristal ${v.colorKey} apareceu!`), el('div', { class: 'mudae-actions' }, btn)];
+    // O cristal da carta diz o preço em energia (o errante não gasta nada, então não diz).
+    const cost = v.cost == null ? '' : v.cost ? ` Gasta ${v.cost} de energia.` : ' Não gasta energia.';
+    const text = v.kind === 'storm' ? `Uma chuva de cristais ${v.colorKey} começou!` : v.cost != null ? `Um cristal ${v.colorKey} saiu da carta!${cost}` : `Um cristal ${v.colorKey} apareceu!`;
+    return [line('crystal', crystalIcon(v), text), el('div', { class: 'mudae-actions' }, btn)];
   }
 
   // Cristal que acabou (só ao vivo): quem pegou, com no máximo dois nomes e "mais N" no resto.

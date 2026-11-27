@@ -116,8 +116,9 @@ window.MudaeCrystals = function ({ el, call, onSocket, Sounds, ui, member, reduc
   function addSprite(c, { gem, start, dur, path, fixed, fade, drop = false }) {
     const v = c.v;
     const size = drop ? SIZE.drop : SIZE.gem;
-    const node = el('button', { type: 'button', class: 'mudae-crystal' + (drop ? ' drop' : '') + (v.kind === 'chain' ? ' chain' : ''),
-      ariaLabel: `Pegar o cristal ${v.colorKey}` });
+    const card = v.cost != null;
+    const node = el('button', { type: 'button', class: 'mudae-crystal' + (drop ? ' drop' : '') + (v.kind === 'chain' ? ' chain' : '') + (card ? ' card' : ''),
+      ariaLabel: `Pegar o cristal ${v.colorKey}` + (card ? ` da carta (${v.cost ? `gasta ${v.cost} de energia` : 'não gasta energia'})` : '') });
     node.dataset.id = v.id;
     node.dataset.gem = String(gem);
     node.style.setProperty('--c', v.color);
@@ -125,6 +126,8 @@ window.MudaeCrystals = function ({ el, call, onSocket, Sounds, ui, member, reduc
     node.append(el('span', { class: 'mudae-crystal-glow' }), el('span', { class: 'mudae-crystal-body' }));
     node.lastChild.innerHTML = shapeOf(v.colorKey);
     if (v.kind === 'chain') node.append(el('span', { class: 'mudae-crystal-step' }, MI('link', 12), String(v.step)));
+    // O cristal da carta leva o preço em energia embaixo (o errante não tem selo nenhum); vermelho se não dá para pagar.
+    if (card) node.append(el('span', { class: 'mudae-crystal-step mudae-crystal-cost' }, MI('bolt', 12), v.cost ? String(v.cost) : 'grátis'));
     const sp = { c, gem, node, size, start, dur, path, fixed, fade, drop, x: 0, y: 0, trail: [], spark: 0, pending: false };
     // No toque e no mouse, o clique vale ao apertar (o cristal está se mexendo): quem cuida é o press() da tela
     // toda, que também aceita o clique perto. No teclado, Enter ou espaço no próprio botão.
@@ -133,6 +136,7 @@ window.MudaeCrystals = function ({ el, call, onSocket, Sounds, ui, member, reduc
     c.sprites.add(sp);
     sprites.add(sp);
     host.layer.append(node);
+    if (card) paintCost(sp);
     place(sp, now(), measure(), reducedMotion());
     kick();
     return sp;
@@ -142,6 +146,15 @@ window.MudaeCrystals = function ({ el, call, onSocket, Sounds, ui, member, reduc
     sp.c.sprites.delete(sp);
     sprites.delete(sp);
   }
+  // O selo do preço fica vermelho quando a energia de agora não paga o cristal (hooks.energy() é quanto a pessoa tem).
+  function paintCost(sp) {
+    const badge = sp.node.querySelector('.mudae-crystal-cost');
+    const have = host?.hooks?.energy?.();
+    badge?.classList.toggle('short', have != null && sp.c.v.cost > have);
+  }
+  // A energia mudou (pegou um cristal de carta, aqui ou no chat): os selos dos que ainda voam se acertam.
+  // Depois de quem guarda a energia (o Salão) já ter anotado o valor novo.
+  document.addEventListener('mudae:reaction', () => queueMicrotask(() => { for (const sp of sprites) if (sp.c.v.cost != null) paintCost(sp); }));
 
   function place(sp, t, box, reduced) {
     const k = clamp((t - sp.start) / sp.dur);
@@ -380,7 +393,7 @@ window.MudaeCrystals = function ({ el, call, onSocket, Sounds, ui, member, reduc
   });
 
   // container: a tela do Salão (o cristal voa por cima dela) ou null no modo simplificado (vira linha no chat).
-  // hooks: area() (onde o cristal voa), origin(msgId) (a carta de um roll) e onKakera(saldo, ganho).
+  // hooks: area() (onde o cristal voa), origin(msgId) (a carta de um roll), onKakera(saldo, ganho) e energy() (a energia de agora).
   function attach(container, channel, hooks = {}) {
     detach();
     const layer = container ? el('div', { class: 'mudae-crystal-layer' }) : null;
